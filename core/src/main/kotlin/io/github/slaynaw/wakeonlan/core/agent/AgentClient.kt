@@ -120,7 +120,9 @@ class AgentClient(
         val input = socket.getInputStream().buffered()
         val output = socket.getOutputStream()
 
-        val hello = decode<HelloMessage>(readLine(input)) ?: return protocolError("salutation illisible")
+        val helloLine = readLine(input)
+        // Un agent qui bloque ce téléphone envoie directement une erreur à la place de la salutation.
+        val hello = decode<HelloMessage>(helloLine) ?: return earlyError(helloLine)
         if (hello.proto != AgentProtocol.PROTO) return protocolError("version de protocole inconnue : ${hello.proto}")
         if (AgentProtocol.decodedLength(hello.nonce) != AgentProtocol.SERVER_NONCE_BYTES) {
             return protocolError("nonce invalide")
@@ -134,12 +136,7 @@ class AgentClient(
         output.flush()
 
         val response = decode<ResponseMessage>(readLine(input)) ?: return protocolError("réponse illisible")
-        when (response.error) {
-            null -> Unit
-            "unauthorized" -> return AgentResult.Failure(AgentError.UNAUTHORIZED)
-            "rate_limited" -> return AgentResult.Failure(AgentError.RATE_LIMITED)
-            else -> return protocolError("erreur de l'agent : ${response.error}")
-        }
+        if (response.error != null) return errorFrom(response.error)
         val responseBody = response.body ?: return protocolError("réponse sans contenu")
         val responseMac = response.mac ?: return protocolError("réponse non signée")
         val expected = AgentProtocol.responseMac(key, hello.nonce, cnonce, responseBody)
@@ -147,6 +144,15 @@ class AgentClient(
 
         val parsed = decode<ResponseBody>(responseBody) ?: return protocolError("contenu de réponse illisible")
         return if (parsed.ok) AgentResult.Success(parsed) else AgentResult.Failure(AgentError.REJECTED, parsed.message)
+    }
+
+    private fun earlyError(line: String?): AgentResult.Failure =
+        decode<ResponseMessage>(line)?.error?.let(::errorFrom) ?: protocolError("salutation illisible")
+
+    private fun errorFrom(error: String): AgentResult.Failure = when (error) {
+        "unauthorized" -> AgentResult.Failure(AgentError.UNAUTHORIZED)
+        "rate_limited" -> AgentResult.Failure(AgentError.RATE_LIMITED)
+        else -> protocolError("erreur de l'agent : $error")
     }
 
     private inline fun <reified T> decode(text: String?): T? =

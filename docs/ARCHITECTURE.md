@@ -1,0 +1,118 @@
+# Architecture
+
+## Vue d'ensemble
+
+```
+WakeOnLan/
+├── core/        Kotlin pur (JVM) — toute la logique métier, testée sans Android
+│   ├── model/      Device, AppConfig, MacAddress, validation
+│   ├── wol/        paquet magique, adresses de diffusion, envoi UDP
+│   ├── status/     sondes (agent / TCP / ping), machine à états, surveillance
+│   ├── agent/      protocole wolagent/1, client, clé, lien d'appairage
+│   ├── config/     JSON versionné + migrations, export/import chiffré
+│   └── net/        attachement des sockets au bon réseau, E/S annulables
+├── app/         Android — interface et intégration système
+│   ├── data/       stockage chiffré (DataStore + Keystore)
+│   ├── network/    suivi du Wi-Fi/Ethernet, autorisation « réseau local »
+│   ├── ui/         écrans Compose (liste, édition, réglages), thème Material 3
+│   ├── AppContainer.kt   assemblage des dépendances (injection manuelle)
+│   └── DeviceActions.kt  réveil / extinction / test d'agent
+├── agent/       Go — service installé sur les PC
+│   └── internal/   protocol, server, config, power, service, pairing, netinfo, sysinfo, terminal
+└── protocol/    vecteurs de test communs Kotlin ↔ Go
+```
+
+**Pourquoi un module `core` séparé ?** Tout ce qui peut se tromper (calculs réseau, cryptographie, protocole, logique d'état)
+y est isolé et couvert par des tests rapides (JUnit, sans émulateur). L'application Android se limite à l'affichage et à
+l'intégration avec le système. C'est aussi ce qui rend le projet **évolutif** : une future version iOS / desktop (Kotlin
+Multiplatform) ou un relais pourront réutiliser `core`.
+
+## Flux de données
+
+```mermaid
+flowchart TB
+    DS[(DataStore chiffré)] -->|Flow AppConfig| Repo[ConfigRepository]
+    Net[LanNetworkMonitor] -->|Flow LanState| Avail[probeAvailability]
+    Perm[Autorisation réseau local] --> Avail
+    Repo --> Mon[StatusMonitor]
+    Avail --> Mon
+    Mon -->|une boucle par PC| Prober[HostProber]
+    Prober --> Agent[AgentClient]
+    Prober --> TCP[Sondes TCP]
+    Prober --> Ping[Ping ICMP]
+    Mon -->|StateFlow statuts| VM[DevicesViewModel]
+    Repo --> VM
+    VM --> UI[DevicesScreen]
+    UI -->|Démarrer / Éteindre| Actions[DeviceActions]
+    Actions --> Sender[WakeOnLanSender]
+    Actions --> Agent
+    Actions -->|onWakeSent / onPowerActionSent| Mon
+```
+
+- Architecture **unidirectionnelle** : les écrans observent des `StateFlow` et envoient des intentions aux ViewModels.
+- La surveillance (`StatusMonitor.run`) est liée au cycle de vie de l'activité (`repeatOnLifecycle(STARTED)`) :
+  elle s'arrête dès que l'application n'est plus visible.
+
+## Détection d'état en temps réel
+
+Pour chaque PC, une boucle :
+
+1. Si le téléphone ne peut pas vérifier (pas de Wi-Fi/Ethernet ni VPN, autorisation refusée, pas d'adresse) → **UNKNOWN** avec la raison.
+2. Sinon, `HostProber` lance **en parallèle**, avec un délai global de 1,5 s :
+   - l'**agent** (échange authentifié : nom, système, uptime) ;
+   - des **connexions TCP** vers des ports courants (3389 RDP, 445 SMB, 22 SSH, 139 NetBIOS, configurables) :
+     une connexion acceptée **ou refusée** (RST) prouve que la machine est allumée ; une machine éteinte ne répond pas ;
+   - un **ping** ICMP.
+3. `StatusTracker` (machine à états pure, testée) transforme le résultat :
+
+```mermaid
+stateDiagram-v2
+    [*] --> UNKNOWN
+    UNKNOWN --> ONLINE: réponse
+    UNKNOWN --> OFFLINE: pas de réponse
+    ONLINE --> OFFLINE: 2 échecs consécutifs
+    OFFLINE --> ONLINE: réponse
+    OFFLINE --> WAKING: paquet magique envoyé
+    WAKING --> ONLINE: réponse
+    WAKING --> OFFLINE: délai dépassé (notification)
+    ONLINE --> SHUTTING_DOWN: extinction / veille demandée
+    SHUTTING_DOWN --> OFFLINE: 2 échecs consécutifs
+    SHUTTING_DOWN --> ONLINE: toujours là après 2 min (notification)
+    ONLINE --> RESTARTING: redémarrage demandé
+    RESTARTING --> ONLINE: disparu puis revenu
+```
+
+4. Attente : intervalle réglable (3 s par défaut), **1 s** pendant les transitions, ou immédiatement après une action / un
+   changement de réseau (canal de rafraîchissement).
+
+## Envoi du paquet magique
+
+- Destinations : adresse de diffusion forcée (si configurée) + diffusion dirigée de chaque sous-réseau du téléphone
+  (ex. `192.168.1.255`, calculée depuis les `LinkProperties`) + `255.255.255.255`.
+- 3 envois espacés de 120 ms vers chaque destination, sur le port configuré (9 par défaut).
+- La socket est attachée au réseau Wi-Fi/Ethernet (`Network.bindSocket`) : si le Wi-Fi n'a pas d'accès Internet, Android
+  route sinon le trafic vers les données mobiles.
+
+## Stockage et évolution du format
+
+- `AppConfig` (JSON) porte un `schemaVersion`. `ConfigCodec` applique les migrations successives et **valide** tout
+  (MAC, IP, ports, doublons) à la lecture, y compris à l'import.
+- Pour faire évoluer le format : incrémenter `CURRENT_SCHEMA_VERSION`, ajouter une migration `n → n+1` et un test.
+
+## Agent (Go)
+
+- `server` : écoute TCP, filtrage des adresses, limitation des tentatives, exécution différée de l'action (la réponse part d'abord).
+- `power` : une implémentation par système (build tags) ; `DryRun` pour les tests.
+- `service` : installation service Windows (API SCM), systemd, launchd ; `pairing` : lien + QR code (terminal ANSI ou PNG).
+- Binaire statique unique (CGO désactivé), dépendances : `golang.org/x/sys` et `rsc.io/qr`.
+
+## Qualité
+
+| Contrôle | Où |
+|---|---|
+| Tests unitaires `core` (plus de 50 tests : MAC, paquet, diffusion, protocole, client, config, export, états, surveillance) | `./gradlew :core:test` |
+| Test de bout en bout app ↔ agent réel | CI (`AgentEndToEndTest`) |
+| Tests de l'agent (protocole, serveur, rejeu, force brute, config) sous Linux **et** Windows, détecteur de courses | CI |
+| Vecteurs cryptographiques communs, calculés indépendamment | `protocol/test-vectors.json` |
+| Lint Android, `go vet` pour Windows/Linux/macOS, `gofmt` | CI |
+| Avertissements Kotlin traités comme des erreurs (`core`) | `core/build.gradle.kts` |

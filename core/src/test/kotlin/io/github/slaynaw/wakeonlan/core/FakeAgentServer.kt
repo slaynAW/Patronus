@@ -21,7 +21,7 @@ class FakeAgentServer(
     private val key: ByteArray,
     private val behavior: Behavior = Behavior.NORMAL,
 ) : AutoCloseable {
-    enum class Behavior { NORMAL, BAD_RESPONSE_MAC, REJECT, WRONG_PROTO, HANG }
+    enum class Behavior { NORMAL, BAD_RESPONSE_MAC, REJECT, WRONG_PROTO, HANG, RATE_LIMITED }
 
     private val server = ServerSocket(0, 50, InetAddress.getLoopbackAddress())
     val port: Int get() = server.localPort
@@ -41,6 +41,11 @@ class FakeAgentServer(
         val writer = socket.getOutputStream().bufferedWriter()
         if (behavior == Behavior.HANG) {
             Thread.sleep(10_000)
+            return
+        }
+        if (behavior == Behavior.RATE_LIMITED) {
+            writer.write("""{"error":"rate_limited"}""" + "\n")
+            writer.flush()
             return
         }
         val nonce = AgentProtocol.encodeNonce(ByteArray(32).also(SecureRandom()::nextBytes))

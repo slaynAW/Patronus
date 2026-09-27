@@ -82,6 +82,11 @@ class AgentProtocolTest {
             val result = AgentClient().power("127.0.0.1", AgentSettings(server.port, key), PowerAction.SLEEP)
             assertEquals(AgentError.REJECTED, (result as AgentResult.Failure).error)
         }
+        FakeAgentServer(keyBytes, FakeAgentServer.Behavior.RATE_LIMITED).use { server ->
+            val result = AgentClient().status("127.0.0.1", AgentSettings(server.port, key))
+            assertEquals(AgentError.RATE_LIMITED, (result as AgentResult.Failure).error)
+            assertTrue(result.hostAnswered)
+        }
         FakeAgentServer(keyBytes, FakeAgentServer.Behavior.WRONG_PROTO).use { server ->
             val result = AgentClient().status("127.0.0.1", AgentSettings(server.port, key))
             assertEquals(AgentError.PROTOCOL, (result as AgentResult.Failure).error)

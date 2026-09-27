@@ -154,6 +154,7 @@ jobs:
       - name: Tests, lint et APK
         env:
           WOL_KEYSTORE_PASSWORD: ${{ secrets.WOL_KEYSTORE_PASSWORD }}
+          WOL_KEY_ALIAS: ${{ vars.WOL_KEY_ALIAS }}
         run: ./gradlew --stacktrace :core:test :app:lintRelease :app:assembleRelease
 
       - name: Vérification du test de bout en bout
