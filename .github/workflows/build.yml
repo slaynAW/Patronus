@@ -2,7 +2,8 @@
 #
 # - Chaque push / pull request : tests, lint, APK et binaires de l'agent (onglet « Actions »).
 # - Push sur une branche : la pré-version « dev » est remplacée (APK téléchargeable depuis le téléphone).
-# - Tag « vX.Y.Z » : publication d'une version officielle (Release GitHub).
+# - Version officielle : onglet Actions → Build → « Run workflow » en indiquant le numéro (ex. 1.0.0),
+#   ou push d'un tag « vX.Y.Z ». Le tag et la Release GitHub sont créés automatiquement.
 name: Build
 
 on:
@@ -11,6 +12,12 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Version officielle à publier (ex. 1.0.0). Laisser vide pour un simple build de développement."
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -29,18 +36,29 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       name: ${{ steps.v.outputs.name }}
+      official: ${{ steps.v.outputs.official }}
     steps:
       - uses: actions/checkout@v6
       - id: v
+        env:
+          RELEASE_INPUT: ${{ inputs.release }}
         run: |
           base=$(grep '^wol.versionName=' gradle.properties | cut -d= -f2)
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            name="${GITHUB_REF_NAME#v}"
+          official=false
+          if [[ -n "$RELEASE_INPUT" ]]; then
+            if [[ ! "$RELEASE_INPUT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error title=Version::« $RELEASE_INPUT » n'est pas un numéro de version valide (format attendu : 1.2.3)."
+              exit 1
+            fi
+            name="$RELEASE_INPUT"; official=true
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            name="${GITHUB_REF_NAME#v}"; official=true
           else
             name="${base}-dev.${GITHUB_RUN_NUMBER}"
           fi
           echo "name=$name" >> "$GITHUB_OUTPUT"
-          echo "Version : $name (code $WOL_VERSION_CODE)"
+          echo "official=$official" >> "$GITHUB_OUTPUT"
+          echo "Version : $name (code $WOL_VERSION_CODE, officielle : $official)"
 
   agent:
     name: Agent PC (tests + binaires)
@@ -250,8 +268,17 @@ jobs:
       - name: Version officielle (tag)
         if: startsWith(github.ref, 'refs/tags/v')
         run: gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "Wake On LAN $VERSION" --notes-file notes.md
+      - name: Version officielle (lancement manuel)
+        if: github.event_name == 'workflow_dispatch' && needs.version.outputs.official == 'true'
+        run: |
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "::error title=Version::La version v$VERSION existe déjà : choisissez un autre numéro."
+            exit 1
+          fi
+          # Crée le tag vX.Y.Z sur le commit compilé, puis la Release avec l'APK et les agents.
+          gh release create "v$VERSION" dist/* --target "$GITHUB_SHA" --title "Wake On LAN $VERSION" --notes-file notes.md
       - name: Pré-version de développement
-        if: startsWith(github.ref, 'refs/heads/')
+        if: startsWith(github.ref, 'refs/heads/') && needs.version.outputs.official != 'true'
         run: |
           gh release delete dev --cleanup-tag --yes || true
           gh release create dev dist/* --prerelease --target "$GITHUB_SHA" \
