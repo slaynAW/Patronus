@@ -19,6 +19,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.font.FontFamily
+import io.github.slaynaw.wakeonlan.diagnostics.CrashReporter
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -85,6 +90,7 @@ fun DevicesScreen(
     var pendingPower by remember { mutableStateOf<Pair<Device, PowerAction>?>(null) }
     var pendingDelete by remember { mutableStateOf<Device?>(null) }
     var agentHelpFor by remember { mutableStateOf<Device?>(null) }
+    var crashReport by remember { mutableStateOf(CrashReporter.pending(context)) }
     var permissionDenied by rememberSaveable { mutableStateOf(false) }
     var permissionAsked by rememberSaveable { mutableStateOf(false) }
 
@@ -211,6 +217,25 @@ fun DevicesScreen(
         )
     }
 
+    crashReport?.let { report ->
+        CrashReportDialog(
+            report = report,
+            onShare = {
+                val send = Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_SUBJECT, resources.getString(R.string.crash_subject))
+                    .putExtra(Intent.EXTRA_TEXT, report)
+                context.startActivity(Intent.createChooser(send, null))
+                CrashReporter.clear(context)
+                crashReport = null
+            },
+            onDismiss = {
+                CrashReporter.clear(context)
+                crashReport = null
+            },
+        )
+    }
+
     agentHelpFor?.let { device ->
         AlertDialog(
             onDismissRequest = { agentHelpFor = null },
@@ -225,6 +250,30 @@ fun DevicesScreen(
             dismissButton = { TextButton(onClick = { agentHelpFor = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
+}
+
+@Composable
+private fun CrashReportDialog(report: String, onShare: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Warning, contentDescription = null) },
+        title = { Text(stringResource(R.string.crash_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.crash_text))
+                Text(
+                    report,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier
+                        .heightIn(max = 220.dp)
+                        .verticalScroll(rememberScrollState()),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onShare) { Text(stringResource(R.string.crash_share)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.crash_ignore)) } },
+    )
 }
 
 @Composable

@@ -168,13 +168,15 @@ jobs:
         env:
           WOL_KEYSTORE_PASSWORD: ${{ secrets.WOL_KEYSTORE_PASSWORD }}
           WOL_KEY_ALIAS: ${{ vars.WOL_KEY_ALIAS }}
-        run: ./gradlew --stacktrace :core:test :app:lintRelease :app:assembleRelease
+        # --rerun : le test de bout en bout doit vraiment interroger l'agent (pas de résultat en cache).
+        run: ./gradlew --stacktrace :core:test --rerun :app:lintRelease :app:assembleRelease
 
       - name: Avertissements lint
         run: cat app/build/reports/lint-results-release.txt 2>/dev/null || echo "Aucun rapport texte"
 
+      # Garde-fou : échoue si R8 casse les composants du lecteur de QR code (plantage au scan).
       - name: Contrôle R8 (composants chargés par réflexion)
-        run: .github/scripts/check-r8-registrars.sh
+        run: .github/scripts/check-r8-registrars.sh --strict
 
       - name: Vérification du test de bout en bout
         run: |

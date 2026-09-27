@@ -107,6 +107,13 @@
     <string name="message_import_done">Configuration importée (PC : %1$d)</string>
     <string name="message_error">Erreur : %1$s</string>
 
+    <!-- Rapport de plantage -->
+    <string name="crash_title">L’application s’est fermée de façon inattendue</string>
+    <string name="crash_text">Un rapport technique a été enregistré sur ce téléphone (rien n’est envoyé automatiquement). Partagez-le pour aider à corriger le problème.</string>
+    <string name="crash_share">Partager le rapport</string>
+    <string name="crash_ignore">Ignorer</string>
+    <string name="crash_subject">Rapport de plantage Wake On LAN</string>
+
     <!-- Édition -->
     <string name="edit_title_new">Ajouter un PC</string>
     <string name="edit_title">Modifier le PC</string>
@@ -119,6 +126,8 @@
     <string name="paste_text">Collez le lien « wolagent://… » affiché par l’agent sur le PC.</string>
     <string name="scan_error_title">Lecture du QR code impossible</string>
     <string name="scan_error_text">Le lecteur de Google Play Services n’a pas pu s’ouvrir (%1$s). Utilisez « Coller un lien ».</string>
+    <string name="scan_module_title">Lecteur de QR code en préparation</string>
+    <string name="scan_module_text">Google Play Services télécharge le lecteur de QR code. Réessayez dans une minute (connexion Internet nécessaire), ou utilisez « Coller un lien ».</string>
     <string name="section_device">PC</string>
     <string name="section_agent">Agent d’extinction</string>
     <string name="section_agent_help">Petit programme installé sur le PC pour l’éteindre, le redémarrer ou le mettre en veille depuis le téléphone.</string>

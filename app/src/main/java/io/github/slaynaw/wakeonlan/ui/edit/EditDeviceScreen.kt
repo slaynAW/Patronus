@@ -64,6 +64,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.slaynaw.wakeonlan.R
 import io.github.slaynaw.wakeonlan.appContainer
 import io.github.slaynaw.wakeonlan.core.model.DeviceField
+import io.github.slaynaw.wakeonlan.ui.common.ScanFailure
 import io.github.slaynaw.wakeonlan.ui.common.label
 import io.github.slaynaw.wakeonlan.ui.common.osLabel
 import io.github.slaynaw.wakeonlan.ui.common.scanQrCode
@@ -81,7 +82,7 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var showAdvanced by rememberSaveable { mutableStateOf(false) }
     var keyVisible by rememberSaveable { mutableStateOf(false) }
-    var scanError by remember { mutableStateOf<String?>(null) }
+    var scanFailure by remember { mutableStateOf<ScanFailure?>(null) }
 
     LaunchedEffect(state.done) { if (state.done) onDone() }
 
@@ -98,7 +99,7 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
         scanQrCode(
             context,
             onResult = vm::applyPairing,
-            onError = { e -> scanError = e.localizedMessage ?: e.toString() },
+            onError = { failure -> scanFailure = failure },
         )
     }
 
@@ -278,12 +279,25 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
         )
     }
 
-    scanError?.let { message ->
+    scanFailure?.let { failure ->
         AlertDialog(
-            onDismissRequest = { scanError = null },
-            title = { Text(stringResource(R.string.scan_error_title)) },
-            text = { Text(stringResource(R.string.scan_error_text, message)) },
-            confirmButton = { TextButton(onClick = { scanError = null }) { Text(stringResource(R.string.ok)) } },
+            onDismissRequest = { scanFailure = null },
+            title = {
+                Text(
+                    stringResource(
+                        if (failure is ScanFailure.ModuleDownloading) R.string.scan_module_title else R.string.scan_error_title,
+                    ),
+                )
+            },
+            text = {
+                Text(
+                    when (failure) {
+                        is ScanFailure.ModuleDownloading -> stringResource(R.string.scan_module_text)
+                        is ScanFailure.Error -> stringResource(R.string.scan_error_text, failure.message)
+                    },
+                )
+            },
+            confirmButton = { TextButton(onClick = { scanFailure = null }) { Text(stringResource(R.string.ok)) } },
         )
     }
 
