@@ -281,7 +281,7 @@ func showPairing(cfg *config.Config, ip, pngPath string, invert bool) error {
 	info.MAC = iface.MAC.String()
 	link := pairing.Link(info)
 
-	fmt.Println("Dans l'application : « Ajouter un PC » → « Scanner le QR code » :")
+	fmt.Println("Sur le téléphone : « Ajouter un PC » → « Scanner le QR code » :")
 	fmt.Println()
 	if err := pairing.WriteTerminalQR(os.Stdout, link, terminal.EnableANSI(), invert); err != nil {
 		return err
@@ -289,7 +289,7 @@ func showPairing(cfg *config.Config, ip, pngPath string, invert bool) error {
 	fmt.Printf("\nPC : %s — IP %s — MAC %s (carte %s)\n", info.Name, info.Host, info.MAC, iface.Name)
 	fmt.Println("⚠ Le Wake-on-LAN passe par la carte réseau FILAIRE : si cette carte est en Wi-Fi,")
 	fmt.Println("  corrigez l'adresse MAC dans l'application (ou utilisez --ip avec l'IP de la carte Ethernet).")
-	fmt.Println("\nLien d'appairage (à coller dans l'application si le QR code ne passe pas) :")
+	fmt.Println("\nLien d'appairage (application Windows : « Ajouter un PC » → « Coller le lien » ;\nsur le téléphone, « Coller un lien » si le QR code ne passe pas) :")
 	fmt.Println(link)
 	fmt.Println("\nCe QR code contient la clé secrète de l'agent : ne le partagez pas.")
 	if pngPath != "" {

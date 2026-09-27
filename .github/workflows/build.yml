@@ -1,6 +1,6 @@
-# Compile, teste et publie l'application Android et l'agent PC.
+# Compile, teste et publie l'application Android, l'application Windows et l'agent PC.
 #
-# - Chaque push / pull request : tests, lint, APK et binaires de l'agent (onglet « Actions »).
+# - Chaque push / pull request : tests, lint, APK, application Windows et binaires de l'agent (onglet « Actions »).
 # - Push sur une branche : la pré-version « dev » est remplacée (APK téléchargeable depuis le téléphone).
 # - Version officielle : onglet Actions → Build → « Run workflow » en indiquant le numéro (ex. 1.0.0),
 #   ou push d'un tag « vX.Y.Z ». Le tag et la Release GitHub sont créés automatiquement.
@@ -120,6 +120,99 @@ jobs:
           cache-dependency-path: agent/go.sum
       - run: go test ./...
 
+  desktop:
+    name: Application Windows (tests + exécutables)
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      - name: Format
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - name: Analyse statique (Windows x64 / ARM64, Linux)
+        run: |
+          GOOS=windows GOARCH=amd64 go vet ./...
+          GOOS=windows GOARCH=arm64 go vet ./...
+          go vet ./...
+      # Le vrai agent tourne en mode simulation : test de bout en bout du client Windows.
+      - name: Agent de test (simulation)
+        run: |
+          (cd ../agent && go build -o "$RUNNER_TEMP/wol-agent" .)
+          key=$(openssl rand 32 | basenc --base64url | tr -d '=')
+          echo "::add-mask::$key"
+          cat > "$RUNNER_TEMP/agent.json" <<JSON
+          {"name":"ci","port":19771,"key":"$key","allow":["127.0.0.0/8"],"commands":["status","shutdown","reboot","sleep"]}
+          JSON
+          nohup "$RUNNER_TEMP/wol-agent" run --config "$RUNNER_TEMP/agent.json" --dry-run > "$RUNNER_TEMP/agent.log" 2>&1 &
+          echo "WOL_E2E_PORT=19771" >> "$GITHUB_ENV"
+          echo "WOL_E2E_KEY=$key" >> "$GITHUB_ENV"
+      - name: Tests
+        run: |
+          go test -race -count=1 ./...
+          go test -count=1 -run EndToEnd -v ./internal/agentclient/ | tee "$RUNNER_TEMP/e2e.txt"
+          grep -q -- '--- PASS: TestEndToEndWithRealAgent' "$RUNNER_TEMP/e2e.txt"
+      - name: Exécutables (icône, manifeste, version)
+        env:
+          VERSION: ${{ needs.version.outputs.name }}
+        run: |
+          # Numéro de fichier Windows : X.Y.Z.<numéro de build>.
+          numeric="$(echo "$VERSION" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+').${GITHUB_RUN_NUMBER}"
+          go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --arch amd64,arm64 \
+            --product-version "$numeric" --file-version "$numeric"
+          mkdir -p ../dist
+          for arch in amd64 arm64; do
+            label=$([ "$arch" = amd64 ] && echo x64 || echo arm64)
+            CGO_ENABLED=0 GOOS=windows GOARCH=$arch go build -trimpath \
+              -ldflags "-H windowsgui -s -w -X main.version=$VERSION" \
+              -o "../dist/WakeOnLan-Windows-${VERSION}-${label}.exe" .
+          done
+          ls -l ../dist
+      - uses: actions/upload-artifact@v6
+        with:
+          name: desktop
+          path: dist/
+          if-no-files-found: error
+
+  desktop-windows:
+    name: Application Windows (tests sous Windows + démarrage réel)
+    needs: desktop
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+      # Chiffrement DPAPI, ping, détection des cartes réseau, refus de connexion rapide...
+      - name: Tests
+        working-directory: desktop
+        run: go test -count=1 ./...
+      - uses: actions/download-artifact@v7
+        with:
+          name: desktop
+          path: dist
+      # Lance le vrai .exe : fenêtre WebView2, chargement de l'interface, échange avec le moteur.
+      - name: Démarrage de l'application (autotest)
+        shell: pwsh
+        run: |
+          $result = Join-Path $env:RUNNER_TEMP "selftest.json"
+          $env:WOL_SELFTEST = $result
+          $env:WOL_DATA_DIR = Join-Path $env:RUNNER_TEMP "wol-data"
+          $exe = Get-ChildItem dist -Filter "WakeOnLan-Windows-*-x64.exe" | Select-Object -First 1
+          $p = Start-Process -FilePath $exe.FullName -PassThru
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "L'application n'a pas terminé son autotest en 2 minutes." }
+          if (Test-Path $result) { Get-Content $result } else { throw "Aucun résultat d'autotest." }
+          Get-Content (Join-Path $env:WOL_DATA_DIR "wakeonlan.log") -ErrorAction SilentlyContinue
+          if ((Get-Content $result -Raw) -notmatch '"ok":true') { throw "Échec de l'autotest de démarrage." }
+
   android:
     name: Application Android
     needs: version
@@ -227,7 +320,7 @@ jobs:
 
   release:
     name: Publication
-    needs: [version, agent, agent-windows, android]
+    needs: [version, agent, agent-windows, desktop, desktop-windows, android]
     # Push ou lancement manuel (« Run workflow ») ; jamais pour une pull request.
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -257,6 +350,12 @@ jobs:
               echo "> Voir [docs/SIGNATURE.md](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/docs/SIGNATURE.md)."
               echo
             fi
+            echo "## 🖥️ Application Windows (mêmes fonctions que l'application Android)"
+            echo "Téléchargez **WakeOnLan-Windows-${VERSION}-x64.exe** (ou \`-arm64.exe\` pour un PC ARM) et lancez-le :"
+            echo "aucune installation, un seul fichier. Windows 10/11 (composant WebView2, déjà présent)."
+            echo "Au premier lancement, SmartScreen peut afficher « Windows a protégé votre ordinateur » :"
+            echo "*Informations complémentaires* → *Exécuter quand même*."
+            echo
             echo "## 💻 Agent PC (facultatif, pour éteindre à distance)"
             echo "- **Windows** : \`wol-agent-windows-amd64.exe\` → double-clic → accepter l'invite administrateur → scanner le QR code."
             echo "- **Linux** : \`chmod +x wol-agent-linux-amd64 && sudo ./wol-agent-linux-amd64 install\`"

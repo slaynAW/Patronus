@@ -2,6 +2,9 @@
 
 Propositions à valider ensemble. L'architecture actuelle a été pensée pour les accueillir sans refonte.
 
+> Réalisé depuis : **application Windows** (mêmes fonctions et même interface que l'application Android, sauvegardes
+> interchangeables) — voir [desktop/README.md](../desktop/README.md).
+
 ## Priorité haute (fort intérêt au quotidien)
 
 | # | Amélioration | Intérêt | Effort |

@@ -13,12 +13,15 @@ import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.model.DeviceField
 import io.github.slaynaw.wakeonlan.core.model.DeviceValidator
 import io.github.slaynaw.wakeonlan.core.model.MacAddress
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.io.File
 
 class ConfigTest {
     private val key = AgentKey.generate()
@@ -97,6 +100,23 @@ class ConfigTest {
         val data = Regex("\"data\": \"([^\"]+)\"").find(text)!!.groupValues[1]
         val tampered = text.replace(data, data.replaceRange(10, 11, if (data[10] == 'A') "B" else "A"))
         assertThrows<ConfigException> { ExportCodec.import(tampered, password) }
+    }
+
+    @Test
+    fun `sauvegardes de reference lisibles (application Windows, autres outils)`() {
+        // Produites indépendamment (Node.js / OpenSSL) et relues aussi par l'application Windows (Go) :
+        // les sauvegardes sont interchangeables entre le téléphone et le PC.
+        val dir = System.getProperty("wol.protocolDir") ?: "../protocol"
+        val root = ConfigCodec.json.parseToJsonElement(File(dir, "export-vectors.json").readText()).jsonObject
+        val password = root.getValue("password").jsonPrimitive.content
+        val expected = ConfigCodec.fromJson(root.getValue("config").jsonObject)
+        val imported = ExportCodec.import(root.getValue("encryptedExport").toString(), password.toCharArray())
+        assertEquals(expected, imported)
+        assertEquals(240, imported.settings.wakeTimeoutSeconds)
+        assertEquals("192.168.1.255", imported.devices[1].broadcastAddress)
+        val plain = ExportCodec.import(root.getValue("plainExport").toString(), null)
+        assertEquals("", plain.devices[0].agent?.key)
+        assertNull(plain.devices[1].secureOnPassword)
     }
 
     @Test

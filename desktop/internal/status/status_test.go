@@ -1,0 +1,304 @@
+package status
+
+import (
+	"context"
+	"net"
+	"net/netip"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/slaynaw/wakeonlan/agent/protocol"
+	"github.com/slaynaw/wakeonlan/desktop/internal/agentclient"
+	"github.com/slaynaw/wakeonlan/desktop/internal/agentclient/agenttest"
+	"github.com/slaynaw/wakeonlan/desktop/internal/model"
+)
+
+// --- Machine à états (mêmes scénarios que StatusTrackerTest côté Android) ---
+
+type fixture struct {
+	now     int64
+	tracker *Tracker
+}
+
+func newFixture() *fixture {
+	f := &fixture{now: 1_000_000}
+	f.tracker = NewTracker(func() int64 { return f.now })
+	f.tracker.WakeTimeoutMs = 60_000
+	f.tracker.ShutdownTimeoutMs = 30_000
+	return f
+}
+
+func (f *fixture) tick(ms int64) { f.now += ms }
+
+var (
+	up   = ProbeResult{Reachable: true, LatencyMs: 3, Method: MethodTCP}
+	down = ProbeResult{}
+)
+
+func expect(t *testing.T, got DeviceStatus, want PowerState, msg string) {
+	t.Helper()
+	if got.State != want {
+		t.Fatalf("%s : état %s, attendu %s", msg, got.State, want)
+	}
+}
+
+func TestFirstFailureShowsOffline(t *testing.T) {
+	f := newFixture()
+	expect(t, f.tracker.Status(), Unknown, "initial")
+	expect(t, f.tracker.OnProbe(down), Offline, "premier échec")
+}
+
+func TestHysteresis(t *testing.T) {
+	f := newFixture()
+	f.tracker.OnProbe(up)
+	f.tick(3000)
+	expect(t, f.tracker.OnProbe(down), Online, "un seul paquet perdu ne suffit pas")
+	f.tick(3000)
+	expect(t, f.tracker.OnProbe(up), Online, "retour")
+	f.tick(3000)
+	f.tracker.OnProbe(down)
+	f.tick(3000)
+	s := f.tracker.OnProbe(down)
+	expect(t, s, Offline, "deux échecs")
+	if s.Since != f.now || *s.LastSeen != f.now-6000 {
+		t.Errorf("horodatages : %+v", s)
+	}
+}
+
+func TestWakeSucceeds(t *testing.T) {
+	f := newFixture()
+	f.tracker.OnProbe(down)
+	f.tick(3000)
+	expect(t, f.tracker.OnWakeSent(), Waking, "réveil")
+	for range 5 {
+		f.tick(3000)
+		expect(t, f.tracker.OnProbe(down), Waking, "attente")
+	}
+	f.tick(3000)
+	s := f.tracker.OnProbe(up)
+	expect(t, s, Online, "réveillé")
+	if s.ActionStartedAt != nil || s.Notice != "" {
+		t.Errorf("action non terminée : %+v", s)
+	}
+}
+
+func TestWakeTimeout(t *testing.T) {
+	f := newFixture()
+	f.tracker.OnWakeSent()
+	f.tick(61_000)
+	s := f.tracker.OnProbe(down)
+	expect(t, s, Offline, "délai dépassé")
+	if s.Notice != WakeTimeout || f.tracker.ClearNotice().Notice != "" {
+		t.Errorf("notification : %+v", s)
+	}
+}
+
+func TestShutdownConfirmedThenTimeout(t *testing.T) {
+	f := newFixture()
+	f.tracker.OnProbe(up)
+	f.tracker.OnShutdownSent()
+	f.tick(3000)
+	expect(t, f.tracker.OnProbe(up), ShuttingDown, "encore là")
+	f.tick(3000)
+	expect(t, f.tracker.OnProbe(down), ShuttingDown, "premier échec")
+	f.tick(3000)
+	expect(t, f.tracker.OnProbe(down), Offline, "éteint")
+
+	f.tracker.OnProbe(up)
+	f.tracker.OnShutdownSent()
+	f.tick(31_000)
+	s := f.tracker.OnProbe(up)
+	expect(t, s, Online, "toujours allumé")
+	if s.Notice != ShutdownTimeout {
+		t.Errorf("notification : %+v", s)
+	}
+}
+
+func TestRestartWaitsForDisappearance(t *testing.T) {
+	f := newFixture()
+	f.tracker.OnProbe(up)
+	f.tracker.OnRestartSent()
+	f.tick(3000)
+	expect(t, f.tracker.OnProbe(up), Restarting, "pas encore éteint")
+	f.tick(3000)
+	expect(t, f.tracker.OnProbe(down), Restarting, "éteint")
+	f.tick(3000)
+	expect(t, f.tracker.OnProbe(down), Restarting, "toujours éteint")
+	f.tick(3000)
+	expect(t, f.tracker.OnProbe(up), Online, "revenu")
+}
+
+func TestUnknownRatherThanFalseOffline(t *testing.T) {
+	f := newFixture()
+	f.tracker.OnProbe(up)
+	s := f.tracker.OnUnavailable(NoNetwork)
+	expect(t, s, Unknown, "sans réseau")
+	if s.UnknownReason != NoNetwork || s.LastSeen == nil || s.LatencyMs != nil {
+		t.Errorf("état inconnu : %+v", s)
+	}
+}
+
+// --- Sondes ---
+
+func device(ports []int, host string, agent *model.AgentSettings) model.Device {
+	mac, _ := model.ParseMAC("AA:BB:CC:DD:EE:01")
+	return model.Device{ID: "x", Name: "x", MAC: mac, Host: host, WolPort: 9, ProbePorts: ports, Agent: agent}
+}
+
+func noPing(context.Context, netip.Addr, time.Duration) bool { return false }
+
+func testProber() *HostProber {
+	p := NewHostProber()
+	p.Ping = noPing
+	return p
+}
+
+func TestOpenOrRefusedPortMeansOnline(t *testing.T) {
+	l, _ := net.Listen("tcp4", "127.0.0.1:0")
+	defer l.Close()
+	r := testProber().Probe(context.Background(), device([]int{l.Addr().(*net.TCPAddr).Port}, "127.0.0.1", nil))
+	if !r.Reachable || r.Method != MethodTCP {
+		t.Errorf("port ouvert : %+v", r)
+	}
+	closed, _ := net.Listen("tcp4", "127.0.0.1:0")
+	port := closed.Addr().(*net.TCPAddr).Port
+	closed.Close()
+	if r := testProber().Probe(context.Background(), device([]int{port}, "127.0.0.1", nil)); !r.Reachable {
+		t.Errorf("connexion refusée = machine allumée : %+v", r)
+	}
+}
+
+func TestSilentMachineIsOfflineWithinTimeout(t *testing.T) {
+	p := testProber()
+	p.Timeout = 400 * time.Millisecond
+	silent := func(ctx context.Context, _ netip.Addr, _ int, _ time.Duration) bool {
+		<-ctx.Done()
+		return false
+	}
+	p.TCP = silent
+	p.Ping = func(ctx context.Context, _ netip.Addr, _ time.Duration) bool { <-ctx.Done(); return false }
+	start := time.Now()
+	r := p.Probe(context.Background(), device([]int{9, 22}, "127.0.0.1", nil))
+	if r.Reachable || time.Since(start) > 2*time.Second {
+		t.Errorf("machine muette : %+v en %v", r, time.Since(start))
+	}
+}
+
+func TestAgentHasPriority(t *testing.T) {
+	keyText, _ := protocol.NewKey()
+	s, err := agenttest.Start(model.DecodeAgentKey(keyText), agenttest.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	r := testProber().Probe(context.Background(), device([]int{s.Port()}, "127.0.0.1", &model.AgentSettings{Port: s.Port(), Key: keyText}))
+	if !r.Reachable || r.Method != MethodAgent || r.Agent == nil || r.Agent.Hostname != "PC-TEST" {
+		t.Errorf("agent : %+v", r)
+	}
+	// Mauvaise clé : la machine est allumée (elle a répondu) et l'erreur est remontée.
+	other, _ := protocol.NewKey()
+	r = testProber().Probe(context.Background(), device(nil, "127.0.0.1", &model.AgentSettings{Port: s.Port(), Key: other}))
+	if !r.Reachable || r.AgentError != agentclient.Unauthorized {
+		t.Errorf("mauvaise clé : %+v", r)
+	}
+}
+
+func TestPingAloneAndNoHost(t *testing.T) {
+	p := testProber()
+	p.Ping = func(context.Context, netip.Addr, time.Duration) bool { return true }
+	if r := p.Probe(context.Background(), device(nil, "127.0.0.1", nil)); !r.Reachable || r.Method != MethodPing {
+		t.Errorf("ping : %+v", r)
+	}
+	if r := testProber().Probe(context.Background(), device([]int{1}, "", nil)); r.Reachable {
+		t.Errorf("sans adresse : %+v", r)
+	}
+}
+
+// --- Surveillance ---
+
+type fakeProber struct {
+	reachable atomic.Bool
+	probes    atomic.Int32
+}
+
+func (f *fakeProber) Probe(context.Context, model.Device) ProbeResult {
+	f.probes.Add(1)
+	if f.reachable.Load() {
+		return up
+	}
+	return down
+}
+
+func waitFor(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("délai dépassé : %s", what)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestMonitor(t *testing.T) {
+	prober := &fakeProber{}
+	var changes atomic.Int32
+	m := NewMonitor(prober, nil, func() { changes.Add(1) })
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() { defer wg.Done(); m.Run(ctx) }()
+	defer func() { cancel(); wg.Wait() }()
+
+	cfg := model.NewConfig()
+	cfg.Settings.PollIntervalSeconds = 60
+	cfg.Devices = []model.Device{device(nil, "10.0.0.2", nil)}
+	state := func() PowerState { return m.Statuses()["x"].State }
+
+	m.Update(cfg, Availability{CanProbe: true}, true)
+	waitFor(t, "première sonde", func() bool { return state() == Offline })
+
+	prober.reachable.Store(true)
+	m.OnWakeSent("x")
+	waitFor(t, "rafraîchissement immédiat après action", func() bool { return state() == Online })
+
+	m.Update(cfg, Availability{CanProbe: false, Reason: NoNetwork}, true)
+	waitFor(t, "inconnu sans réseau", func() bool { return state() == Unknown })
+
+	// Fenêtre réduite : plus aucune sonde.
+	m.Update(cfg, Availability{CanProbe: true}, false)
+	time.Sleep(100 * time.Millisecond)
+	before := prober.probes.Load()
+	m.Refresh("")
+	time.Sleep(100 * time.Millisecond)
+	if prober.probes.Load() != before {
+		t.Error("sonde alors que la fenêtre est réduite")
+	}
+
+	m.Update(model.NewConfig(), Availability{CanProbe: true}, true)
+	waitFor(t, "PC supprimé", func() bool { return len(m.Statuses()) == 0 })
+	if changes.Load() == 0 {
+		t.Error("aucune notification de changement")
+	}
+}
+
+func TestMonitorFastDuringTransition(t *testing.T) {
+	prober := &fakeProber{}
+	m := NewMonitor(prober, nil, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go m.Run(ctx)
+	cfg := model.NewConfig()
+	cfg.Settings.PollIntervalSeconds = 60
+	cfg.Devices = []model.Device{device(nil, "10.0.0.2", nil)}
+	m.Update(cfg, Availability{CanProbe: true}, true)
+	waitFor(t, "première sonde", func() bool { return prober.probes.Load() >= 1 })
+	m.OnWakeSent("x")
+	start := prober.probes.Load()
+	time.Sleep(2500 * time.Millisecond)
+	if n := prober.probes.Load() - start; n < 3 {
+		t.Errorf("une sonde par seconde pendant le réveil attendue (%d)", n)
+	}
+}

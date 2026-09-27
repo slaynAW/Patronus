@@ -20,7 +20,7 @@ type vector struct {
 
 // Les mêmes vecteurs sont vérifiés par l'application Android (module core) : compatibilité garantie.
 func TestSharedVectors(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "protocol", "test-vectors.json"))
+	raw, err := os.ReadFile(filepath.Join("..", "..", "protocol", "test-vectors.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

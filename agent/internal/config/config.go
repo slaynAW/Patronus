@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/slaynaw/wakeonlan/agent/internal/protocol"
+	"github.com/slaynaw/wakeonlan/agent/protocol"
 )
 
 // DefaultPort est le port TCP d'écoute par défaut.

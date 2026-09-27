@@ -1,0 +1,277 @@
+package main
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+	"unsafe"
+
+	webview2 "github.com/jchv/go-webview2"
+	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
+
+	"github.com/slaynaw/wakeonlan/desktop/internal/app"
+)
+
+var (
+	user32                            = windows.NewLazySystemDLL("user32.dll")
+	procSetProcessDpiAwarenessContext = user32.NewProc("SetProcessDpiAwarenessContext")
+	procGetDpiForSystem               = user32.NewProc("GetDpiForSystem")
+	procIsIconic                      = user32.NewProc("IsIconic")
+	procFindWindowW                   = user32.NewProc("FindWindowW")
+	procShowWindow                    = user32.NewProc("ShowWindow")
+	procSetForegroundWindow           = user32.NewProc("SetForegroundWindow")
+	procSystemParametersInfoW         = user32.NewProc("SystemParametersInfoW")
+	procOpenClipboard                 = user32.NewProc("OpenClipboard")
+	procCloseClipboard                = user32.NewProc("CloseClipboard")
+	procGetClipboardData              = user32.NewProc("GetClipboardData")
+
+	kernel32         = windows.NewLazySystemDLL("kernel32.dll")
+	procGlobalLock   = kernel32.NewProc("GlobalLock")
+	procGlobalUnlock = kernel32.NewProc("GlobalUnlock")
+
+	comdlg32                 = windows.NewLazySystemDLL("comdlg32.dll")
+	procGetSaveFileNameW     = comdlg32.NewProc("GetSaveFileNameW")
+	procCommDlgExtendedError = comdlg32.NewProc("CommDlgExtendedError")
+)
+
+const (
+	dpiAwarenessPerMonitorV2 = ^uintptr(3) // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4
+	swRestore                = 9
+	spiGetWorkArea           = 0x0030
+	cfUnicodeText            = 13
+	ofnOverwritePrompt       = 0x00000002
+	ofnNoChangeDir           = 0x00000008
+	ofnPathMustExist         = 0x00000800
+	ofnExplorer              = 0x00080000
+	idYes                    = 6
+)
+
+// singleInstance garde le mutex ouvert pendant toute la vie du programme.
+var singleInstance windows.Handle
+
+// setDPIAware active la netteté sur les écrans à haute densité (déjà demandé par le manifeste ;
+// cet appel couvre une compilation sans ressources).
+func setDPIAware() {
+	if procSetProcessDpiAwarenessContext.Find() == nil {
+		_, _, _ = procSetProcessDpiAwarenessContext.Call(dpiAwarenessPerMonitorV2)
+	}
+}
+
+// scaled convertit une taille en pixels logiques (96 ppp) en pixels réels.
+func scaled(px int) int {
+	dpi := uintptr(96)
+	if procGetDpiForSystem.Find() == nil {
+		if d, _, _ := procGetDpiForSystem.Call(); d > 0 {
+			dpi = d
+		}
+	}
+	return px * int(dpi) / 96
+}
+
+// workArea renvoie la taille de la zone de travail de l'écran principal (hors barre des tâches).
+func workArea() (int, int) {
+	var r struct{ Left, Top, Right, Bottom int32 }
+	if ok, _, _ := procSystemParametersInfoW.Call(spiGetWorkArea, 0, uintptr(unsafe.Pointer(&r)), 0); ok == 0 {
+		return 0, 0
+	}
+	return int(r.Right - r.Left), int(r.Bottom - r.Top)
+}
+
+func acquireSingleInstance() bool {
+	name, _ := windows.UTF16PtrFromString(`Local\WakeOnLan.Desktop`)
+	h, err := windows.CreateMutex(nil, false, name)
+	if errors.Is(err, windows.ERROR_ALREADY_EXISTS) {
+		if h != 0 {
+			_ = windows.CloseHandle(h)
+		}
+		return false
+	}
+	singleInstance = h
+	return true
+}
+
+func focusExistingWindow(title string) {
+	class, _ := windows.UTF16PtrFromString("webview")
+	name, _ := windows.UTF16PtrFromString(title)
+	hwnd, _, _ := procFindWindowW.Call(uintptr(unsafe.Pointer(class)), uintptr(unsafe.Pointer(name)))
+	if hwnd != 0 {
+		_, _, _ = procShowWindow.Call(hwnd, swRestore)
+		_, _, _ = procSetForegroundWindow.Call(hwnd)
+	}
+}
+
+func isIconic(hwnd windows.HWND) bool {
+	r, _, _ := procIsIconic.Call(uintptr(hwnd))
+	return r != 0
+}
+
+func messageBox(text string, flags uint32) int32 {
+	t, _ := windows.UTF16PtrFromString(text)
+	c, _ := windows.UTF16PtrFromString(windowTitle)
+	ret, _ := windows.MessageBox(0, t, c, flags)
+	return ret
+}
+
+func shellOpen(hwnd windows.HWND, url string) error {
+	verb, _ := windows.UTF16PtrFromString("open")
+	file, err := windows.UTF16PtrFromString(url)
+	if err != nil {
+		return err
+	}
+	return windows.ShellExecute(windows.Handle(hwnd), verb, file, nil, nil, windows.SW_SHOWNORMAL)
+}
+
+// winPlatform implémente app.Platform avec les boîtes de dialogue et le presse-papiers de Windows.
+type winPlatform struct {
+	w    webview2.WebView
+	hwnd windows.HWND
+}
+
+func (p *winPlatform) OpenURL(url string) error { return shellOpen(p.hwnd, url) }
+
+// SaveFile affiche la boîte « Enregistrer sous » (sur le fil de la fenêtre) puis écrit le fichier.
+func (p *winPlatform) SaveFile(suggestedName string, content []byte) (string, error) {
+	type result struct {
+		path string
+		err  error
+	}
+	done := make(chan result, 1)
+	p.w.Dispatch(func() {
+		path, err := saveFileDialog(p.hwnd, suggestedName)
+		done <- result{path, err}
+		// Les messages postés pendant la boîte modale ont pu être absorbés : relance la file.
+		p.w.Dispatch(func() {})
+	})
+	r := <-done
+	if r.err != nil {
+		return "", r.err
+	}
+	tmp := r.path + ".tmp"
+	if err := os.WriteFile(tmp, content, 0o600); err != nil {
+		return "", err
+	}
+	if err := os.Rename(tmp, r.path); err != nil {
+		_ = os.Remove(tmp)
+		return "", err
+	}
+	return r.path, nil
+}
+
+type openFileName struct {
+	structSize    uint32
+	owner         uintptr
+	instance      uintptr
+	filter        *uint16
+	customFilter  *uint16
+	maxCustFilter uint32
+	filterIndex   uint32
+	file          *uint16
+	maxFile       uint32
+	fileTitle     *uint16
+	maxFileTitle  uint32
+	initialDir    *uint16
+	title         *uint16
+	flags         uint32
+	fileOffset    uint16
+	fileExtension uint16
+	defExt        *uint16
+	custData      uintptr
+	hook          uintptr
+	templateName  *uint16
+	reserved      unsafe.Pointer
+	reserved2     uint32
+	flagsEx       uint32
+}
+
+func saveFileDialog(owner windows.HWND, suggestedName string) (string, error) {
+	file := make([]uint16, windows.MAX_LONG_PATH)
+	copy(file, windows.StringToUTF16(suggestedName))
+	filter := utf16List("Sauvegarde Wake On LAN (*.json)", "*.json", "Tous les fichiers", "*.*")
+	defExt, _ := windows.UTF16PtrFromString("json")
+	title, _ := windows.UTF16PtrFromString("Exporter la configuration")
+	var initialDir *uint16
+	if home, err := os.UserHomeDir(); err == nil {
+		initialDir, _ = windows.UTF16PtrFromString(filepath.Join(home, "Documents"))
+	}
+	ofn := openFileName{
+		owner:       uintptr(owner),
+		filter:      &filter[0],
+		filterIndex: 1,
+		file:        &file[0],
+		maxFile:     uint32(len(file)),
+		initialDir:  initialDir,
+		title:       title,
+		flags:       ofnOverwritePrompt | ofnNoChangeDir | ofnPathMustExist | ofnExplorer,
+		defExt:      defExt,
+	}
+	ofn.structSize = uint32(unsafe.Sizeof(ofn))
+	if ok, _, _ := procGetSaveFileNameW.Call(uintptr(unsafe.Pointer(&ofn))); ok == 0 {
+		if code, _, _ := procCommDlgExtendedError.Call(); code != 0 {
+			return "", errors.New("boîte de dialogue d'enregistrement indisponible")
+		}
+		return "", app.ErrCancelled
+	}
+	return windows.UTF16ToString(file), nil
+}
+
+// utf16List construit une liste de chaînes séparées par des zéros et terminée par un double zéro.
+func utf16List(items ...string) []uint16 {
+	var out []uint16
+	for _, s := range items {
+		out = append(out, windows.StringToUTF16(s)...)
+	}
+	return append(out, 0)
+}
+
+// ReadClipboard lit le texte du presse-papiers.
+func (p *winPlatform) ReadClipboard() (string, error) {
+	var opened uintptr
+	for range 5 {
+		if opened, _, _ = procOpenClipboard.Call(0); opened != 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if opened == 0 {
+		return "", errors.New("presse-papiers occupé")
+	}
+	defer procCloseClipboard.Call()
+	handle, _, _ := procGetClipboardData.Call(cfUnicodeText)
+	if handle == 0 {
+		return "", nil
+	}
+	ptr, _, _ := procGlobalLock.Call(handle)
+	if ptr == 0 {
+		return "", errors.New("presse-papiers illisible")
+	}
+	defer procGlobalUnlock.Call(handle)
+	text := windows.UTF16PtrToString(*(**uint16)(unsafe.Pointer(&ptr)))
+	// Seul un lien d'appairage est utile : on ne renvoie pas le reste du presse-papiers à l'interface.
+	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(text)), "wolagent://") {
+		return "", nil
+	}
+	return text, nil
+}
+
+// systemUsesDarkTheme lit le thème des applications choisi dans les paramètres de Windows.
+func systemUsesDarkTheme() bool {
+	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`, registry.QUERY_VALUE)
+	if err != nil {
+		return false
+	}
+	defer k.Close()
+	light, _, err := k.GetIntegerValue("AppsUseLightTheme")
+	return err == nil && light == 0
+}
+
+// setDarkTitleBar accorde la barre de titre au thème de l'interface (Windows 10 20H1+ / 11).
+func setDarkTitleBar(hwnd windows.HWND, dark bool) {
+	var value uint32
+	if dark {
+		value = 1
+	}
+	_ = windows.DwmSetWindowAttribute(hwnd, windows.DWMWA_USE_IMMERSIVE_DARK_MODE, unsafe.Pointer(&value), uint32(unsafe.Sizeof(value)))
+}
