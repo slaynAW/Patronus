@@ -2,6 +2,7 @@ package io.github.slaynaw.wakeonlan
 
 import android.app.Application
 import android.content.Context
+import io.github.slaynaw.wakeonlan.diagnostics.CrashReporter
 
 class WolApplication : Application() {
     lateinit var container: AppContainer
@@ -9,6 +10,7 @@ class WolApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashReporter.install(this)
         container = AppContainer(this)
     }
 }
