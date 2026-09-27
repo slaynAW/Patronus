@@ -11,8 +11,9 @@ captures/
 
 # Clés de signature privées (ne jamais les committer)
 *.jks
+*.p12
+*.keystore
 keystore.properties
-!app/signing/*.p12
 
 # Go
 agent/dist/
