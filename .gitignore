@@ -1,0 +1,23 @@
+# Gradle / Android
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Clés de signature privées (ne jamais les committer)
+*.jks
+*.p12
+*.keystore
+keystore.properties
+
+# Go
+agent/dist/
+
+# Divers
+.DS_Store
+Thumbs.db

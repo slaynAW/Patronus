@@ -1,0 +1,355 @@
+// Commande wol-agent : agent installé sur les PC pour les éteindre / redémarrer / mettre en veille
+// depuis l'application Android « Wake On LAN ». Voir agent/README.md.
+package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"log"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"runtime"
+	"syscall"
+
+	"github.com/slaynaw/wakeonlan/agent/internal/config"
+	"github.com/slaynaw/wakeonlan/agent/internal/netinfo"
+	"github.com/slaynaw/wakeonlan/agent/internal/pairing"
+	"github.com/slaynaw/wakeonlan/agent/internal/power"
+	"github.com/slaynaw/wakeonlan/agent/internal/server"
+	"github.com/slaynaw/wakeonlan/agent/internal/service"
+	"github.com/slaynaw/wakeonlan/agent/internal/terminal"
+)
+
+// version est injectée à la compilation (-ldflags "-X main.version=1.0.0").
+var version = "dev"
+
+const usageText = `wol-agent %s — agent Wake On LAN (extinction à distance depuis le téléphone)
+
+Utilisation : wol-agent <commande> [options]
+
+Commandes :
+  install      Installe l'agent comme service (démarrage automatique) et affiche le QR code d'appairage.
+               Options : --port 9770, --name "PC Bureau", --ip 192.168.1.20, --no-firewall, --firewall-public
+  pair         Réaffiche le QR code / lien d'appairage.  Options : --ip, --png fichier.png, --invert
+  rotate-key   Génère une nouvelle clé (l'ancienne ne fonctionne plus : ré-appairez le téléphone).
+  status       Affiche l'état du service et la configuration.
+  uninstall    Désinstalle le service.  Option : --purge (supprime aussi la configuration).
+  run          Lance l'agent au premier plan (utilisé par le service).  Options : --config, --dry-run
+  version      Affiche la version.
+
+Les commandes install, pair, rotate-key et uninstall nécessitent les droits administrateur
+(Windows : invite de commandes « Exécuter en tant qu'administrateur » ; Linux/macOS : sudo).
+`
+
+func main() {
+	args := os.Args[1:]
+	// Double-clic sur l'exécutable sous Windows : installation guidée.
+	if len(args) == 0 && terminal.LaunchedFromExplorer() {
+		args = []string{"install", "--pause"}
+	}
+	if len(args) == 0 {
+		fmt.Printf(usageText, version)
+		os.Exit(2)
+	}
+
+	var err error
+	switch args[0] {
+	case "run":
+		err = cmdRun(args[1:])
+	case "install":
+		err = cmdInstall(args[1:])
+	case "pair":
+		err = cmdPair(args[1:])
+	case "rotate-key":
+		err = cmdRotateKey(args[1:])
+	case "status":
+		err = cmdStatus(args[1:])
+	case "uninstall":
+		err = cmdUninstall(args[1:])
+	case "version", "--version", "-v":
+		fmt.Println("wol-agent", version)
+	case "help", "--help", "-h":
+		fmt.Printf(usageText, version)
+	default:
+		fmt.Fprintf(os.Stderr, "Commande inconnue : %s\n\n", args[0])
+		fmt.Printf(usageText, version)
+		os.Exit(2)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "\nErreur :", err)
+		if contains(args, "--pause") {
+			terminal.Pause()
+		}
+		os.Exit(1)
+	}
+}
+
+func cmdRun(args []string) error {
+	fs := flag.NewFlagSet("run", flag.ExitOnError)
+	cfgPath := fs.String("config", config.DefaultPath(), "fichier de configuration")
+	dryRun := fs.Bool("dry-run", false, "simulation : journalise les actions sans les exécuter")
+	_ = fs.Parse(args)
+
+	logger, closeLog := newLogger()
+	defer closeLog()
+
+	runServer := func(ctx context.Context) error {
+		cfg, err := config.Load(*cfgPath)
+		if err != nil {
+			logger.Print(err)
+			return err
+		}
+		var controller power.Controller = power.System()
+		if *dryRun {
+			controller = power.DryRun{Logger: logger}
+		}
+		srv, err := server.New(cfg, controller, version, logger)
+		if err != nil {
+			return err
+		}
+		return srv.ListenAndServe(ctx)
+	}
+
+	// Lancé par le gestionnaire de services Windows ?
+	if handled, err := service.Run(runServer); handled || err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return runServer(ctx)
+}
+
+func cmdInstall(args []string) error {
+	fs := flag.NewFlagSet("install", flag.ExitOnError)
+	port := fs.Int("port", config.DefaultPort, "port TCP d'écoute")
+	name := fs.String("name", "", "nom du PC affiché dans l'application (nom de la machine par défaut)")
+	ip := fs.String("ip", "", "adresse IP à utiliser pour l'appairage (détectée automatiquement)")
+	noFirewall := fs.Bool("no-firewall", false, "ne pas modifier le pare-feu")
+	firewallPublic := fs.Bool("firewall-public", false, "Windows : autoriser aussi les réseaux « publics » (déconseillé)")
+	pause := fs.Bool("pause", false, "attendre une touche à la fin")
+	_ = fs.Parse(args)
+
+	if !terminal.IsAdmin() {
+		if runtime.GOOS == "windows" {
+			fmt.Println("Droits administrateur nécessaires : validez la demande de Windows…")
+			return terminal.RelaunchElevated(append([]string{"install"}, withPause(args)...))
+		}
+		return errors.New("droits administrateur nécessaires : relancez avec « sudo wol-agent install »")
+	}
+	if *pause {
+		defer terminal.Pause()
+	}
+
+	cfgPath := config.DefaultPath()
+	cfg, err := config.Load(cfgPath)
+	switch {
+	case err == nil:
+		fmt.Println("Configuration existante conservée (la clé ne change pas : pas besoin de ré-appairer).")
+		if *name != "" {
+			cfg.Name = *name
+		}
+		if isFlagSet(fs, "port") {
+			cfg.Port = *port
+		}
+	case fileExists(cfgPath):
+		return err
+	default:
+		if cfg, err = config.New(*name, *port); err != nil {
+			return err
+		}
+	}
+	if err := config.Save(cfgPath, cfg); err != nil {
+		return fmt.Errorf("enregistrement de la configuration : %w", err)
+	}
+
+	opts := service.Options{
+		Binary:         service.DefaultBinary(),
+		Config:         cfgPath,
+		Port:           cfg.Port,
+		FirewallPublic: *firewallPublic,
+		NoFirewall:     *noFirewall,
+	}
+	fmt.Println("Installation du service…")
+	if err := service.Install(opts); err != nil {
+		return err
+	}
+	fmt.Printf("✔ Agent installé (%s) et démarré sur le port TCP %d.\n", opts.Binary, cfg.Port)
+	fmt.Printf("  Configuration : %s\n\n", cfgPath)
+	return showPairing(cfg, *ip, "", false)
+}
+
+func cmdPair(args []string) error {
+	fs := flag.NewFlagSet("pair", flag.ExitOnError)
+	ip := fs.String("ip", "", "adresse IP à annoncer (détectée automatiquement)")
+	pngPath := fs.String("png", "", "enregistre aussi le QR code dans ce fichier PNG")
+	invert := fs.Bool("invert", false, "inverse les couleurs (terminal à fond clair sans couleurs)")
+	cfgPath := fs.String("config", config.DefaultPath(), "fichier de configuration")
+	pause := fs.Bool("pause", false, "attendre une touche à la fin")
+	_ = fs.Parse(args)
+	if *pause {
+		defer terminal.Pause()
+	}
+	cfg, err := config.Load(*cfgPath)
+	if err != nil {
+		if !terminal.IsAdmin() {
+			return fmt.Errorf("%w\n(la configuration n'est lisible qu'en administrateur)", err)
+		}
+		return err
+	}
+	return showPairing(cfg, *ip, *pngPath, *invert)
+}
+
+func cmdRotateKey(args []string) error {
+	fs := flag.NewFlagSet("rotate-key", flag.ExitOnError)
+	cfgPath := fs.String("config", config.DefaultPath(), "fichier de configuration")
+	_ = fs.Parse(args)
+	cfg, err := config.Load(*cfgPath)
+	if err != nil {
+		return err
+	}
+	fresh, err := config.New(cfg.Name, cfg.Port)
+	if err != nil {
+		return err
+	}
+	cfg.Key = fresh.Key
+	if err := config.Save(*cfgPath, cfg); err != nil {
+		return err
+	}
+	if err := service.Restart(); err != nil {
+		fmt.Println("Attention : redémarrez le service pour appliquer la nouvelle clé :", err)
+	}
+	fmt.Println("✔ Nouvelle clé générée. L'ancienne est désormais refusée : ré-appairez le téléphone.")
+	return showPairing(cfg, "", "", false)
+}
+
+func cmdStatus(args []string) error {
+	fs := flag.NewFlagSet("status", flag.ExitOnError)
+	cfgPath := fs.String("config", config.DefaultPath(), "fichier de configuration")
+	_ = fs.Parse(args)
+	fmt.Printf("wol-agent %s\nService       : %s\nConfiguration : %s\n", version, service.Status(), *cfgPath)
+	cfg, err := config.Load(*cfgPath)
+	if err != nil {
+		fmt.Println("                (", err, ")")
+		return nil
+	}
+	fmt.Printf("Nom           : %s\nPort          : %d\nCommandes     : %v\nRéseaux       : %v\n", cfg.Name, cfg.Port, cfg.Commands, cfg.Allow)
+	if iface, err := netinfo.Detect(""); err == nil {
+		fmt.Printf("Carte réseau  : %s — IP %s — MAC %s\n", iface.Name, iface.IP, iface.MAC)
+	}
+	return nil
+}
+
+func cmdUninstall(args []string) error {
+	fs := flag.NewFlagSet("uninstall", flag.ExitOnError)
+	purge := fs.Bool("purge", false, "supprime aussi la configuration (et donc la clé)")
+	_ = fs.Parse(args)
+	if !terminal.IsAdmin() {
+		return errors.New("droits administrateur nécessaires")
+	}
+	if err := service.Uninstall(); err != nil {
+		return err
+	}
+	if *purge {
+		if err := os.RemoveAll(config.Dir()); err != nil {
+			return err
+		}
+	}
+	fmt.Println("✔ Agent désinstallé.")
+	if runtime.GOOS != "windows" {
+		_ = os.Remove(service.DefaultBinary())
+	} else {
+		fmt.Println("  Vous pouvez supprimer le dossier", filepath.Dir(service.DefaultBinary()))
+	}
+	return nil
+}
+
+// showPairing affiche le QR code et le lien à scanner / coller dans l'application.
+func showPairing(cfg *config.Config, ip, pngPath string, invert bool) error {
+	info := pairing.Info{Name: cfg.Name, Port: cfg.Port, Key: cfg.Key}
+	iface, err := netinfo.Detect(ip)
+	if err != nil {
+		if ip == "" {
+			return fmt.Errorf("%w (précisez l'adresse avec --ip)", err)
+		}
+		return err
+	}
+	info.Host = iface.IP.String()
+	info.MAC = iface.MAC.String()
+	link := pairing.Link(info)
+
+	fmt.Println("Dans l'application : « Ajouter un PC » → « Scanner le QR code » :")
+	fmt.Println()
+	if err := pairing.WriteTerminalQR(os.Stdout, link, terminal.EnableANSI(), invert); err != nil {
+		return err
+	}
+	fmt.Printf("\nPC : %s — IP %s — MAC %s (carte %s)\n", info.Name, info.Host, info.MAC, iface.Name)
+	fmt.Println("⚠ Le Wake-on-LAN passe par la carte réseau FILAIRE : si cette carte est en Wi-Fi,")
+	fmt.Println("  corrigez l'adresse MAC dans l'application (ou utilisez --ip avec l'IP de la carte Ethernet).")
+	fmt.Println("\nLien d'appairage (à coller dans l'application si le QR code ne passe pas) :")
+	fmt.Println(link)
+	fmt.Println("\nCe QR code contient la clé secrète de l'agent : ne le partagez pas.")
+	if pngPath != "" {
+		f, err := os.OpenFile(pngPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		if err := pairing.WritePNG(f, link, 8); err != nil {
+			return err
+		}
+		fmt.Println("QR code enregistré dans", pngPath, "(supprimez-le après usage).")
+	}
+	return nil
+}
+
+// newLogger journalise sur la sortie standard et, sous Windows (service sans console), dans un fichier.
+func newLogger() (*log.Logger, func()) {
+	if runtime.GOOS != "windows" {
+		return log.New(os.Stderr, "", log.LstdFlags), func() {}
+	}
+	path := filepath.Join(config.Dir(), "agent.log")
+	if info, err := os.Stat(path); err == nil && info.Size() > 1<<20 {
+		_ = os.Rename(path, path+".old")
+	}
+	_ = os.MkdirAll(config.Dir(), 0o700)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return log.New(os.Stderr, "", log.LstdFlags), func() {}
+	}
+	return log.New(io.MultiWriter(os.Stderr, f), "", log.LstdFlags), func() { _ = f.Close() }
+}
+
+func withPause(args []string) []string {
+	if contains(args, "--pause") {
+		return args
+	}
+	return append(args, "--pause")
+}
+
+func isFlagSet(fs *flag.FlagSet, name string) bool {
+	set := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			set = true
+		}
+	})
+	return set
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func contains(list []string, value string) bool {
+	for _, v := range list {
+		if v == value {
+			return true
+		}
+	}
+	return false
+}

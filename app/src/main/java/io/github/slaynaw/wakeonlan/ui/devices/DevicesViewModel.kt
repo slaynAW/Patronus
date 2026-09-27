@@ -1,0 +1,98 @@
+package io.github.slaynaw.wakeonlan.ui.devices
+
+import androidx.annotation.StringRes
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import io.github.slaynaw.wakeonlan.AppContainer
+import io.github.slaynaw.wakeonlan.R
+import io.github.slaynaw.wakeonlan.core.agent.AgentResult
+import io.github.slaynaw.wakeonlan.core.agent.PowerAction
+import io.github.slaynaw.wakeonlan.core.model.AppSettings
+import io.github.slaynaw.wakeonlan.core.model.Device
+import io.github.slaynaw.wakeonlan.core.status.DeviceStatus
+import io.github.slaynaw.wakeonlan.core.status.ProbeAvailability
+import io.github.slaynaw.wakeonlan.network.LanState
+import io.github.slaynaw.wakeonlan.ui.common.label
+import io.github.slaynaw.wakeonlan.ui.common.sentMessage
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+data class DeviceItem(val device: Device, val status: DeviceStatus)
+
+data class DevicesUiState(
+    val loaded: Boolean = false,
+    val items: List<DeviceItem> = emptyList(),
+    val settings: AppSettings = AppSettings(),
+    val lan: LanState = LanState(),
+    val availability: ProbeAvailability = ProbeAvailability.AVAILABLE,
+    val localNetworkGranted: Boolean = true,
+)
+
+/** Message ponctuel à afficher (snackbar) : ressource + arguments. */
+data class UiMessage(@StringRes val text: Int, val args: List<Any> = emptyList())
+
+/** Argument de message qui est lui-même une ressource texte (résolue à l'affichage). */
+data class ResArg(@StringRes val id: Int)
+
+class DevicesViewModel(private val container: AppContainer) : ViewModel() {
+
+    private val _messages = Channel<UiMessage>(Channel.BUFFERED)
+    val messages: Flow<UiMessage> = _messages.receiveAsFlow()
+
+    val state: StateFlow<DevicesUiState> = combine(
+        container.repository.config,
+        container.statusMonitor.statuses,
+        container.network.state,
+        container.probeAvailability,
+        container.localNetworkGranted,
+    ) { config, statuses, lan, availability, granted ->
+        DevicesUiState(
+            loaded = true,
+            items = config.devices.map { DeviceItem(it, statuses[it.id] ?: DeviceStatus()) },
+            settings = config.settings,
+            lan = lan,
+            availability = availability,
+            localNetworkGranted = granted,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DevicesUiState())
+
+    fun wake(device: Device) = viewModelScope.launch {
+        val result = runCatching { container.actions.wake(device) }
+        val wake = result.getOrNull()
+        _messages.send(
+            when {
+                wake == null -> UiMessage(R.string.message_wake_error, listOf(result.exceptionOrNull()?.message.orEmpty()))
+                wake.success -> UiMessage(R.string.message_wake_sent, listOf(device.name))
+                else -> UiMessage(R.string.message_wake_error, listOf(wake.errors.firstOrNull().orEmpty()))
+            },
+        )
+    }
+
+    fun power(device: Device, action: PowerAction, force: Boolean) = viewModelScope.launch {
+        when (val result = container.actions.power(device, action, force)) {
+            is AgentResult.Success -> _messages.send(UiMessage(action.sentMessage(), listOf(device.name)))
+            is AgentResult.Failure -> _messages.send(
+                UiMessage(R.string.message_agent_error, listOf(device.name, ResArg(result.error.label()))),
+            )
+        }
+    }
+
+    fun refresh() = container.statusMonitor.refresh()
+
+    fun clearNotice(device: Device) = container.statusMonitor.clearNotice(device.id)
+
+    fun move(device: Device, offset: Int) = viewModelScope.launch { container.repository.move(device.id, offset) }
+
+    fun delete(device: Device) = viewModelScope.launch {
+        container.repository.delete(device.id)
+        _messages.send(UiMessage(R.string.message_deleted, listOf(device.name)))
+    }
+
+    fun onPermissionResult() = container.refreshPermissions()
+}

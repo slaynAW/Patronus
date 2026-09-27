@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Wake On LAN</string>
+
+    <!-- Commun -->
+    <string name="ok">OK</string>
+    <string name="cancel">Annuler</string>
+    <string name="save">Enregistrer</string>
+    <string name="back">Retour</string>
+    <string name="show">Afficher</string>
+    <string name="hide">Masquer</string>
+
+    <!-- Actions -->
+    <string name="action_add_device">Ajouter un PC</string>
+    <string name="action_refresh">Actualiser l’état</string>
+    <string name="action_more">Plus d’actions</string>
+    <string name="action_wake">Démarrer</string>
+    <string name="action_wake_again">Renvoyer</string>
+    <string name="action_wake_menu">Démarrer (Wake-on-LAN)</string>
+    <string name="action_shutdown">Éteindre</string>
+    <string name="action_reboot">Redémarrer</string>
+    <string name="action_sleep">Mettre en veille</string>
+    <string name="action_edit">Modifier</string>
+    <string name="action_move_up">Monter</string>
+    <string name="action_move_down">Descendre</string>
+    <string name="action_delete">Supprimer</string>
+    <string name="action_configure">Configurer</string>
+    <string name="action_scan_qr">Scanner le QR code</string>
+    <string name="action_paste_link">Coller un lien</string>
+    <string name="action_test_agent">Tester la connexion</string>
+    <string name="action_export">Exporter la configuration</string>
+    <string name="action_export_short">Exporter</string>
+    <string name="action_export_help">Sauvegarde dans un fichier (PC enregistrés : %1$d)</string>
+    <string name="action_import">Importer une configuration</string>
+    <string name="action_import_help">Restaurer une sauvegarde ou récupérer la configuration d’un autre téléphone</string>
+
+    <!-- États -->
+    <string name="state_online">Allumé</string>
+    <string name="state_offline">Éteint</string>
+    <string name="state_offline_seen">Éteint · vu il y a %1$s</string>
+    <string name="state_unknown">État inconnu</string>
+    <string name="state_checking">Vérification…</string>
+    <string name="state_waking">Démarrage en cours… %1$s</string>
+    <string name="state_waking_short">Démarrage en cours</string>
+    <string name="state_shutting_down">Arrêt en cours… %1$s</string>
+    <string name="state_shutting_down_short">Arrêt en cours</string>
+    <string name="state_restarting">Redémarrage en cours… %1$s</string>
+    <string name="state_restarting_short">Redémarrage en cours</string>
+    <string name="state_with_detail">%1$s · %2$s</string>
+    <string name="latency_ms">%1$d ms</string>
+    <string name="unknown_no_host">adresse IP non renseignée</string>
+    <string name="unknown_no_network">pas de réseau local</string>
+    <string name="unknown_no_permission">accès au réseau local refusé</string>
+
+    <string name="duration_seconds">%1$d s</string>
+    <string name="duration_minutes">%1$d min</string>
+    <string name="duration_hours">%1$d h</string>
+    <string name="duration_days">%1$d j</string>
+
+    <string name="agent_info">%1$s · %2$s · allumé depuis %3$s</string>
+    <string name="agent_problem">Agent : %1$s</string>
+    <string name="notice_wake_timeout">Aucune réponse après l’envoi du paquet magique. Vérifiez que le Wake-on-LAN est activé (BIOS/UEFI et carte réseau).</string>
+    <string name="notice_shutdown_timeout">Le PC répond toujours après la demande d’arrêt (application bloquante ?). Essayez l’option « Forcer ».</string>
+
+    <!-- Erreurs agent -->
+    <string name="agent_error_no_key">aucune clé configurée</string>
+    <string name="agent_error_unknown_host">nom d’hôte introuvable</string>
+    <string name="agent_error_unreachable">PC injoignable</string>
+    <string name="agent_error_refused">agent arrêté sur le PC</string>
+    <string name="agent_error_unauthorized">clé refusée par l’agent</string>
+    <string name="agent_error_rate_limited">trop de tentatives, réessayez dans quelques minutes</string>
+    <string name="agent_error_protocol">réponse invalide de l’agent</string>
+    <string name="agent_error_rejected">commande refusée par le PC</string>
+
+    <!-- Liste des PC -->
+    <string name="empty_title">Aucun PC pour l’instant</string>
+    <string name="empty_text">Ajoutez un PC à réveiller. Si l’agent est installé dessus, scannez simplement son QR code : tout est rempli automatiquement.</string>
+    <string name="network_wifi">Wi-Fi</string>
+    <string name="network_ethernet">Ethernet</string>
+    <string name="banner_permission_title">Accès au réseau local nécessaire</string>
+    <string name="banner_permission_text">Android demande votre accord pour que l’application puisse joindre vos PC sur le réseau local.</string>
+    <string name="banner_permission_action">Autoriser</string>
+    <string name="banner_no_lan_title">Pas de réseau local</string>
+    <string name="banner_no_lan_text">Connectez le téléphone au Wi-Fi de la maison pour démarrer vos PC et voir leur état.</string>
+    <string name="banner_no_lan_vpn_text">Le téléphone n’est pas sur le Wi-Fi, mais un VPN est actif : l’état des PC est vérifié à travers le VPN. Le réveil à distance nécessite un relais sur le réseau local.</string>
+
+    <!-- Dialogues -->
+    <string name="confirm_shutdown_title">Éteindre « %1$s » ?</string>
+    <string name="confirm_reboot_title">Redémarrer « %1$s » ?</string>
+    <string name="confirm_sleep_title">Mettre « %1$s » en veille ?</string>
+    <string name="confirm_power_text">Les documents non enregistrés sur ce PC pourraient être perdus.</string>
+    <string name="confirm_power_force">Forcer la fermeture des applications</string>
+    <string name="confirm_delete_title">Supprimer « %1$s » ?</string>
+    <string name="confirm_delete_text">Le PC sera retiré de la liste. L’agent éventuellement installé dessus n’est pas désinstallé.</string>
+    <string name="agent_help_title">Agent nécessaire</string>
+    <string name="agent_help_text">Pour éteindre « %1$s » à distance, installez l’agent Wake On LAN sur ce PC puis appairez-le (QR code) dans sa fiche.</string>
+
+    <!-- Messages -->
+    <string name="message_wake_sent">Paquet magique envoyé à « %1$s »</string>
+    <string name="message_wake_error">Échec de l’envoi : %1$s</string>
+    <string name="message_shutdown_sent">Extinction demandée à « %1$s »</string>
+    <string name="message_reboot_sent">Redémarrage demandé à « %1$s »</string>
+    <string name="message_sleep_sent">Mise en veille demandée à « %1$s »</string>
+    <string name="message_agent_error">« %1$s » : %2$s</string>
+    <string name="message_deleted">« %1$s » supprimé</string>
+    <string name="message_export_done">Configuration exportée (PC : %1$d)</string>
+    <string name="message_import_done">Configuration importée (PC : %1$d)</string>
+    <string name="message_error">Erreur : %1$s</string>
+
+    <!-- Édition -->
+    <string name="edit_title_new">Ajouter un PC</string>
+    <string name="edit_title">Modifier le PC</string>
+    <string name="pairing_title">Appairage rapide</string>
+    <string name="pairing_text">Sur le PC, lancez « wol-agent pair » (ou l’installation de l’agent) puis scannez le QR code affiché.</string>
+    <string name="pairing_ok_title">Appairage réussi</string>
+    <string name="pairing_ok_text">Adresse, port et clé de l’agent ont été remplis. Vérifiez l’adresse MAC puis enregistrez.</string>
+    <string name="pairing_error_title">Lien d’appairage invalide</string>
+    <string name="paste_title">Coller le lien d’appairage</string>
+    <string name="paste_text">Collez le lien « wolagent://… » affiché par l’agent sur le PC.</string>
+    <string name="scan_error_title">Lecture du QR code impossible</string>
+    <string name="scan_error_text">Le lecteur de Google Play Services n’a pas pu s’ouvrir (%1$s). Utilisez « Coller un lien ».</string>
+    <string name="section_device">PC</string>
+    <string name="section_agent">Agent d’extinction</string>
+    <string name="section_agent_help">Petit programme installé sur le PC pour l’éteindre, le redémarrer ou le mettre en veille depuis le téléphone.</string>
+    <string name="section_advanced">Options avancées</string>
+    <string name="field_name">Nom</string>
+    <string name="field_mac">Adresse MAC</string>
+    <string name="field_mac_help">Celle de la carte réseau filaire, ex. AA:BB:CC:DD:EE:FF</string>
+    <string name="field_host">Adresse IP ou nom du PC</string>
+    <string name="field_host_help">Pour l’état en temps réel et l’extinction. Réservez l’IP dans votre box (bail DHCP fixe).</string>
+    <string name="field_agent_port">Port de l’agent</string>
+    <string name="field_agent_key">Clé de l’agent</string>
+    <string name="field_agent_key_help">Remplie automatiquement par le QR code. Ne la partagez pas.</string>
+    <string name="field_broadcast">Adresse de diffusion</string>
+    <string name="field_broadcast_help">Vide = automatique (ex. 192.168.1.255)</string>
+    <string name="field_wol_port">Port Wake-on-LAN</string>
+    <string name="field_wol_port_help">9 en général (parfois 7)</string>
+    <string name="field_probe_ports">Ports de détection</string>
+    <string name="field_probe_ports_help">Ports TCP testés pour savoir si le PC est allumé (sans agent)</string>
+    <string name="field_secure_on">Mot de passe SecureOn</string>
+    <string name="field_secure_on_help">Rarement utilisé. 6 octets hexadécimaux.</string>
+    <string name="test_ok">Connexion réussie : %1$s (%2$s, agent %3$s)</string>
+
+    <!-- Réglages -->
+    <string name="settings_title">Réglages</string>
+    <string name="section_monitoring">Surveillance</string>
+    <string name="setting_poll_interval">Vérifier l’état toutes les</string>
+    <string name="setting_poll_interval_value">%1$d s</string>
+    <string name="setting_wake_timeout">Attendre le démarrage jusqu’à</string>
+    <string name="setting_wake_timeout_value">%1$d s</string>
+    <string name="setting_confirm">Confirmer avant d’éteindre</string>
+    <string name="setting_confirm_help">Demande une confirmation avant d’éteindre, redémarrer ou mettre en veille</string>
+    <string name="section_backup">Sauvegarde</string>
+    <string name="export_title">Exporter la configuration</string>
+    <string name="export_with_secrets">Complète, protégée par mot de passe</string>
+    <string name="export_with_secrets_help">Inclut les clés des agents. Fichier chiffré (AES-256).</string>
+    <string name="export_without_secrets">Sans les clés</string>
+    <string name="export_without_secrets_help">Fichier lisible ; les agents devront être ré-appairés.</string>
+    <string name="field_password">Mot de passe</string>
+    <string name="field_password_help">%1$d caractères minimum. Il ne pourra pas être récupéré.</string>
+    <string name="field_password_confirm">Confirmer le mot de passe</string>
+    <string name="import_password_title">Sauvegarde protégée</string>
+    <string name="import_wrong_password">Mot de passe incorrect</string>
+    <string name="import_confirm_title">Importer la sauvegarde (PC : %1$d) ?</string>
+    <string name="import_confirm_text">« Remplacer » supprime la liste actuelle. « Fusionner » ajoute les PC et met à jour ceux déjà présents.</string>
+    <string name="import_missing_keys">Cette sauvegarde ne contient pas les clés des agents : il faudra ré-appairer les PC concernés.</string>
+    <string name="import_replace">Remplacer</string>
+    <string name="import_merge">Fusionner</string>
+    <string name="section_agent_download">Agent pour PC</string>
+    <string name="agent_download">Télécharger l’agent</string>
+    <string name="agent_download_help">Windows, Linux et macOS. Nécessaire uniquement pour éteindre à distance.</string>
+    <string name="section_about">À propos</string>
+    <string name="about_version">Version</string>
+    <string name="about_source">Code source</string>
+    <string name="about_security">Sécurité</string>
+    <string name="about_security_text">Configuration chiffrée sur le téléphone (Keystore Android), aucune donnée envoyée sur Internet, commandes d’extinction authentifiées (HMAC-SHA256) et protégées contre le rejeu.</string>
+</resources>

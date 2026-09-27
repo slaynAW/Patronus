@@ -1,0 +1,45 @@
+# Génère une clé de signature pour l'APK, à lancer UNE SEULE FOIS depuis l'onglet « Actions ».
+# Procédure complète : docs/SIGNATURE.md.
+#
+# La clé est produite sur les serveurs de GitHub et remise dans un « artifact » privé, supprimé
+# automatiquement au bout d'un jour. Elle n'est jamais écrite dans le dépôt.
+name: Créer une clé de signature
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Génération
+        run: |
+          password=$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32)
+          echo "::add-mask::$password"
+          mkdir -p out
+          keytool -genkeypair -keystore out/wakeonlan-release.p12 -storetype PKCS12 \
+            -storepass "$password" -keypass "$password" -alias wakeonlan \
+            -keyalg RSA -keysize 4096 -validity 10950 -dname "CN=Wake On LAN" 2>/dev/null
+          base64 -w0 out/wakeonlan-release.p12 > out/WOL_KEYSTORE_BASE64.txt
+          printf '%s' "$password" > out/WOL_KEYSTORE_PASSWORD.txt
+          cat > out/LISEZMOI.txt <<'TXT'
+          1. Dans GitHub : Settings > Secrets and variables > Actions > New repository secret
+             - Nom WOL_KEYSTORE_BASE64   : contenu du fichier WOL_KEYSTORE_BASE64.txt
+             - Nom WOL_KEYSTORE_PASSWORD : contenu du fichier WOL_KEYSTORE_PASSWORD.txt
+          2. Conservez wakeonlan-release.p12 et le mot de passe dans un endroit sûr
+             (gestionnaire de mots de passe) : sans eux, impossible de publier une mise à jour
+             installable par-dessus l'application existante.
+          3. Supprimez ensuite ce fichier ZIP et l'artifact dans GitHub (onglet Actions).
+          TXT
+      - uses: actions/upload-artifact@v6
+        with:
+          name: cle-de-signature
+          path: out/
+          retention-days: 1

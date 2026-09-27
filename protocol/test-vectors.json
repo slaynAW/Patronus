@@ -1,0 +1,48 @@
+{
+  "description": "Vecteurs de test du protocole wolagent/1, partagés par l'application (Kotlin) et l'agent (Go). Calculés indépendamment (Python hmac). Ne pas modifier sans mettre à jour docs/PROTOCOLE.md.",
+  "protocol": "wolagent/1",
+  "vectors": [
+    {
+      "name": "vecteur-1",
+      "key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "nonce": "ZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1-f4CBgoM",
+      "cnonce": "yMnKy8zNzs_Q0dLT1NXW1w",
+      "requestBody": "{\"cmd\":\"status\"}",
+      "requestMac": "mM0enAx8p-nwXWYWnQGoPQ3TZUURFImKrGu7virIl60",
+      "responseBody": "{\"ok\":true,\"code\":\"ok\",\"message\":\"\",\"hostname\":\"PC-BUREAU\",\"os\":\"windows\",\"arch\":\"amd64\",\"version\":\"1.0.0\",\"uptime\":3600}",
+      "responseMac": "nOf2wH1JM6z60zBW9aD1aZoRopHLGHf8rSgP_A4QdlM"
+    },
+    {
+      "name": "vecteur-2",
+      "key": "paWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaU",
+      "nonce": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      "cnonce": "_v7-_v7-_v7-_v7-_v7-_g",
+      "requestBody": "{\"cmd\":\"shutdown\",\"delay\":0,\"force\":false}",
+      "requestMac": "g_dwRThI5yfozJDvgFX4NTLvdTjTS_cAkj-UEmzyB6Q",
+      "responseBody": "{\"ok\":true,\"code\":\"ok\",\"message\":\"Extinction dans 0 s\",\"hostname\":\"serveur\",\"os\":\"linux\",\"arch\":\"arm64\",\"version\":\"1.0.0\",\"uptime\":42}",
+      "responseMac": "xat7zmzHtHQELkiD9BXpvlMEDUjnZHVeYElV5apq3qk"
+    },
+    {
+      "name": "vecteur-3",
+      "key": "OAHkPRCC_T88XIQin8xv17FsZGD-2_aAp3pENUM1roo",
+      "nonce": "eDd7UldXtJRCf4kBT5fXmSjzk40U61HiD7XeyYNOswQ",
+      "cnonce": "Oba9Tyv6M2vwDDe-0Qiv2g",
+      "requestBody": "{\"cmd\":\"reboot\",\"delay\":30,\"force\":true}",
+      "requestMac": "KagogtrNdTyyT8kA2NY5ea5JrDpRdWvaNcW_Iwsnn10",
+      "responseBody": "{\"ok\":false,\"code\":\"error\",\"message\":\"Accès refusé : caractères accentués éè\"}",
+      "responseMac": "32yeWESR5kBI3pfAXVUO8D-xNNoXlmXVRr4tUA9Y5d0"
+    }
+  ],
+  "magicPackets": [
+    {
+      "mac": "01:23:45:67:89:AB",
+      "secureOn": null,
+      "packetHex": "ffffffffffff0123456789ab0123456789ab0123456789ab0123456789ab0123456789ab0123456789ab0123456789ab0123456789ab0123456789ab0123456789ab0123456789ab0123456789ab0123456789ab0123456789ab0123456789ab0123456789ab"
+    },
+    {
+      "mac": "AA:BB:CC:DD:EE:FF",
+      "secureOn": "11:22:33:44:55:66",
+      "packetHex": "ffffffffffffaabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeff112233445566"
+    }
+  ]
+}
