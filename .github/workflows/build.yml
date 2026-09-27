@@ -205,7 +205,8 @@ jobs:
   release:
     name: Publication
     needs: [version, agent, agent-windows, android]
-    if: github.event_name == 'push'
+    # Push ou lancement manuel (« Run workflow ») ; jamais pour une pull request.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
