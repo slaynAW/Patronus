@@ -150,7 +150,9 @@ Détails et limites : **[docs/SECURITE.md](docs/SECURITE.md)**.
 | `cd agent && go build .` | Agent pour le système courant |
 
 Versions : AGP 9.4, Kotlin 2.4, Gradle 9.7, compileSdk/targetSdk 37, minSdk 26, Go 1.26.
-Publier une version officielle : créer un tag `vX.Y.Z` (ex. `git tag v1.0.0 && git push origin v1.0.0`) ; la CI publie l'APK et les agents.
+Publier une version officielle : onglet **Actions → Build → Run workflow**, branche `main`, champ
+« Version officielle à publier » (ex. `1.1.0`). La CI crée le tag `v1.1.0` et la Release avec l'APK et les agents
+(pousser un tag `vX.Y.Z` fonctionne aussi). Sans numéro, le build met simplement à jour la pré-version `dev`.
 
 ## 8. Pistes d'amélioration
 
