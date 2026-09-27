@@ -173,6 +173,9 @@ jobs:
       - name: Avertissements lint
         run: cat app/build/reports/lint-results-release.txt 2>/dev/null || echo "Aucun rapport texte"
 
+      - name: Contrôle R8 (composants chargés par réflexion)
+        run: .github/scripts/check-r8-registrars.sh
+
       - name: Vérification du test de bout en bout
         run: |
           grep -q 'tests="2" skipped="0" failures="0" errors="0"' \
