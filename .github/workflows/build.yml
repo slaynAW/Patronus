@@ -141,11 +141,24 @@ jobs:
       - name: Clé de signature (secrets du dépôt)
         env:
           KEYSTORE_BASE64: ${{ secrets.WOL_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.WOL_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ vars.WOL_KEY_ALIAS }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.p12"
+            # Tolère les espaces / retours à la ligne ajoutés par un copier-coller.
+            printf '%s' "$KEYSTORE_BASE64" | tr -d ' \t\r\n' | base64 -d > "$RUNNER_TEMP/release.p12" || {
+              echo "::error title=Signature::Le secret WOL_KEYSTORE_BASE64 n'est pas un contenu Base64 valide (recopiez tout le fichier WOL_KEYSTORE_BASE64.txt)."
+              exit 1
+            }
+            password=$(printf '%s' "$KEYSTORE_PASSWORD" | tr -d ' \t\r\n')
+            if ! keytool -list -keystore "$RUNNER_TEMP/release.p12" -storetype PKCS12 -storepass "$password" \
+                 -alias "${KEY_ALIAS:-wakeonlan}" > /dev/null 2>&1; then
+              echo "::error title=Signature::Clé illisible : vérifiez le secret WOL_KEYSTORE_PASSWORD (contenu exact de WOL_KEYSTORE_PASSWORD.txt)."
+              exit 1
+            fi
             echo "WOL_KEYSTORE_FILE=$RUNNER_TEMP/release.p12" >> "$GITHUB_ENV"
             echo "SIGNING=release" >> "$GITHUB_ENV"
+            echo "Clé de signature définitive chargée."
           else
             echo "::warning title=Signature::Secret WOL_KEYSTORE_BASE64 absent : APK signé avec une clé temporaire. Voir docs/SIGNATURE.md"
             echo "SIGNING=temporaire" >> "$GITHUB_ENV"

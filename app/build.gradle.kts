@@ -13,7 +13,7 @@ val appVersionCode = providers.environmentVariable("WOL_VERSION_CODE").orNull?.t
 // Signature : la clé n'est JAMAIS dans le dépôt. La CI la reconstitue depuis les secrets GitHub
 // (voir docs/SIGNATURE.md). Sans clé, l'APK de release est signé avec la clé de debug locale.
 val keystorePath = providers.environmentVariable("WOL_KEYSTORE_FILE").orNull
-val keystorePassword = providers.environmentVariable("WOL_KEYSTORE_PASSWORD").orNull
+val keystorePassword = providers.environmentVariable("WOL_KEYSTORE_PASSWORD").orNull?.trim()?.takeIf { it.isNotEmpty() }
 val keyAliasName = providers.environmentVariable("WOL_KEY_ALIAS").orNull?.takeIf { it.isNotBlank() } ?: "wakeonlan"
 
 android {
