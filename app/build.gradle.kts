@@ -72,9 +72,8 @@ android {
     lint {
         abortOnError = true
         checkReleaseBuilds = true
-        // Avertissements visibles directement dans le journal de la CI.
+        // Rapport texte (build/reports/lint-results-release.txt), affiché par la CI.
         textReport = true
-        textOutput = file("stdout")
         // Les mises à jour de dépendances sont gérées manuellement (catalogue de versions).
         disable += setOf("GradleDependency", "NewerVersionAvailable", "AndroidGradlePluginVersion")
     }

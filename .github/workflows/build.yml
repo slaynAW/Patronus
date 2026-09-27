@@ -157,6 +157,9 @@ jobs:
           WOL_KEY_ALIAS: ${{ vars.WOL_KEY_ALIAS }}
         run: ./gradlew --stacktrace :core:test :app:lintRelease :app:assembleRelease
 
+      - name: Avertissements lint
+        run: cat app/build/reports/lint-results-release.txt 2>/dev/null || echo "Aucun rapport texte"
+
       - name: Vérification du test de bout en bout
         run: |
           grep -q 'tests="2" skipped="0" failures="0" errors="0"' \
