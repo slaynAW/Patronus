@@ -17,9 +17,13 @@ WakeOnLan/
 │   ├── ui/         écrans Compose (liste, édition, réglages), thème Material 3
 │   ├── AppContainer.kt   assemblage des dépendances (injection manuelle)
 │   └── DeviceActions.kt  réveil / extinction / test d'agent
+├── desktop/     Go + WebView2 — application Windows (même interface et mêmes fonctions qu'Android)
+│   ├── ui/         interface HTML/CSS/JS (écrans identiques à l'app Android)
+│   └── internal/   model, config (DPAPI, export), wol, agentclient, status, netstate, pairing, app
 ├── agent/       Go — service installé sur les PC
-│   └── internal/   protocol, server, config, power, service, pairing, netinfo, sysinfo, terminal
-└── protocol/    vecteurs de test communs Kotlin ↔ Go
+│   ├── protocol/   protocole partagé avec l'application Windows
+│   └── internal/   server, config, power, service, pairing, netinfo, sysinfo, terminal
+└── protocol/    vecteurs de test communs Kotlin ↔ Go (protocole, paquet magique, sauvegardes)
 ```
 
 **Pourquoi un module `core` séparé ?** Tout ce qui peut se tromper (calculs réseau, cryptographie, protocole, logique d'état)
@@ -106,6 +110,27 @@ stateDiagram-v2
 - `service` : installation service Windows (API SCM), systemd, launchd ; `pairing` : lien + QR code (terminal ANSI ou PNG).
 - Binaire statique unique (CGO désactivé), dépendances : `golang.org/x/sys` et `rsc.io/qr`.
 
+## Application Windows (Go + WebView2)
+
+```mermaid
+flowchart LR
+    UI[Interface HTML/JS<br/>WebView2] -- "goInvoke(méthode, paramètres)" --> Svc[app.Service]
+    Svc -- "état complet à chaque changement" --> UI
+    Svc --> Store[(config.dat<br/>DPAPI)]
+    Svc --> Mon[status.Monitor] --> Prober[HostProber<br/>agent / TCP / IcmpSendEcho]
+    Svc --> Wol[wol.Send<br/>une socket par carte]
+    Svc --> Client[agentclient<br/>agent/protocol]
+    Net[netstate<br/>GetAdaptersAddresses] --> Svc
+```
+
+- Le moteur est une **transposition fidèle** du module `core` : mêmes règles de validation et messages, même machine à
+  états (tests identiques), même protocole (le paquet `agent/protocol` est partagé avec l'agent), même format de sauvegarde.
+- L'interface ne contient aucune logique métier : elle affiche l'état envoyé par Go et appelle ses méthodes (`internal/app`).
+  Les textes sont ceux de `strings.xml`. Les appels réseau s'exécutent hors du fil de la fenêtre.
+- **Interopérabilité garantie** : `protocol/export-vectors.json` (produit par Node.js/OpenSSL) est relu par les tests Kotlin
+  **et** Go ; le client Windows est testé contre le vrai agent en CI.
+- Surveillance en pause quand la fenêtre est réduite ; une seule instance ; `F5` actualise.
+
 ## Qualité
 
 | Contrôle | Où |
@@ -114,5 +139,7 @@ stateDiagram-v2
 | Test de bout en bout app ↔ agent réel | CI (`AgentEndToEndTest`) |
 | Tests de l'agent (protocole, serveur, rejeu, force brute, config) sous Linux **et** Windows, détecteur de courses | CI |
 | Vecteurs cryptographiques communs, calculés indépendamment | `protocol/test-vectors.json` |
+| Tests de l'application Windows (Linux + Windows : DPAPI, ping, cartes réseau), test de bout en bout contre l'agent | CI |
+| Démarrage réel de l'application Windows (fenêtre WebView2, interface, pont Go ↔ JS) | CI (`WOL_SELFTEST`) |
 | Lint Android, `go vet` pour Windows/Linux/macOS, `gofmt` | CI |
 | Avertissements Kotlin traités comme des erreurs (`core`) | `core/build.gradle.kts` |

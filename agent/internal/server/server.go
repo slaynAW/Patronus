@@ -14,8 +14,8 @@ import (
 
 	"github.com/slaynaw/wakeonlan/agent/internal/config"
 	"github.com/slaynaw/wakeonlan/agent/internal/power"
-	"github.com/slaynaw/wakeonlan/agent/internal/protocol"
 	"github.com/slaynaw/wakeonlan/agent/internal/sysinfo"
+	"github.com/slaynaw/wakeonlan/agent/protocol"
 )
 
 const (

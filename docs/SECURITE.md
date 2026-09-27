@@ -20,11 +20,22 @@
 | Import | Tout fichier importé est validé champ par champ (MAC, IP, ports, tailles) ; taille maximale 1 Mio. |
 | Code | R8 (minification) activé ; dépendances limitées à AndroidX, Kotlin et Play Services code scanner. |
 
+## Sur le PC (application Windows)
+
+| Mesure | Détail |
+|---|---|
+| Chiffrement au repos | Configuration chiffrée par **DPAPI** (`CryptProtectData`, liée à la session Windows + entropie propre à l'application) : un fichier `config.dat` copié ailleurs est illisible. |
+| Réseau | Aucune connexion Internet : seuls vos PC sont contactés. Aucun port en écoute. |
+| Interface | Page intégrée à l'exécutable, sans contenu distant ; seules les adresses du dépôt peuvent être ouvertes dans le navigateur (liste blanche). Le presse-papiers n'est lu que pour un lien `wolagent://`. |
+| Clés | Jamais envoyées à la liste des PC affichée ; seulement au formulaire de modification. |
+| Exécutable | Compilé par la CI (`-trimpath`, sans CGO), somme SHA-256 publiée. Non signé par un éditeur (avertissement SmartScreen au premier lancement). |
+
 ## Export / import
 
 - **Complet** : chiffré avec une clé dérivée du mot de passe par **PBKDF2-HMAC-SHA256 (600 000 itérations, sel de 16 octets)**,
   puis **AES-256-GCM** (IV de 12 octets, en-tête authentifié). Un mauvais mot de passe ou une modification du fichier sont détectés.
 - **Sans les clés** : fichier lisible, clés d'agent et mots de passe SecureOn retirés.
+- Format identique sur Android et Windows (vérifié par des sauvegardes de référence produites indépendamment).
 
 ## Agent
 

@@ -1,0 +1,103 @@
+{
+  "description": "Sauvegardes de référence (format wakeonlan-config/1), produites indépendamment (Node.js / OpenSSL) et relues par les tests Kotlin (Android) et Go (Windows) : les sauvegardes sont interchangeables entre le téléphone et le PC.",
+  "password": "mot de passe très sûr",
+  "config": {
+    "schemaVersion": 1,
+    "devices": [
+      {
+        "id": "pc-bureau",
+        "name": "PC Bureau",
+        "mac": "AA:BB:CC:DD:EE:01",
+        "host": "192.168.1.20",
+        "wolPort": 9,
+        "probePorts": [
+          3389,
+          445,
+          22,
+          139
+        ],
+        "agent": {
+          "port": 9770,
+          "key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
+        }
+      },
+      {
+        "id": "nas",
+        "name": "NAS du salon",
+        "mac": "AA:BB:CC:DD:EE:02",
+        "host": "nas.local",
+        "broadcastAddress": "192.168.1.255",
+        "wolPort": 7,
+        "secureOnPassword": "11:22:33:44:55:66",
+        "probePorts": [
+          22,
+          5000
+        ]
+      }
+    ],
+    "settings": {
+      "pollIntervalSeconds": 5,
+      "confirmPowerActions": false,
+      "wakeTimeoutSeconds": 240
+    }
+  },
+  "encryptedExport": {
+    "format": "wakeonlan-config",
+    "version": 1,
+    "exportedAt": "2026-09-27T10:00:00Z",
+    "app": "Node.js (vecteur de test)",
+    "encryption": {
+      "kdf": "PBKDF2WithHmacSHA256",
+      "iterations": 100000,
+      "salt": "AAECAwQFBgcICQoLDA0ODw==",
+      "cipher": "AES-256-GCM",
+      "iv": "ZGVmZ2hpamtsbW5v"
+    },
+    "data": "aFyYXQED+CbbkuEOOQH2eNSCIqLUK7f24rR0/i445hurAnD+3ISGmL5E/wYCthWtqeV3uoDpKvLUhSj7qc1z+/Uq4HkxWD9P8ut+Ns9UtTfeszjF0j8R2gYf02Q6oXnmdBQJO1KTffrqIUBh2BKf737+D15uvR+7EOlg5aoMb1me1wGbjxc1ZndziaRV2X5kysSICPA3HcGBq04kAlwqSfHzQSQRXn6A/QVCVeYIZ29N3hIU+bmZqzYR5rm9WVSzAR9XTSxdS/uw33s5SAB1Z/izOyU7d7EqrdrKMC1uZD87U6UPYcfBbL0UO7rKQMev2atGNPW4wJK4r3fC1MNl8/BASZpXoxjfTbYNpb4gWGRFgyellPyy5CtswPEJZ7IGcryO/5vbBrKh6Y6p+ApTHnH++B6M22GbA4+fPGcHKCZNmvTbchp3Pjfs7qXo2C4MuARs42ji9iS6F7ETqEfa+ySwmkn44Fk4sh9xa1bRiZFXI2Lv0hCYIfnM9FFL2JXjq58OYLnvy6SE3xl8uvsdydnU5Z+9hL59xqHOmu0lwxOCfMgZ/t7vcpb7s/EktHoiLVtokWS6GPiNHImPwIEnBEt6DYlC71KWI6oCW8eC0txIlf7xrCgYN8rImRexNvi3TZTypLGFXba7NPc7zydpgFg4E8UThD4Jqn9hUEAZ8U2qCwSSbtncSECP36BBo2+Zjw=="
+  },
+  "plainExport": {
+    "format": "wakeonlan-config",
+    "version": 1,
+    "exportedAt": "2026-09-27T10:00:00Z",
+    "app": "Node.js (vecteur de test)",
+    "config": {
+      "schemaVersion": 1,
+      "devices": [
+        {
+          "id": "pc-bureau",
+          "name": "PC Bureau",
+          "mac": "AA:BB:CC:DD:EE:01",
+          "host": "192.168.1.20",
+          "wolPort": 9,
+          "probePorts": [
+            3389,
+            445,
+            22,
+            139
+          ],
+          "agent": {
+            "port": 9770,
+            "key": ""
+          }
+        },
+        {
+          "id": "nas",
+          "name": "NAS du salon",
+          "mac": "AA:BB:CC:DD:EE:02",
+          "host": "nas.local",
+          "broadcastAddress": "192.168.1.255",
+          "wolPort": 7,
+          "probePorts": [
+            22,
+            5000
+          ]
+        }
+      ],
+      "settings": {
+        "pollIntervalSeconds": 5,
+        "confirmPowerActions": false,
+        "wakeTimeoutSeconds": 240
+      }
+    }
+  }
+}

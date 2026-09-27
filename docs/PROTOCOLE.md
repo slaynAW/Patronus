@@ -1,7 +1,7 @@
 # Protocole `wolagent/1`
 
 Protocole entre l'application Android (client) et l'agent installé sur un PC (serveur).
-Implémentations : `core/src/main/kotlin/…/agent/` (Kotlin) et `agent/internal/protocol` + `agent/internal/server` (Go).
+Implémentations : `core/src/main/kotlin/…/agent/` (Kotlin) et `agent/protocol` + `agent/internal/server` (Go, agent) et `desktop/internal/agentclient` (Go, application Windows).
 Les deux implémentations sont vérifiées contre les mêmes vecteurs de test : [`protocol/test-vectors.json`](../protocol/test-vectors.json)
 (calculés indépendamment), et par un test de bout en bout en CI (client Kotlin ↔ agent Go réel).
 
