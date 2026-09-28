@@ -262,7 +262,7 @@
     about_version: "Version",
     about_source: "Code source",
     about_security: "Sécurité",
-    about_security_text: "Configuration et historique chiffrés sur ce PC (protection des données Windows), aucune donnée personnelle envoyée sur Internet (seule la recherche de mises à jour contacte GitHub), commandes d’extinction authentifiées (HMAC-SHA256) et protégées contre le rejeu.",
+    about_security_text: "Configuration et historique chiffrés sur ce PC (protection des données Windows), aucune donnée personnelle envoyée sur Internet (GitHub n’est contacté que pour les mises à jour et, si vous l’utilisez, le partage : fichiers chiffrés), commandes d’extinction authentifiées (HMAC-SHA256) et protégées contre le rejeu.",
 
     section_updates: "Mises à jour",
     update_title: "Mise à jour disponible",

@@ -7,7 +7,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import com.github.takahirom.roborazzi.captureRoboImage
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import io.github.slaynaw.wakeonlan.core.agent.AgentStatus
+import io.github.slaynaw.wakeonlan.core.share.ShareAccess
+import io.github.slaynaw.wakeonlan.core.share.ShareCrypto
+import io.github.slaynaw.wakeonlan.core.share.ShareInvite
+import io.github.slaynaw.wakeonlan.core.share.ShareOwner
+import io.github.slaynaw.wakeonlan.core.share.SharePerson
+import io.github.slaynaw.wakeonlan.core.share.ShareRight
+import io.github.slaynaw.wakeonlan.share.ShareUiState
 import io.github.slaynaw.wakeonlan.core.history.HistoryEvent
 import io.github.slaynaw.wakeonlan.core.history.HistoryKind
 import io.github.slaynaw.wakeonlan.core.history.HistorySource
@@ -33,7 +47,9 @@ import io.github.slaynaw.wakeonlan.ui.history.HistoryUiState
 import io.github.slaynaw.wakeonlan.ui.main.MainScaffold
 import io.github.slaynaw.wakeonlan.ui.main.MainTab
 import io.github.slaynaw.wakeonlan.ui.overview.OverviewTab
+import io.github.slaynaw.wakeonlan.ui.settings.QrImage
 import io.github.slaynaw.wakeonlan.ui.settings.SettingsContent
+import io.github.slaynaw.wakeonlan.ui.settings.ShareSections
 import io.github.slaynaw.wakeonlan.ui.theme.WolTheme
 import org.junit.Rule
 import org.junit.Test
@@ -220,6 +236,61 @@ class ScreenshotTest {
     fun reglages() = capture("5-reglages") {
         MainScaffold(MainTab.SETTINGS, {}, remember { SnackbarHostState() }, showAddButton = false, onAddDevice = {}) { padding ->
             SettingsContent(padding, AppSettings(), deviceCount = items.size, busy = false, version = "1.2.0", {}, {}, {}, {}, {}, {})
+        }
+    }
+
+    /** Partage : Hugo partage le PC Bureau avec Léa, et reçoit le PC de Paul. */
+    private val shareState: ShareUiState by lazy {
+        val key = ShareCrypto.newKeyPair()
+        val lea = ShareCrypto.newKeyPair()
+        ShareUiState(
+            loaded = true,
+            canLogin = true,
+            owner = ShareOwner(key = key.privateEncoded, publicKey = key.publicEncoded, name = "Hugo", token = "t", user = "hugo", gist = "0123456789abcdef0123456789abcdef")
+                .grant(SharePerson("Léa", lea.publicEncoded, now, mapOf("bureau" to ShareRight.WAKE)))
+                .let { it.copy(published = it.people.associate { p -> p.device to "x" }) },
+            received = listOf(
+                ShareAccess(
+                    owner = ShareCrypto.newKeyPair().publicEncoded, ownerName = "Paul", user = "paul", gist = "fedcba9876543210fedcba9876543210",
+                    myName = "Hugo", active = true, devices = listOf(items[2].device), synced = now - 120_000,
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun partage() = capture("7-reglages-partage") {
+        MainScaffold(MainTab.SETTINGS, {}, remember { SnackbarHostState() }, showAddButton = false, onAddDevice = {}) { padding ->
+            Column(Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(16.dp)) {
+                ShareSections(share = shareState, ownDevices = items.map { it.device }, now = now, onDialog = {})
+            }
+        }
+    }
+
+    @Test
+    fun fichePartagee() = capture("7b-fiche-pc-partage") {
+        DeviceDetailContent(
+            item = items[3].copy(sharedBy = "Paul", device = items[3].device.copy(agent = null)),
+            isFirst = false,
+            isLast = false,
+            history = HistoryUiState(loaded = true, filter = "salon"),
+            now = now,
+            snackbar = remember { SnackbarHostState() },
+            onBack = {},
+            onWake = {},
+            onPower = {},
+            onEdit = {},
+            onOpenHistory = {},
+            onMove = {},
+            onDelete = {},
+            onClearNotice = {},
+        )
+    }
+
+    @Test
+    fun qrCode() = capture("7c-qr-invitation") {
+        Box(Modifier.padding(24.dp)) {
+            QrImage(ShareInvite("Hugo", ShareCrypto.newKeyPair().publicEncoded, "hugo", "0123456789abcdef0123456789abcdef").link)
         }
     }
 

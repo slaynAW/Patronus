@@ -11,10 +11,14 @@ depuis votre téléphone ou depuis un autre PC.
 - 🕘 **Historique discret** des démarrages et extinctions sur 30 jours (complet grâce au journal de l'agent, même quand
   l'application était fermée).
 - 🌙 **Style sombre et moderne**, identique sur Android et Windows : synthèse en anneau, plan du réseau, fiche de chaque PC.
+- 🤝 **Partage des PC** avec les personnes de votre choix, PC par PC (démarrer seulement, ou aussi éteindre) :
+  invitation par QR code ou lien, accès chiffré pour le seul appareil de la personne et signé par vous, mis à jour
+  automatiquement, retirable à tout moment ([docs/PARTAGE.md](docs/PARTAGE.md)).
 - 🔄 **Mises à jour intégrées** : les applications proposent les nouvelles versions avec leurs nouveautés et s'installent
   en un clic, sans toucher aux PC enregistrés ni à l'historique ([docs/MISES-A-JOUR.md](docs/MISES-A-JOUR.md)).
 - 🔒 **Sécurisée** : configuration chiffrée sur le téléphone, commandes authentifiées et non rejouables, aucune donnée
-  personnelle envoyée sur Internet (seule la recherche de mises à jour, désactivable, contacte GitHub).
+  personnelle envoyée sur Internet en clair (GitHub n'est contacté que pour la recherche de mises à jour, désactivable,
+  et pour le partage si vous l'utilisez : uniquement des fichiers chiffrés).
 - 💾 **Export / import** de la configuration (fichier chiffré par mot de passe si les clés sont incluses).
 - 📷 **Appairage par QR code** : l'agent affiche un QR code, l'application remplit tout (IP, MAC, clé).
 - 🖥️ **Application Windows** très légère (un seul `.exe` d'environ 8 Mo, sans installation) : mêmes fonctions et même
@@ -128,8 +132,11 @@ Commandes utiles : `wol-agent pair` (réafficher le QR code), `wol-agent status`
   l'application (à quelques secondes près) plutôt que relevée par l'agent ; « arrêt inattendu » : coupure de courant,
   arrêt forcé ou plantage.
 - **Ajouter un PC** : QR code de l'agent, lien collé, ou saisie manuelle (nom + adresse MAC suffisent pour le démarrage ; ajoutez l'IP pour l'état en temps réel).
-- **Réglages** : fréquence de vérification (3 s par défaut), délai d'attente du démarrage, confirmation, **export / import**,
-  historique (affichage complet, effacement).
+- **Réglages** : fréquence de vérification (3 s par défaut), délai d'attente du démarrage, confirmation, **partage**
+  (*Partager mes PC*, *PC partagés avec moi*), **export / import**, historique (affichage complet, effacement).
+- **Partage** : *Partager mes PC* → connexion GitHub (une fois) → *Inviter une personne* ; elle *Demande un accès* et vous
+  renvoie sa demande ; vous comparez le code de vérification puis choisissez ses PC et ses droits. Guide :
+  [docs/PARTAGE.md](docs/PARTAGE.md).
 - **Windows** : mêmes fonctions en grand écran (plan du réseau, tableau des appareils, panneau de détail) ; **F5** actualise,
   un fichier de sauvegarde glissé dans la fenêtre est importé.
 
@@ -176,6 +183,7 @@ Détails : **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** et **[docs/PROTOCOLE
 | Force brute sur la clé | Blocage de 5 min après 5 échecs ; clé de 256 bits (irréaliste à deviner). |
 | Accès depuis Internet | L'agent n'accepte que les adresses privées ; pare-feu Windows limité au sous-réseau local. |
 | Fuite d'une sauvegarde | Export complet chiffré par mot de passe (PBKDF2 600 000 itérations + AES-256-GCM) ; export « sans clés » sinon. |
+| Partage des PC | Accès chiffré pour la clé d'un seul appareil (ECDH P-256 + AES-256-GCM) et signé par la personne qui partage (ECDSA P-256) ; code de vérification ; aucun accès aux dépôts GitHub ([docs/PARTAGE.md](docs/PARTAGE.md)). |
 | APK modifié | Signature de l'APK avec une clé privée stockée uniquement dans les secrets GitHub ; somme de contrôle de Gradle vérifiée. |
 
 Détails et limites : **[docs/SECURITE.md](docs/SECURITE.md)**.

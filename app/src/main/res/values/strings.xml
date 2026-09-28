@@ -267,7 +267,7 @@
     <string name="about_version">Version</string>
     <string name="about_source">Code source</string>
     <string name="about_security">Sécurité</string>
-    <string name="about_security_text">Configuration et historique chiffrés sur le téléphone (Keystore Android), aucune donnée personnelle envoyée sur Internet (seule la recherche de mises à jour contacte GitHub), commandes d’extinction authentifiées (HMAC-SHA256) et protégées contre le rejeu.</string>
+    <string name="about_security_text">Configuration et historique chiffrés sur le téléphone (Keystore Android), aucune donnée personnelle envoyée sur Internet (GitHub n’est contacté que pour les mises à jour et, si vous l’utilisez, le partage : fichiers chiffrés), commandes d’extinction authentifiées (HMAC-SHA256) et protégées contre le rejeu.</string>
 
     <!-- Mises à jour intégrées -->
     <string name="section_updates">Mises à jour</string>

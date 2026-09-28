@@ -122,3 +122,22 @@ import). Un fichier absent du Gist signifie : demande pas encore acceptée, ou a
 - Écriture : `POST /gists` (Gist secret), `PATCH /gists/{id}` (ajout, remplacement, suppression de fichiers).
 - Lecture, sans compte : `GET https://api.github.com/gists/{id}` avec `If-None-Match` (les réponses 304 ne comptent pas
   dans la limite de 60 requêtes par heure).
+
+## Mise en place (une seule fois, par le propriétaire du dépôt)
+
+La connexion à GitHub depuis les applications utilise une **application OAuth** enregistrée au nom du dépôt. Son
+identifiant (*Client ID*) est public ; aucun secret n'est nécessaire (flux « appareil »).
+
+1. Sur GitHub : *Settings* → *Developer settings* → *OAuth Apps* → **New OAuth App**
+   (<https://github.com/settings/applications/new>).
+2. Renseignez :
+   - *Application name* : `Wake On LAN`
+   - *Homepage URL* et *Authorization callback URL* : `https://github.com/slaynAW/WakeOnLan` (l'adresse de retour
+     n'est pas utilisée, mais GitHub l'exige)
+   - cochez **Enable Device Flow**
+3. **Register application**, puis copiez le *Client ID* (ne générez pas de *client secret* : il est inutile).
+4. Mettez-le dans `gradle.properties` (`wol.githubClientId=…`) : la CI l'intègre à l'APK et à l'application Windows.
+
+Sans identifiant, les applications restent capables de **recevoir** des accès ; seul le bouton « Partager mes PC » est
+indisponible. Chaque personne qui partage autorise cette application OAuth une fois, sur son propre compte GitHub : le
+propriétaire du dépôt n'obtient aucun accès aux comptes ni aux Gists des autres.
