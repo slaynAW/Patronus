@@ -33,6 +33,8 @@ tasks.test {
     useJUnitPlatform()
     // Les vecteurs de test partagés avec l'agent Go sont à la racine du dépôt.
     systemProperty("wol.protocolDir", file("../protocol").absolutePath)
+    // Client GitHub du partage : la JVM refuse la méthode PATCH (Android l'accepte), fixée par réflexion.
+    jvmArgs("--add-opens=java.base/java.net=ALL-UNNAMED")
     testLogging {
         events("failed")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL

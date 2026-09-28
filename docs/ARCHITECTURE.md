@@ -11,9 +11,12 @@ WakeOnLan/
 │   ├── agent/      protocole wolagent/1, client, clé, lien d'appairage
 │   ├── history/    historique sur 30 jours : fusion avec le journal des agents, déduction des changements
 │   ├── config/     JSON versionné + migrations, export/import chiffré
+│   ├── share/      partage des PC : format chiffré et signé, liens, client GitHub, QR code (docs/PARTAGE.md)
+│   ├── update/     mises à jour intégrées : manifeste signé, téléchargement vérifié
 │   └── net/        attachement des sockets au bon réseau, E/S annulables
 ├── app/         Android — interface et intégration système
-│   ├── data/       stockage chiffré (DataStore + Keystore) : configuration, historique
+│   ├── data/       stockage chiffré (DataStore + Keystore) : configuration, historique, partage
+│   ├── share/      ShareManager : connexion GitHub, publication des accès, vérification des accès reçus
 │   ├── network/    suivi du Wi-Fi/Ethernet, autorisation « réseau local »
 │   ├── ui/         écrans Compose : onglets (vue d'ensemble, appareils, réglages), fiche d'un PC,
 │   │               historique, édition ; thème sombre commun avec Windows
@@ -22,11 +25,13 @@ WakeOnLan/
 │   └── HistoryTracker.kt  tenue de l'historique (surveillance, demandes, journal des agents)
 ├── desktop/     Go + WebView2 — application Windows (même interface et mêmes fonctions qu'Android)
 │   ├── ui/         interface HTML/CSS/JS : plan du réseau, tableau, panneau de détail, historique
-│   └── internal/   model, config (DPAPI, export), history, wol, agentclient, status, netstate, pairing, app
+│   └── internal/   model, config (DPAPI, export), history, share (partage), update, wol, agentclient, status,
+│                   netstate, pairing, app
 ├── agent/       Go — service installé sur les PC
 │   ├── protocol/   protocole partagé avec l'application Windows
 │   └── internal/   server, config, history (journal 30 jours), power, service, pairing, netinfo, sysinfo, terminal
-└── protocol/    vecteurs de test communs Kotlin ↔ Go (protocole, paquet magique, sauvegardes, historique)
+└── protocol/    vecteurs de test communs Kotlin ↔ Go (protocole, paquet magique, sauvegardes, historique,
+                 mises à jour, partage, QR code)
 ```
 
 **Pourquoi un module `core` séparé ?** Tout ce qui peut se tromper (calculs réseau, cryptographie, protocole, logique d'état)

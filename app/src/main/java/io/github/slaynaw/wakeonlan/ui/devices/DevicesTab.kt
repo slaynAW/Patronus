@@ -102,12 +102,14 @@ fun DevicesTab(
         if (state.loaded && state.items.isEmpty()) {
             item(key = "empty") { EmptyState(onAddDevice) }
         }
+        // Les PC reçus d'autres personnes suivent ceux du téléphone et ne se déplacent pas.
+        val ownCount = state.items.count { it.editable }
         itemsIndexed(state.items, key = { _, item -> item.device.id }) { index, item ->
             DeviceCard(
                 item = item,
                 now = now,
                 isFirst = index == 0,
-                isLast = index == state.items.lastIndex,
+                isLast = index >= ownCount - 1,
                 onOpen = { onOpenDevice(item.device.id) },
                 onWake = { onWake(item.device) },
                 onPower = { action -> onPower(item.device, action) },
@@ -164,6 +166,7 @@ private fun DeviceCard(
             }
             DeviceMenu(
                 canShutdown = device.canShutdown,
+                editable = item.editable,
                 isFirst = isFirst,
                 isLast = isLast,
                 onWake = onWake,
@@ -178,6 +181,13 @@ private fun DeviceCard(
         Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 14.dp)) {
             val address = listOf(device.host, device.mac.toString()).filter { it.isNotBlank() }.joinToString("  ·  ")
             Text(address, style = MonoStyle, color = WolPalette.Text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            item.sharedBy?.let { owner ->
+                Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(WolIcons.Share, contentDescription = null, tint = WolPalette.Blue, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.share_by, owner), style = MaterialTheme.typography.bodySmall, color = WolPalette.Blue)
+                }
+            }
 
             val agent = status.agent
             if (status.state == PowerState.ONLINE && agent != null && status.agentError == null) {
@@ -249,6 +259,7 @@ private fun DeviceCard(
 @Composable
 fun DeviceMenu(
     canShutdown: Boolean,
+    editable: Boolean,
     isFirst: Boolean,
     isLast: Boolean,
     onWake: () -> Unit,
@@ -275,12 +286,15 @@ fun DeviceMenu(
                 }
             }
             HorizontalDivider(color = WolPalette.Line)
-            MenuItem(stringResource(R.string.action_edit), WolIcons.Edit, close(onEdit))
+            // Un PC reçu d'une autre personne ne se modifie pas, ne se déplace pas, ne se supprime pas.
+            if (editable) MenuItem(stringResource(R.string.action_edit), WolIcons.Edit, close(onEdit))
             MenuItem(stringResource(R.string.history_title), WolIcons.History, close(onHistory))
-            if (!isFirst) MenuItem(stringResource(R.string.action_move_up), WolIcons.ArrowUp, close { onMove(-1) })
-            if (!isLast) MenuItem(stringResource(R.string.action_move_down), WolIcons.ArrowDown, close { onMove(1) })
-            HorizontalDivider(color = WolPalette.Line)
-            MenuItem(stringResource(R.string.action_delete), WolIcons.Delete, close(onDelete), danger = true)
+            if (editable) {
+                if (!isFirst) MenuItem(stringResource(R.string.action_move_up), WolIcons.ArrowUp, close { onMove(-1) })
+                if (!isLast) MenuItem(stringResource(R.string.action_move_down), WolIcons.ArrowDown, close { onMove(1) })
+                HorizontalDivider(color = WolPalette.Line)
+                MenuItem(stringResource(R.string.action_delete), WolIcons.Delete, close(onDelete), danger = true)
+            }
         }
     }
 }

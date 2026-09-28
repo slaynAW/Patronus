@@ -8,6 +8,8 @@ Version Windows de l'application : **mêmes fonctions et même style** que l'app
 - 🟢 État en temps réel (allumé / éteint / démarrage / arrêt en cours, latence, « vu il y a… »).
 - 📈 Latence en direct façon électrocardiogramme dans le panneau de détail (tracé de la dernière minute, une mesure par
   seconde, survol pour lire chaque mesure) et mini-tracés dans les listes.
+- 🤝 Partage des PC avec d'autres personnes, PC par PC (démarrer, ou aussi éteindre), chiffré et signé ; invitation par
+  QR code ou lien. Voir [docs/PARTAGE.md](../docs/PARTAGE.md).
 - 🔄 Mises à jour intégrées : nouvelle version proposée avec ses nouveautés, installée en un clic (l'application se
   remplace puis redémarre ; configuration et historique conservés). Voir [docs/MISES-A-JOUR.md](../docs/MISES-A-JOUR.md).
 - ⏻ Éteindre, redémarrer, mettre en veille (avec l'[agent](../agent/README.md) installé sur les PC).
@@ -45,6 +47,7 @@ jour*). Pour passer d'une version plus ancienne, remplacez simplement le fichier
 |---|---|
 | Configuration (PC, clés des agents, réglages) | `%APPDATA%\WakeOnLan\config.dat`, chiffrée avec **DPAPI** (liée à votre session Windows : illisible depuis un autre compte ou un autre PC). |
 | Historique (30 jours) | `%APPDATA%\WakeOnLan\history.dat`, chiffré avec DPAPI. *Réglages* → *Effacer l'historique* le vide (le journal tenu par l'agent de chaque PC est conservé). |
+| Partage (clés, jeton GitHub, accès reçus) | `%APPDATA%\WakeOnLan\share.dat`, chiffré avec DPAPI. |
 | Journal technique | `%APPDATA%\WakeOnLan\wakeonlan.log` |
 | Cache d'affichage WebView2 | `%LOCALAPPDATA%\WakeOnLan\WebView2` |
 

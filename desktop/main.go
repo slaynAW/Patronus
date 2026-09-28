@@ -7,10 +7,14 @@ package main
 import (
 	"embed"
 	"encoding/base64"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/slaynaw/wakeonlan/desktop/internal/app"
+	"github.com/slaynaw/wakeonlan/desktop/internal/share"
 )
 
 // version et buildCode (numéro croissant de la CI, comparé pour les mises à jour) sont fixés à la
@@ -18,7 +22,28 @@ import (
 var (
 	version   = "dev"
 	buildCode = "0"
+	// githubClientID est l'identifiant (public) de l'application OAuth GitHub du projet, utilisé par la
+	// connexion du partage (-X main.githubClientID=…, repris de gradle.properties par la CI).
+	githubClientID = ""
 )
+
+// shareOptions active le partage des PC. En mode développement uniquement, WOL_GITHUB_API et
+// WOL_GITHUB_WEB remplacent GitHub par un serveur de test.
+func shareOptions(dataDir string) *app.ShareOptions {
+	store, err := share.NewStore(dataDir)
+	if err != nil {
+		log.Printf("partage désactivé : %v", err)
+		return nil
+	}
+	gh := share.NewGitHub(githubClientID, "WakeOnLan-Windows/"+version)
+	if api := os.Getenv("WOL_GITHUB_API"); api != "" && version == "dev" {
+		gh.API, gh.Web = api, os.Getenv("WOL_GITHUB_WEB")
+		if gh.ClientID == "" {
+			gh.ClientID = "dev"
+		}
+	}
+	return &app.ShareOptions{Store: store, GitHub: gh}
+}
 
 //go:embed ui
 var uiFiles embed.FS

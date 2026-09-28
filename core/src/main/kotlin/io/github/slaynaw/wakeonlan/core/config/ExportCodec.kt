@@ -4,6 +4,7 @@ import io.github.slaynaw.wakeonlan.core.model.AppConfig
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 import java.security.SecureRandom
 import java.util.Base64
 import javax.crypto.AEADBadTagException
@@ -69,6 +70,8 @@ object ExportCodec {
         appVersion: String? = null,
         iterations: Int = DEFAULT_ITERATIONS,
         random: SecureRandom = SecureRandom(),
+        /** Données ajoutées à une sauvegarde chiffrée (ex. « sharing »), ignorées des anciennes versions. */
+        extra: Map<String, JsonElement> = emptyMap(),
     ): String {
         val envelope = if (password == null) {
             val stripped = config.copy(devices = config.devices.map { it.withoutSecrets() })
@@ -84,7 +87,9 @@ object ExportCodec {
             val salt = ByteArray(16).also(random::nextBytes)
             val iv = ByteArray(12).also(random::nextBytes)
             val cipher = cipher(Cipher.ENCRYPT_MODE, password, salt, iv, iterations)
-            val encrypted = cipher.doFinal(ConfigCodec.encode(config).toByteArray(Charsets.UTF_8))
+            var root = ConfigCodec.json.encodeToJsonElement(AppConfig.serializer(), config) as JsonObject
+            if (extra.isNotEmpty()) root = JsonObject(root + extra.filterKeys { it !in root })
+            val encrypted = cipher.doFinal(root.toString().toByteArray(Charsets.UTF_8))
             ExportEnvelope(
                 format = FORMAT,
                 version = VERSION,
@@ -118,13 +123,16 @@ object ExportCodec {
 
     fun isEncrypted(text: String): Boolean = inspect(text).encryption != null
 
-    fun import(text: String, password: CharArray?): AppConfig {
+    fun import(text: String, password: CharArray?): AppConfig = importWithExtra(text, password).first
+
+    /** Comme [import], avec les données ajoutées à une sauvegarde chiffrée (voir [export]). */
+    fun importWithExtra(text: String, password: CharArray?): Pair<AppConfig, Map<String, JsonElement>> {
         val envelope = inspect(text)
         val encryption = envelope.encryption
         if (encryption == null) {
             val config = envelope.config as? JsonObject
                 ?: throw ConfigException(ConfigException.Reason.INVALID_DATA, "Sauvegarde vide")
-            return ConfigCodec.fromJson(config)
+            return ConfigCodec.fromJson(config) to emptyMap()
         }
         if (password == null || password.isEmpty()) {
             throw ConfigException(ConfigException.Reason.PASSWORD_REQUIRED, "Cette sauvegarde est protégée par un mot de passe")
@@ -142,8 +150,17 @@ object ExportCodec {
         } catch (e: IllegalArgumentException) {
             throw ConfigException(ConfigException.Reason.INVALID_DATA, "Sauvegarde corrompue", e)
         }
-        return ConfigCodec.decode(String(plain, Charsets.UTF_8))
+        val text = String(plain, Charsets.UTF_8)
+        val extra = try {
+            ConfigCodec.json.parseToJsonElement(text).jsonObject.filterKeys { it in EXTRA_KEYS }
+        } catch (e: Exception) {
+            emptyMap()
+        }
+        return ConfigCodec.decode(text) to extra
     }
+
+    /** Données ajoutées reconnues dans une sauvegarde chiffrée. */
+    private val EXTRA_KEYS = setOf("sharing")
 
     private fun cipher(mode: Int, password: CharArray, salt: ByteArray, iv: ByteArray, iterations: Int): Cipher {
         val spec = PBEKeySpec(password, salt, iterations, 256)

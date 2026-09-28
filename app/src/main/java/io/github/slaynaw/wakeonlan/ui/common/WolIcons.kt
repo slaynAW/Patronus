@@ -222,6 +222,39 @@ object WolIcons {
         )
     }
 
+    val Share: ImageVector by lazy {
+        icon(
+        "M15.5 5.5a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0z",
+        "M3.5 12a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0z",
+        "M15.5 18.5a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0z",
+        "M8.2 10.8l7.6-4.1M8.2 13.2l7.6 4.1",
+        )
+    }
+    val Users: ImageVector by lazy {
+        icon(
+        "M5.5 8a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0z",
+        "M2.5 20a6.5 6.5 0 0 1 13 0",
+        "M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.2a6.5 6.5 0 0 1 3 5.8",
+        )
+    }
+    val Copy: ImageVector by lazy {
+        icon(
+        "M10.5 8.5h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2z",
+        "M15.5 8.5v-3a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3",
+        )
+    }
+    val Cloud: ImageVector by lazy {
+        icon(
+        "M7 18.5h10.5a4 4 0 0 0 .6-8 6 6 0 0 0-11.6-1.4A4.8 4.8 0 0 0 7 18.5z",
+        )
+    }
+    val Scan: ImageVector by lazy {
+        icon(
+        "M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16",
+        "M4 12h16",
+        )
+    }
+
     private fun icon(vararg paths: String): ImageVector {
         val builder = ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
         for (d in paths) {

@@ -4,6 +4,8 @@
 -keep class io.github.slaynaw.wakeonlan.core.model.** { *; }
 -keep class io.github.slaynaw.wakeonlan.core.config.ExportEnvelope { *; }
 -keep class io.github.slaynaw.wakeonlan.core.config.EncryptionInfo { *; }
+# Partage : format des fichiers d'accès (commun avec Windows) et état enregistré.
+-keep class io.github.slaynaw.wakeonlan.core.share.** { *; }
 
 # Messages d'erreur plus lisibles dans les rapports de plantage.
 -keepattributes SourceFile,LineNumberTable

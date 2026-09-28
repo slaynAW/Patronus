@@ -35,7 +35,8 @@ class HistoryViewModel(private val container: AppContainer, deviceId: String?) :
 
     val state: StateFlow<HistoryUiState> = combine(
         container.history.data,
-        container.repository.config,
+        // PC du téléphone et PC reçus d'autres personnes.
+        container.allDevices,
         container.historyTracker.agentJournal,
         filter,
     ) { data, config, journal, id ->

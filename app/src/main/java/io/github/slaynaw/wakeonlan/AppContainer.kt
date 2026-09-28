@@ -2,6 +2,7 @@ package io.github.slaynaw.wakeonlan
 
 import android.content.Context
 import io.github.slaynaw.wakeonlan.core.agent.AgentClient
+import io.github.slaynaw.wakeonlan.core.model.AppConfig
 import io.github.slaynaw.wakeonlan.core.status.HostProber
 import io.github.slaynaw.wakeonlan.core.status.ProbeAvailability
 import io.github.slaynaw.wakeonlan.core.status.StatusMonitor
@@ -11,6 +12,7 @@ import io.github.slaynaw.wakeonlan.data.ConfigRepository
 import io.github.slaynaw.wakeonlan.data.HistoryRepository
 import io.github.slaynaw.wakeonlan.network.LanNetworkMonitor
 import io.github.slaynaw.wakeonlan.network.LocalNetworkAccess
+import io.github.slaynaw.wakeonlan.share.ShareManager
 import io.github.slaynaw.wakeonlan.update.AppUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,10 +33,19 @@ class AppContainer(private val context: Context) {
 
     val network = LanNetworkMonitor(context)
     val repository = ConfigRepository(context)
+
+    /** Partage des PC entre personnes (PC reçus, accès accordés). */
+    val share = ShareManager(context, scope, repository)
+
+    /** PC du téléphone puis PC reçus d'autres personnes : ce que surveille et affiche l'application. */
+    val allDevices: Flow<AppConfig> = combine(repository.config, share.sharedDevices) { config, shared ->
+        if (shared.isEmpty()) config else config.copy(devices = config.devices + shared.map { it.device })
+    }
+
     private val agentClient = AgentClient(binder = network)
     val statusMonitor = StatusMonitor(prober = HostProber(binder = network, agentClient = agentClient))
     val history = HistoryRepository(context, scope)
-    val historyTracker = HistoryTracker(repository.config, statusMonitor.statuses, agentClient, history, scope)
+    val historyTracker = HistoryTracker(allDevices, statusMonitor.statuses, agentClient, history, scope)
     val actions = DeviceActions(network, WakeOnLanSender(binder = network), agentClient, statusMonitor, historyTracker)
 
     /** Mises à jour intégrées (versions officielles publiées sur GitHub). */

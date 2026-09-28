@@ -61,6 +61,9 @@ type ExportOptions struct {
 	App        string
 	// Iterations PBKDF2 ; 0 = valeur par défaut.
 	Iterations int
+	// Extra ajoute des données à la configuration chiffrée (ex. « sharing » : clé de partage),
+	// ignorées par les versions qui ne les connaissent pas. Jamais dans un export lisible.
+	Extra map[string]json.RawMessage
 }
 
 // Export produit le texte d'une sauvegarde.
@@ -98,6 +101,20 @@ func Export(c model.AppConfig, opts ExportOptions) ([]byte, error) {
 		plain, err := Encode(c)
 		if err != nil {
 			return nil, err
+		}
+		if len(opts.Extra) > 0 {
+			var root map[string]json.RawMessage
+			if err := json.Unmarshal(plain, &root); err != nil {
+				return nil, err
+			}
+			for k, v := range opts.Extra {
+				if _, taken := root[k]; !taken {
+					root[k] = v
+				}
+			}
+			if plain, err = json.Marshal(root); err != nil {
+				return nil, err
+			}
 		}
 		aead, err := newAEAD(opts.Password, salt, iterations, len(iv))
 		if err != nil {
@@ -155,40 +172,68 @@ func IsEncrypted(data []byte) (bool, error) {
 
 // Import lit une sauvegarde (password vide si elle n'est pas chiffrée) et la valide entièrement.
 func Import(data []byte, password string) (model.AppConfig, error) {
+	c, _, err := ImportWithExtra(data, password)
+	return c, err
+}
+
+// ImportWithExtra lit une sauvegarde et renvoie aussi les données ajoutées (voir ExportOptions.Extra),
+// présentes seulement dans une sauvegarde chiffrée.
+func ImportWithExtra(data []byte, password string) (model.AppConfig, map[string]json.RawMessage, error) {
+	c, plain, err := importDecrypt(data, password)
+	if err != nil || plain == nil {
+		return c, nil, err
+	}
+	var root map[string]json.RawMessage
+	if json.Unmarshal(plain, &root) != nil {
+		return c, nil, nil
+	}
+	extra := map[string]json.RawMessage{}
+	for _, k := range []string{"sharing"} {
+		if v, ok := root[k]; ok {
+			extra[k] = v
+		}
+	}
+	return c, extra, nil
+}
+
+// importDecrypt renvoie la configuration et, pour une sauvegarde chiffrée, le JSON déchiffré.
+func importDecrypt(data []byte, password string) (model.AppConfig, []byte, error) {
 	env, err := Inspect(data)
 	if err != nil {
-		return model.AppConfig{}, err
+		return model.AppConfig{}, nil, err
 	}
 	enc := env.Encryption
 	if enc == nil {
 		var root map[string]json.RawMessage
 		if len(env.Config) == 0 || json.Unmarshal(env.Config, &root) != nil || root == nil {
-			return model.AppConfig{}, fail(InvalidData, "Sauvegarde vide")
+			return model.AppConfig{}, nil, fail(InvalidData, "Sauvegarde vide")
 		}
-		return fromJSON(root)
+		c, err := fromJSON(root)
+		return c, nil, err
 	}
 	if password == "" {
-		return model.AppConfig{}, fail(PasswordRequired, "Cette sauvegarde est protégée par un mot de passe")
+		return model.AppConfig{}, nil, fail(PasswordRequired, "Cette sauvegarde est protégée par un mot de passe")
 	}
 	if enc.KDF != KDF || enc.Cipher != Cipher || enc.Iterations < MinIterations || enc.Iterations > MaxIterations {
-		return model.AppConfig{}, fail(InvalidData, "Paramètres de chiffrement non pris en charge")
+		return model.AppConfig{}, nil, fail(InvalidData, "Paramètres de chiffrement non pris en charge")
 	}
 	corrupted := fail(InvalidData, "Sauvegarde corrompue")
 	salt, err1 := decodeStd(enc.Salt)
 	iv, err2 := decodeStd(enc.IV)
 	sealed, err3 := decodeStd(env.Data)
 	if err1 != nil || err2 != nil || err3 != nil || len(iv) == 0 {
-		return model.AppConfig{}, corrupted
+		return model.AppConfig{}, nil, corrupted
 	}
 	aead, err := newAEAD(password, salt, enc.Iterations, len(iv))
 	if err != nil {
-		return model.AppConfig{}, corrupted
+		return model.AppConfig{}, nil, corrupted
 	}
 	plain, err := aead.Open(nil, iv, sealed, aad)
 	if err != nil {
-		return model.AppConfig{}, fail(WrongPassword, "Mot de passe incorrect ou fichier modifié")
+		return model.AppConfig{}, nil, fail(WrongPassword, "Mot de passe incorrect ou fichier modifié")
 	}
-	return Decode(plain)
+	c, err := Decode(plain)
+	return c, plain, err
 }
 
 // newAEAD dérive la clé AES-256 du mot de passe (encodé en UTF-8, comme Java/Android).

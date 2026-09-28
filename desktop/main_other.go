@@ -38,6 +38,9 @@ func (devPlatform) OpenURL(url string) error {
 
 func (devPlatform) ReadClipboard() (string, error) { return "", fmt.Errorf("indisponible") }
 
+// WriteClipboard : l'interface utilise alors le presse-papiers du navigateur.
+func (devPlatform) WriteClipboard(string) error { return fmt.Errorf("indisponible") }
+
 // Relaunch : en mode développement, la nouvelle version est vérifiée mais pas installée.
 func (devPlatform) Relaunch() error {
 	return fmt.Errorf("mode développement : nouvelle version vérifiée, non installée")
@@ -56,7 +59,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	svc := app.New(app.Options{Version: version, Store: store, Platform: devPlatform{}, History: histStore})
+	svc := app.New(app.Options{Version: version, Store: store, Platform: devPlatform{}, History: histStore, Share: shareOptions(*dataDir)})
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	go svc.Run(ctx)

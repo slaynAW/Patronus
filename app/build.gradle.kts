@@ -26,6 +26,9 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = appVersionCode
         versionName = appVersionName
+        // Identifiant public de l'application OAuth GitHub (connexion du partage, docs/PARTAGE.md).
+        val githubClientId = providers.gradleProperty("wol.githubClientId").orNull.orEmpty()
+        buildConfigField("String", "GITHUB_CLIENT_ID", "\"$githubClientId\"")
     }
 
     signingConfigs {

@@ -29,6 +29,11 @@ type fakePlatform struct {
 	relaunched atomic.Int32
 }
 
+func (f *fakePlatform) WriteClipboard(text string) error {
+	f.clipboard = text
+	return nil
+}
+
 func (f *fakePlatform) SaveFile(_ string, content []byte) (string, error) {
 	if f.cancel {
 		return "", ErrCancelled
