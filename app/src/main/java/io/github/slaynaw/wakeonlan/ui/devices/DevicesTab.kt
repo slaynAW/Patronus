@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -162,7 +163,8 @@ private fun DeviceCard(
             }
             if (status.state == PowerState.ONLINE && item.latency.isNotEmpty()) {
                 Spacer(Modifier.width(8.dp))
-                LatencyTrace(item.latency, Modifier.size(width = 64.dp, height = 24.dp))
+                // Tracé du milieu de la ligne jusqu'au menu ; le nom occupe l'autre moitié.
+                LatencyTrace(item.latency, Modifier.weight(1f).height(24.dp))
             }
             DeviceMenu(
                 canShutdown = device.canShutdown,
