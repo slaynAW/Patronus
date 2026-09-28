@@ -30,7 +30,8 @@ data class ProbeAvailability(val canProbe: Boolean, val reason: UnknownReason? =
  *
  * [run] est à exécuter tant que l'écran est visible (inutile de vider la batterie en arrière-plan) :
  * une boucle par terminal sonde la machine toutes les `pollIntervalSeconds`, et toutes les secondes
- * pendant un réveil / une extinction pour un retour quasi instantané.
+ * pendant un réveil / une extinction pour un retour quasi instantané, ainsi que pour le terminal
+ * affiché en détail ([watch]) : sa latence est alors tracée en direct.
  */
 class StatusMonitor(
     private val prober: DeviceProber,
@@ -39,9 +40,14 @@ class StatusMonitor(
     private val trackers = ConcurrentHashMap<String, StatusTracker>()
     private val refreshSignals = ConcurrentHashMap<String, Channel<Unit>>()
     private val _statuses = MutableStateFlow<Map<String, DeviceStatus>>(emptyMap())
+    private val _latency = MutableStateFlow<Map<String, List<LatencySample>>>(emptyMap())
+    private val watchers = HashMap<String, Int>()
 
     /** État courant de chaque terminal, par identifiant. */
     val statuses: StateFlow<Map<String, DeviceStatus>> = _statuses.asStateFlow()
+
+    /** Mesures de latence des dernières minutes de chaque terminal (voir [LatencyLog]). */
+    val latency: StateFlow<Map<String, List<LatencySample>>> = _latency.asStateFlow()
 
     suspend fun run(config: Flow<AppConfig>, availability: Flow<ProbeAvailability>) {
         combine(config.distinctUntilChanged(), availability.distinctUntilChanged()) { c, a -> c to a }
@@ -58,6 +64,28 @@ class StatusMonitor(
         val targets = if (deviceId == null) refreshSignals.values else listOfNotNull(refreshSignals[deviceId])
         targets.forEach { it.trySend(Unit) }
     }
+
+    /**
+     * Le terminal est affiché en détail : il est sondé toutes les secondes jusqu'à l'appel de
+     * [unwatch] correspondant (plusieurs écrans peuvent le suivre en même temps).
+     */
+    fun watch(deviceId: String) {
+        val first = synchronized(watchers) {
+            val count = watchers[deviceId] ?: 0
+            watchers[deviceId] = count + 1
+            count == 0
+        }
+        if (first) refresh(deviceId)
+    }
+
+    fun unwatch(deviceId: String) {
+        synchronized(watchers) {
+            val count = (watchers[deviceId] ?: return) - 1
+            if (count > 0) watchers[deviceId] = count else watchers.remove(deviceId)
+        }
+    }
+
+    private fun isWatched(deviceId: String): Boolean = synchronized(watchers) { deviceId in watchers }
 
     fun onWakeSent(deviceId: String) = act(deviceId) { onWakeSent() }
 
@@ -80,10 +108,15 @@ class StatusMonitor(
             val status = when {
                 !device.hasHost -> tracker.onUnavailable(UnknownReason.NO_HOST)
                 !availability.canProbe -> tracker.onUnavailable(availability.reason ?: UnknownReason.NO_NETWORK)
-                else -> tracker.onProbe(prober.probe(device))
+                else -> {
+                    val result = prober.probe(device)
+                    record(device.id, LatencySample(clock(), result.latencyMs.takeIf { result.reachable }))
+                    tracker.onProbe(result)
+                }
             }
             publish(device.id, status)
-            val wait = if (status.state.isTransitional) minOf(interval, FAST_INTERVAL_MS) else interval
+            val fast = status.state.isTransitional || isWatched(device.id)
+            val wait = if (fast) minOf(interval, FAST_INTERVAL_MS) else interval
             withTimeoutOrNull(wait) { signal.receive() }
         }
     }
@@ -92,13 +125,17 @@ class StatusMonitor(
 
     private fun publish(id: String, status: DeviceStatus) = _statuses.update { it + (id to status) }
 
+    private fun record(id: String, sample: LatencySample) =
+        _latency.update { it + (id to LatencyLog.append(it[id].orEmpty(), sample)) }
+
     private fun prune(ids: Set<String>) {
         trackers.keys.retainAll(ids)
         refreshSignals.keys.retainAll(ids)
         _statuses.update { map -> map.filterKeys { it in ids } }
+        _latency.update { map -> map.filterKeys { it in ids } }
     }
 
     companion object {
-        const val FAST_INTERVAL_MS = 1_000L
+        const val FAST_INTERVAL_MS = LatencyLog.LIVE_INTERVAL_MS
     }
 }

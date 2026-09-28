@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -98,6 +99,12 @@ fun DeviceDetailScreen(
     val now = rememberNow()
     val item = state.items.firstOrNull { it.device.id == deviceId }
     val index = state.items.indexOfFirst { it.device.id == deviceId }
+
+    // PC affiché : sondé chaque seconde pour le tracé de latence en direct.
+    DisposableEffect(container, deviceId) {
+        container.statusMonitor.watch(deviceId)
+        onDispose { container.statusMonitor.unwatch(deviceId) }
+    }
 
     // PC supprimé (ici ou depuis sa fiche d'édition) : retour à la liste.
     LaunchedEffect(state.loaded, item == null) {
@@ -208,6 +215,7 @@ fun DeviceDetailContent(
             if (item.status.state == PowerState.ONLINE && !item.device.canShutdown) {
                 Text(stringResource(R.string.hint_no_agent), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
             }
+            if (item.device.hasHost) LatencyCard(item, now)
             InfoCard(item)
             RecentHistory(history, now, onShowAll = onOpenHistory)
             Spacer(Modifier.height(24.dp))
@@ -302,13 +310,6 @@ private fun InfoCard(item: DeviceItem) {
             KeyValueRow(stringResource(R.string.detail_system), agent.systemLabel())
             RowDivider()
             KeyValueRow(stringResource(R.string.detail_uptime), formatLongDuration(agent.uptimeSeconds))
-        }
-        val latency = status.latencyMs
-        if (online && latency != null) {
-            RowDivider()
-            val method = status.method?.label()
-            val text = stringResource(R.string.latency_ms, latency)
-            KeyValueRow(stringResource(R.string.detail_latency), if (method != null) "$text · $method" else text)
         }
         RowDivider()
         val agentError = status.agentError

@@ -44,6 +44,7 @@ import io.github.slaynaw.wakeonlan.core.status.PowerState
 import io.github.slaynaw.wakeonlan.network.LanTransport
 import io.github.slaynaw.wakeonlan.ui.common.BusySpinner
 import io.github.slaynaw.wakeonlan.ui.common.ButtonKind
+import io.github.slaynaw.wakeonlan.ui.common.LatencyTrace
 import io.github.slaynaw.wakeonlan.ui.common.RoundIconButton
 import io.github.slaynaw.wakeonlan.ui.common.RowDivider
 import io.github.slaynaw.wakeonlan.ui.common.StatusDot
@@ -265,6 +266,10 @@ private fun DeviceRow(item: DeviceItem, now: Long, onOpen: () -> Unit, onWake: (
             )
         }
         Spacer(Modifier.width(8.dp))
+        if (status.state == PowerState.ONLINE && item.latency.isNotEmpty()) {
+            LatencyTrace(item.latency, Modifier.size(width = 56.dp, height = 22.dp))
+            Spacer(Modifier.width(10.dp))
+        }
         when {
             status.state == PowerState.ONLINE && device.canShutdown -> RoundIconButton(
                 icon = WolIcons.Power,

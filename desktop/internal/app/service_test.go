@@ -326,3 +326,45 @@ func TestHistoryRecordingAndAgentJournal(t *testing.T) {
 	}
 	call(t, s, "clearHistory", nil)
 }
+
+func TestLatencyInStateAndLive(t *testing.T) {
+	store, err := config.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var probes atomic.Int64
+	lan := netstate.State{Interfaces: []netstate.Interface{{Name: "eth0", Transport: netstate.Ethernet,
+		Addresses: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/8")}, HasGateway: true}}}
+	s := New(Options{
+		Version: "test", Store: store, Platform: &fakePlatform{},
+		Prober: status.ProberFunc(func(context.Context, model.Device) status.ProbeResult {
+			n := probes.Add(1)
+			if n == 2 {
+				return status.ProbeResult{} // une sonde sans réponse
+			}
+			return status.ProbeResult{Reachable: true, LatencyMs: n, Method: status.MethodTCP}
+		}),
+		NetState: func() (netstate.State, error) { return lan, nil },
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.Run(ctx)
+
+	form := model.NewForm()
+	form.Name, form.MAC, form.Host = "PC", "aa:bb:cc:dd:ee:01", "127.0.0.1"
+	id := call(t, s, "saveDevice", map[string]any{"form": form})["id"].(string)
+	waitState(t, s, id, status.Online)
+
+	// Affiché en détail : une mesure par seconde (l'intervalle normal est de 3 s).
+	call(t, s, "setLive", map[string]any{"id": id})
+	time.Sleep(2500 * time.Millisecond)
+	samples := call(t, s, "getState", nil)["devices"].([]any)[0].(map[string]any)["latency"].([]any)
+	if len(samples) < 3 {
+		t.Fatalf("mesures en direct attendues : %v", samples)
+	}
+	first, second := samples[0].(map[string]any), samples[1].(map[string]any)
+	if first["ms"] != float64(1) || second["ms"] != nil || first["t"].(float64) <= 0 {
+		t.Errorf("mesures : %v", samples)
+	}
+	call(t, s, "setLive", map[string]any{"id": ""})
+}

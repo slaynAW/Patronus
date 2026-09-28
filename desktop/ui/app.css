@@ -232,7 +232,7 @@ svg.icon.small { width: 16px; height: 16px; }
 
 .table .th, .table .tr {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 1.5fr) minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(176px, 1.3fr);
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 1.4fr) minmax(0, 1.1fr) minmax(120px, 1.1fr) minmax(176px, 1.3fr);
   align-items: center; gap: 10px; padding: 0 16px;
 }
 .card-head + .th { margin-top: 10px; }
@@ -288,6 +288,39 @@ svg.icon.small { width: 16px; height: 16px; }
 .bad { color: var(--danger-text); font-weight: 600; }
 .placeholder { margin: auto; padding: 40px 30px; text-align: center; color: var(--text-2); display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .placeholder .ni { width: 56px; height: 56px; border-radius: 16px; }
+
+/* Latence en direct (tracé façon électrocardiogramme) */
+.latency { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 12px; display: flex; flex-direction: column; gap: 8px; background: linear-gradient(180deg, #13171c, var(--surface)); }
+.lat-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.lat-title { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.live { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--text-2); }
+.live i { width: 7px; height: 7px; border-radius: 50%; background: var(--on); box-shadow: 0 0 0 0 color-mix(in srgb, var(--on) 60%, transparent); animation: live-beat 1s ease-out infinite; }
+@keyframes live-beat { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--on) 55%, transparent); } 100% { box-shadow: 0 0 0 7px transparent; } }
+.lat-now { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; }
+.lat-value { font-size: 26px; line-height: 30px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+.lat-value.none { color: var(--text-3); }
+.lat-via { font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.lat-plot { position: relative; height: 112px; margin: 0 -2px; }
+.lat-plot canvas.trace { display: block; width: 100%; height: 100%; cursor: crosshair; }
+.lat-tip {
+  position: absolute; top: -4px; transform: translate(-50%, -100%);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 5px 9px; border-radius: 8px; background: var(--surface-3); border: 1px solid var(--line-2);
+  box-shadow: var(--shadow); font-size: 11.5px; line-height: 15px; white-space: nowrap; pointer-events: none;
+}
+.lat-tip b { font-size: 13px; color: var(--text); }
+.lat-tip span { color: var(--text-2); }
+.lat-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); margin-top: -4px; }
+.lat-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.lat-stats div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.lat-stats span { font-size: 11px; color: var(--text-3); }
+.lat-stats b { font-size: 13px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lat-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.lat-cell > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+canvas.spark { display: block; width: 64px; height: 22px; flex: none; }
+@media (prefers-reduced-motion: reduce) {
+  .live i { animation: none; }
+}
 
 /* Historique discret */
 .hist-head { display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); font-weight: 600; }
@@ -473,7 +506,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); width: 
 
 /* Tableau des appareils : colonnes facultatives masquées selon la place disponible. */
 @container (max-width: 1080px) {
-  .table .th, .table .tr { grid-template-columns: minmax(0, 2fr) minmax(0, 1.3fr) minmax(0, 1.5fr) minmax(0, 1.6fr) minmax(176px, 1.3fr); }
+  .table .th, .table .tr { grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 1.4fr) minmax(120px, 1.1fr) minmax(176px, 1.3fr); }
   .table .opt2 { display: none; }
 }
 @container (max-width: 800px) {

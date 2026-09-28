@@ -6,6 +6,8 @@ Version Windows de l'application : **mêmes fonctions et même style** que l'app
 - 🗺️ Plan du réseau : ce PC, le réseau et chaque PC, reliés selon leur état (allumé, en cours, éteint).
 - ⚡ Démarrer les PC (Wake-on-LAN, envois répétés sur chaque carte réseau).
 - 🟢 État en temps réel (allumé / éteint / démarrage / arrêt en cours, latence, « vu il y a… »).
+- 📈 Latence en direct façon électrocardiogramme dans le panneau de détail (tracé de la dernière minute, une mesure par
+  seconde, survol pour lire chaque mesure) et mini-tracés dans les listes.
 - ⏻ Éteindre, redémarrer, mettre en veille (avec l'[agent](../agent/README.md) installé sur les PC).
 - 🕘 Historique discret des démarrages et extinctions sur 30 jours (complet avec l'agent 1.2 ou plus, même quand
   l'application était fermée).

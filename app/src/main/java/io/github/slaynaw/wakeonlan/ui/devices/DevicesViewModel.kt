@@ -10,6 +10,7 @@ import io.github.slaynaw.wakeonlan.core.agent.PowerAction
 import io.github.slaynaw.wakeonlan.core.model.AppSettings
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.status.DeviceStatus
+import io.github.slaynaw.wakeonlan.core.status.LatencySample
 import io.github.slaynaw.wakeonlan.core.status.ProbeAvailability
 import io.github.slaynaw.wakeonlan.network.LanState
 import io.github.slaynaw.wakeonlan.ui.common.label
@@ -23,7 +24,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-data class DeviceItem(val device: Device, val status: DeviceStatus)
+/** Un PC, son état et ses mesures de latence récentes (tracé en direct). */
+data class DeviceItem(val device: Device, val status: DeviceStatus, val latency: List<LatencySample> = emptyList())
 
 data class DevicesUiState(
     val loaded: Boolean = false,
@@ -47,14 +49,14 @@ class DevicesViewModel(private val container: AppContainer) : ViewModel() {
 
     val state: StateFlow<DevicesUiState> = combine(
         container.repository.config,
-        container.statusMonitor.statuses,
+        container.statusMonitor.statuses.combine(container.statusMonitor.latency) { s, l -> s to l },
         container.network.state,
         container.probeAvailability,
         container.localNetworkGranted,
-    ) { config, statuses, lan, availability, granted ->
+    ) { config, (statuses, latency), lan, availability, granted ->
         DevicesUiState(
             loaded = true,
-            items = config.devices.map { DeviceItem(it, statuses[it.id] ?: DeviceStatus()) },
+            items = config.devices.map { DeviceItem(it, statuses[it.id] ?: DeviceStatus(), latency[it.id].orEmpty()) },
             settings = config.settings,
             lan = lan,
             availability = availability,

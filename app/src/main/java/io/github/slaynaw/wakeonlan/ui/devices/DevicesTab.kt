@@ -39,6 +39,7 @@ import io.github.slaynaw.wakeonlan.core.status.StatusNotice
 import io.github.slaynaw.wakeonlan.ui.common.BusySpinner
 import io.github.slaynaw.wakeonlan.ui.common.ButtonKind
 import io.github.slaynaw.wakeonlan.ui.common.DeviceGlyph
+import io.github.slaynaw.wakeonlan.ui.common.LatencyTrace
 import io.github.slaynaw.wakeonlan.ui.common.NoticeBox
 import io.github.slaynaw.wakeonlan.ui.common.RoundIconButton
 import io.github.slaynaw.wakeonlan.ui.common.StatusDot
@@ -156,6 +157,10 @@ private fun DeviceCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+            }
+            if (status.state == PowerState.ONLINE && item.latency.isNotEmpty()) {
+                Spacer(Modifier.width(8.dp))
+                LatencyTrace(item.latency, Modifier.size(width = 64.dp, height = 24.dp))
             }
             DeviceMenu(
                 canShutdown = device.canShutdown,

@@ -16,6 +16,7 @@ import io.github.slaynaw.wakeonlan.core.model.AppSettings
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.model.MacAddress
 import io.github.slaynaw.wakeonlan.core.status.DeviceStatus
+import io.github.slaynaw.wakeonlan.core.status.LatencySample
 import io.github.slaynaw.wakeonlan.core.status.PowerState
 import io.github.slaynaw.wakeonlan.core.status.ProbeMethod
 import io.github.slaynaw.wakeonlan.core.status.UnknownReason
@@ -67,6 +68,10 @@ class ScreenshotTest {
         agent = AgentSettings(key = key),
     )
 
+    /** Mesures de latence d'exemple sur 75 s, une toutes les [stepMs]. */
+    private fun series(stepMs: Long, value: (Int) -> Long?) =
+        (0..(75_000 / stepMs).toInt()).map { i -> LatencySample(now - 75_000 + i * stepMs, value(i)) }
+
     private val items = listOf(
         DeviceItem(
             bureau,
@@ -78,11 +83,19 @@ class ScreenshotTest {
                 method = ProbeMethod.AGENT,
                 agent = AgentStatus("BUREAU", "windows", "amd64", "1.2.0", 11_520L),
             ),
+            series(1_000) { i ->
+                when {
+                    i == 41 -> null
+                    i % 23 == 5 -> 11L + i % 5
+                    else -> 2L + (i * 7) % 3
+                }
+            },
         ),
         DeviceItem(
             Device("jeux", "Serveur de jeux", MacAddress.parse("AA:BB:CC:DD:EE:02"), host = "192.168.1.30", agent = AgentSettings(key = key)),
             DeviceStatus(PowerState.ONLINE, since = now - 7_200_000, lastSeen = now, latencyMs = 5, method = ProbeMethod.AGENT,
                 agent = AgentStatus("SERVEUR", "linux", "amd64", "1.2.0", 266_400L)),
+            series(3_000) { i -> 4L + (i * 5) % 3 },
         ),
         DeviceItem(
             Device("nas", "NAS du salon", MacAddress.parse("AA:BB:CC:DD:EE:03"), host = "192.168.1.40"),
@@ -91,6 +104,7 @@ class ScreenshotTest {
         DeviceItem(
             Device("salon", "PC Salon", MacAddress.parse("AA:BB:CC:DD:EE:04"), host = "192.168.1.21", agent = AgentSettings(key = key)),
             DeviceStatus(PowerState.OFFLINE, since = now - 7_200_000, lastSeen = now - 7_200_000),
+            series(3_000) { null },
         ),
         DeviceItem(
             Device("atelier", "Portable atelier", MacAddress.parse("AA:BB:CC:DD:EE:05")),
@@ -158,6 +172,26 @@ class ScreenshotTest {
                 events = events.filter { it.event.device == "bureau" },
                 hasAgent = true,
             ),
+            now = now,
+            snackbar = remember { SnackbarHostState() },
+            onBack = {},
+            onWake = {},
+            onPower = {},
+            onEdit = {},
+            onOpenHistory = {},
+            onMove = {},
+            onDelete = {},
+            onClearNotice = {},
+        )
+    }
+
+    @Test
+    fun ficheEteinte() = capture("3b-fiche-pc-eteint") {
+        DeviceDetailContent(
+            item = items[3],
+            isFirst = false,
+            isLast = false,
+            history = HistoryUiState(loaded = true, filter = "salon", events = events.filter { it.event.device == "salon" }, hasAgent = true),
             now = now,
             snackbar = remember { SnackbarHostState() },
             onBack = {},

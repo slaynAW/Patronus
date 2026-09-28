@@ -115,7 +115,23 @@
     detail_hostname: "Nom du PC",
     detail_system: "Système",
     detail_uptime: "Allumé depuis",
-    detail_latency: "Latence",
+    latency_title: "Latence",
+    latency_live: "En direct",
+    latency_via_agent: "via l’agent",
+    latency_via_tcp: "via TCP",
+    latency_via_ping: "via ping",
+    latency_no_answer: "Pas de réponse",
+    latency_not_measured: "Non mesurée",
+    latency_waiting: "Mesure en cours…",
+    latency_axis_start: "il y a 1 min",
+    latency_axis_end: "maintenant",
+    latency_min: "Min",
+    latency_avg: "Moyenne",
+    latency_max: "Max",
+    latency_lost: "Pertes",
+    latency_ago: "il y a %1$d s",
+    latency_just_now: "à l’instant",
+    latency_aria: "Latence de la dernière minute : moyenne %1$s, maximum %2$s, sans réponse %3$d sur %4$d",
     detail_agent: "Agent",
     detail_not_set: "Non renseignée",
     agent_authenticated: "Authentifié · %1$s",
@@ -471,7 +487,6 @@
   const osLabel = (os) => ({ windows: "Windows", linux: "Linux", darwin: "macOS" })[os] || os || "";
   const archLabel = (arch) => ({ amd64: "x64", "386": "x86", arm64: "ARM64", arm: "ARM" })[arch] || arch || "";
   const versionLabel = (v) => (/^\d/.test(v || "") ? "v" + v : v || "");
-  const methodLabel = (m) => ({ AGENT: "agent", TCP: "TCP", PING: "ping" })[m] || "";
   const agentErrorLabel = (code) => S["agent_error_" + code] || S.agent_error_PROTOCOL;
   const actionLabel = (a) => ({ shutdown: S.action_shutdown, reboot: S.action_reboot, sleep: S.action_sleep })[a];
   const confirmTitle = (a) => ({ shutdown: S.confirm_shutdown_title, reboot: S.confirm_reboot_title, sleep: S.confirm_sleep_title })[a];
@@ -975,9 +990,9 @@
     const dot = h("span", { class: "dot" });
     const name = h("b");
     const host = h("span", { class: "mono" });
-    const info = h("span");
+    const info = latencyCell("lat-cell");
     const el = h("div", { class: "row", tabindex: "0", role: "button", onClick: () => select(id), onKeydown: activate(() => select(id)) },
-      dot, name, host, info, icon("chevron", "small"));
+      dot, name, host, info.el, icon("chevron", "small"));
     return {
       el,
       update(d, now) {
@@ -989,8 +1004,8 @@
         setText(name, d.name);
         setText(host, d.host || "—");
         const online = st === "ONLINE";
-        setClass(info, online ? "" : "state-text");
-        setText(info, online && d.status.latencyMs != null ? fmt(S.latency_ms, d.status.latencyMs) : shortState(d.status, now));
+        setClass(info.el, "lat-cell" + (online ? "" : " state-text"));
+        info.update(d, shortState(d.status, now));
       },
     };
   }
@@ -1177,7 +1192,7 @@
         h("div", { class: "th", role: "row" },
           h("span", { text: S.col_name }), h("span", { text: S.col_host }), h("span", { text: S.col_state }),
           h("span", { class: "opt", text: S.col_mac }), h("span", { class: "opt opt2", text: S.col_system }),
-          h("span", { class: "opt opt2", text: S.col_latency }), h("span")),
+          h("span", { class: "opt", text: S.col_latency }), h("span")),
         rows));
     return {
       el,
@@ -1200,12 +1215,12 @@
     const stateCell = h("span", { class: "cell state-text" }, dot, stateText);
     const mac = h("span", { class: "cell txt opt mono" });
     const system = h("span", { class: "cell txt opt opt2" });
-    const latency = h("span", { class: "cell txt opt opt2" });
+    const latency = latencyCell("cell lat-cell opt");
     const acts = h("span", { class: "cell actions" });
     const more = iconBtn("more", S.action_more, own(() => openDeviceMenu(more, id)), "flat");
     const el = h("div", { class: "tr", tabindex: "0", role: "row", onClick: () => select(id), onKeydown: activate(() => select(id)) },
       h("span", { class: "cell" }, h("span", { class: "ni" }, icon("monitor", "", 18)), h("span", { class: "t" }, name, capability)),
-      host, stateCell, mac, system, latency, acts);
+      host, stateCell, mac, system, latency.el, acts);
     return {
       el,
       update(d, now) {
@@ -1221,7 +1236,7 @@
         setText(stateText, shortState(s, now));
         setText(mac, d.mac || "—");
         setText(system, online && s.agent ? [osLabel(s.agent.os), archLabel(s.agent.arch)].filter(Boolean).join(" · ") : "—");
-        setText(latency, online && s.latencyMs != null ? fmt(S.latency_ms, s.latencyMs) : "—");
+        latency.update(d, "—");
         const sig = st + "|" + d.canShutdown;
         if (sig !== actsSig) {
           actsSig = sig;
@@ -1253,6 +1268,391 @@
   }
 
   // ---------------------------------------------------------------------------------------------
+  // Tracé de la latence en direct (façon électrocardiogramme)
+  // ---------------------------------------------------------------------------------------------
+  // La dernière minute défile en continu vers la gauche ; le tracé suit les mesures avec un léger
+  // retard (l'intervalle entre deux mesures) pour que la « plume », au bord droit, glisse d'une
+  // mesure à l'autre au lieu de sauter. Une impulsion marque chaque nouvelle mesure.
+  const TRACE_WINDOW = 60_000;
+  const TRACE_SCALES = [5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const traces = new Set();
+  let traceFrame = 0;
+  let traceDrawnAt = 0;
+  let traceColors = null;
+
+  /** Haut de l'échelle (ms) : un peu de marge au-dessus du maximum, arrondi à une valeur ronde (comme Android). */
+  function latencyScale(max) {
+    const target = max + Math.floor((max + 5) / 6);
+    return TRACE_SCALES.find((v) => v >= target) ?? TRACE_SCALES[TRACE_SCALES.length - 1];
+  }
+
+  /** Synthèse de la dernière minute : min / moyenne / max et sondes restées sans réponse. */
+  function latencyStats(samples, now) {
+    const period = (samples || []).filter((s) => s.t >= now - TRACE_WINDOW);
+    if (!period.length) return null;
+    const values = period.map((s) => s.ms).filter((v) => v != null);
+    return {
+      min: values.length ? Math.min(...values) : null,
+      avg: values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : null,
+      max: values.length ? Math.max(...values) : null,
+      lost: period.length - values.length,
+      count: period.length,
+    };
+  }
+
+  function colors() {
+    if (!traceColors) {
+      const css = getComputedStyle(document.documentElement);
+      const v = (name) => css.getPropertyValue(name).trim();
+      traceColors = {
+        on: v("--on"), off: v("--off"), grid: v("--line"), label: v("--text-3"), cross: v("--text-2"), surface: v("--surface"),
+        font: "500 11px " + v("--font"),
+      };
+    }
+    return traceColors;
+  }
+
+  function withAlpha(hex, alpha) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${alpha})`;
+  }
+
+  function scheduleTraces() {
+    if (traceFrame || document.hidden) return;
+    if (reducedMotion.matches) traceFrame = setTimeout(() => drawTraces(), 1000);
+    else traceFrame = requestAnimationFrame(() => drawTraces());
+  }
+
+  function drawTraces() {
+    traceFrame = 0;
+    const now = Date.now();
+    // Une trentaine d'images par seconde suffisent : le tracé avance de quelques pixels par seconde.
+    if (!reducedMotion.matches && now - traceDrawnAt < 30) {
+      scheduleTraces();
+      return;
+    }
+    traceDrawnAt = now;
+    for (const t of traces) {
+      if (t.canvas.isConnected) t.draw(now);
+      else traces.delete(t); // ligne ou panneau retiré : se réinscrit à la prochaine mise à jour
+    }
+    if (traces.size) scheduleTraces();
+  }
+  document.addEventListener("visibilitychange", scheduleTraces);
+
+  /**
+   * Tracé de latence : `detailed` pour la carte du panneau de détail (grille, échelle, survol),
+   * sinon mini-tracé d'une ligne de liste.
+   */
+  function latencyTrace(detailed, onHover) {
+    const canvas = h("canvas", { class: detailed ? "trace" : "spark", "aria-hidden": "true" });
+    const ctx = canvas.getContext("2d");
+    let samples = [];
+    let key = null;
+    let delay = 0;
+    let scale = 0;
+    let lastFrame = 0;
+    let hoverX = null;
+
+    if (detailed) {
+      canvas.addEventListener("pointermove", (e) => {
+        hoverX = e.offsetX;
+        scheduleTraces();
+      });
+      canvas.addEventListener("pointerleave", () => {
+        hoverX = null;
+        onHover?.(null);
+      });
+    }
+
+    /** Intervalle habituel entre deux mesures (médiane des derniers écarts). */
+    function expectedGap() {
+      const gaps = [];
+      for (let i = samples.length - 1; i > 0 && gaps.length < 6; i--) gaps.push(samples[i].t - samples[i - 1].t);
+      if (!gaps.length) return 1000;
+      gaps.sort((a, b) => a - b);
+      return Math.min(6000, Math.max(800, gaps[gaps.length >> 1]));
+    }
+
+    /** Mesures à tracer ; `id` identifie le PC (l'échelle repart de zéro quand il change). */
+    function set(list, id) {
+      if (id !== key) {
+        key = id;
+        delay = 0;
+        scale = 0;
+        hoverX = null;
+        onHover?.(null);
+      }
+      samples = list || [];
+      traces.add(trace);
+      scheduleTraces();
+    }
+
+    function draw(now) {
+      const w = canvas.clientWidth;
+      const hgt = canvas.clientHeight;
+      if (!w || !hgt) return;
+      const dpr = window.devicePixelRatio || 1;
+      if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(hgt * dpr)) {
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(hgt * dpr);
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, hgt);
+      const c = colors();
+      const dt = lastFrame ? Math.min(250, now - lastFrame) : 1000;
+      lastFrame = now;
+
+      // Retard du tracé : suit (en douceur) l'intervalle entre deux mesures.
+      const gap = expectedGap();
+      const targetDelay = gap + 200;
+      delay = delay ? delay + (targetDelay - delay) * Math.min(1, dt / 700) : targetDelay;
+      const rt = now - delay; // instant tracé au bord droit
+      const gapBreak = Math.max(4000, gap * 2.5);
+
+      const top = detailed ? 18 : 3;
+      const bottom = hgt - (detailed ? 6 : 3);
+      const right = w - (detailed ? 8 : 4);
+      const xOf = (t) => right - ((rt - t) / TRACE_WINDOW) * right;
+
+      // Échelle : maximum des mesures visibles (et de la prochaine, qui entre par la droite).
+      let max = 0;
+      let measured = false;
+      let next = null;
+      for (const s of samples) {
+        if (s.t < rt - TRACE_WINDOW - gapBreak) continue;
+        if (s.t > rt) {
+          next ??= s;
+          if (s !== next) continue;
+        }
+        if (s.ms != null) {
+          max = Math.max(max, s.ms);
+          measured = true;
+        }
+      }
+      const targetScale = latencyScale(max);
+      scale = scale ? scale + (targetScale - scale) * Math.min(1, dt / 350) : targetScale;
+      const yOf = (v) => bottom - (Math.min(v, scale) / scale) * (bottom - top);
+
+      if (detailed) {
+        // Grille « papier d'électrocardiogramme » : repères horizontaux et un trait toutes les 10 s.
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = c.grid;
+        ctx.beginPath();
+        for (const f of [0, 0.5, 1]) {
+          const y = Math.round(bottom - f * (bottom - top)) + 0.5;
+          ctx.moveTo(0, y);
+          ctx.lineTo(w, y);
+        }
+        for (let t = Math.ceil((rt - TRACE_WINDOW) / 10_000) * 10_000; t <= rt; t += 10_000) {
+          const x = Math.round(xOf(t)) + 0.5;
+          ctx.moveTo(x, top);
+          ctx.lineTo(x, bottom);
+        }
+        ctx.stroke();
+        if (measured) {
+          ctx.fillStyle = c.label;
+          ctx.font = c.font;
+          ctx.textBaseline = "alphabetic";
+          ctx.fillText(fmt(S.latency_ms, Math.round(scale)), 0, top - 5);
+        }
+      }
+
+      // Segments continus (une sonde sans réponse ou une longue interruption coupe le tracé).
+      const segments = [];
+      const lost = [];
+      let seg = null;
+      let prev = null;
+      let head = null; // plume : point tracé à l'instant rt
+      for (const s of samples) {
+        if (s.t > rt) {
+          if (seg && prev && s.ms != null && s.t - prev.t <= gapBreak) {
+            const v = prev.ms + ((s.ms - prev.ms) * (rt - prev.t)) / (s.t - prev.t);
+            seg.push([right, yOf(v)]);
+            head = seg[seg.length - 1];
+          }
+          break;
+        }
+        if (s.ms == null) {
+          lost.push(xOf(s.t));
+          seg = null;
+        } else {
+          if (!seg || (prev && s.t - prev.t > gapBreak)) segments.push((seg = []));
+          seg.push([xOf(s.t), yOf(s.ms)]);
+        }
+        prev = s;
+      }
+      if (!head && prev && prev.ms != null && seg) head = seg[seg.length - 1];
+
+      for (const points of segments) {
+        if (points[points.length - 1][0] < -4) continue;
+        // Voile sous la courbe, puis la courbe (2 px) avec une lueur de moniteur.
+        ctx.beginPath();
+        ctx.moveTo(points[0][0], bottom);
+        for (const [x, y] of points) ctx.lineTo(x, y);
+        ctx.lineTo(points[points.length - 1][0], bottom);
+        ctx.closePath();
+        const wash = ctx.createLinearGradient(0, top, 0, bottom);
+        wash.addColorStop(0, withAlpha(c.on, detailed ? 0.16 : 0.12));
+        wash.addColorStop(1, withAlpha(c.on, 0));
+        ctx.fillStyle = wash;
+        ctx.fill();
+
+        ctx.beginPath();
+        points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.lineWidth = detailed ? 2 : 1.5;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.strokeStyle = c.on;
+        ctx.shadowColor = withAlpha(c.on, 0.55);
+        ctx.shadowBlur = detailed ? 8 : 4;
+        if (points.length === 1) {
+          ctx.moveTo(points[0][0] - 1, points[0][1]);
+          ctx.lineTo(points[0][0], points[0][1]);
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      // Sondes restées sans réponse : petits traits rouges sur la ligne de base.
+      ctx.fillStyle = c.off;
+      for (const x of lost) if (x > -2) ctx.fillRect(Math.round(x) - 1, bottom - (detailed ? 7 : 4), 2, detailed ? 7 : 4);
+
+      // Plume : point au bout du tracé, avec une impulsion à chaque nouvelle mesure.
+      if (head) {
+        const age = prev ? rt - prev.t : Infinity;
+        if (!reducedMotion.matches && age >= 0 && age < 700) {
+          const k = age / 700;
+          ctx.beginPath();
+          ctx.arc(head[0], head[1], (detailed ? 4 : 2.5) + (detailed ? 10 : 5) * k, 0, Math.PI * 2);
+          ctx.fillStyle = withAlpha(c.on, 0.45 * (1 - k));
+          ctx.fill();
+        }
+        dot(head[0], head[1], detailed ? 4 : 2.5, c.on, detailed ? c.surface : null);
+      }
+
+      if (detailed && hoverX != null) drawHover(rt, xOf, yOf, top, bottom, c);
+    }
+
+    function dot(x, y, r, fill, ring) {
+      if (ring) {
+        ctx.beginPath();
+        ctx.arc(x, y, r + 2, 0, Math.PI * 2);
+        ctx.fillStyle = ring;
+        ctx.fill();
+      }
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = fill;
+      ctx.fill();
+    }
+
+    /** Survol : réticule sur la mesure la plus proche, valeur dans l'infobulle. */
+    function drawHover(rt, xOf, yOf, top, bottom, c) {
+      let best = null;
+      for (const s of samples) {
+        if (s.t > rt || s.t < rt - TRACE_WINDOW) continue;
+        if (!best || Math.abs(xOf(s.t) - hoverX) < Math.abs(xOf(best.t) - hoverX)) best = s;
+      }
+      if (!best || Math.abs(xOf(best.t) - hoverX) > 24) {
+        onHover?.(null);
+        return;
+      }
+      const x = Math.round(xOf(best.t)) + 0.5;
+      ctx.strokeStyle = c.cross;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, top);
+      ctx.lineTo(x, bottom);
+      ctx.stroke();
+      if (best.ms != null) dot(x, yOf(best.ms), 4, c.on, c.surface);
+      onHover?.({ sample: best, x });
+    }
+
+    /** Arrête l'animation (tracé masqué). */
+    function stop() {
+      traces.delete(trace);
+    }
+
+    const trace = { canvas, set, draw, stop };
+    return trace;
+  }
+
+  /** Carte « Latence » du panneau de détail : valeur en direct, tracé de la dernière minute, synthèse. */
+  function latencyCard() {
+    const value = h("b", { class: "lat-value" });
+    const via = h("span", { class: "lat-via" });
+    const live = h("span", { class: "live" }, h("i"), S.latency_live);
+    const tipValue = h("b");
+    const tipTime = h("span");
+    const tip = h("div", { class: "lat-tip hidden" }, tipValue, tipTime);
+    const trace = latencyTrace(true, (hover) => {
+      tip.classList.toggle("hidden", !hover);
+      if (!hover) return;
+      const { sample, x } = hover;
+      setText(tipValue, sample.ms != null ? fmt(S.latency_ms, sample.ms) : S.latency_no_answer);
+      const ago = Math.round((Date.now() - sample.t) / 1000);
+      setText(tipTime, ago <= 1 ? S.latency_just_now : fmt(S.latency_ago, ago));
+      tip.style.left = x + "px";
+    });
+    const plot = h("div", { class: "lat-plot", role: "img" }, trace.canvas, tip);
+    const stat = (label) => {
+      const v = h("b");
+      return { el: h("div", {}, h("span", { text: label }), v), v };
+    };
+    const stats = [stat(S.latency_min), stat(S.latency_avg), stat(S.latency_max), stat(S.latency_lost)];
+    const el = h("section", { class: "latency" },
+      h("div", { class: "lat-head" },
+        h("div", { class: "lat-title" }, h("span", { class: "hist-head", text: S.latency_title }), live),
+        h("div", { class: "lat-now" }, value, via)),
+      plot,
+      h("div", { class: "lat-axis" }, h("span", { text: S.latency_axis_start }), h("span", { text: S.latency_axis_end })),
+      h("div", { class: "lat-stats" }, stats.map((s) => s.el)));
+
+    return {
+      el,
+      update(d, now) {
+        const s = d.status;
+        const online = s.state === "ONLINE";
+        const checking = s.state !== "UNKNOWN";
+        live.classList.toggle("hidden", !checking);
+        const current = online && s.latencyMs != null;
+        setClass(value, "lat-value" + (current ? "" : " none"));
+        setText(value, current ? fmt(S.latency_ms, s.latencyMs) : "—");
+        const method = { AGENT: S.latency_via_agent, TCP: S.latency_via_tcp, PING: S.latency_via_ping }[s.method];
+        setText(via, current ? method || "" : checking ? S.latency_no_answer : S.latency_not_measured);
+        trace.set(d.latency, d.id);
+        const st = latencyStats(d.latency, now);
+        const ms = (v) => (v == null ? "—" : fmt(S.latency_ms, v));
+        setText(stats[0].v, ms(st?.min));
+        setText(stats[1].v, ms(st?.avg));
+        setText(stats[2].v, ms(st?.max));
+        setText(stats[3].v, st ? `${st.lost}/${st.count}` : "—");
+        plot.setAttribute("aria-label", st ? fmt(S.latency_aria, ms(st.avg), ms(st.max), st.lost, st.count) : S.latency_waiting);
+      },
+    };
+  }
+
+  /** Cellule de liste : mini-tracé de la dernière minute puis latence actuelle (PC allumé). */
+  function latencyCell(cls) {
+    const trace = latencyTrace(false);
+    const text = h("span");
+    const el = h("span", { class: cls }, trace.canvas, text);
+    return {
+      el,
+      update(d, fallback) {
+        const s = d.status;
+        const online = s.state === "ONLINE" && s.latencyMs != null;
+        trace.canvas.classList.toggle("hidden", !online);
+        if (online) trace.set(d.latency, d.id);
+        else trace.stop();
+        setText(text, online ? fmt(S.latency_ms, s.latencyMs) : fallback);
+      },
+    };
+  }
+
+  // ---------------------------------------------------------------------------------------------
   // Panneau de détail du PC sélectionné
   // ---------------------------------------------------------------------------------------------
   const side = (() => {
@@ -1274,16 +1674,28 @@
     const acts = h("div", { class: "acts" });
     const hint = h("div", { class: "hint hidden", text: S.hint_no_agent });
     const info = h("div", { class: "info selectable" });
+    const latency = latencyCard();
     const recent = sideHistory();
-    const inner = h("div", { class: "side-inner" }, h("div", { class: "side-top" }, more, closeButton), hero, notice, acts, hint, info, recent.el);
+    const inner = h("div", { class: "side-inner" }, h("div", { class: "side-top" }, more, closeButton), hero, notice, acts, hint, latency.el, info, recent.el);
     const placeholder = h("div", { class: "placeholder" }, h("span", { class: "ni" }, icon("monitor", "", 28)), h("span", { text: S.select_hint }));
     sideEl.append(inner, placeholder);
+
+    let liveId = "";
+
+    /** PC affiché en détail : sondé chaque seconde par le moteur pour le tracé de latence. */
+    function setLive(id) {
+      if (id === liveId) return;
+      liveId = id;
+      api.call("setLive", { id }).catch(() => {});
+    }
 
     function update(now, visible) {
       sideEl.classList.toggle("hidden", !visible);
       sideEl.classList.toggle("open", visible && sideOpen);
+      const d = visible ? deviceById(selectedId) : null;
+      const shown = !!d && (!narrow.matches || sideOpen);
+      setLive(shown && d.host ? d.id : "");
       if (!visible) return;
-      const d = deviceById(selectedId);
       inner.classList.toggle("hidden", !d);
       placeholder.classList.toggle("hidden", !!d);
       if (!d) return;
@@ -1309,6 +1721,8 @@
         renderActions(d);
       }
       hint.classList.toggle("hidden", !(st === "ONLINE" && !d.canShutdown));
+      latency.el.classList.toggle("hidden", !d.host);
+      if (d.host) latency.update(d, now);
       renderInfo(d);
       recent.update(d, now);
     }
@@ -1348,10 +1762,6 @@
         if (s.agent.hostname) rows.push({ key: "name", label: S.detail_hostname, text: s.agent.hostname });
         rows.push({ key: "sys", label: S.detail_system, text: [osLabel(s.agent.os), archLabel(s.agent.arch)].filter(Boolean).join(" · ") });
         rows.push({ key: "up", label: S.detail_uptime, text: formatLong(s.agent.uptime) });
-      }
-      if (online && s.latencyMs != null) {
-        const method = methodLabel(s.method);
-        rows.push({ key: "lat", label: S.detail_latency, text: fmt(S.latency_ms, s.latencyMs) + (method ? " · " + method : "") });
       }
       if (!d.hasAgent) rows.push({ key: "agent", label: S.detail_agent, text: S.agent_not_configured, cls: "muted" });
       else if (online && s.agentError) rows.push({ key: "agent", label: S.detail_agent, text: agentErrorLabel(s.agentError), cls: "bad" });

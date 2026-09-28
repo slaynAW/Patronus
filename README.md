@@ -5,6 +5,8 @@ depuis votre téléphone ou depuis un autre PC.
 
 - ⚡ **Démarrage** des PC par Wake-on-LAN (paquet magique), fiabilisé (envois répétés, bonne adresse de diffusion, bon réseau).
 - 🟢 **État en temps réel** de chaque PC : allumé / éteint / en cours de démarrage / en cours d'arrêt, avec latence et « vu il y a… ».
+- 📈 **Latence en direct façon électrocardiogramme** : sur la fiche d'un PC, la valeur actuelle et le tracé de la dernière
+  minute (une mesure par seconde), avec min / moyenne / max et sondes restées sans réponse ; mini-tracés dans les listes.
 - ⏻ **Extinction, redémarrage et mise en veille à distance** grâce à un petit agent à installer sur les PC (Windows, Linux, macOS).
 - 🕘 **Historique discret** des démarrages et extinctions sur 30 jours (complet grâce au journal de l'agent, même quand
   l'application était fermée).
@@ -115,7 +117,9 @@ Commandes utiles : `wol-agent pair` (réafficher le QR code), `wol-agent status`
 - **Démarrer** : envoie le paquet magique ; le voyant passe en « Démarrage en cours… » avec un chronomètre, puis au vert dès que le PC répond.
 - **Éteindre / Redémarrer / Veille** : depuis la fiche du PC, le menu ⋯ ou le bouton de la liste (confirmation demandée,
   option « Forcer la fermeture des applications »).
-- **Fiche d'un PC** : état, actions, adresse IP / MAC, système, « allumé depuis », latence, agent, et un **historique discret**
+- **Fiche d'un PC** : état, actions, **latence en direct** (valeur et tracé défilant de la dernière minute : le PC affiché
+  est vérifié chaque seconde ; les traits rouges marquent les sondes sans réponse), adresse IP / MAC, système,
+  « allumé depuis », agent, et un **historique discret**
   des derniers évènements (*Tout afficher* : 30 jours, groupés par jour). « ≈ » signale une heure constatée par
   l'application (à quelques secondes près) plutôt que relevée par l'agent ; « arrêt inattendu » : coupure de courant,
   arrêt forcé ou plantage.

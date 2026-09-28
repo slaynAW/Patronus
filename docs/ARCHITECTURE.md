@@ -89,8 +89,20 @@ stateDiagram-v2
     RESTARTING --> ONLINE: disparu puis revenu
 ```
 
-4. Attente : intervalle réglable (3 s par défaut), **1 s** pendant les transitions, ou immédiatement après une action / un
-   changement de réseau (canal de rafraîchissement).
+4. Attente : intervalle réglable (3 s par défaut), **1 s** pendant les transitions et pour le PC affiché en détail, ou
+   immédiatement après une action / un changement de réseau (canal de rafraîchissement).
+
+### Latence en direct
+
+Chaque sonde ajoute une mesure (`LatencySample` : heure, latence ou « pas de réponse ») aux relevés du PC, gardés
+**5 minutes en mémoire** seulement (400 au plus ; `LatencyLog` côté Kotlin, `AppendLatency` côté Go, mêmes règles).
+Tant que la fiche d'un PC est affichée (`StatusMonitor.watch` / `unwatch` sur Android, appel `setLive` de l'interface
+Windows), ce PC est sondé **chaque seconde**.
+
+Le tracé montre la dernière minute et défile en continu avec un léger retard (l'intervalle habituel entre deux mesures) :
+la « plume », au bord droit, glisse d'une mesure à l'autre et une impulsion marque chaque nouvelle mesure. Une sonde
+sans réponse coupe la courbe et laisse un trait rouge sur la ligne de base ; l'échelle (5, 10, 20, 50 ms…) suit le
+maximum affiché. Environ 30 images par seconde, une seule si les animations sont désactivées dans le système.
 
 ## Envoi du paquet magique
 

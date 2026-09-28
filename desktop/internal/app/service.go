@@ -232,7 +232,13 @@ type DeviceView struct {
 	HasAgent    bool                `json:"hasAgent"`
 	CanShutdown bool                `json:"canShutdown"`
 	Status      status.DeviceStatus `json:"status"`
+	// Latency contient les mesures récentes (latencyView), pour le tracé en direct.
+	Latency []status.LatencySample `json:"latency,omitempty"`
 }
+
+// latencyView est la durée des mesures de latence envoyées à l'interface : la minute tracée,
+// plus une marge pour le défilement.
+const latencyView = 75 * time.Second
 
 // State renvoie l'état courant.
 func (s *Service) State() UIState {
@@ -254,6 +260,7 @@ func (s *Service) State() UIState {
 	if p, ok := s.network.Primary(); ok {
 		st.Network.Transport = string(p.Transport)
 	}
+	since := s.now().Add(-latencyView).UnixMilli()
 	for _, d := range s.cfg.Devices {
 		ds, ok := statuses[d.ID]
 		if !ok {
@@ -262,6 +269,7 @@ func (s *Service) State() UIState {
 		st.Devices = append(st.Devices, DeviceView{
 			ID: d.ID, Name: d.Name, MAC: d.MAC.String(), Host: d.Host,
 			HasAgent: d.Agent != nil, CanShutdown: d.CanShutdown(), Status: ds,
+			Latency: s.monitor.Latency(d.ID, since),
 		})
 	}
 	return st
@@ -316,6 +324,10 @@ func (s *Service) Call(method string, params json.RawMessage) (any, error) {
 		return nil, nil
 	case "refresh":
 		s.monitor.Refresh(p.ID)
+		return nil, nil
+	case "setLive":
+		// PC affiché en détail (vide : aucun) : sondé chaque seconde pour le tracé de latence.
+		s.monitor.SetLive(p.ID)
 		return nil, nil
 	case "getHistory":
 		if p.Refresh {

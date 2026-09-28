@@ -17,7 +17,6 @@ import io.github.slaynaw.wakeonlan.core.agent.PowerAction
 import io.github.slaynaw.wakeonlan.core.history.HistoryKind
 import io.github.slaynaw.wakeonlan.core.status.DeviceStatus
 import io.github.slaynaw.wakeonlan.core.status.PowerState
-import io.github.slaynaw.wakeonlan.core.status.ProbeMethod
 import io.github.slaynaw.wakeonlan.core.status.UnknownReason
 import io.github.slaynaw.wakeonlan.ui.theme.WolPalette
 import kotlinx.coroutines.delay
@@ -106,12 +105,6 @@ fun AgentStatus.systemLabel(): String = listOf(osLabel(), archLabel()).filter { 
 
 /** Version de l'agent : « v1.2.0 », mais « dev » tel quel. */
 fun AgentStatus.versionLabel(): String = if (version.firstOrNull()?.isDigit() == true) "v$version" else version
-
-fun ProbeMethod.label(): String = when (this) {
-    ProbeMethod.AGENT -> "agent"
-    ProbeMethod.TCP -> "TCP"
-    ProbeMethod.PING -> "ping"
-}
 
 /** Durée courte et lisible : « 12 s », « 5 min », « 3 h », « 2 j ». */
 @Composable
