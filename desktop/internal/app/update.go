@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/slaynaw/wakeonlan/desktop/internal/update"
+	"github.com/slaynaw/wakeonlan/agent/update"
 )
 
 // UpdateOptions active les mises à jour intégrées (nil : désactivées, par exemple pour une version

@@ -41,6 +41,8 @@
 
 - **Complet** : chiffré avec une clé dérivée du mot de passe par **PBKDF2-HMAC-SHA256 (600 000 itérations, sel de 16 octets)**,
   puis **AES-256-GCM** (IV de 12 octets, en-tête authentifié). Un mauvais mot de passe ou une modification du fichier sont détectés.
+- **Complet** : contient aussi la clé de partage et l'historique (5 000 derniers évènements), uniquement dans ce
+  fichier chiffré.
 - **Sans les clés** : fichier lisible, clés d'agent et mots de passe SecureOn retirés.
 - Format identique sur Android et Windows (vérifié par des sauvegardes de référence produites indépendamment).
 
@@ -54,8 +56,8 @@
 | Filtrage | Seules les adresses privées sont acceptées (`10/8`, `172.16/12`, `192.168/16`, `169.254/16`, `100.64/10`, IPv6 locales), modifiable dans `config.json` (`allow`). |
 | Pare-feu Windows | Règle limitée à l'exécutable de l'agent, au port 9770, au **sous-réseau local**, profils privé/domaine uniquement. |
 | Robustesse | Messages de 8 Kio maximum (réponse `history` : 512 Kio au plus côté client), délai de 10 s, 16 connexions simultanées maximum. |
-| Commandes | Liste blanche configurable (`commands` dans `config.json`), par ex. pour n'autoriser que la veille. Le journal (`history`, lecture seule) est accessible dès que `status` l'est. |
-| Journal du PC | `history.json` et `alive.json` rangés avec la configuration, dans un dossier réservé à root / SYSTEM et aux administrateurs. Le journal ne contient que des heures, des types d'évènement et l'adresse IP des appareils ayant envoyé une commande ; il est borné (30 jours, 2 000 évènements). |
+| Commandes | Liste blanche configurable (`commands` dans `config.json`), par ex. pour n'autoriser que la veille. Le journal (`history`, lecture seule) et l'ajout des démarrages demandés (`wakes`) sont accessibles dès que `status` l'est. |
+| Journal du PC | `history.json` et `alive.json` rangés avec la configuration, dans un dossier réservé à root / SYSTEM et aux administrateurs. Le journal ne contient que des heures, des types d'évènement et, pour chaque demande, l'adresse IP et le nom de l'appareil qui l'a faite (nom indiqué par l'application : « Pixel 8 », nom du PC) ; il est borné (30 jours, 2 000 évènements, noms de 40 caractères). Toute personne qui a la clé de l'agent (vous, et les personnes à qui vous avez partagé le PC avec le droit « démarrer et éteindre ») peut le lire. Les démarrages signalés ne sont acceptés qu'authentifiés, et seulement pour la période couverte par le journal. |
 | Fichier de configuration | Lisible uniquement par root (Linux/macOS, `0600`) ou SYSTEM/Administrateurs (Windows, ACL posées via les SID). |
 | Linux | Service systemd durci (`NoNewPrivileges`, `ProtectSystem`, `ProtectHome`, `PrivateTmp`…). |
 | Chaîne de production | Binaires compilés par la CI (`-trimpath`, sans CGO), sommes SHA-256 publiées ; somme du wrapper Gradle vérifiée. |

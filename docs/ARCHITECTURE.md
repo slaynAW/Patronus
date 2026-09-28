@@ -25,11 +25,13 @@ WakeOnLan/
 │   └── HistoryTracker.kt  tenue de l'historique (surveillance, demandes, journal des agents)
 ├── desktop/     Go + WebView2 — application Windows (même interface et mêmes fonctions qu'Android)
 │   ├── ui/         interface HTML/CSS/JS : plan du réseau, tableau, panneau de détail, historique
-│   └── internal/   model, config (DPAPI, export), history, share (partage), update, wol, agentclient, status,
+│   └── internal/   model, config (DPAPI, export), history, share (partage), wol, agentclient, status,
 │                   netstate, pairing, app
 ├── agent/       Go — service installé sur les PC
 │   ├── protocol/   protocole partagé avec l'application Windows
-│   └── internal/   server, config, history (journal 30 jours), power, service, pairing, netinfo, sysinfo, terminal
+│   ├── update/     mises à jour (manifeste signé, téléchargement vérifié), partagé avec l'application Windows
+│   └── internal/   server, config, history (journal 30 jours), power, service, selfupdate (mise à jour guidée
+│                   sous Windows), pairing, netinfo, sysinfo, terminal
 └── protocol/    vecteurs de test communs Kotlin ↔ Go (protocole, paquet magique, sauvegardes, historique,
                  mises à jour, partage, QR code)
 ```

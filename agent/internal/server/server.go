@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/slaynaw/wakeonlan/agent/internal/config"
 	"github.com/slaynaw/wakeonlan/agent/internal/history"
@@ -196,6 +198,30 @@ func (s *Server) execute(rawBody, ip string) protocol.ResponseBody {
 	if err := json.Unmarshal([]byte(rawBody), &body); err != nil {
 		return fail("bad_request", "requête illisible")
 	}
+	by := CleanName(body.By)
+	// Démarrages demandés par l'application : simple ajout au journal, comme sa lecture.
+	if body.Cmd == protocol.CmdWakes {
+		if !s.cfg.Allows(protocol.CmdStatus) && !s.cfg.Allows(protocol.CmdHistory) {
+			return fail("forbidden", "commande « wakes » désactivée sur ce PC")
+		}
+		if s.history == nil {
+			return fail("unsupported", "journal indisponible sur ce PC")
+		}
+		if len(body.Wakes) == 0 || len(body.Wakes) > protocol.MaxWakes {
+			return fail("bad_request", "liste de démarrages invalide")
+		}
+		added, err := s.history.AddWakes(body.Wakes, ip, by)
+		if err != nil {
+			s.logger.Printf("journal : %v", err)
+		}
+		if added > 0 {
+			s.logger.Printf("%d démarrage(s) demandé(s) par %s noté(s) au journal", added, describeClient(by, ip))
+		}
+		snapshot := s.history.Snapshot()
+		resp.History = &snapshot
+		resp.OK, resp.Code = true, "ok"
+		return resp
+	}
 	// Le journal est en lecture seule, comme l'état : autorisé dès que « status » l'est.
 	if body.Cmd == protocol.CmdHistory {
 		if !s.cfg.Allows(protocol.CmdStatus) && !s.cfg.Allows(protocol.CmdHistory) {
@@ -230,9 +256,9 @@ func (s *Server) execute(rawBody, ip string) protocol.ResponseBody {
 	force := body.Force != nil && *body.Force
 
 	s.schedule(action, force, time.Duration(delay)*time.Second)
-	s.logger.Printf("%s demandée par %s (délai %d s, forcer=%v)", action.Label(), ip, delay, force)
+	s.logger.Printf("%s demandée par %s (délai %d s, forcer=%v)", action.Label(), describeClient(by, ip), delay, force)
 	if s.history != nil {
-		event := protocol.HistoryEvent{T: s.now().Unix(), K: protocol.HistoryCommand, A: string(action), C: ip}
+		event := protocol.HistoryEvent{T: s.now().Unix(), K: protocol.HistoryCommand, A: string(action), C: ip, B: by}
 		if err := s.history.Add(event); err != nil {
 			s.logger.Printf("journal : %v", err)
 		}
@@ -240,6 +266,31 @@ func (s *Server) execute(rawBody, ip string) protocol.ResponseBody {
 	resp.OK, resp.Code = true, "ok"
 	resp.Message = fmt.Sprintf("%s dans %d s", action.Label(), delay)
 	return resp
+}
+
+// CleanName ne garde du nom indiqué par l'application que des caractères affichables, sans espaces
+// superflus, dans la limite de protocol.MaxByLength caractères.
+func CleanName(name string) string {
+	var b strings.Builder
+	n := 0
+	for _, r := range strings.Join(strings.Fields(name), " ") {
+		if !unicode.IsPrint(r) {
+			continue
+		}
+		if n == protocol.MaxByLength {
+			break
+		}
+		b.WriteRune(r)
+		n++
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func describeClient(by, ip string) string {
+	if by == "" {
+		return ip
+	}
+	return by + " (" + ip + ")"
 }
 
 // schedule programme l'action ; une nouvelle demande remplace la précédente.

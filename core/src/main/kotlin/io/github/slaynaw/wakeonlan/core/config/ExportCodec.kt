@@ -159,8 +159,8 @@ object ExportCodec {
         return ConfigCodec.decode(text) to extra
     }
 
-    /** Données ajoutées reconnues dans une sauvegarde chiffrée. */
-    private val EXTRA_KEYS = setOf("sharing")
+    /** Données ajoutées reconnues dans une sauvegarde chiffrée : partage, historique. */
+    private val EXTRA_KEYS = setOf("sharing", "history")
 
     private fun cipher(mode: Int, password: CharArray, salt: ByteArray, iv: ByteArray, iterations: Int): Cipher {
         val spec = PBEKeySpec(password, salt, iterations, 256)

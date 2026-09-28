@@ -24,7 +24,13 @@ const (
 	// sameBootTolerance : sans identifiant de démarrage, deux heures de démarrage aussi proches
 	// désignent le même démarrage (l'horloge a pu être corrigée entre-temps).
 	sameBootTolerance = 10 * time.Minute
-	fileVersion       = 1
+	// WakeMatch : deux démarrages demandés à moins de cet écart sont le même (signalé deux fois, ou
+	// par deux appareils à la fois).
+	WakeMatch = time.Minute
+	// WakeLead : une demande de démarrage précède le démarrage qu'elle provoque ; elle est acceptée
+	// jusqu'à cet écart avant le début du journal (journal commencé à ce démarrage).
+	WakeLead    = 10 * time.Minute
+	fileVersion = 1
 )
 
 // Boot décrit le démarrage en cours du système.
@@ -84,6 +90,38 @@ func (l *Log) Add(e protocol.HistoryEvent) error {
 	l.st.PendingShutdown = false
 	l.insert(e)
 	return l.save()
+}
+
+// AddWakes ajoute les démarrages demandés par une application (heures en secondes Unix), en ignorant
+// ceux hors de la période couverte (à WakeLead près), dans le futur ou déjà connus. Renvoie le
+// nombre d'ajouts.
+func (l *Log) AddWakes(times []int64, client, by string) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.prune()
+	now := l.now().Unix()
+	added := 0
+	for _, t := range times {
+		if t < l.st.Since-int64(WakeLead.Seconds()) || t > now+60 || l.hasWake(t) {
+			continue
+		}
+		l.insert(protocol.HistoryEvent{T: t, K: protocol.HistoryWake, C: client, B: by})
+		added++
+	}
+	if added == 0 {
+		return 0, nil
+	}
+	return added, l.save()
+}
+
+func (l *Log) hasWake(t int64) bool {
+	window := int64(WakeMatch.Seconds())
+	for _, e := range l.st.Events {
+		if e.K == protocol.HistoryWake && e.T-t <= window && t-e.T <= window {
+			return true
+		}
+	}
+	return false
 }
 
 // Snapshot renvoie le début de la période couverte et les évènements (du plus ancien au plus récent).

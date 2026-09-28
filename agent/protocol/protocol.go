@@ -31,12 +31,19 @@ const (
 	MaxLineBytes = 8 * 1024
 	// MaxHistoryBytes borne la taille de la réponse à la commande « history » (journal de 30 jours).
 	MaxHistoryBytes = 512 * 1024
+	// MaxWakes borne le nombre de démarrages signalés en une fois (commande « wakes »).
+	MaxWakes = 50
+	// MaxByLength borne le nom de l'appareil indiqué par l'application (en caractères).
+	MaxByLength = 40
 )
 
-// Commandes en lecture seule (toujours autorisées avec « status »).
+// Commandes du journal, autorisées avec « status » (agent 1.4.0 ou plus pour « wakes »).
 const (
 	CmdStatus  = "status"
 	CmdHistory = "history"
+	// CmdWakes : l'application signale les démarrages qu'elle a demandés (paquet magique, que l'agent
+	// ne peut pas voir), une fois le PC joignable. La réponse contient le journal à jour.
+	CmdWakes = "wakes"
 )
 
 // Types d'évènements du journal de l'agent (commande « history »).
@@ -51,8 +58,10 @@ const (
 	HistorySleep = "sleep"
 	// HistoryResume : sortie de veille.
 	HistoryResume = "resume"
-	// HistoryCommand : commande d'alimentation reçue (A = action, C = adresse du client).
+	// HistoryCommand : commande d'alimentation reçue (A = action, C = adresse du client, B = son nom).
 	HistoryCommand = "cmd"
+	// HistoryWake : démarrage demandé par une application (C = adresse, B = nom de l'appareil).
+	HistoryWake = "wake"
 )
 
 // HistoryEvent est un évènement du journal de l'agent.
@@ -64,6 +73,8 @@ type HistoryEvent struct {
 	A string `json:"a,omitempty"`
 	// C est l'adresse IP du client à l'origine d'une commande.
 	C string `json:"c,omitempty"`
+	// B est le nom de l'appareil à l'origine d'une commande, indiqué par l'application (« Pixel 8 »).
+	B string `json:"b,omitempty"`
 }
 
 // History est le journal renvoyé par la commande « history ».
@@ -98,6 +109,10 @@ type RequestBody struct {
 	Cmd   string `json:"cmd"`
 	Delay *int   `json:"delay,omitempty"`
 	Force *bool  `json:"force,omitempty"`
+	// By est le nom de l'appareil qui envoie la requête (noté dans le journal ; ignoré avant 1.4.0).
+	By string `json:"by,omitempty"`
+	// Wakes : heures (secondes Unix) des démarrages demandés, pour la commande « wakes ».
+	Wakes []int64 `json:"wakes,omitempty"`
 }
 
 // Response est la réponse de l'agent : signée (Body + Mac) ou erreur d'authentification (Error).

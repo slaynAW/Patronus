@@ -28,6 +28,12 @@ object AgentProtocol {
     /** Taille maximale de la réponse à la commande `history` (journal de 30 jours). */
     const val MAX_HISTORY_BYTES = 512 * 1024
 
+    /** Démarrages signalés en une fois (commande « wakes »). */
+    const val MAX_WAKES = 50
+
+    /** Longueur maximale du nom de l'appareil noté par l'agent. */
+    const val MAX_BY_LENGTH = 40
+
     private val b64 = Base64.getUrlEncoder().withoutPadding()
     private val b64Decoder = Base64.getUrlDecoder()
 
@@ -81,10 +87,11 @@ data class AgentHistory(val from: Long = 0, val events: List<AgentHistoryEvent> 
 
 /**
  * Évènement du journal : [t] heure (s), [k] type (`boot`, `shutdown`, `lost`, `sleep`, `resume`,
- * `cmd`), [a] action d'une commande reçue, [c] adresse de l'appareil qui l'a envoyée.
+ * `cmd`, `wake`), [a] action d'une commande reçue, [c] adresse de l'appareil à l'origine d'une
+ * demande et [b] son nom (agent 1.4.0 ou plus).
  */
 @Serializable
-data class AgentHistoryEvent(val t: Long, val k: String, val a: String? = null, val c: String? = null)
+data class AgentHistoryEvent(val t: Long, val k: String, val a: String? = null, val c: String? = null, val b: String? = null)
 
 @Serializable
 internal data class HelloMessage(val proto: String, val nonce: String)
@@ -94,6 +101,10 @@ internal data class RequestBody(
     val cmd: String,
     val delay: Int? = null,
     val force: Boolean? = null,
+    /** Nom de cet appareil, noté par l'agent avec la demande (ignoré avant l'agent 1.4.0). */
+    val by: String? = null,
+    /** Heures (s) des démarrages demandés, pour la commande « wakes ». */
+    val wakes: List<Long>? = null,
 )
 
 @Serializable

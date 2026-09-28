@@ -239,7 +239,7 @@
     <string name="section_backup">Sauvegarde</string>
     <string name="export_title">Exporter la configuration</string>
     <string name="export_with_secrets">Complète, protégée par mot de passe</string>
-    <string name="export_with_secrets_help">Inclut les clés des agents et votre clé de partage. Fichier chiffré (AES-256).</string>
+    <string name="export_with_secrets_help">Inclut les clés des agents, votre clé de partage et l’historique. Fichier chiffré (AES-256).</string>
     <string name="export_without_secrets">Sans les clés</string>
     <string name="export_without_secrets_help">Fichier lisible ; les agents devront être ré-appairés.</string>
     <string name="field_password">Mot de passe</string>
@@ -368,6 +368,7 @@
     <string name="detail_shared">Partagé par</string>
     <string name="hint_shared">PC partagé par %1$s : lui seul peut le modifier.</string>
     <string name="share_qr_description">QR code du lien de partage</string>
+    <string name="import_history">Contient aussi l’historique (%1$d évènements), ajouté à celui de ce téléphone.</string>
     <string name="import_sharing">Contient aussi votre partage (%1$s, personnes autorisées : %2$d), repris si ce téléphone ne partage pas déjà ses PC.</string>
     <string name="import_sharing_done">Votre partage a été repris. Reconnectez-vous à GitHub (Réglages → Partager mes PC) avec le même compte pour que les accès continuent.</string>
 </resources>

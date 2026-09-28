@@ -39,6 +39,7 @@ seul « PC streaming », en **démarrage seulement**. Les applications Android e
 | Voir le PC et son état (allumé, éteint…) | ✅ | ✅ |
 | Démarrer le PC | ✅ | ✅ |
 | Éteindre, redémarrer, mettre en veille | ❌ (la clé de l'agent n'est pas envoyée) | ✅ |
+| Lire l'historique du PC (journal de l'agent : qui a démarré, éteint…) | ❌ | ✅ |
 | Modifier, exporter, partager à son tour | ❌ | ❌ |
 
 ### Retirer un accès

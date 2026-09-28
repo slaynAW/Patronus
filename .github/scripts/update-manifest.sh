@@ -3,9 +3,13 @@
 # fichier) et sa signature dist/update.json.sig (clé de signature de l'APK, RSA / SHA-256, base64).
 # Les applications le lisent à l'adresse …/releases/latest/download/update.json et refusent tout
 # manifeste dont la signature ne correspond pas au certificat qu'elles connaissent
-# (Android : celui de l'application installée ; Windows : desktop/internal/update/release-cert.pem).
+# (Android : celui de l'application installée ; Windows : agent/update/release-cert.pem).
 #
-# Variables : VERSION, OFFICIAL (true/false), WOL_VERSION_CODE, KEYSTORE_BASE64, KEYSTORE_PASSWORD.
+# La section « agent » décrit l'agent joint (numéro propre AGENT_VERSION, nouveautés de
+# agent/NOUVEAUTES.md, binaires Windows) : les agents installés s'en servent pour se mettre à jour.
+#
+# Variables : VERSION, AGENT_VERSION, OFFICIAL (true/false), WOL_VERSION_CODE, KEYSTORE_BASE64,
+# KEYSTORE_PASSWORD.
 set -euo pipefail
 
 base_version="${VERSION%%-*}"
@@ -33,8 +37,25 @@ files=$({
   describe windows-amd64 "WakeOnLan-Windows-${VERSION}-x64.exe"
   describe windows-arm64 "WakeOnLan-Windows-${VERSION}-arm64.exe"
 } | jq -s '.')
+
+agent=null
+agent_files=$({
+  describe windows-amd64 wol-agent-windows-amd64.exe
+  describe windows-arm64 wol-agent-windows-arm64.exe
+} | jq -s '.')
+if [[ -n "${AGENT_VERSION:-}" && "$agent_files" != "[]" ]]; then
+  agent_notes=$(awk -v title="## ${AGENT_VERSION%%-*}" '$0 == title { found = 1; next } /^## / { if (found) exit } found' agent/NOUVEAUTES.md | sed '/./,$!d')
+  if [[ -z "$agent_notes" && "$OFFICIAL" == true ]]; then
+    echo "::error title=Nouveautés::agent/NOUVEAUTES.md ne contient pas de section « ## $AGENT_VERSION »."
+    exit 1
+  fi
+  agent=$(jq -n --arg v "$AGENT_VERSION" --arg notes "$agent_notes" --argjson files "$agent_files" \
+    '{version: $v, notes: $notes, files: $files}')
+fi
+
 jq -n --arg v "$VERSION" --argjson code "$WOL_VERSION_CODE" --arg d "$(date -u +%F)" --arg notes "$notes" --argjson files "$files" \
-  '{format: 1, version: $v, code: $code, date: $d, notes: $notes, files: $files}' > update.json
+  --argjson agent "$agent" \
+  '{format: 1, version: $v, code: $code, date: $d, notes: $notes, files: $files} + (if $agent == null then {} else {agent: $agent} end)' > update.json
 cat update.json
 
 if [[ -z "${KEYSTORE_BASE64:-}" || -z "${KEYSTORE_PASSWORD:-}" ]]; then
@@ -55,7 +76,7 @@ openssl dgst -sha256 -sign "$work/key.pem" -out "$work/update.sig" update.json
 openssl dgst -sha256 -verify <(openssl x509 -in "$work/cert.pem" -pubkey -noout) -signature "$work/update.sig" update.json
 
 # Le certificat intégré à l'application Windows doit être celui de la clé de signature.
-committed=desktop/internal/update/release-cert.pem
+committed=agent/update/release-cert.pem # application Windows et agent
 if ! cmp -s <(openssl x509 -in "$committed" -outform DER 2>/dev/null) <(openssl x509 -in "$work/cert.pem" -outform DER); then
   echo "::warning title=Mises à jour::$committed ne correspond pas à la clé de signature de l'APK : l'application Windows refuserait les mises à jour. Certificat (public) à y placer :"
   cat "$work/cert.pem"

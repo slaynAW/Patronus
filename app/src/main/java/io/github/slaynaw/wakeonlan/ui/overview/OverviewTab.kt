@@ -267,7 +267,8 @@ private fun DeviceRow(item: DeviceItem, now: Long, onOpen: () -> Unit, onWake: (
         }
         Spacer(Modifier.width(8.dp))
         if (status.state == PowerState.ONLINE && item.latency.isNotEmpty()) {
-            LatencyTrace(item.latency, Modifier.size(width = 56.dp, height = 22.dp))
+            // Tracé du milieu de la ligne jusqu'au bouton ; le nom occupe l'autre moitié.
+            LatencyTrace(item.latency, Modifier.weight(1f).height(22.dp))
             Spacer(Modifier.width(10.dp))
         }
         when {

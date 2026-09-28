@@ -188,7 +188,7 @@ func ImportWithExtra(data []byte, password string) (model.AppConfig, map[string]
 		return c, nil, nil
 	}
 	extra := map[string]json.RawMessage{}
-	for _, k := range []string{"sharing"} {
+	for _, k := range []string{"sharing", "history"} {
 		if v, ok := root[k]; ok {
 			extra[k] = v
 		}

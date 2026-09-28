@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -79,7 +80,9 @@ fun LatencyTrace(samples: List<LatencySample>, modifier: Modifier = Modifier, de
     val delayMs by animateFloatAsState(gap + 200f, tween(700), label = "traceDelay")
     val scaleTarget = remember(samples) { (traceScale(samples, System.currentTimeMillis()) ?: LatencyLog.scaleMax(0)).toFloat() }
     val scale by animateFloatAsState(scaleTarget, tween(350), label = "traceScale")
-    Canvas(modifier) {
+    // Les mesures gardées couvrent plusieurs minutes : ce qui précède la dernière minute tombe à gauche
+    // du cadre et ne doit pas déborder sur le reste de la ligne (nom du PC).
+    Canvas(modifier.clipToBounds()) {
         drawTrace(samples, clock.value - delayMs.toLong(), scale, gap, detailed, animate)
     }
 }

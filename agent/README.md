@@ -37,6 +37,32 @@ sudo ./wol-agent-linux-amd64 install
 
 > Réinstaller (ou installer une nouvelle version) conserve la configuration et la clé : pas besoin de ré-appairer.
 
+## Mises à jour (Windows)
+
+À partir de la version 1.4.0, l'agent se tient à jour lui-même, **avec l'accord de l'utilisateur du PC** :
+
+1. Une fois par jour (et quelques minutes après le démarrage), le service regarde si une nouvelle version de l'agent
+   est publiée.
+2. Si oui, une fenêtre s'affiche sur la session ouverte : « Une nouvelle version de l'agent Wake On LAN est
+   disponible : 1.4.0 → 1.5.0 », avec ses nouveautés. **Oui** l'installe ; **Non** (ou pas de réponse) la repropose le
+   lendemain. Si personne n'est connecté, la question attend l'ouverture d'une session.
+3. L'agent télécharge la nouvelle version, la vérifie, la met à la place de l'ancienne puis redémarre en quelques
+   secondes ; une fenêtre confirme la mise à jour. S'il ne répond pas après le redémarrage, l'ancienne version est
+   remise en place automatiquement.
+
+La clé, l'appairage, la configuration et le journal sont conservés. Sécurité : l'agent n'accepte que les versions
+décrites par le manifeste **signé** des versions officielles (même clé et mêmes contrôles que les applications, voir
+[docs/MISES-A-JOUR.md](../docs/MISES-A-JOUR.md)), et le fichier doit avoir exactement l'empreinte SHA-256 annoncée.
+Il ne contacte que GitHub, en HTTPS, et n'envoie aucune donnée.
+
+- `wol-agent update` : recherche et installe tout de suite (`--check` : vérifier seulement).
+- `wol-agent update --auto off` : désactive la recherche quotidienne (`--auto on` pour la rétablir).
+- Agent 1.3 ou plus ancien : installez une fois la 1.4.0 à la main (double-clic sur le `.exe`), les suivantes seront
+  proposées. Linux et macOS : relancez `sudo wol-agent install` avec la nouvelle version.
+
+L'agent a son propre numéro de version, qui ne change que lorsqu'il évolue (voir [NOUVEAUTES.md](NOUVEAUTES.md)) :
+une nouvelle version des applications ne provoque pas de mise à jour de l'agent si celui-ci n'a pas changé.
+
 ## Commandes
 
 | Commande | Rôle |
@@ -45,6 +71,7 @@ sudo ./wol-agent-linux-amd64 install
 | `wol-agent pair [--ip …] [--png qr.png] [--invert]` | Réaffiche le QR code (ou l'enregistre en PNG) et le lien d'appairage |
 | `wol-agent status` | État du service, configuration, carte réseau détectée, derniers évènements du journal |
 | `wol-agent rotate-key` | Nouvelle clé ; l'ancienne est immédiatement refusée (ré-appairer) |
+| `wol-agent update [--check] [--yes] [--auto on\|off]` | Recherche et installe une nouvelle version (Windows) ; `--auto` : recherche quotidienne |
 | `wol-agent uninstall [--purge]` | Désinstalle (`--purge` supprime aussi la configuration) |
 | `wol-agent run [--config …] [--dry-run]` | Lance l'agent au premier plan ; `--dry-run` n'éteint rien (test) |
 
@@ -62,6 +89,8 @@ afin que le QR code contienne la bonne adresse MAC.
   "commands": ["status", "shutdown", "reboot", "sleep"]
 }
 ```
+
+- `autoUpdate` (facultatif, Windows) : `false` désactive la recherche quotidienne des mises à jour.
 
 - `allow` : réseaux autorisés à se connecter (par défaut uniquement des adresses privées).
 - `commands` : retirez par exemple `"shutdown"` pour n'autoriser que la veille. La lecture du journal (`history`) est
@@ -83,7 +112,9 @@ L'agent répond au téléphone **avant** d'exécuter l'action (délai minimal 1,
 ## Journal des démarrages et extinctions
 
 L'agent note dans `history.json` (à côté de `config.json`) les **30 derniers jours** : démarrages, arrêts, mises en veille
-et sorties de veille, commandes reçues (avec l'adresse de l'appareil qui les a envoyées). Un arrêt qu'il n'a pas pu noter
+et sorties de veille, commandes reçues et démarrages demandés depuis les applications (avec le nom et l'adresse de
+l'appareil à l'origine de la demande ; agent 1.4.0 ou plus). Toutes les applications relisent ce même journal : le
+téléphone et le PC Windows affichent le même historique. Un arrêt qu'il n'a pas pu noter
 (coupure de courant, arrêt forcé, plantage) apparaît comme « arrêt inattendu », daté du dernier signe de vie (`alive.json`,
 mis à jour chaque minute). Les applications relisent ce journal dès que le PC répond.
 

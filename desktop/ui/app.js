@@ -233,7 +233,7 @@
     section_backup: "Sauvegarde",
     export_title: "Exporter la configuration",
     export_with_secrets: "Complète, protégée par mot de passe",
-    export_with_secrets_help: "Inclut les clés des agents et votre clé de partage. Fichier chiffré (AES-256).",
+    export_with_secrets_help: "Inclut les clés des agents, votre clé de partage et l’historique. Fichier chiffré (AES-256).",
     export_without_secrets: "Sans les clés",
     export_without_secrets_help: "Fichier lisible ; les agents devront être ré-appairés.",
     field_password: "Mot de passe",
@@ -356,6 +356,7 @@
     detail_shared: "Partagé par",
     hint_shared: "PC partagé par %1$s : lui seul peut le modifier.",
     import_sharing: "Contient aussi votre partage (%1$s, personnes autorisées : %2$d), repris si cet ordinateur ne partage pas déjà ses PC.",
+    import_history: "Contient aussi l’historique (%1$d évènements), ajouté à celui de cet ordinateur.",
     import_sharing_done: "Votre partage a été repris. Reconnectez-vous à GitHub (Réglages → Partager mes PC) avec le même compte pour que les accès continuent.",
   };
 
@@ -684,7 +685,7 @@
     return lines.join("\n");
   }
 
-  /** Ligne d'historique : icône, libellé (« · par 192.168.1.50 » pour une commande venue d'ailleurs), heure. */
+  /** Ligne d'historique : icône, libellé (« · par Pixel 8 » pour une demande venue d'ailleurs), heure. */
   function eventRow(e, now, { withName = false, clockOnly = false } = {}) {
     const by = e.client ? fmt(S.history_by, e.client) : "";
     const when = (e.approx ? "≈ " : "") + (clockOnly ? clockFmt.format(e.time) : eventTime(e.time, now));
@@ -3202,6 +3203,7 @@
     const body = [h("p", { text: S.import_confirm_text })];
     if (step.missingKeys) body.push(h("p", { class: "error", text: S.import_missing_keys }));
     if (step.sharing) body.push(h("p", { text: fmt(S.import_sharing, step.sharing.name, step.sharing.people) }));
+    if (step.history) body.push(h("p", { text: fmt(S.import_history, step.history) }));
     const dialog = openDialog({
       iconName: "upload",
       title: fmt(S.import_confirm_title, step.count),

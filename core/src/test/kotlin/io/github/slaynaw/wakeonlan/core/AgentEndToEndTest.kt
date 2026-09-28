@@ -39,6 +39,21 @@ class AgentEndToEndTest {
     }
 
     @Test
+    fun `journal commun demarrage signale et nom de l'appareil`() = runBlocking {
+        val client = AgentClient(deviceName = { "Pixel CI" })
+        val wake = System.currentTimeMillis() / 1000 - 30
+        val reported = client.reportWakes("127.0.0.1", settings, listOf(wake))
+        assertTrue(reported is AgentResult.Success, "$reported")
+        val events = (reported as AgentResult.Success).value.events
+        assertTrue(events.any { it.k == "wake" && it.t == wake && it.b == "Pixel CI" && it.c == "127.0.0.1" }, "$events")
+
+        val power = client.power("127.0.0.1", settings, PowerAction.SLEEP, delaySeconds = 0)
+        assertTrue(power is AgentResult.Success, "$power")
+        val history = client.history("127.0.0.1", settings) as AgentResult.Success
+        assertTrue(history.value.events.any { it.k == "cmd" && it.a == "sleep" && it.b == "Pixel CI" }, "${history.value.events}")
+    }
+
+    @Test
     fun `mauvaise cle refusee`() = runBlocking {
         val result = AgentClient().status("127.0.0.1", settings.copy(key = AgentKey.generate()))
         assertEquals(AgentError.UNAUTHORIZED, (result as AgentResult.Failure).error)

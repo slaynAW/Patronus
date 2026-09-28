@@ -6,12 +6,14 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
+	"github.com/slaynaw/wakeonlan/desktop/internal/history"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 	"github.com/slaynaw/wakeonlan/desktop/internal/netstate"
 	"github.com/slaynaw/wakeonlan/desktop/internal/share"
@@ -385,5 +387,51 @@ func TestShareRevokedToken(t *testing.T) {
 	}
 	if o := a.State().Share.Owner; o.Connected || o.Error == "" || len(o.People) != 1 {
 		t.Errorf("après révocation : %+v", o)
+	}
+}
+
+// Sauvegarde complète : l'historique suit et s'ajoute à celui de l'appareil qui l'importe.
+func TestHistoryInFullBackup(t *testing.T) {
+	_, srv := newGistServer(t)
+	a := newShareService(t, srv, testDevice(t, "dev-1", "PC", "192.168.1.20", ""))
+	now := time.Now().UnixMilli()
+	a.recordAll([]history.Event{
+		{Device: "dev-1", Time: now - 60_000, Kind: history.WakeSent, Source: history.App},
+		{Device: "dev-1", Time: now - 30_000, Kind: history.On, Source: history.App, Approx: true},
+	})
+	platform := a.platform.(*fakePlatform)
+	call(t, a, "exportConfig", map[string]any{"withSecrets": false})
+	if strings.Contains(string(platform.saved), `"history"`) {
+		t.Error("historique dans un export lisible")
+	}
+	call(t, a, "exportConfig", map[string]any{"withSecrets": true, "password": "motdepasse"})
+	backup := platform.saved
+
+	// Appareil qui a déjà son propre historique pour ce PC (et un PC absent de la sauvegarde).
+	b := newShareService(t, srv, testDevice(t, "dev-1", "PC", "192.168.1.20", ""))
+	b.recordAll([]history.Event{{Device: "dev-1", Time: now - 10_000, Kind: history.ShutdownSent, Source: history.App}})
+	call(t, b, "importFile", map[string]any{"text": string(backup)})
+	step := call(t, b, "importPassword", map[string]any{"password": "motdepasse"})
+	if step["history"] != float64(2) {
+		t.Fatalf("historique annoncé : %v", step)
+	}
+	call(t, b, "importConfirm", map[string]any{"replace": false})
+	kinds := func(s *Service) []string {
+		var out []string
+		for _, e := range call(t, s, "getHistory", map[string]any{"id": "dev-1"})["events"].([]any) {
+			ev := e.(map[string]any)
+			out = append(out, ev["kind"].(string))
+		}
+		return out
+	}
+	if got := kinds(b); !slices.Equal(got, []string{"shutdown_req", "on", "wake"}) {
+		t.Fatalf("historique fusionné : %v", got)
+	}
+	// Importer deux fois la même sauvegarde ne duplique rien.
+	call(t, b, "importFile", map[string]any{"text": string(backup)})
+	call(t, b, "importPassword", map[string]any{"password": "motdepasse"})
+	call(t, b, "importConfirm", map[string]any{"replace": false})
+	if got := kinds(b); len(got) != 3 {
+		t.Fatalf("second import : %v", got)
 	}
 }

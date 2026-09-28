@@ -204,7 +204,7 @@ fun historyNote(state: HistoryUiState): Int? = when {
 }
 
 /**
- * Ligne d'historique : icône colorée, libellé (« · par 192.168.1.50 » pour une commande venue d'un
+ * Ligne d'historique : icône colorée, libellé (« · par Pixel 8 » pour une demande venue d'un
  * autre appareil) et heure (« ≈ » : constatée par le téléphone, à quelques secondes près).
  */
 @Composable

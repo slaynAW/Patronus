@@ -257,3 +257,44 @@ func TestCurrentBoot(t *testing.T) {
 		t.Errorf("temps de veille négatif : %v", total)
 	}
 }
+
+func TestAddWakes(t *testing.T) {
+	c := newClock()
+	path := filepath.Join(t.TempDir(), "history.json")
+	l, err := Open(path, c.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bootAt := c.Now().Add(-time.Hour)
+	if err := l.Started(Boot{ID: "a", At: bootAt}, time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+	wake := bootAt.Add(-40 * time.Second).Unix()
+	now := c.Now().Unix()
+	added, err := l.AddWakes([]int64{
+		wake,
+		wake + 20,        // même démarrage (signalé deux fois, ou par deux appareils)
+		now + 3600,       // dans le futur : ignoré
+		now - 40*24*3600, // hors de la période couverte : ignoré
+		now - 10*60,      // autre démarrage demandé, PC déjà allumé
+	}, "192.168.1.37", "Pixel 8")
+	if err != nil || added != 2 {
+		t.Fatalf("ajouts : %d, %v", added, err)
+	}
+	h := l.Snapshot()
+	if !equal(kinds(h), []string{protocol.HistoryWake, protocol.HistoryBoot, protocol.HistoryWake}) {
+		t.Fatalf("ordre chronologique : %v", kinds(h))
+	}
+	if e := h.Events[0]; e.T != wake || e.C != "192.168.1.37" || e.B != "Pixel 8" {
+		t.Errorf("démarrage noté : %+v", e)
+	}
+	// Déjà connus : rien à ajouter, rien à écrire.
+	if added, err := l.AddWakes([]int64{wake}, "192.168.1.37", "Pixel 8"); added != 0 || err != nil {
+		t.Errorf("doublon : %d, %v", added, err)
+	}
+	// Conservé au redémarrage de l'agent.
+	l2, err := Open(path, c.Now)
+	if err != nil || len(l2.Snapshot().Events) != 3 {
+		t.Fatalf("relecture : %v", err)
+	}
+}

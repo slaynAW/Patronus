@@ -252,6 +252,7 @@ fun SettingsTab(
                         Text(stringResource(R.string.import_missing_keys), color = WolPalette.DangerText)
                     }
                     step.sharing?.let { Text(stringResource(R.string.import_sharing, it.name, it.people.size)) }
+                    step.history?.let { Text(stringResource(R.string.import_history, it.events.size)) }
                 }
             },
             confirmButton = {

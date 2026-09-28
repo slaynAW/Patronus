@@ -2,11 +2,13 @@ package io.github.slaynaw.wakeonlan
 
 import io.github.slaynaw.wakeonlan.core.agent.AgentClient
 import io.github.slaynaw.wakeonlan.core.agent.AgentError
+import io.github.slaynaw.wakeonlan.core.agent.AgentHistory
 import io.github.slaynaw.wakeonlan.core.agent.AgentResult
 import io.github.slaynaw.wakeonlan.core.history.HistoryEvent
 import io.github.slaynaw.wakeonlan.core.history.HistoryKind
 import io.github.slaynaw.wakeonlan.core.history.HistoryRecorder
 import io.github.slaynaw.wakeonlan.core.history.HistorySource
+import io.github.slaynaw.wakeonlan.core.model.AgentSettings
 import io.github.slaynaw.wakeonlan.core.model.AppConfig
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.status.DeviceStatus
@@ -40,6 +42,8 @@ enum class AgentJournalState {
  * Tient l'historique à jour (mêmes règles que l'application Windows) : changements d'état constatés
  * par la surveillance, demandes faites depuis le téléphone ([record]) et journal de l'agent de chaque
  * PC, relu dès que le PC répond (ce qui s'est passé pendant que l'application était fermée).
+ * Les démarrages demandés depuis le téléphone, que l'agent ne peut pas voir, lui sont ensuite
+ * signalés (agent 1.4.0 ou plus) : tous les appareils affichent le même historique.
  */
 class HistoryTracker(
     private val config: Flow<AppConfig>,
@@ -52,6 +56,9 @@ class HistoryTracker(
     private class Fetch {
         var last = 0L
         var running = false
+
+        /** Agent antérieur à 1.4.0 : les démarrages ne lui sont plus signalés. */
+        var wakesUnsupported = false
     }
 
     private val fetches = ConcurrentHashMap<String, Fetch>()
@@ -136,6 +143,7 @@ class HistoryTracker(
                     if (devices.containsKey(device.id)) {
                         val at = clock()
                         history.update { it.replaceAgent(device.id, result.value, at, at) }
+                        reportWakes(device, agent, state, result.value)
                     }
                     AgentJournalState.OK
                 }
@@ -144,6 +152,27 @@ class HistoryTracker(
             }
             synchronized(state) { state.running = false }
             if (devices.containsKey(device.id)) _agentJournal.update { it + (device.id to journal) }
+        }
+    }
+
+    /** Signale à l'agent les démarrages demandés d'ici qu'il ne connaît pas encore. */
+    private suspend fun reportWakes(device: Device, agent: AgentSettings, state: Fetch, journal: AgentHistory) {
+        if (state.wakesUnsupported) return
+        val wakes = history.data.value.unreportedWakes(device.id, journal)
+        if (wakes.isEmpty()) return
+        val result = try {
+            withTimeoutOrNull(TIMEOUT_MS) { agentClient.reportWakes(device.host, agent, wakes) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: RuntimeException) {
+            null
+        }
+        when {
+            result is AgentResult.Success && devices.containsKey(device.id) -> {
+                val at = clock()
+                history.update { it.replaceAgent(device.id, result.value, at, at) }
+            }
+            result is AgentResult.Failure && result.error == AgentError.REJECTED -> state.wakesUnsupported = true
         }
     }
 

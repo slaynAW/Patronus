@@ -32,6 +32,7 @@ type Server struct {
 	mu       sync.Mutex
 	history  *protocol.History
 	commands []string
+	requests []protocol.RequestBody
 	wg       sync.WaitGroup
 }
 
@@ -62,6 +63,13 @@ func (s *Server) Commands() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]string(nil), s.commands...)
+}
+
+// Requests renvoie les requêtes authentifiées reçues.
+func (s *Server) Requests() []protocol.RequestBody {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]protocol.RequestBody(nil), s.requests...)
 }
 
 // Close arrête le faux agent.
@@ -121,16 +129,26 @@ func (s *Server) handle(conn net.Conn) {
 	_ = json.Unmarshal([]byte(req.Body), &body)
 	s.mu.Lock()
 	s.commands = append(s.commands, body.Cmd)
+	s.requests = append(s.requests, body)
 	s.mu.Unlock()
 
 	resp := protocol.ResponseBody{OK: true, Code: "ok", Message: "OK", Hostname: "PC-TEST", OS: "windows", Arch: "amd64",
 		Version: "1.0.0", Uptime: 3600}
-	if body.Cmd == protocol.CmdHistory {
+	if body.Cmd == protocol.CmdHistory || body.Cmd == protocol.CmdWakes {
 		s.mu.Lock()
+		if s.history != nil && body.Cmd == protocol.CmdWakes {
+			// Agent 1.4.0 : démarrages signalés ajoutés au journal (sans le tri ni les contrôles du vrai).
+			h := *s.history
+			h.Events = append([]protocol.HistoryEvent(nil), h.Events...)
+			for _, t := range body.Wakes {
+				h.Events = append(h.Events, protocol.HistoryEvent{T: t, K: protocol.HistoryWake, C: "127.0.0.1", B: body.By})
+			}
+			s.history = &h
+		}
 		h := s.history
 		s.mu.Unlock()
 		if h == nil {
-			resp = protocol.ResponseBody{OK: false, Code: "unsupported", Message: "commande inconnue : history"}
+			resp = protocol.ResponseBody{OK: false, Code: "unsupported", Message: "commande inconnue : " + body.Cmd}
 		} else {
 			resp.History = h
 		}

@@ -11,7 +11,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/protocol"
@@ -100,10 +102,16 @@ type Status struct {
 type Client struct {
 	ConnectTimeout time.Duration
 	ReadTimeout    time.Duration
+	// By est le nom de cet appareil, noté par l'agent (1.4.0 ou plus) avec chaque demande.
+	By string
 }
 
-// New renvoie un client avec les délais de l'application Android (2 s / 4 s).
-func New() *Client { return &Client{ConnectTimeout: 2 * time.Second, ReadTimeout: 4 * time.Second} }
+// New renvoie un client avec les délais de l'application Android (2 s / 4 s), qui se présente sous le
+// nom de ce PC.
+func New() *Client {
+	name, _ := os.Hostname()
+	return &Client{ConnectTimeout: 2 * time.Second, ReadTimeout: 4 * time.Second, By: name}
+}
 
 // Status interroge l'agent.
 func (c *Client) Status(ctx context.Context, host string, agent model.AgentSettings) (Status, error) {
@@ -122,7 +130,7 @@ func (c *Client) Power(ctx context.Context, host string, agent model.AgentSettin
 	if delaySeconds < 0 || delaySeconds > 3600 {
 		return "", &Error{Code: Rejected, Detail: "délai invalide"}
 	}
-	body, err := c.exchange(ctx, host, agent, protocol.RequestBody{Cmd: string(action), Delay: &delaySeconds, Force: &force}, protocol.MaxLineBytes)
+	body, err := c.exchange(ctx, host, agent, protocol.RequestBody{Cmd: string(action), Delay: &delaySeconds, Force: &force, By: c.by()}, protocol.MaxLineBytes)
 	if err != nil {
 		return "", err
 	}
@@ -139,6 +147,27 @@ func (c *Client) History(ctx context.Context, host string, agent model.AgentSett
 		return protocol.History{}, &Error{Code: Protocol, Detail: "journal absent de la réponse"}
 	}
 	return *body.History, nil
+}
+
+// ReportWakes signale au journal du PC les démarrages demandés depuis cet appareil (heures en secondes)
+// et renvoie le journal à jour. Un agent antérieur à 1.4.0 répond Rejected.
+func (c *Client) ReportWakes(ctx context.Context, host string, agent model.AgentSettings, times []int64) (protocol.History, error) {
+	if len(times) == 0 || len(times) > protocol.MaxWakes {
+		return protocol.History{}, &Error{Code: Rejected, Detail: "nombre de démarrages invalide"}
+	}
+	body, err := c.exchange(ctx, host, agent, protocol.RequestBody{Cmd: protocol.CmdWakes, Wakes: times, By: c.by()}, protocol.MaxHistoryBytes)
+	if err != nil {
+		return protocol.History{}, err
+	}
+	if body.History == nil {
+		return protocol.History{}, &Error{Code: Protocol, Detail: "journal absent de la réponse"}
+	}
+	return *body.History, nil
+}
+
+func (c *Client) by() string {
+	name := []rune(strings.TrimSpace(c.By))
+	return string(name[:min(len(name), protocol.MaxByLength)])
 }
 
 type responseBody struct {

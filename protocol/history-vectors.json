@@ -1,5 +1,5 @@
 {
-  "description": "Scénario de référence de l'historique (30 jours), vérifié à l'identique par les tests Kotlin (Android) et Go (Windows) : fusion du journal de l'agent et des évènements de l'application. expected = [type, source, heure en ms], du plus récent au plus ancien.",
+  "description": "Scénario de référence de l'historique (30 jours), vérifié à l'identique par les tests Kotlin (Android) et Go (Windows) : fusion du journal de l'agent et des évènements de l'application. expected = [type, source, heure en ms], du plus récent au plus ancien ; clients = appareil affiché pour les demandes notées par l'agent (nom, à défaut adresse) ; unreported = démarrages demandés par l'application à signaler à l'agent (secondes) ; import = historique d'une sauvegarde fusionné au résultat (merged = vue de pc3 et nombre total d'évènements affichés).",
   "now": 1790600000000,
   "events": [
     {
@@ -66,6 +66,12 @@
           "k": "lost"
         },
         {
+          "t": 1790564000,
+          "k": "wake",
+          "c": "192.168.1.37",
+          "b": "Pixel 8"
+        },
+        {
           "t": 1790564010,
           "k": "boot"
         },
@@ -84,10 +90,17 @@
           "k": "resume"
         },
         {
+          "t": 1790590000,
+          "k": "wake",
+          "c": "192.168.1.60",
+          "b": "PC-SALON"
+        },
+        {
           "t": 1790592802,
           "k": "cmd",
           "a": "shutdown",
-          "c": "192.168.1.37"
+          "c": "192.168.1.37",
+          "b": "Pixel 8"
         },
         {
           "t": 1790592810,
@@ -131,6 +144,11 @@
         "shutdown_req",
         "app",
         1790592800000
+      ],
+      [
+        "wake",
+        "agent",
+        1790590000000
       ],
       [
         "resume",
@@ -190,6 +208,11 @@
         1790592800000
       ],
       [
+        "wake",
+        "agent",
+        1790590000000
+      ],
+      [
         "on",
         "app",
         1790585600000
@@ -225,5 +248,72 @@
         1789304000000
       ]
     ]
+  },
+  "clients": {
+    "wake": "PC-SALON",
+    "sleep_req": "192.168.1.50"
+  },
+  "unreported": {
+    "pc1": [
+      1790599400
+    ],
+    "pc2": []
+  },
+  "import": {
+    "version": 1,
+    "events": [
+      {
+        "d": "pc1",
+        "t": 1790564000000,
+        "k": "wake",
+        "s": "app"
+      },
+      {
+        "d": "pc3",
+        "t": 1790580000000,
+        "k": "wake",
+        "s": "app"
+      },
+      {
+        "d": "pc3",
+        "t": 1790580060000,
+        "k": "on",
+        "s": "app",
+        "x": true
+      },
+      {
+        "d": "pc3",
+        "t": 1790580030000,
+        "k": "on",
+        "s": "agent"
+      },
+      {
+        "d": "pc1",
+        "t": 1780000000000,
+        "k": "wake",
+        "s": "app"
+      }
+    ],
+    "coverage": {
+      "pc3": {
+        "from": 1790000000000,
+        "until": 1790590000000
+      }
+    }
+  },
+  "merged": {
+    "pc3": [
+      [
+        "on",
+        "agent",
+        1790580030000
+      ],
+      [
+        "wake",
+        "app",
+        1790580000000
+      ]
+    ],
+    "all": 15
   }
 }
