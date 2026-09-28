@@ -107,10 +107,10 @@ func TestUpdateCheckPostponeAndInstall(t *testing.T) {
 	// Installation : téléchargement vérifié, remplacement de l'exécutable, relance.
 	call(t, s, "installUpdate", nil)
 	deadline := time.Now().Add(5 * time.Second)
-	for platform.relaunched == 0 && time.Now().Before(deadline) {
+	for platform.relaunched.Load() == 0 && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}
-	if platform.relaunched != 1 {
+	if platform.relaunched.Load() != 1 {
 		t.Fatalf("application non relancée : %+v", s.State().Update)
 	}
 	if data, _ := os.ReadFile(exe); string(data) != "nouvelle version" {
@@ -139,7 +139,7 @@ func TestUpdateNotNewerOrTampered(t *testing.T) {
 	if v := s2.State().Update; v.Available != nil || v.Error == "" {
 		t.Errorf("état après refus : %+v", v)
 	}
-	if _, err := s2.Call("installUpdate", nil); err == nil || platform.relaunched != 0 {
+	if _, err := s2.Call("installUpdate", nil); err == nil || platform.relaunched.Load() != 0 {
 		t.Error("installation sans mise à jour valide")
 	}
 }

@@ -26,7 +26,7 @@ type fakePlatform struct {
 	cancel     bool
 	opened     []string
 	clipboard  string
-	relaunched int
+	relaunched atomic.Int32
 }
 
 func (f *fakePlatform) SaveFile(_ string, content []byte) (string, error) {
@@ -45,7 +45,7 @@ func (f *fakePlatform) OpenURL(url string) error {
 func (f *fakePlatform) ReadClipboard() (string, error) { return f.clipboard, nil }
 
 func (f *fakePlatform) Relaunch() error {
-	f.relaunched++
+	f.relaunched.Add(1)
 	return nil
 }
 
