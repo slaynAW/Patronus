@@ -91,11 +91,11 @@ func TestUpdateEndToEnd(t *testing.T) {
 		_ = exec.Command(installed, "uninstall", "--purge").Run()
 		_ = os.RemoveAll(filepath.Dir(installed))
 	})
-	// L'installation affiche aussi le QR code d'appairage : seul le service importe ici.
+	// L'installation affiche aussi le QR code d'appairage (avec la clé) : seul le service importe ici,
+	// et la sortie n'est montrée qu'en cas d'échec (journal public de la CI).
 	out, err := exec.Command(oldExe, "install", "--no-firewall").CombinedOutput()
-	t.Logf("installation : %v\n%s", err, out)
-	if v, err := selfupdate.ProbeVersion(context.Background(), installed); err != nil || v != "1.0.0" {
-		t.Fatalf("agent installé : %q, %v", v, err)
+	if v, probeErr := selfupdate.ProbeVersion(context.Background(), installed); probeErr != nil || v != "1.0.0" {
+		t.Fatalf("agent installé : %q, %v (installation : %v)\n%s", v, probeErr, err, out)
 	}
 
 	// Le service vérifie 2 s après son démarrage (mode test), installe puis redémarre.
