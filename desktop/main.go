@@ -13,8 +13,12 @@ import (
 	"strings"
 )
 
-// version est fixée à la compilation : -ldflags "-X main.version=1.2.0".
-var version = "dev"
+// version et buildCode (numéro croissant de la CI, comparé pour les mises à jour) sont fixés à la
+// compilation : -ldflags "-X main.version=1.2.0 -X main.buildCode=42".
+var (
+	version   = "dev"
+	buildCode = "0"
+)
 
 //go:embed ui
 var uiFiles embed.FS

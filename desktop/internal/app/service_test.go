@@ -22,10 +22,11 @@ import (
 )
 
 type fakePlatform struct {
-	saved     []byte
-	cancel    bool
-	opened    []string
-	clipboard string
+	saved      []byte
+	cancel     bool
+	opened     []string
+	clipboard  string
+	relaunched int
 }
 
 func (f *fakePlatform) SaveFile(_ string, content []byte) (string, error) {
@@ -42,6 +43,11 @@ func (f *fakePlatform) OpenURL(url string) error {
 }
 
 func (f *fakePlatform) ReadClipboard() (string, error) { return f.clipboard, nil }
+
+func (f *fakePlatform) Relaunch() error {
+	f.relaunched++
+	return nil
+}
 
 func newService(t *testing.T) (*Service, *fakePlatform) {
 	t.Helper()

@@ -266,7 +266,28 @@
     <string name="about_version">Version</string>
     <string name="about_source">Code source</string>
     <string name="about_security">Sécurité</string>
-    <string name="about_security_text">Configuration et historique chiffrés sur le téléphone (Keystore Android), aucune donnée envoyée sur Internet, commandes d’extinction authentifiées (HMAC-SHA256) et protégées contre le rejeu.</string>
+    <string name="about_security_text">Configuration et historique chiffrés sur le téléphone (Keystore Android), aucune donnée personnelle envoyée sur Internet (seule la recherche de mises à jour contacte GitHub), commandes d’extinction authentifiées (HMAC-SHA256) et protégées contre le rejeu.</string>
+
+    <!-- Mises à jour intégrées -->
+    <string name="section_updates">Mises à jour</string>
+    <string name="update_title">Mise à jour disponible</string>
+    <string name="update_meta_version">Version %1$s</string>
+    <string name="update_meta_size">%1$s Mo</string>
+    <string name="update_keep_data">Vos PC, vos réglages et l’historique sont conservés.</string>
+    <string name="update_later">Plus tard</string>
+    <string name="update_install">Mettre à jour</string>
+    <string name="update_retry">Réessayer</string>
+    <string name="update_downloading">Téléchargement… %1$d %%</string>
+    <string name="update_installing">Installation… Android peut vous demander de confirmer.</string>
+    <string name="update_check">Rechercher une mise à jour</string>
+    <string name="update_checking">Recherche en cours…</string>
+    <string name="update_available">Version %1$s disponible : voir les nouveautés</string>
+    <string name="update_up_to_date">Vous avez la dernière version.</string>
+    <string name="update_last_check">À jour · dernière vérification il y a %1$s</string>
+    <string name="update_never">Aucune vérification pour l’instant.</string>
+    <string name="update_auto">Rechercher automatiquement</string>
+    <string name="update_auto_help">À l’ouverture, au plus toutes les 12 h, sur GitHub. Rien n’est installé sans votre accord.</string>
+    <string name="update_disabled">Indisponible pour cette version (non signée avec la clé officielle) : téléchargez les versions sur GitHub.</string>
     <string name="about_fonts">Polices</string>
     <string name="about_fonts_text">Inter et JetBrains Mono, sous licence SIL Open Font License 1.1.</string>
 </resources>

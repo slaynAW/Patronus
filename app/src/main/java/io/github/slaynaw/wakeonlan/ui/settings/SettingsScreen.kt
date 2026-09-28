@@ -38,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,8 +65,11 @@ import io.github.slaynaw.wakeonlan.ui.common.SectionLabel
 import io.github.slaynaw.wakeonlan.ui.common.WolButton
 import io.github.slaynaw.wakeonlan.ui.common.WolCard
 import io.github.slaynaw.wakeonlan.ui.common.WolIcons
+import io.github.slaynaw.wakeonlan.ui.common.formatDuration
 import io.github.slaynaw.wakeonlan.ui.overview.ScreenHeader
 import io.github.slaynaw.wakeonlan.ui.theme.WolPalette
+import io.github.slaynaw.wakeonlan.update.UpdateUiState
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 private const val REPO_URL = "https://github.com/slaynAW/WakeOnLan"
@@ -73,12 +77,19 @@ private const val RELEASES_URL = "$REPO_URL/releases"
 
 /** Onglet « Réglages » : surveillance, sauvegarde, historique, agent, à propos. */
 @Composable
-fun SettingsTab(contentPadding: PaddingValues, snackbar: SnackbarHostState, onOpenHistory: () -> Unit) {
+fun SettingsTab(
+    contentPadding: PaddingValues,
+    snackbar: SnackbarHostState,
+    onOpenHistory: () -> Unit,
+    onShowUpdate: () -> Unit = {},
+) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val container = context.appContainer
     val vm: SettingsViewModel = viewModel { SettingsViewModel(container) }
     val state by vm.state.collectAsStateWithLifecycle()
+    val update by container.updater.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
     val busy by vm.busy.collectAsStateWithLifecycle()
     val importStep by vm.importStep.collectAsStateWithLifecycle()
 
@@ -122,6 +133,21 @@ fun SettingsTab(contentPadding: PaddingValues, snackbar: SnackbarHostState, onOp
         onOpenHistory = onOpenHistory,
         onClearHistory = { showClearHistory = true },
         onOpenUrl = ::openUrl,
+        update = update,
+        onCheckUpdate = {
+            if (update.available != null) {
+                onShowUpdate()
+            } else {
+                scope.launch {
+                    val result = container.updater.check()
+                    when {
+                        result.available != null -> onShowUpdate()
+                        result.error == null -> snackbar.showSnackbar(resources.getString(R.string.update_up_to_date))
+                    }
+                }
+            }
+        },
+        onAutoUpdate = container.updater::setAuto,
     )
 
     if (showExportDialog) {
@@ -203,6 +229,9 @@ fun SettingsContent(
     onOpenHistory: () -> Unit,
     onClearHistory: () -> Unit,
     onOpenUrl: (String) -> Unit,
+    update: UpdateUiState = UpdateUiState(),
+    onCheckUpdate: () -> Unit = {},
+    onAutoUpdate: (Boolean) -> Unit = {},
 ) {
     Column(
         Modifier
@@ -304,6 +333,46 @@ fun SettingsContent(
             )
         }
 
+        SectionLabel(stringResource(R.string.section_updates), Modifier.padding(top = 6.dp))
+        WolCard {
+            val available = update.available
+            SettingItem(
+                icon = WolIcons.Download,
+                title = stringResource(R.string.update_check),
+                text = when {
+                    !update.enabled -> stringResource(R.string.update_disabled)
+                    update.checking -> stringResource(R.string.update_checking)
+                    available != null -> stringResource(R.string.update_available, available.version)
+                    update.error != null -> update.error
+                    update.lastCheck > 0 -> stringResource(R.string.update_last_check, formatDuration(System.currentTimeMillis() - update.lastCheck))
+                    else -> stringResource(R.string.update_never)
+                },
+                accent = available != null,
+                onClick = if (update.enabled) onCheckUpdate else ({ onOpenUrl(RELEASES_URL) }),
+            )
+            if (update.enabled) {
+                RowDivider()
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.update_auto), style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.update_auto_help), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(
+                        checked = update.auto,
+                        onCheckedChange = onAutoUpdate,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = WolPalette.Blue,
+                            uncheckedThumbColor = WolPalette.Text2,
+                            uncheckedTrackColor = WolPalette.Surface3,
+                            uncheckedBorderColor = WolPalette.Line2,
+                        ),
+                    )
+                }
+            }
+        }
+
         SectionLabel(stringResource(R.string.section_about), Modifier.padding(top = 6.dp))
         WolCard {
             SettingItem(icon = WolIcons.Info, title = stringResource(R.string.about_version), text = version)
@@ -333,6 +402,7 @@ private fun SettingItem(
     enabled: Boolean = true,
     danger: Boolean = false,
     chevron: Boolean = onClick != null,
+    accent: Boolean = false,
 ) {
     val alpha = if (enabled) 1f else 0.4f
     val titleColor = (if (danger) WolPalette.DangerText else WolPalette.Text).copy(alpha = alpha)
@@ -347,7 +417,11 @@ private fun SettingItem(
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall, color = titleColor)
-            Text(text, style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2.copy(alpha = alpha))
+            Text(
+                text,
+                style = MaterialTheme.typography.bodySmall,
+                color = (if (accent) WolPalette.Blue else WolPalette.Text2).copy(alpha = alpha),
+            )
         }
         if (chevron) {
             Spacer(Modifier.width(8.dp))

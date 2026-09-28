@@ -8,6 +8,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
+	"strconv"
 	"time"
 
 	webview2 "github.com/jchv/go-webview2"
@@ -16,6 +19,7 @@ import (
 	"github.com/slaynaw/wakeonlan/desktop/internal/app"
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
 	"github.com/slaynaw/wakeonlan/desktop/internal/history"
+	"github.com/slaynaw/wakeonlan/desktop/internal/update"
 )
 
 const (
@@ -25,6 +29,36 @@ const (
 	// webView2DownloadURL : programme d'installation officiel du composant WebView2 (Microsoft).
 	webView2DownloadURL = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
 )
+
+// afterUpdateFlag est passé à la nouvelle version lancée à la fin d'une mise à jour.
+const afterUpdateFlag = "--after-update"
+
+// currentExecutable renvoie le chemin du programme en cours (vide s'il est inconnu).
+func currentExecutable() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	return exe
+}
+
+// updateOptions active les mises à jour intégrées pour les versions publiées par la CI (numéro de
+// build connu, certificat de signature présent) ; jamais pendant l'autotest de démarrage.
+func updateOptions(exe string) *app.UpdateOptions {
+	code, _ := strconv.ParseInt(buildCode, 10, 64)
+	if version == "dev" || code <= 0 || exe == "" || selfTestPath != "" {
+		return nil
+	}
+	src, err := update.Official()
+	if err != nil {
+		log.Printf("mises à jour désactivées : %v", err)
+		return nil
+	}
+	return &app.UpdateOptions{Source: src, Code: code, Platform: "windows-" + runtime.GOARCH, Exe: exe}
+}
 
 // selfTestPath (variable WOL_SELFTEST) active l'autotest de démarrage utilisé par la CI : la fenêtre
 // s'ouvre, l'interface se charge, puis le résultat est écrit dans ce fichier et l'application se ferme.
@@ -39,9 +73,20 @@ func main() {
 		}()
 	}
 	// Une seule fenêtre : un second lancement ramène simplement la fenêtre existante au premier plan.
-	if !acquireSingleInstance() {
+	// Après une mise à jour, la nouvelle version attend que l'ancienne se soit fermée.
+	afterUpdate := slices.Contains(os.Args[1:], afterUpdateFlag)
+	acquired := acquireSingleInstance()
+	for tries := 0; !acquired && afterUpdate && tries < 60; tries++ {
+		time.Sleep(250 * time.Millisecond)
+		acquired = acquireSingleInstance()
+	}
+	if !acquired {
 		focusExistingWindow(windowTitle)
 		return
+	}
+	exe := currentExecutable()
+	if exe != "" {
+		go update.CleanupOld(exe) // version précédente laissée par une mise à jour
 	}
 
 	dataDir := defaultDataDir()
@@ -83,12 +128,15 @@ func main() {
 	minW, minH := scaled(720), scaled(520)
 	w.SetSize(minW, minH, webview2.HintMin)
 
-	platform := &winPlatform{w: w, hwnd: hwnd}
+	platform := &winPlatform{w: w, hwnd: hwnd, exe: exe}
 	histStore, err := history.NewStore(dataDir)
 	if err != nil {
 		fatal("Impossible de créer le dossier de l'historique :\n" + err.Error())
 	}
-	svc := app.New(app.Options{Version: version, Store: store, Platform: platform, History: histStore})
+	svc := app.New(app.Options{
+		Version: version, Store: store, Platform: platform, History: histStore,
+		Updates: updateOptions(exe),
+	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go svc.Run(ctx)

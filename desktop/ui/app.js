@@ -262,7 +262,27 @@
     about_version: "Version",
     about_source: "Code source",
     about_security: "Sécurité",
-    about_security_text: "Configuration et historique chiffrés sur ce PC (protection des données Windows), aucune donnée envoyée sur Internet, commandes d’extinction authentifiées (HMAC-SHA256) et protégées contre le rejeu.",
+    about_security_text: "Configuration et historique chiffrés sur ce PC (protection des données Windows), aucune donnée personnelle envoyée sur Internet (seule la recherche de mises à jour contacte GitHub), commandes d’extinction authentifiées (HMAC-SHA256) et protégées contre le rejeu.",
+
+    section_updates: "Mises à jour",
+    update_title: "Mise à jour disponible",
+    update_meta_version: "Version %1$s",
+    update_meta_size: "%1$s Mo",
+    update_keep_data: "Vos PC, vos réglages et l’historique sont conservés.",
+    update_later: "Plus tard",
+    update_install: "Mettre à jour",
+    update_retry: "Réessayer",
+    update_downloading: "Téléchargement… %1$d %",
+    update_installing: "Installation… l’application va redémarrer.",
+    update_check: "Rechercher une mise à jour",
+    update_checking: "Recherche en cours…",
+    update_available: "Version %1$s disponible : voir les nouveautés",
+    update_up_to_date: "Vous avez la dernière version.",
+    update_last_check: "À jour · dernière vérification il y a %1$s",
+    update_never: "Aucune vérification pour l’instant.",
+    update_auto: "Rechercher automatiquement",
+    update_auto_help: "Au démarrage puis une fois par jour, sur GitHub. Rien n’est installé sans votre accord.",
+    update_disabled: "Indisponible pour cette version (version de développement) : téléchargez les versions sur GitHub.",
   };
 
   const REPO_URL = "https://github.com/slaynAW/WakeOnLan";
@@ -923,6 +943,7 @@
     }
     view.update(now);
     side.update(now, kind !== "settings" && !empty);
+    updates.render();
   }
 
   function updateNav() {
@@ -930,6 +951,8 @@
       tabButtons[id].classList.toggle("on", tab === id);
       tabButtons[id].setAttribute("aria-selected", String(tab === id));
     }
+    // Pastille sur « Réglages » quand une nouvelle version est disponible.
+    tabButtons.settings.classList.toggle("badge", !!state.update?.available);
     const net = state.network;
     if (net.connected) {
       setClass(netChip, "chip net st-ONLINE");
@@ -2265,6 +2288,131 @@
   }
 
   // ---------------------------------------------------------------------------------------------
+  // Mises à jour intégrées : proposition (nouveautés), téléchargement vérifié, redémarrage
+  // ---------------------------------------------------------------------------------------------
+  const updates = (() => {
+    let dialog = null;
+    let prompted = ""; // version déjà proposée d'elle-même pendant cette session
+
+    /** Nouveautés : titres « ### », listes « - », « **gras** » (texte uniquement, jamais de HTML). */
+    function notesView(text) {
+      const inline = (line) => line.split("**").map((part, i) => (i % 2 ? h("b", { text: part }) : part));
+      const out = [];
+      let list = null;
+      for (const raw of (text || "").split("\n")) {
+        const line = raw.trim();
+        if (!line) {
+          list = null;
+        } else if (line.startsWith("### ")) {
+          list = null;
+          out.push(h("h3", {}, inline(line.slice(4))));
+        } else if (/^[-*] /.test(line)) {
+          if (!list) out.push((list = h("ul")));
+          list.append(h("li", {}, inline(line.slice(2))));
+        } else {
+          list = null;
+          out.push(h("p", {}, inline(line)));
+        }
+      }
+      return h("div", { class: "notes" }, out);
+    }
+
+    function dateText(iso) {
+      const d = new Date(iso + "T12:00:00");
+      return isNaN(d) ? "" : d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+    }
+
+    function open() {
+      const a = state.update?.available;
+      if (!a || dialog) return;
+      const bar = h("i");
+      const progress = h("div", { class: "upd-bar hidden" }, bar);
+      const status = h("p", { class: "upd-status hidden" });
+      const meta = [fmt(S.update_meta_version, a.version), dateText(a.date), fmt(S.update_meta_size, (a.size / 1048576).toFixed(1).replace(".", ","))];
+      const handle = openDialog({
+        iconName: "download",
+        title: S.update_title,
+        body: [
+          h("p", { class: "upd-meta", text: meta.filter(Boolean).join(" · ") }),
+          notesView(a.notes),
+          h("p", { class: "upd-keep" }, icon("shield", "small"), S.update_keep_data),
+          progress,
+          status,
+        ],
+        onDismiss: later,
+      });
+      let sig = "";
+      dialog = {
+        refresh() {
+          const u = state.update;
+          if (!u?.available) return close();
+          const busy = !!u.stage;
+          const s = [u.stage, Math.round((u.progress || 0) * 100), u.error].join("|");
+          if (s === sig) return;
+          sig = s;
+          progress.classList.toggle("hidden", !busy);
+          bar.style.width = Math.round((u.progress || 0) * 100) + "%";
+          const text = u.stage === "downloading" ? fmt(S.update_downloading, Math.round((u.progress || 0) * 100))
+            : u.stage === "installing" ? S.update_installing : u.error || "";
+          status.textContent = text;
+          status.classList.toggle("hidden", !text);
+          status.classList.toggle("bad", !busy && !!u.error);
+          handle.setActions([
+            { label: S.update_later, disabled: busy, onClick: later },
+            { label: u.error ? S.update_retry : S.update_install, disabled: busy, onClick: install },
+          ]);
+        },
+      };
+      dialog.refresh();
+
+      function close() {
+        handle.close();
+        dialog = null;
+      }
+      function later() {
+        if (state.update?.stage) return;
+        close();
+        api.call("postponeUpdate").catch(() => {});
+      }
+      async function install() {
+        try {
+          await api.call("installUpdate");
+        } catch (e) {
+          snackbar(errorMessage(e));
+        }
+      }
+    }
+
+    /** Recherche demandée depuis les réglages. */
+    async function checkNow() {
+      if (state.update?.available) return open();
+      try {
+        const u = await api.call("checkUpdate");
+        if (u.available) {
+          prompted = u.available.version;
+          open();
+        } else {
+          snackbar(S.update_up_to_date);
+        }
+      } catch (e) {
+        snackbar(errorMessage(e));
+      }
+    }
+
+    /** Après chaque changement d'état : propose une nouvelle version une fois par session. */
+    function render() {
+      const u = state.update;
+      dialog?.refresh();
+      if (!u?.available || u.postponed || dialog || prompted === u.available.version) return;
+      if (document.querySelector(".dialog-wrap, .sheet")) return; // pas par-dessus une autre fenêtre
+      prompted = u.available.version;
+      open();
+    }
+
+    return { open, checkNow, render };
+  })();
+
+  // ---------------------------------------------------------------------------------------------
   // Onglet « Réglages » (SettingsScreen)
   // ---------------------------------------------------------------------------------------------
   function settingsView() {
@@ -2275,6 +2423,13 @@
     const exportItem = settingItem("download", S.action_export, exportSupporting, exportDialog);
     const importItem = settingItem("upload", S.action_import, S.action_import_help, pickImportFile);
     const clearItem = settingItem("delete", S.history_clear, S.history_clear_help, confirmClearHistory, { danger: true, chevron: false });
+    const updateSupporting = h("div", { class: "supporting" });
+    const updateItem = settingItem("download", S.update_check, updateSupporting,
+      () => (state.update?.enabled ? updates.checkNow() : openUrl(RELEASES_URL)));
+    const autoUpdate = switchInput(!!state.update?.auto, (checked) => api.call("setAutoUpdate", { enabled: checked }).catch((e) => snackbar(errorMessage(e))), S.update_auto);
+    const autoUpdateItem = h("div", { class: "item" },
+      h("div", { class: "texts" }, h("div", { class: "headline", text: S.update_auto }), h("div", { class: "supporting", text: S.update_auto_help })),
+      autoUpdate.el);
     const section = (title, ...items) => [h("h2", { class: "section-title", text: title }), h("section", { class: "card" }, items)];
     const el = h("div", { class: "main-inner narrow" },
       section(S.section_monitoring, poll.el, wakeTimeout.el,
@@ -2282,6 +2437,7 @@
       section(S.section_backup, exportItem, importItem),
       section(S.section_history, settingItem("history", S.history_open, S.history_open_help, () => openHistorySheet("")), clearItem),
       section(S.section_agent_download, settingItem("download", S.agent_download, S.agent_download_help, () => openUrl(RELEASES_URL))),
+      section(S.section_updates, updateItem, autoUpdateItem),
       section(S.section_about,
         settingItem("info", S.about_version, state.version),
         settingItem("code", S.about_source, REPO_URL, () => openUrl(REPO_URL)),
@@ -2296,6 +2452,17 @@
         setText(exportSupporting, fmt(S.action_export_help, state.devices.length));
         exportItem.classList.toggle("disabled", busy || state.devices.length === 0);
         importItem.classList.toggle("disabled", busy);
+        const u = state.update || {};
+        let text;
+        if (!u.enabled) text = S.update_disabled;
+        else if (u.checking) text = S.update_checking;
+        else if (u.available) text = fmt(S.update_available, u.available.version);
+        else if (u.error) text = u.error;
+        else text = u.lastCheck ? fmt(S.update_last_check, formatDuration(Date.now() - u.lastCheck)) : S.update_never;
+        setText(updateSupporting, text);
+        updateSupporting.classList.toggle("accent", !!u.available);
+        autoUpdateItem.classList.toggle("hidden", !u.enabled);
+        if (document.activeElement !== autoUpdate.input) autoUpdate.input.checked = !!u.auto;
       },
     };
   }

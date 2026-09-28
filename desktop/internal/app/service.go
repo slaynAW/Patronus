@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -39,6 +40,8 @@ type Platform interface {
 	SaveFile(suggestedName string, content []byte) (string, error)
 	OpenURL(url string) error
 	ReadClipboard() (string, error)
+	// Relaunch démarre la nouvelle version de l'application (déjà installée) puis ferme celle-ci.
+	Relaunch() error
 }
 
 // Options configure le service.
@@ -55,6 +58,8 @@ type Options struct {
 	History *history.Store
 	// Now est l'horloge (remplaçable pour les tests).
 	Now func() time.Time
+	// Updates active les mises à jour intégrées (nil : désactivées).
+	Updates *UpdateOptions
 }
 
 // Service est le cœur de l'application.
@@ -86,6 +91,8 @@ type Service struct {
 	// Dernier relevé d'états, pour détecter les allumages / extinctions.
 	statusMu     sync.Mutex
 	lastStatuses map[string]status.DeviceStatus
+	// Mises à jour intégrées (verrou propre).
+	updates *updater
 }
 
 type importState struct {
@@ -113,6 +120,7 @@ func New(opts Options) *Service {
 	if s.now == nil {
 		s.now = time.Now
 	}
+	s.updates = newUpdater(opts.Updates, filepath.Dir(opts.Store.Path()), s.now)
 	if s.histStore != nil {
 		s.hist = s.histStore.Load()
 	}
@@ -153,6 +161,7 @@ func (s *Service) notify() {
 // Run lance la surveillance des PC et du réseau jusqu'à l'annulation de ctx.
 func (s *Service) Run(ctx context.Context) {
 	go s.monitor.Run(ctx)
+	go s.runUpdates(ctx)
 	s.updateMonitor()
 	ticker := time.NewTicker(s.netPoll)
 	defer ticker.Stop()
@@ -213,6 +222,8 @@ type UIState struct {
 	StartupMessage string            `json:"startupMessage,omitempty"`
 	// HistoryVersion change à chaque modification de l'historique (l'interface le relit alors).
 	HistoryVersion int `json:"historyVersion"`
+	// Update : mises à jour intégrées (recherche, nouvelle version, installation en cours).
+	Update UpdateView `json:"update"`
 }
 
 // NetworkView décrit le réseau local.
@@ -243,12 +254,14 @@ const latencyView = 75 * time.Second
 // State renvoie l'état courant.
 func (s *Service) State() UIState {
 	statuses := s.monitor.Statuses()
+	updateView := s.updates.snapshot()
 	s.histMu.Lock()
 	historyVersion := s.histVersion
 	s.histMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	st := UIState{
+		Update:         updateView,
 		HistoryVersion: historyVersion,
 		Version:        s.version,
 		Settings:       s.cfg.Settings,
@@ -301,6 +314,7 @@ func (s *Service) Call(method string, params json.RawMessage) (any, error) {
 		WakeTO     *int             `json:"wakeTimeoutSeconds"`
 		Confirm    *bool            `json:"confirmPowerActions"`
 		WithSecret bool             `json:"withSecrets"`
+		Enabled    bool             `json:"enabled"`
 	}
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("paramètres invalides : %w", err)
@@ -324,6 +338,17 @@ func (s *Service) Call(method string, params json.RawMessage) (any, error) {
 		return nil, nil
 	case "refresh":
 		s.monitor.Refresh(p.ID)
+		return nil, nil
+	case "checkUpdate":
+		err := s.checkUpdate(context.Background())
+		return s.updates.snapshot(), err
+	case "installUpdate":
+		return nil, s.installUpdate()
+	case "postponeUpdate":
+		s.postponeUpdate()
+		return nil, nil
+	case "setAutoUpdate":
+		s.setAutoUpdate(p.Enabled)
 		return nil, nil
 	case "setLive":
 		// PC affiché en détail (vide : aucun) : sondé chaque seconde pour le tracé de latence.

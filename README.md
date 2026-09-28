@@ -11,7 +11,10 @@ depuis votre téléphone ou depuis un autre PC.
 - 🕘 **Historique discret** des démarrages et extinctions sur 30 jours (complet grâce au journal de l'agent, même quand
   l'application était fermée).
 - 🌙 **Style sombre et moderne**, identique sur Android et Windows : synthèse en anneau, plan du réseau, fiche de chaque PC.
-- 🔒 **Sécurisée** : configuration chiffrée sur le téléphone, commandes authentifiées et non rejouables, aucune donnée envoyée sur Internet.
+- 🔄 **Mises à jour intégrées** : les applications proposent les nouvelles versions avec leurs nouveautés et s'installent
+  en un clic, sans toucher aux PC enregistrés ni à l'historique ([docs/MISES-A-JOUR.md](docs/MISES-A-JOUR.md)).
+- 🔒 **Sécurisée** : configuration chiffrée sur le téléphone, commandes authentifiées et non rejouables, aucune donnée
+  personnelle envoyée sur Internet (seule la recherche de mises à jour, désactivable, contacte GitHub).
 - 💾 **Export / import** de la configuration (fichier chiffré par mot de passe si les clés sont incluses).
 - 📷 **Appairage par QR code** : l'agent affiche un QR code, l'application remplit tout (IP, MAC, clé).
 - 🖥️ **Application Windows** très légère (un seul `.exe` d'environ 4 Mo, sans installation) : mêmes fonctions et même
@@ -40,14 +43,15 @@ Conçue pour Android 8 à Android 17 (testée pour le Pixel 8a, prête pour les 
 
 L'APK est produit automatiquement par GitHub à chaque modification du code.
 
-1. Sur le téléphone, ouvrez la page **[Releases](https://github.com/slaynAW/WakeOnLan/releases)** du dépôt (connecté à votre compte GitHub, le dépôt étant privé).
+1. Sur le téléphone, ouvrez la page **[Releases](https://github.com/slaynAW/WakeOnLan/releases)** du dépôt.
    - `dev` : dernière version de développement ;
    - `vX.Y.Z` : versions officielles.
 2. Téléchargez **`WakeOnLan-….apk`**.
 3. Ouvrez le fichier. Android demande d'**autoriser l'installation depuis le navigateur** : acceptez (une seule fois).
 4. Au premier lancement sous Android 17, acceptez l'autorisation **« Appareils à proximité / réseau local »** : sans elle, Android bloque tout accès au réseau local.
 
-> **Mises à jour** : installez simplement le nouvel APK par-dessus l'ancien. Cela fonctionne tant que les APK sont signés avec la même clé :
+> **Mises à jour** : à partir de la version 1.2.0, l'application les propose elle-même (*Mettre à jour*, voir
+> [docs/MISES-A-JOUR.md](docs/MISES-A-JOUR.md)). On peut aussi installer le nouvel APK par-dessus l'ancien. Cela fonctionne tant que les APK sont signés avec la même clé :
 > configurez une fois la clé de signature en suivant **[docs/SIGNATURE.md](docs/SIGNATURE.md)** (5 minutes). Sans cette étape, chaque build
 > est signé avec une clé temporaire et il faut désinstaller avant de réinstaller (pensez à exporter la configuration).
 

@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -127,9 +128,26 @@ func shellOpen(hwnd windows.HWND, url string) error {
 type winPlatform struct {
 	w    webview2.WebView
 	hwnd windows.HWND
+	// exe : programme en cours (relancé après une mise à jour).
+	exe string
 }
 
 func (p *winPlatform) OpenURL(url string) error { return shellOpen(p.hwnd, url) }
+
+// Relaunch démarre la nouvelle version (elle attend la fermeture de celle-ci pour prendre la main)
+// puis ferme la fenêtre.
+func (p *winPlatform) Relaunch() error {
+	if p.exe == "" {
+		return errors.New("emplacement de l'application inconnu")
+	}
+	cmd := exec.Command(p.exe, afterUpdateFlag)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	_ = cmd.Process.Release()
+	p.w.Dispatch(func() { p.w.Terminate() })
+	return nil
+}
 
 // SaveFile affiche la boîte « Enregistrer sous » (sur le fil de la fenêtre) puis écrit le fichier.
 func (p *winPlatform) SaveFile(suggestedName string, content []byte) (string, error) {

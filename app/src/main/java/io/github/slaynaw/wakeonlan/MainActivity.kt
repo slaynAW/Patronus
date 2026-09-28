@@ -27,6 +27,7 @@ class MainActivity : ComponentActivity() {
         // de batterie en arrière-plan, et un état rafraîchi dès le retour dans l'application.
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                container.updater.checkIfDue()
                 launch { container.historyTracker.run() }
                 container.statusMonitor.run(container.repository.config, container.probeAvailability)
             }

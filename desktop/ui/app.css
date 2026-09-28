@@ -467,6 +467,25 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); width: 
 .dialog .d-body p { margin: 0; }
 .dialog .d-body .error { color: var(--danger-text); }
 .dialog .d-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+
+/* Mise à jour : nouveautés, progression */
+.upd-meta { font-size: 12.5px; color: var(--text-3); }
+.notes { color: var(--text); font-size: 13.5px; line-height: 20px; max-height: 280px; overflow-y: auto; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.notes h3 { margin: 10px 0 4px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+.notes h3:first-child { margin-top: 0; }
+.notes ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.notes li::marker { color: var(--blue); }
+.notes p { margin: 0; }
+.notes b { color: var(--text); font-weight: 600; }
+.upd-keep { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-2); }
+.upd-keep svg { color: var(--on); flex: none; }
+.upd-bar { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.upd-bar i { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--blue); transition: width 0.2s; }
+.upd-status { font-size: 13px; color: var(--text-2); }
+.upd-status.bad { color: var(--danger-text); }
+.item .supporting.accent { color: var(--blue); font-weight: 600; }
+.tab.badge { position: relative; }
+.tab.badge::after { content: ""; position: absolute; top: 12px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 2px var(--bg); }
 .choice { display: flex; align-items: center; gap: 12px; padding: 8px 0; cursor: pointer; color: var(--text); }
 .choice .texts { display: flex; flex-direction: column; }
 .choice small { color: var(--text-2); font-size: 12px; }

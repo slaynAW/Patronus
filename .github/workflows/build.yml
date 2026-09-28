@@ -170,7 +170,7 @@ jobs:
           for arch in amd64 arm64; do
             label=$([ "$arch" = amd64 ] && echo x64 || echo arm64)
             CGO_ENABLED=0 GOOS=windows GOARCH=$arch go build -trimpath \
-              -ldflags "-H windowsgui -s -w -X main.version=$VERSION" \
+              -ldflags "-H windowsgui -s -w -X main.version=$VERSION -X main.buildCode=$WOL_VERSION_CODE" \
               -o "../dist/WakeOnLan-Windows-${VERSION}-${label}.exe" .
           done
           ls -l ../dist
@@ -346,10 +346,19 @@ jobs:
       VERSION: ${{ needs.version.outputs.name }}
     steps:
       - uses: actions/checkout@v6
+      # Uniquement les fichiers publiés (pas les captures d'écran ni les rapports de test).
       - uses: actions/download-artifact@v7
         with:
+          name: apk
           path: dist
-          merge-multiple: true
+      - uses: actions/download-artifact@v7
+        with:
+          name: desktop
+          path: dist
+      - uses: actions/download-artifact@v7
+        with:
+          name: agent
+          path: dist
       - name: Notes de version
         run: |
           signing=$(cat dist/signing.txt); rm dist/signing.txt
@@ -379,6 +388,14 @@ jobs:
             echo "Sommes de contrôle : \`SHA256SUMS.txt\`. Commit : ${GITHUB_SHA}."
           } > notes.md
           ls -l dist
+      # Manifeste des mises à jour intégrées (nouveautés + empreintes), signé avec la clé de l'APK ;
+      # joint aux versions officielles seulement. Voir docs/MISES-A-JOUR.md.
+      - name: Manifeste de mise à jour
+        env:
+          OFFICIAL: ${{ needs.version.outputs.official }}
+          KEYSTORE_BASE64: ${{ secrets.WOL_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.WOL_KEYSTORE_PASSWORD }}
+        run: bash .github/scripts/update-manifest.sh
       - name: Version officielle (tag)
         if: startsWith(github.ref, 'refs/tags/v')
         run: gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "Wake On LAN $VERSION" --notes-file notes.md

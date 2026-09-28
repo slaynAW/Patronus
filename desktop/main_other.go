@@ -38,6 +38,11 @@ func (devPlatform) OpenURL(url string) error {
 
 func (devPlatform) ReadClipboard() (string, error) { return "", fmt.Errorf("indisponible") }
 
+// Relaunch : en mode développement, la nouvelle version est vérifiée mais pas installée.
+func (devPlatform) Relaunch() error {
+	return fmt.Errorf("mode développement : nouvelle version vérifiée, non installée")
+}
+
 func main() {
 	listen := flag.String("listen", "127.0.0.1:0", "adresse d'écoute (locale uniquement)")
 	dataDir := flag.String("data", defaultDataDir(), "dossier de configuration")

@@ -11,6 +11,7 @@ import io.github.slaynaw.wakeonlan.data.ConfigRepository
 import io.github.slaynaw.wakeonlan.data.HistoryRepository
 import io.github.slaynaw.wakeonlan.network.LanNetworkMonitor
 import io.github.slaynaw.wakeonlan.network.LocalNetworkAccess
+import io.github.slaynaw.wakeonlan.update.AppUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,6 +36,9 @@ class AppContainer(private val context: Context) {
     val history = HistoryRepository(context, scope)
     val historyTracker = HistoryTracker(repository.config, statusMonitor.statuses, agentClient, history, scope)
     val actions = DeviceActions(network, WakeOnLanSender(binder = network), agentClient, statusMonitor, historyTracker)
+
+    /** Mises à jour intégrées (versions officielles publiées sur GitHub). */
+    val updater = AppUpdater(context, scope)
 
     private val _localNetworkGranted = MutableStateFlow(LocalNetworkAccess.isGranted(context))
 

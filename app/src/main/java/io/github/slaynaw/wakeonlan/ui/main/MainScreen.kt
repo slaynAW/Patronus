@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -62,6 +64,7 @@ import io.github.slaynaw.wakeonlan.ui.devices.ResArg
 import io.github.slaynaw.wakeonlan.ui.overview.OverviewTab
 import io.github.slaynaw.wakeonlan.ui.settings.SettingsTab
 import io.github.slaynaw.wakeonlan.ui.theme.WolPalette
+import io.github.slaynaw.wakeonlan.ui.update.UpdateDialog
 
 /** Onglets de la barre de navigation. */
 enum class MainTab(@StringRes val label: Int, val icon: ImageVector) {
@@ -89,6 +92,18 @@ fun MainScreen(
     var crashReport by remember { mutableStateOf(CrashReporter.pending(context)) }
     var permissionDenied by rememberSaveable { mutableStateOf(false) }
     var permissionAsked by rememberSaveable { mutableStateOf(false) }
+    val update by container.updater.state.collectAsStateWithLifecycle()
+    var showUpdate by rememberSaveable { mutableStateOf(false) }
+    var promptedVersion by rememberSaveable { mutableStateOf("") }
+
+    // Nouvelle version : proposée d'elle-même une fois (sauf « Plus tard » dans les dernières 24 h).
+    LaunchedEffect(update.available?.version, update.postponed) {
+        val version = update.available?.version ?: return@LaunchedEffect
+        if (!update.postponed && promptedVersion != version) {
+            promptedVersion = version
+            showUpdate = true
+        }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         vm.onPermissionResult()
@@ -136,6 +151,7 @@ fun MainScreen(
         snackbar = snackbar,
         showAddButton = tab == MainTab.DEVICES && state.items.isNotEmpty(),
         onAddDevice = onAddDevice,
+        settingsBadge = update.available != null,
     ) { padding ->
         when (tab) {
             MainTab.OVERVIEW -> OverviewTab(
@@ -166,11 +182,23 @@ fun MainScreen(
                 contentPadding = padding,
                 snackbar = snackbar,
                 onOpenHistory = { onOpenHistory(null) },
+                onShowUpdate = { showUpdate = true },
             )
         }
     }
 
     DeviceDialogs(dialogs, onPower = vm::power, onDelete = vm::delete, onConfigure = onEditDevice)
+
+    if (showUpdate && update.available != null) {
+        UpdateDialog(
+            state = update,
+            onLater = {
+                showUpdate = false
+                container.updater.postpone()
+            },
+            onInstall = container.updater::install,
+        )
+    }
 
     crashReport?.let { report ->
         AlertDialog(
@@ -222,11 +250,12 @@ fun MainScaffold(
     snackbar: SnackbarHostState,
     showAddButton: Boolean,
     onAddDevice: () -> Unit,
+    settingsBadge: Boolean = false,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     Scaffold(
         containerColor = WolPalette.Background,
-        bottomBar = { WolNavigationBar(tab, onSelect = onSelectTab) },
+        bottomBar = { WolNavigationBar(tab, onSelect = onSelectTab, settingsBadge = settingsBadge) },
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             if (showAddButton) {
@@ -244,7 +273,7 @@ fun MainScaffold(
 }
 
 @Composable
-private fun WolNavigationBar(current: MainTab, onSelect: (MainTab) -> Unit) {
+private fun WolNavigationBar(current: MainTab, onSelect: (MainTab) -> Unit, settingsBadge: Boolean) {
     Column {
         HorizontalDivider(thickness = 1.dp, color = WolPalette.Line)
         NavigationBar(containerColor = WolPalette.Surface, tonalElevation = 0.dp) {
@@ -252,7 +281,14 @@ private fun WolNavigationBar(current: MainTab, onSelect: (MainTab) -> Unit) {
                 NavigationBarItem(
                     selected = tab == current,
                     onClick = { onSelect(tab) },
-                    icon = { Icon(tab.icon, contentDescription = null) },
+                    icon = {
+                        // Pastille sur « Réglages » quand une nouvelle version est disponible.
+                        if (tab == MainTab.SETTINGS && settingsBadge) {
+                            BadgedBox(badge = { Badge(containerColor = WolPalette.Blue) }) { Icon(tab.icon, contentDescription = null) }
+                        } else {
+                            Icon(tab.icon, contentDescription = null)
+                        }
+                    },
                     label = { Text(stringResource(tab.label), style = MaterialTheme.typography.labelMedium) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = WolPalette.Blue,

@@ -2,10 +2,12 @@
 
 ## Principes
 
-1. **Rien ne sort du réseau local.** Pas de serveur, pas de compte, pas de télémétrie, pas de publicité. L'application ne contacte
-   que les adresses de vos PC (et Google Play Services, uniquement quand vous ouvrez le lecteur de QR code).
-2. **Moindre privilège.** L'application ne demande que : Internet (sockets), état du réseau, et l'autorisation « réseau local »
-   d'Android 17. Pas de caméra (le QR code est lu par Play Services), pas de localisation, pas de stockage.
+1. **Rien de personnel ne sort du réseau local.** Pas de serveur, pas de compte, pas de télémétrie, pas de publicité. L'application
+   ne contacte que les adresses de vos PC, Google Play Services (uniquement quand vous ouvrez le lecteur de QR code) et GitHub en
+   HTTPS pour la **recherche de mises à jour** (désactivable ; aucune donnée transmise, voir
+   [MISES-A-JOUR.md](MISES-A-JOUR.md)).
+2. **Moindre privilège.** L'application ne demande que : Internet (sockets), état du réseau, l'autorisation « réseau local »
+   d'Android 17, et l'installation de sa propre mise à jour (toujours confirmée par l'utilisateur). Pas de caméra (le QR code est lu par Play Services), pas de localisation, pas de stockage.
 3. **Défense en profondeur** côté agent : filtrage réseau + authentification forte + limitation des tentatives + pare-feu.
 
 ## Sur le téléphone
@@ -18,6 +20,7 @@
 | Journaux | Les objets contenant des secrets masquent ceux-ci dans `toString()` (testé). |
 | Réseau | Trafic HTTP en clair interdit (`network_security_config`) ; sockets attachées au Wi-Fi/Ethernet. |
 | Import | Tout fichier importé est validé champ par champ (MAC, IP, ports, tailles) ; taille maximale 1 Mio. |
+| Mises à jour | Manifeste signé vérifié avec le certificat de l'application installée, APK vérifié (taille + SHA-256, paquet et version) puis installé par l'installateur d'Android, qui exige la même clé de signature. Permission « installer des applications » utilisée uniquement pour cela. |
 | Code | R8 (minification) activé ; dépendances limitées à AndroidX, Kotlin et Play Services code scanner. |
 
 ## Sur le PC (application Windows)
@@ -25,7 +28,8 @@
 | Mesure | Détail |
 |---|---|
 | Chiffrement au repos | Configuration chiffrée par **DPAPI** (`CryptProtectData`, liée à la session Windows + entropie propre à l'application) : un fichier `config.dat` copié ailleurs est illisible. L'historique (`history.dat`) est chiffré de la même façon, avec une entropie distincte. |
-| Réseau | Aucune connexion Internet : seuls vos PC sont contactés. Aucun port en écoute. |
+| Réseau | Vos PC, et GitHub (HTTPS) pour la recherche de mises à jour, désactivable. Aucun port en écoute. |
+| Mises à jour | Manifeste signé avec la clé de signature de l'APK (certificat intégré à l'exécutable), fichier vérifié (taille + SHA-256) avant de remplacer l'exécutable ; rien n'est installé sans clic. |
 | Interface | Page intégrée à l'exécutable, sans contenu distant ; seules les adresses du dépôt peuvent être ouvertes dans le navigateur (liste blanche). Le presse-papiers n'est lu que pour un lien `wolagent://`. |
 | Clés | Jamais envoyées à la liste des PC affichée ; seulement au formulaire de modification. |
 | Exécutable | Compilé par la CI (`-trimpath`, sans CGO), somme SHA-256 publiée. Non signé par un éditeur (avertissement SmartScreen au premier lancement). |
