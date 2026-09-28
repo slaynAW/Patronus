@@ -336,7 +336,9 @@ func TestWriteVectors(t *testing.T) {
 		"devicePrivate":      EncodePrivate(device.Bytes()),
 		"devicePublic":       devicePub,
 		"otherDevicePrivate": EncodePrivate(other.Bytes()),
+		"otherDevicePublic":  DevicePublic(other),
 		"ephemeralPrivate":   EncodePrivate(eph.Bytes()),
+		"ephemeralPublic":    DevicePublic(eph),
 		"iv":                 base64.StdEncoding.EncodeToString(iv),
 		"revision":           revision,
 		"issuedAt":           issued,
@@ -375,5 +377,37 @@ func TestWriteVectors(t *testing.T) {
 	_ = enc.Encode(out)
 	if err := os.WriteFile(vectorsPath, []byte(buf.String()), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestAndroidFile vérifie un fichier d'accès produit par l'application Android (core : ShareTest).
+func TestAndroidFile(t *testing.T) {
+	v := loadVectors(t)
+	data, err := os.ReadFile("../../../protocol/share-android.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var android struct {
+		File     string `json:"file"`
+		Revision int64  `json:"revision"`
+	}
+	if err := json.Unmarshal(data, &android); err != nil {
+		t.Fatal(err)
+	}
+	device, _ := ParseDevicePrivate(v.DevicePrivate)
+	opened, err := Open([]byte(android.File), v.OwnerPublic, device, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := opened.Content
+	if opened.Revision != android.Revision || c.OwnerName != "Hugo" || len(c.Devices) != 2 {
+		t.Fatalf("contenu : %+v", opened)
+	}
+	a, b := c.Devices[0], c.Devices[1]
+	if a.WolPort != 7 || a.BroadcastAddress == nil || *a.BroadcastAddress != "192.168.1.255" || a.SecureOnPassword == nil || a.Agent != nil {
+		t.Errorf("premier PC : %+v", a)
+	}
+	if b.Agent == nil || b.Agent.Key == "" || b.Host != "bureau.local" || len(b.ProbePorts) != 0 {
+		t.Errorf("second PC : %+v", b)
 	}
 }
