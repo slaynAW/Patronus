@@ -238,7 +238,6 @@ fun ShareDialogHost(
                     try {
                         manager.startLogin(name)
                         onDialog(ShareDialog.Login)
-                        openUrl(context, GITHUB_DEVICE_URL)
                     } catch (e: ShareException) {
                         fail(e)
                     }
@@ -249,7 +248,11 @@ fun ShareDialogHost(
         ShareDialog.Login -> LoginDialog(
             share = share,
             onCopy = ::copy,
-            onOpen = { openUrl(context, GITHUB_DEVICE_URL) },
+            // Code copié d'abord : il n'y a plus qu'à le coller sur la page de GitHub.
+            onOpen = {
+                share.login?.let { copy(it.code) }
+                openUrl(context, GITHUB_DEVICE_URL)
+            },
             onDone = {
                 close()
                 toast(R.string.share_login_done)

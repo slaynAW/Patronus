@@ -1,8 +1,10 @@
 package io.github.slaynaw.wakeonlan.core.share
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
@@ -65,21 +67,37 @@ class ShareGitHub(
         )
     }
 
-    /** Attend la validation du code sur github.com et renvoie le jeton d'accès. */
-    suspend fun waitLogin(code: GitHubDeviceCode): String {
+    /**
+     * Attend la validation du code sur github.com et renvoie le jeton d'accès.
+     *
+     * Les erreurs réseau ne sont pas fatales tant que le code est valable : pendant la validation dans le
+     * navigateur, l'application passe en arrière-plan et le système peut lui couper l'accès à Internet.
+     * [wake] permet d'interroger GitHub tout de suite (retour dans l'application).
+     */
+    suspend fun waitLogin(code: GitHubDeviceCode, wake: ReceiveChannel<Unit>? = null): String {
         var interval = code.interval.toLong() * pollUnitMillis
         val deadline = System.currentTimeMillis() + code.expiresIn.coerceAtLeast(60) * pollUnitMillis
+        var answered = System.currentTimeMillis()
         while (true) {
-            delay(interval)
-            val body = withContext(Dispatchers.IO) {
-                form(
-                    "$web/login/oauth/access_token",
-                    "client_id" to clientId,
-                    "device_code" to code.deviceCode,
-                    "grant_type" to "urn:ietf:params:oauth:grant-type:device_code",
-                )
+            if (wake == null) delay(interval) else withTimeoutOrNull(interval) { wake.receive() }
+            // GitHub ralentit (« slow_down ») les applications qui l'interrogent plus souvent que demandé.
+            val early = answered + interval - System.currentTimeMillis()
+            if (early > 0) delay(early)
+            val r = try {
+                val body = withContext(Dispatchers.IO) {
+                    form(
+                        "$web/login/oauth/access_token",
+                        "client_id" to clientId,
+                        "device_code" to code.deviceCode,
+                        "grant_type" to "urn:ietf:params:oauth:grant-type:device_code",
+                    )
+                }
+                decode(body) { json.parseToJsonElement(it).jsonObject }
+            } catch (e: ShareException) {
+                if (!e.isTransient || System.currentTimeMillis() > deadline) throw e
+                continue
             }
-            val r = decode(body) { json.parseToJsonElement(it).jsonObject }
+            answered = System.currentTimeMillis()
             val token = r["access_token"]?.jsonPrimitive?.contentOrNull
             when (val error = r["error"]?.jsonPrimitive?.contentOrNull) {
                 null -> return token?.takeIf { it.isNotEmpty() } ?: unexpected()
@@ -175,7 +193,7 @@ class ShareGitHub(
             val body = values.joinToString("&") { (k, v) -> k + "=" + URLEncoder.encode(v, "UTF-8") }
             connection.outputStream.use { it.write(body.toByteArray()) }
             val code = connection.responseCode
-            if (code != HttpURLConnection.HTTP_OK) throw ShareException(ShareException.Reason.NETWORK, "GitHub a répondu $code")
+            if (code != HttpURLConnection.HTTP_OK) throw status(code)
             return read(connection.inputStream, 1 shl 20)
         } catch (e: ShareException) {
             throw e
@@ -207,7 +225,7 @@ class ShareGitHub(
                 code == 429 || (code == HttpURLConnection.HTTP_FORBIDDEN && (token == null || limited)) ->
                     throw ShareException(ShareException.Reason.RATE_LIMITED, "GitHub limite temporairement les requêtes : réessayez dans quelques minutes")
                 code == HttpURLConnection.HTTP_FORBIDDEN -> throw unauthorized()
-                code !in 200..299 -> throw ShareException(ShareException.Reason.NETWORK, "GitHub a répondu $code")
+                code !in 200..299 -> throw status(code)
             }
             val text = if (code == HttpURLConnection.HTTP_NO_CONTENT) "" else read(connection.inputStream, 1 shl 20)
             return Response(code, text, connection.getHeaderField("ETag").orEmpty())
@@ -230,7 +248,7 @@ class ShareGitHub(
         if (uri.scheme != "https" || uri.host != "gist.githubusercontent.com") unexpected()
         val connection = open(url, "GET")
         try {
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) throw ShareException(ShareException.Reason.NETWORK, "GitHub a répondu ${connection.responseCode}")
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) throw status(connection.responseCode)
             return read(connection.inputStream, ShareCrypto.MAX_FILE_SIZE)
         } catch (e: ShareException) {
             throw e
@@ -262,6 +280,13 @@ class ShareGitHub(
     } catch (e: IllegalArgumentException) {
         throw ShareException(ShareException.Reason.NETWORK, "réponse de GitHub illisible", e)
     }
+
+    /** Réponse d'erreur : passagère si GitHub est indisponible (5xx) ou surchargé (429). */
+    private fun status(code: Int) = ShareException(
+        ShareException.Reason.NETWORK,
+        "GitHub a répondu $code",
+        if (code >= 500 || code == 429) IOException("HTTP $code") else null,
+    )
 
     private fun unauthorized() = ShareException(ShareException.Reason.UNAUTHORIZED, "connexion GitHub expirée ou révoquée : reconnectez-vous")
 

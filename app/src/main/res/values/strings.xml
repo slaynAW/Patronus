@@ -302,7 +302,7 @@
     <string name="share_field_name">Votre nom, affiché aux personnes invitées</string>
     <string name="share_connect">Se connecter à GitHub</string>
     <string name="share_login_title">Connexion à GitHub</string>
-    <string name="share_login_text">Sur la page GitHub, connectez-vous puis saisissez ce code :</string>
+    <string name="share_login_text">« Ouvrir GitHub » copie ce code : collez-le sur la page de GitHub (après vous être connecté), validez, puis revenez dans l’application.</string>
     <string name="share_login_open">Ouvrir GitHub</string>
     <string name="share_login_copy">Copier le code</string>
     <string name="share_login_waiting">En attente de la validation sur GitHub…</string>

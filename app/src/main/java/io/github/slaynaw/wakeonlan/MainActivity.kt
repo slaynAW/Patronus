@@ -59,5 +59,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // L'utilisateur a pu modifier l'autorisation « réseau local » dans les paramètres.
         appContainer.refreshPermissions()
+        // Retour du navigateur après la validation du code GitHub : la connexion reprend aussitôt.
+        appContainer.share.onResume()
     }
 }

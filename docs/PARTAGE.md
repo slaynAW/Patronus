@@ -14,7 +14,9 @@ seul « PC streaming », en **démarrage seulement**. Les applications Android e
 ### Partager ses PC (une seule fois : connexion GitHub)
 
 1. *Réglages* → *Partage* → **Partager mes PC**, puis choisissez le nom affiché aux autres (ex. votre prénom).
-2. **Se connecter à GitHub** (compte gratuit) : l'application affiche un code, à saisir sur `github.com/login/device`.
+2. **Se connecter à GitHub** (compte gratuit) : l'application affiche un code ; **Ouvrir GitHub** le copie et ouvre
+   `github.com/login/device`, où il suffit de le coller puis de valider. Revenez ensuite dans l'application : la
+   connexion se termine seule (même si le téléphone a coupé Internet à l'application pendant ce temps).
    L'application ne reçoit que le droit de gérer des **Gists** (petits fichiers) : aucun accès à vos dépôts.
 3. Un Gist **secret** « Wake On LAN – partage chiffré » est créé : c'est là que seront déposés les fichiers d'accès.
 
