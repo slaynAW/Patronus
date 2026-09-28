@@ -239,6 +239,14 @@ func (s *Service) publishShares(ctx context.Context) error {
 		}
 	case errors.Is(err, share.ErrNotFound):
 		sh.publishErr = "Espace de partage introuvable sur GitHub (Gist supprimé ?) : arrêtez puis réactivez le partage."
+	case errors.Is(err, share.ErrUnauthorized):
+		// Jeton expiré ou révoqué : l'interface propose de se reconnecter (même compte, même Gist).
+		sh.publishErr = err.Error()
+		sh.dirty = true
+		if o := sh.state.Owner; o != nil && o.Key == owner.Key {
+			o.Token = ""
+			_ = sh.saveLocked()
+		}
 	default:
 		sh.publishErr = err.Error()
 		sh.dirty = true

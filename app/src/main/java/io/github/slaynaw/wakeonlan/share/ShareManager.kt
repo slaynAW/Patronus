@@ -246,6 +246,10 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
             repo.update { st -> st.owner?.takeIf { it.key == owner.key }?.let { st.copy(owner = it.commit(publication)) } ?: st }
             runtime.update { it.copy(publishing = false, publishError = null) }
         } catch (e: ShareException) {
+            if (e.reason == ShareException.Reason.UNAUTHORIZED) {
+                // Jeton expiré ou révoqué : l'interface propose de se reconnecter (même compte, même Gist).
+                repo.update { st -> st.owner?.takeIf { it.key == owner.key }?.let { st.copy(owner = it.copy(token = "")) } ?: st }
+            }
             val message = if (e.reason == ShareException.Reason.NOT_FOUND) {
                 "espace de partage introuvable sur GitHub (Gist supprimé ?) : arrêtez puis réactivez le partage"
             } else {

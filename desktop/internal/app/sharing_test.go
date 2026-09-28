@@ -365,3 +365,25 @@ func TestShareKeyInFullBackup(t *testing.T) {
 		t.Errorf("invitations différentes :\n%v\n%v", ia, ib)
 	}
 }
+
+// Jeton révoqué sur GitHub : la publication échoue et l'interface propose de se reconnecter.
+func TestShareRevokedToken(t *testing.T) {
+	_, srv := newGistServer(t)
+	a := newShareService(t, srv, testDevice(t, "dev-1", "PC", "192.168.1.20", ""))
+	call(t, a, "shareLogin", map[string]any{"name": "Hugo"})
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) && (a.State().Share.Owner == nil || !a.State().Share.Owner.Connected) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	a.sharing.mu.Lock()
+	a.sharing.state.Owner.Token = "revoque"
+	a.sharing.mu.Unlock()
+	device, _ := share.NewDeviceKey()
+	call(t, a, "shareGrant", map[string]any{"device": share.DevicePublic(device), "name": "Léa", "rights": map[string]string{"dev-1": "wake"}})
+	if err := a.publishShares(context.Background()); err == nil {
+		t.Fatal("publication acceptée avec un jeton révoqué")
+	}
+	if o := a.State().Share.Owner; o.Connected || o.Error == "" || len(o.People) != 1 {
+		t.Errorf("après révocation : %+v", o)
+	}
+}
