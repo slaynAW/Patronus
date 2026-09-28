@@ -1,5 +1,6 @@
 package io.github.slaynaw.wakeonlan
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -29,15 +30,29 @@ class MainActivity : ComponentActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 container.updater.checkIfDue()
                 launch { container.historyTracker.run() }
-                container.statusMonitor.run(container.repository.config, container.probeAvailability)
+                launch { container.share.run() }
+                container.statusMonitor.run(container.allDevices, container.probeAvailability)
             }
         }
+
+        if (savedInstanceState == null) handleLink(intent)
 
         setContent {
             WolTheme {
                 WolApp()
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleLink(intent)
+    }
+
+    /** Lien de partage (wolshare://…) ouvert depuis un message : traité par l'onglet Réglages. */
+    private fun handleLink(intent: Intent?) {
+        val data = intent?.takeIf { it.action == Intent.ACTION_VIEW }?.dataString ?: return
+        if (data.startsWith("wolshare://", ignoreCase = true)) appContainer.share.pendingLink.value = data
     }
 
     override fun onResume() {

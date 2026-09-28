@@ -99,6 +99,7 @@ fun DeviceDetailScreen(
     val now = rememberNow()
     val item = state.items.firstOrNull { it.device.id == deviceId }
     val index = state.items.indexOfFirst { it.device.id == deviceId }
+    val ownCount = state.items.count { it.editable }
 
     // PC affiché : sondé chaque seconde pour le tracé de latence en direct.
     DisposableEffect(container, deviceId) {
@@ -124,7 +125,7 @@ fun DeviceDetailScreen(
     DeviceDetailContent(
         item = item,
         isFirst = index == 0,
-        isLast = index == state.items.lastIndex,
+        isLast = index >= ownCount - 1,
         history = history,
         now = now,
         snackbar = snackbar,
@@ -174,6 +175,7 @@ fun DeviceDetailContent(
                     if (item != null) {
                         DeviceMenu(
                             canShutdown = item.device.canShutdown,
+                            editable = item.editable,
                             isFirst = isFirst,
                             isLast = isLast,
                             onWake = onWake,
@@ -211,8 +213,11 @@ fun DeviceDetailContent(
                     onDismiss = onClearNotice,
                 )
             }
-            Actions(item = item, onWake = onWake, onPower = onPower, onEdit = onEdit)
-            if (item.status.state == PowerState.ONLINE && !item.device.canShutdown) {
+            Actions(item = item, onWake = onWake, onPower = onPower, onEdit = onEdit.takeIf { item.editable })
+            val sharedBy = item.sharedBy
+            if (sharedBy != null) {
+                Text(stringResource(R.string.hint_shared, sharedBy), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
+            } else if (item.status.state == PowerState.ONLINE && !item.device.canShutdown) {
                 Text(stringResource(R.string.hint_no_agent), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
             }
             if (item.device.hasHost) LatencyCard(item, now)
@@ -255,9 +260,9 @@ private fun Hero(item: DeviceItem, now: Long) {
     }
 }
 
-/** Actions selon l'état : éteindre / redémarrer / veille, ou démarrer. */
+/** Actions selon l'état : éteindre / redémarrer / veille, ou démarrer. [onEdit] nul : PC reçu (non modifiable). */
 @Composable
-private fun Actions(item: DeviceItem, onWake: () -> Unit, onPower: (PowerAction) -> Unit, onEdit: () -> Unit) {
+private fun Actions(item: DeviceItem, onWake: () -> Unit, onPower: (PowerAction) -> Unit, onEdit: (() -> Unit)?) {
     val state = item.status.state
     val edit = stringResource(R.string.action_edit)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -269,18 +274,18 @@ private fun Actions(item: DeviceItem, onWake: () -> Unit, onPower: (PowerAction)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     WolButton(stringResource(R.string.action_sleep_short), { onPower(PowerAction.SLEEP) }, Modifier.weight(1f), icon = WolIcons.Moon)
-                    WolButton(edit, onEdit, Modifier.weight(1f), icon = WolIcons.Edit)
+                    if (onEdit != null) WolButton(edit, onEdit, Modifier.weight(1f), icon = WolIcons.Edit)
                 }
             }
-            state == PowerState.ONLINE -> WolButton(edit, onEdit, Modifier.fillMaxWidth(), icon = WolIcons.Edit)
+            state == PowerState.ONLINE -> if (onEdit != null) WolButton(edit, onEdit, Modifier.fillMaxWidth(), icon = WolIcons.Edit)
             state == PowerState.WAKING -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 WolButton(stringResource(R.string.action_wake_again), onWake, Modifier.weight(1f), icon = WolIcons.Refresh)
-                WolButton(edit, onEdit, Modifier.weight(1f), icon = WolIcons.Edit)
+                if (onEdit != null) WolButton(edit, onEdit, Modifier.weight(1f), icon = WolIcons.Edit)
             }
-            state.isTransitional -> WolButton(edit, onEdit, Modifier.fillMaxWidth(), icon = WolIcons.Edit)
+            state.isTransitional -> if (onEdit != null) WolButton(edit, onEdit, Modifier.fillMaxWidth(), icon = WolIcons.Edit)
             else -> {
                 WolButton(stringResource(R.string.action_wake), onWake, Modifier.fillMaxWidth(), ButtonKind.PRIMARY, WolIcons.Power, height = 48.dp)
-                WolButton(edit, onEdit, Modifier.fillMaxWidth(), icon = WolIcons.Edit)
+                if (onEdit != null) WolButton(edit, onEdit, Modifier.fillMaxWidth(), icon = WolIcons.Edit)
             }
         }
     }
@@ -311,9 +316,15 @@ private fun InfoCard(item: DeviceItem) {
             RowDivider()
             KeyValueRow(stringResource(R.string.detail_uptime), formatLongDuration(agent.uptimeSeconds))
         }
-        RowDivider()
+        item.sharedBy?.let { owner ->
+            RowDivider()
+            KeyValueRow(stringResource(R.string.detail_shared), owner, valueColor = WolPalette.Blue, icon = WolIcons.Share)
+        }
         val agentError = status.agentError
+        if (device.agent != null || item.sharedBy == null) RowDivider()
         when {
+            // PC reçu en « démarrer seulement » : l'agent n'est pas concerné.
+            device.agent == null && item.sharedBy != null -> Unit
             device.agent == null -> KeyValueRow(stringResource(R.string.detail_agent), stringResource(R.string.agent_not_configured), valueColor = WolPalette.Text2)
             online && agentError != null -> KeyValueRow(
                 stringResource(R.string.detail_agent),

@@ -59,6 +59,12 @@ import io.github.slaynaw.wakeonlan.R
 import io.github.slaynaw.wakeonlan.appContainer
 import io.github.slaynaw.wakeonlan.core.config.ExportCodec
 import io.github.slaynaw.wakeonlan.core.model.AppSettings
+import io.github.slaynaw.wakeonlan.core.model.Device
+import io.github.slaynaw.wakeonlan.core.share.ShareException
+import io.github.slaynaw.wakeonlan.core.share.ShareLinks
+import io.github.slaynaw.wakeonlan.share.ShareUiState
+import io.github.slaynaw.wakeonlan.ui.common.rememberNow
+import kotlinx.coroutines.flow.map
 import io.github.slaynaw.wakeonlan.ui.common.ButtonKind
 import io.github.slaynaw.wakeonlan.ui.common.RowDivider
 import io.github.slaynaw.wakeonlan.ui.common.SectionLabel
@@ -89,6 +95,11 @@ fun SettingsTab(
     val vm: SettingsViewModel = viewModel { SettingsViewModel(container) }
     val state by vm.state.collectAsStateWithLifecycle()
     val update by container.updater.state.collectAsStateWithLifecycle()
+    val share by container.share.state.collectAsStateWithLifecycle()
+    val ownDevices by remember(container) { container.repository.config.map { it.devices } }.collectAsStateWithLifecycle(emptyList())
+    val pendingLink by container.share.pendingLink.collectAsStateWithLifecycle()
+    var shareDialog by remember { mutableStateOf<ShareDialog?>(null) }
+    val now = rememberNow(periodMs = 30_000)
     val scope = rememberCoroutineScope()
     val busy by vm.busy.collectAsStateWithLifecycle()
     val importStep by vm.importStep.collectAsStateWithLifecycle()
@@ -110,6 +121,23 @@ fun SettingsTab(
     LaunchedEffect(vm) {
         vm.messages.collect { message ->
             snackbar.showSnackbar(resources.getString(message.text, *message.args.toTypedArray()))
+        }
+    }
+
+    // Lien de partage ouvert depuis un message : invitation (demander l'accès) ou demande (autoriser).
+    LaunchedEffect(pendingLink, share.loaded) {
+        val link = pendingLink ?: return@LaunchedEffect
+        if (!share.loaded) return@LaunchedEffect
+        container.share.pendingLink.value = null
+        shareDialog = try {
+            if (ShareLinks.kind(link) == "request") {
+                val info = container.share.readRequest(link)
+                ShareDialog.Rights(info.request.name, info.request.device, info.code, info.rights.orEmpty(), isNew = info.rights == null)
+            } else {
+                ShareDialog.Name(container.share.readInvite(link))
+            }
+        } catch (e: ShareException) {
+            ShareDialog.Error(e.message.orEmpty().replaceFirstChar { it.uppercase() })
         }
     }
 
@@ -148,6 +176,19 @@ fun SettingsTab(
             }
         },
         onAutoUpdate = container.updater::setAuto,
+        share = share,
+        ownDevices = ownDevices,
+        now = now,
+        onShareDialog = { shareDialog = it },
+    )
+
+    ShareDialogHost(
+        dialog = shareDialog,
+        onDialog = { shareDialog = it },
+        share = share,
+        ownDevices = ownDevices,
+        manager = container.share,
+        snackbar = snackbar,
     )
 
     if (showExportDialog) {
@@ -232,6 +273,10 @@ fun SettingsContent(
     update: UpdateUiState = UpdateUiState(),
     onCheckUpdate: () -> Unit = {},
     onAutoUpdate: (Boolean) -> Unit = {},
+    share: ShareUiState = ShareUiState(loaded = true),
+    ownDevices: List<Device> = emptyList(),
+    now: Long = System.currentTimeMillis(),
+    onShareDialog: (ShareDialog) -> Unit = {},
 ) {
     Column(
         Modifier
@@ -284,6 +329,8 @@ fun SettingsContent(
                 )
             }
         }
+
+        ShareSections(share = share, ownDevices = ownDevices, now = now, onDialog = onShareDialog)
 
         SectionLabel(stringResource(R.string.section_backup), Modifier.padding(top = 6.dp))
         WolCard {
@@ -394,7 +441,7 @@ fun SettingsContent(
 
 /** Ligne de réglage : icône, titre, texte d'aide et chevron si elle ouvre quelque chose. */
 @Composable
-private fun SettingItem(
+internal fun SettingItem(
     icon: ImageVector,
     title: String,
     text: String,

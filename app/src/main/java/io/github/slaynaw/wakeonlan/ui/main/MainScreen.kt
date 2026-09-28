@@ -93,7 +93,13 @@ fun MainScreen(
     var permissionDenied by rememberSaveable { mutableStateOf(false) }
     var permissionAsked by rememberSaveable { mutableStateOf(false) }
     val update by container.updater.state.collectAsStateWithLifecycle()
+    val pendingShareLink by container.share.pendingLink.collectAsStateWithLifecycle()
     var showUpdate by rememberSaveable { mutableStateOf(false) }
+
+    // Lien de partage reçu par message : traité dans l'onglet Réglages.
+    LaunchedEffect(pendingShareLink) {
+        if (pendingShareLink != null) tab = MainTab.SETTINGS
+    }
     var promptedVersion by rememberSaveable { mutableStateOf("") }
 
     // Nouvelle version : proposée d'elle-même une fois (sauf « Plus tard » dans les dernières 24 h).

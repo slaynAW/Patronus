@@ -24,8 +24,18 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** Un PC, son état et ses mesures de latence récentes (tracé en direct). */
-data class DeviceItem(val device: Device, val status: DeviceStatus, val latency: List<LatencySample> = emptyList())
+/**
+ * Un PC, son état et ses mesures de latence récentes (tracé en direct). [sharedBy] : nom de la
+ * personne qui le partage (PC reçu, non modifiable).
+ */
+data class DeviceItem(
+    val device: Device,
+    val status: DeviceStatus,
+    val latency: List<LatencySample> = emptyList(),
+    val sharedBy: String? = null,
+) {
+    val editable: Boolean get() = sharedBy == null
+}
 
 data class DevicesUiState(
     val loaded: Boolean = false,
@@ -48,15 +58,16 @@ class DevicesViewModel(private val container: AppContainer) : ViewModel() {
     val messages: Flow<UiMessage> = _messages.receiveAsFlow()
 
     val state: StateFlow<DevicesUiState> = combine(
-        container.repository.config,
+        container.repository.config.combine(container.share.sharedDevices) { c, shared -> c to shared },
         container.statusMonitor.statuses.combine(container.statusMonitor.latency) { s, l -> s to l },
         container.network.state,
         container.probeAvailability,
         container.localNetworkGranted,
-    ) { config, (statuses, latency), lan, availability, granted ->
+    ) { (config, shared), (statuses, latency), lan, availability, granted ->
+        fun item(d: Device, sharedBy: String? = null) = DeviceItem(d, statuses[d.id] ?: DeviceStatus(), latency[d.id].orEmpty(), sharedBy)
         DevicesUiState(
             loaded = true,
-            items = config.devices.map { DeviceItem(it, statuses[it.id] ?: DeviceStatus(), latency[it.id].orEmpty()) },
+            items = config.devices.map { item(it) } + shared.map { item(it.device, it.ownerName) },
             settings = config.settings,
             lan = lan,
             availability = availability,
