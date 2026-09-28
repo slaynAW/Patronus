@@ -3,6 +3,11 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.3.1
+
+- **Partage** : la connexion à GitHub aboutit désormais même si le téléphone coupe Internet à l'application pendant la validation du code (elle se termine dès le retour dans l'application).
+- « Ouvrir GitHub » copie le code de connexion : il n'y a plus qu'à le coller sur la page de GitHub.
+
 ## 1.3.0
 
 - **Partage de vos PC** avec les personnes de votre choix : vous décidez, PC par PC, qui peut les démarrer (ou aussi les éteindre). Invitation par QR code ou par lien, code de vérification à comparer.
