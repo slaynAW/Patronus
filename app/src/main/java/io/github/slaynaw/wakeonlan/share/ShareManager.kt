@@ -393,8 +393,9 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
 
     private companion object {
         const val TICK_MS = 15_000L
-        const val SYNC_PENDING_MS = 30_000L
-        const val PENDING_FAST_MS = 30 * 60_000L
+        // GitHub limite la lecture sans compte à 60 requêtes par heure et par adresse IP.
+        const val SYNC_PENDING_MS = 45_000L
+        const val PENDING_FAST_MS = 15 * 60_000L
         const val SYNC_WAITING_MS = 5 * 60_000L
         const val SYNC_ACTIVE_MS = 10 * 60_000L
         const val PUBLISH_RETRY_MS = 2 * 60_000L

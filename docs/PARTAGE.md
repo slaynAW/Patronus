@@ -27,7 +27,7 @@ seul « PC streaming », en **démarrage seulement**. Les applications Android e
    **Vérifiez que le code affiché est le même que sur son téléphone** (de vive voix ou par téléphone) : c'est ce qui
    garantit que la demande vient bien de son appareil.
 4. Choisissez pour chaque PC : *non partagé*, *démarrer* ou *démarrer et éteindre*, puis **Autoriser**.
-5. L'application de Léa télécharge elle-même son accès (en général en moins d'une minute) : le PC streaming apparaît
+5. L'application de Léa télécharge elle-même son accès (en général dans la minute) : le PC streaming apparaît
    avec la mention « partagé par … ». Les changements que vous faites ensuite (adresse, nom…) lui parviennent seuls.
 
 ### Ce que la personne autorisée peut faire

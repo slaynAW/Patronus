@@ -550,4 +550,4 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); width: 
 .right-row select { flex: none; width: 190px; height: 34px; background: var(--bg); border: 1px solid var(--line-2); border-radius: 8px; padding: 0 8px; }
 .shared-by { display: inline-flex; align-items: center; gap: 6px; }
 .shared-by svg { color: var(--blue); }
-.item .supporting.bad { font-weight: 500; }
+.item .supporting.bad { color: var(--danger-text); font-weight: 500; }

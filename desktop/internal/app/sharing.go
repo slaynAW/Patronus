@@ -23,9 +23,10 @@ type ShareOptions struct {
 }
 
 const (
-	// Rythme de vérification des partages reçus.
-	shareSyncPending  = 30 * time.Second // demande envoyée il y a moins de sharePendingFast
-	sharePendingFast  = 30 * time.Minute
+	// Rythme de vérification des partages reçus (GitHub limite la lecture sans compte à 60 requêtes
+	// par heure et par adresse IP).
+	shareSyncPending  = 45 * time.Second // demande envoyée il y a moins de sharePendingFast
+	sharePendingFast  = 15 * time.Minute
 	shareSyncWaiting  = 5 * time.Minute // demande plus ancienne, ou accès retiré
 	shareSyncActive   = 10 * time.Minute
 	shareTick         = 15 * time.Second
