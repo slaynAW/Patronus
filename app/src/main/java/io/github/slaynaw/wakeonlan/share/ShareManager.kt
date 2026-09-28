@@ -86,6 +86,7 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
     private val syncMutex = Mutex()
     private val lastSync = ConcurrentHashMap<String, Long>()
     private val wake = Channel<Unit>(Channel.CONFLATED)
+    private val loginWake = Channel<Unit>(Channel.CONFLATED)
     private var loginJob: Job? = null
 
     val state: StateFlow<ShareUiState> = combine(repo.data, runtime) { st, rt ->
@@ -126,6 +127,15 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
         }
     }
 
+    /**
+     * Retour dans l'application (par exemple après la validation du code dans le navigateur) : la
+     * connexion en cours interroge GitHub tout de suite, les partages reçus sont vérifiés.
+     */
+    fun onResume() {
+        if (loginJob?.isActive == true) loginWake.trySend(Unit)
+        wake.trySend(Unit)
+    }
+
     // --- Je partage mes PC ---
 
     /** Démarre la connexion GitHub ; la suite (validation du code, création du Gist) continue en fond. */
@@ -147,8 +157,10 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
 
     private suspend fun finishLogin(code: GitHubDeviceCode, name: String) {
         try {
-            val token = github.waitLogin(code)
-            val user = github.user(token)
+            // En arrière-plan (navigateur ouvert), le système peut couper l'accès à Internet de
+            // l'application : les étapes sont retentées tant que l'échec est passager.
+            val token = github.waitLogin(code, loginWake)
+            val user = retrying { github.user(token) }
             val existing = repo.current().owner
             if (existing != null && existing.gist.isNotEmpty() && existing.user.isNotEmpty() && !existing.user.equals(user, ignoreCase = true)) {
                 throw ShareException(
@@ -157,7 +169,7 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
                 )
             }
             val gist = existing?.gist?.takeIf { it.isNotEmpty() }
-                ?: github.createGist(token, "Wake On LAN – partage chiffré", mapOf("LISEZMOI.md" to GIST_NOTE))
+                ?: retrying { github.createGist(token, "Wake On LAN – partage chiffré", mapOf("LISEZMOI.md" to GIST_NOTE)) }
             repo.update { st ->
                 val owner = st.owner ?: withKey()
                 st.copy(owner = owner.copy(name = name, token = token, user = user, gist = gist))
@@ -168,6 +180,20 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
             throw e
         } catch (e: ShareException) {
             runtime.update { rt -> rt.copy(login = rt.login?.copy(error = e.message)) }
+        }
+    }
+
+    /** Réessaie une étape de la connexion (à intervalle croissant, ou au retour dans l'application). */
+    private suspend fun <T> retrying(step: suspend () -> T): T {
+        var attempt = 1
+        while (true) {
+            try {
+                return step()
+            } catch (e: ShareException) {
+                if (!e.isTransient || attempt >= LOGIN_ATTEMPTS) throw e
+            }
+            withTimeoutOrNull(attempt * LOGIN_RETRY_MS) { loginWake.receive() }
+            attempt++
         }
     }
 
@@ -403,6 +429,8 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
         const val SYNC_WAITING_MS = 5 * 60_000L
         const val SYNC_ACTIVE_MS = 10 * 60_000L
         const val PUBLISH_RETRY_MS = 2 * 60_000L
+        const val LOGIN_ATTEMPTS = 5
+        const val LOGIN_RETRY_MS = 5_000L
         const val GIST_NOTE = "# Wake On LAN – partage chiffré\n\nFichiers d'accès chiffrés de l'application Wake On LAN " +
             "(https://github.com/slaynAW/WakeOnLan). Chacun n'est lisible que par l'appareil auquel il est destiné.\n"
     }

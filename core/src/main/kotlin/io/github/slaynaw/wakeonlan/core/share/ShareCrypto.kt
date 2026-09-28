@@ -63,6 +63,12 @@ class ShareException(val reason: Reason, message: String, cause: Throwable? = nu
         /** Réseau indisponible, réponse inattendue. */
         NETWORK,
     }
+
+    /**
+     * Échec passager (Internet coupé, GitHub momentanément indisponible, réponse tronquée) : l'opération
+     * peut être retentée. Les réponses refusées par GitHub (4xx) ne le sont pas.
+     */
+    val isTransient: Boolean get() = reason == Reason.NETWORK && cause != null
 }
 
 /** Paire de clés P-256 brute : scalaire privé (32 octets) et point public non compressé (65 octets). */

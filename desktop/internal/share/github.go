@@ -46,6 +46,39 @@ var (
 
 const maxResponse = 1 << 20
 
+// transientError est un échec passager (Internet coupé, GitHub momentanément indisponible, réponse
+// tronquée) : l'opération peut être retentée.
+type transientError struct{ msg string }
+
+func (e *transientError) Error() string { return e.msg }
+
+// IsTransient indique un échec passager. Les réponses refusées par GitHub (4xx) ne le sont pas.
+func IsTransient(err error) bool {
+	var t *transientError
+	return errors.As(err, &t)
+}
+
+// statusError décrit une réponse d'erreur, passagère si GitHub est indisponible (5xx) ou surchargé (429).
+func statusError(code int) error {
+	msg := fmt.Sprintf("GitHub a répondu %d", code)
+	if code >= 500 || code == http.StatusTooManyRequests {
+		return &transientError{msg}
+	}
+	return errors.New(msg)
+}
+
+var errUnreadable = &transientError{"réponse de GitHub illisible"}
+
+// retryAttempts borne les tentatives d'une étape de la connexion (voir Retry).
+const retryAttempts = 5
+
+func (g *GitHub) unit() time.Duration {
+	if g.PollUnit == 0 {
+		return time.Second
+	}
+	return g.PollUnit
+}
+
 // NewGitHub renvoie un client pour github.com.
 func NewGitHub(clientID, userAgent string) *GitHub {
 	return &GitHub{
@@ -86,11 +119,9 @@ func (g *GitHub) StartLogin(ctx context.Context) (DeviceCode, error) {
 }
 
 // WaitLogin attend que l'utilisateur valide le code sur github.com et renvoie le jeton d'accès.
+// Les échecs passagers (Internet coupé pendant la validation…) sont ignorés tant que le code est valable.
 func (g *GitHub) WaitLogin(ctx context.Context, dc DeviceCode) (string, error) {
-	unit := g.PollUnit
-	if unit == 0 {
-		unit = time.Second
-	}
+	unit := g.unit()
 	interval := time.Duration(dc.Interval) * unit
 	deadline := time.Now().Add(time.Duration(max(dc.ExpiresIn, 60)) * unit)
 	for {
@@ -111,7 +142,10 @@ func (g *GitHub) WaitLogin(ctx context.Context, dc DeviceCode) (string, error) {
 			"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
 		}, &r)
 		if err != nil {
-			return "", err
+			if !IsTransient(err) || time.Now().After(deadline) {
+				return "", err
+			}
+			continue
 		}
 		switch r.Error {
 		case "":
@@ -134,6 +168,22 @@ func (g *GitHub) WaitLogin(ctx context.Context, dc DeviceCode) (string, error) {
 		}
 		if time.Now().After(deadline) {
 			return "", ErrExpired
+		}
+	}
+}
+
+// Retry exécute une étape de la connexion et la réessaie, à intervalle croissant, tant que l'échec est
+// passager (retryAttempts tentatives au plus).
+func (g *GitHub) Retry(ctx context.Context, step func() error) error {
+	for attempt := 1; ; attempt++ {
+		err := step()
+		if err == nil || !IsTransient(err) || attempt >= retryAttempts {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(time.Duration(attempt) * 5 * g.unit()):
 		}
 	}
 }
@@ -270,7 +320,7 @@ func (g *GitHub) raw(ctx context.Context, raw string) (string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("GitHub a répondu %d", resp.StatusCode)
+		return "", statusError(resp.StatusCode)
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxFileSize+1))
 	if err != nil {
@@ -305,10 +355,10 @@ func (g *GitHub) form(ctx context.Context, endpoint string, values url.Values, o
 		return networkError(err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("GitHub a répondu %d", resp.StatusCode)
+		return statusError(resp.StatusCode)
 	}
 	if err := json.Unmarshal(data, out); err != nil {
-		return errors.New("réponse de GitHub illisible")
+		return errUnreadable
 	}
 	return nil
 }
@@ -362,11 +412,11 @@ func (g *GitHub) api(ctx context.Context, method, path, token, etag string, body
 	case resp.StatusCode == http.StatusForbidden:
 		return nil, ErrUnauthorized
 	case resp.StatusCode < 200 || resp.StatusCode > 299:
-		return nil, fmt.Errorf("GitHub a répondu %d", resp.StatusCode)
+		return nil, statusError(resp.StatusCode)
 	}
 	if out != nil && len(data) > 0 {
 		if err := json.Unmarshal(data, out); err != nil {
-			return nil, errors.New("réponse de GitHub illisible")
+			return nil, errUnreadable
 		}
 	}
 	return resp, nil
@@ -377,5 +427,5 @@ func networkError(err error) error {
 	if errors.Is(err, context.Canceled) {
 		return err
 	}
-	return errors.New("GitHub injoignable : vérifiez la connexion Internet")
+	return &transientError{"GitHub injoignable : vérifiez la connexion Internet"}
 }

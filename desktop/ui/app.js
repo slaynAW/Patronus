@@ -293,7 +293,7 @@
     share_field_name: "Votre nom, affiché aux personnes invitées",
     share_connect: "Se connecter à GitHub",
     share_login_title: "Connexion à GitHub",
-    share_login_text: "Sur la page GitHub qui s’ouvre, connectez-vous puis saisissez ce code :",
+    share_login_text: "Sur la page GitHub qui s’ouvre, connectez-vous puis collez (ou saisissez) ce code :",
     share_login_open: "Ouvrir GitHub",
     share_login_copy: "Copier le code",
     share_login_waiting: "En attente de la validation sur GitHub…",
@@ -2597,6 +2597,11 @@
         return;
       }
       const status = h("p", { class: "muted", text: S.share_login_waiting });
+      // Code copié d'abord : il n'y a plus qu'à le coller sur la page de GitHub.
+      const openGitHub = async () => {
+        await copy(r.code);
+        openUrl(GITHUB_DEVICE_URL);
+      };
       const onState = () => {
         const sh = state.share;
         if (sh.login?.error) {
@@ -2618,7 +2623,7 @@
         actions: [
           { label: S.cancel, onClick: () => { api.call("shareCancelLogin").catch(() => {}); close(); } },
           { label: S.share_login_copy, kind: "sec", onClick: () => copy(r.code) },
-          { label: S.share_login_open, onClick: () => openUrl(GITHUB_DEVICE_URL) },
+          { label: S.share_login_open, onClick: openGitHub },
         ],
         onDismiss: () => {
           stateListeners.delete(onState);
@@ -2626,7 +2631,7 @@
         },
       });
       stateListeners.add(onState);
-      openUrl(GITHUB_DEVICE_URL);
+      openGitHub();
     }
 
     async function inviteDialog() {

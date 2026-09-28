@@ -219,3 +219,91 @@ func TestGitHubRateLimit(t *testing.T) {
 		t.Errorf("limite : %v", err)
 	}
 }
+
+// Pendant la validation du code, l'application peut perdre l'accès à Internet (connexion coupée,
+// GitHub indisponible) : l'attente continue tant que le code est valable, puis la suite réessaie.
+func TestGitHubLoginSurvivesNetworkLoss(t *testing.T) {
+	var mu sync.Mutex
+	polls, users := 0, 0
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /login/oauth/access_token", func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		polls++
+		n := polls
+		mu.Unlock()
+		switch n {
+		case 1:
+			_, _ = io.WriteString(w, `{"error":"authorization_pending"}`)
+		case 2, 3:
+			// Connexion coupée sans réponse.
+			conn, _, _ := w.(http.Hijacker).Hijack()
+			_ = conn.Close()
+		case 4:
+			w.WriteHeader(http.StatusBadGateway)
+		case 5:
+			_, _ = io.WriteString(w, `<html>portail</html>`)
+		default:
+			_, _ = io.WriteString(w, `{"access_token":"jeton","token_type":"bearer","scope":"gist"}`)
+		}
+	})
+	mux.HandleFunc("GET /user", func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		users++
+		n := users
+		mu.Unlock()
+		if n == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = io.WriteString(w, `{"login":"lea"}`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	gh := &GitHub{API: srv.URL, Web: srv.URL, ClientID: "c", Client: srv.Client(), PollUnit: time.Millisecond}
+	ctx := context.Background()
+	token, err := gh.WaitLogin(ctx, DeviceCode{DeviceCode: "d", Interval: 1, ExpiresIn: 60})
+	if err != nil || token != "jeton" || polls != 6 {
+		t.Fatalf("attente : %q, %v après %d interrogations", token, err, polls)
+	}
+	var user string
+	err = gh.Retry(ctx, func() (err error) {
+		user, err = gh.User(ctx, token)
+		return err
+	})
+	if err != nil || user != "lea" || users != 2 {
+		t.Fatalf("compte : %q, %v après %d essais", user, err, users)
+	}
+}
+
+func TestGitHubLoginPermanentErrors(t *testing.T) {
+	var mu sync.Mutex
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer srv.Close()
+	gh := &GitHub{API: srv.URL, Web: srv.URL, ClientID: "c", Client: srv.Client(), PollUnit: time.Millisecond}
+	ctx := context.Background()
+	// Une réponse refusée (4xx) n'est pas retentée.
+	if _, err := gh.WaitLogin(ctx, DeviceCode{DeviceCode: "d", Interval: 1, ExpiresIn: 60}); err == nil || IsTransient(err) || calls != 1 {
+		t.Errorf("attente : %v après %d appels", err, calls)
+	}
+	calls = 0
+	if err := gh.Retry(ctx, func() error { _, err := gh.User(ctx, "t"); return err }); err == nil || calls != 1 {
+		t.Errorf("compte : %v après %d appels", err, calls)
+	}
+	// Un échec passager est retenté un nombre limité de fois.
+	n := 0
+	err := gh.Retry(ctx, func() error { n++; return networkError(errors.New("coupé")) })
+	if !IsTransient(err) || n != retryAttempts {
+		t.Errorf("tentatives : %v, %d", err, n)
+	}
+	// Code expiré pendant une coupure : l'erreur réseau est rapportée.
+	srv.Close()
+	if _, err := gh.WaitLogin(ctx, DeviceCode{DeviceCode: "d", Interval: 1, ExpiresIn: 0}); !IsTransient(err) {
+		t.Errorf("coupure prolongée : %v", err)
+	}
+}

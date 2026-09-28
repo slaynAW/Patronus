@@ -389,7 +389,12 @@ func (s *Service) finishLogin(ctx context.Context, login *shareLogin, dc share.D
 		}
 		return
 	}
-	user, err := sh.gh.User(ctx, token)
+	// L'accès à Internet peut revenir avec un temps de retard (mise en veille, changement de réseau…).
+	var user string
+	err = sh.gh.Retry(ctx, func() (err error) {
+		user, err = sh.gh.User(ctx, token)
+		return err
+	})
 	if err != nil {
 		fail(err)
 		return
@@ -407,7 +412,10 @@ func (s *Service) finishLogin(ctx context.Context, login *shareLogin, dc share.D
 	}
 	sh.mu.Unlock()
 	if gist == "" {
-		gist, err = sh.gh.CreateGist(ctx, token, "Wake On LAN – partage chiffré", map[string]string{"LISEZMOI.md": shareGistNote})
+		err = sh.gh.Retry(ctx, func() (err error) {
+			gist, err = sh.gh.CreateGist(ctx, token, "Wake On LAN – partage chiffré", map[string]string{"LISEZMOI.md": shareGistNote})
+			return err
+		})
 		if err != nil {
 			fail(err)
 			return

@@ -9,6 +9,7 @@ import io.github.slaynaw.wakeonlan.core.model.AppConfig
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.model.MacAddress
 import io.github.slaynaw.wakeonlan.core.share.ExportedShareOwner
+import io.github.slaynaw.wakeonlan.core.share.GitHubDeviceCode
 import io.github.slaynaw.wakeonlan.core.share.QrCode
 import io.github.slaynaw.wakeonlan.core.share.ShareAccess
 import io.github.slaynaw.wakeonlan.core.share.ShareContent
@@ -225,13 +226,6 @@ class ShareTest {
         var polls = 0
         var lastAuth: String? = "?"
         val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
-        fun HttpExchange.reply(code: Int, body: String = "", etag: String? = null) {
-            etag?.let { responseHeaders.add("ETag", it) }
-            val bytes = body.toByteArray()
-            sendResponseHeaders(code, if (bytes.isEmpty()) -1 else bytes.size.toLong())
-            if (bytes.isNotEmpty()) responseBody.use { it.write(bytes) }
-            close()
-        }
         server.createContext("/login/device/code") { it.reply(200, """{"device_code":"d","user_code":"ABCD-1234","verification_uri":"https://github.com/login/device","expires_in":600,"interval":1}""") }
         server.createContext("/login/oauth/access_token") {
             polls++
@@ -298,6 +292,68 @@ class ShareTest {
     }
 
     @Test
+    fun `connexion GitHub malgre une coupure`() {
+        // Pendant la validation dans le navigateur, l'application peut perdre l'accès à Internet :
+        // l'attente continue tant que le code est valable.
+        var polls = 0
+        var users = 0
+        val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        server.createContext("/login/oauth/access_token") { ex ->
+            polls++
+            when (polls) {
+                1 -> ex.reply(200, """{"error":"authorization_pending"}""")
+                2 -> ex.close() // connexion coupée sans réponse
+                3 -> ex.reply(502)
+                4 -> ex.reply(200, "<html>portail</html>")
+                else -> ex.reply(200, """{"access_token":"tok","scope":"gist"}""")
+            }
+        }
+        server.createContext("/user") { ex -> if (++users == 1) ex.reply(503) else ex.reply(200, """{"login":"lea"}""") }
+        server.start()
+        try {
+            val base = "http://127.0.0.1:${server.address.port}"
+            val gh = ShareGitHub("client", api = base, web = base, pollUnitMillis = 1)
+            val code = GitHubDeviceCode(deviceCode = "d", userCode = "ABCD-1234", expiresIn = 60, interval = 1)
+            runBlocking {
+                assertEquals("tok", gh.waitLogin(code))
+                assertTrue(polls >= 5)
+                val unavailable = runCatching { gh.user("tok") }.exceptionOrNull() as ShareException
+                assertTrue(unavailable.isTransient, "503 : à retenter")
+                assertEquals("lea", gh.user("tok"))
+            }
+        } finally {
+            server.stop(0)
+        }
+    }
+
+    @Test
+    fun `connexion GitHub refusee`() {
+        var calls = 0
+        val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        server.createContext("/") { ex ->
+            calls++
+            ex.reply(400)
+        }
+        server.start()
+        val base = "http://127.0.0.1:${server.address.port}"
+        val gh = ShareGitHub("client", api = base, web = base, pollUnitMillis = 1)
+        val code = GitHubDeviceCode(deviceCode = "d", userCode = "ABCD-1234", expiresIn = 0, interval = 1)
+        runBlocking {
+            try {
+                // Réponse refusée (4xx) : pas de nouvelle tentative.
+                val refused = runCatching { gh.waitLogin(code) }.exceptionOrNull() as ShareException
+                assertFalse(refused.isTransient)
+                assertEquals(1, calls)
+            } finally {
+                server.stop(0)
+            }
+            // Coupure qui dure jusqu'à l'expiration du code : l'erreur réseau est rapportée.
+            val offline = runCatching { gh.waitLogin(code) }.exceptionOrNull() as ShareException
+            assertTrue(offline.isTransient)
+        }
+    }
+
+    @Test
     fun `cle de partage dans la sauvegarde complete`() {
         val key = ShareCrypto.newKeyPair()
         val guest = ShareCrypto.newKeyPair()
@@ -339,6 +395,14 @@ class ShareTest {
 
     @Serializable
     data class AndroidFile(val file: String, val revision: Long)
+
+    private fun HttpExchange.reply(code: Int, body: String = "", etag: String? = null) {
+        etag?.let { responseHeaders.add("ETag", it) }
+        val bytes = body.toByteArray()
+        sendResponseHeaders(code, if (bytes.isEmpty()) -1 else bytes.size.toLong())
+        if (bytes.isNotEmpty()) responseBody.use { it.write(bytes) }
+        close()
+    }
 
     private fun device(id: String, name: String, host: String, agent: Boolean = false) = Device(
         id = id, name = name, mac = MacAddress.parse("AA:BB:CC:DD:EE:0${id.length}"), host = host,
