@@ -6,6 +6,8 @@ import io.github.slaynaw.wakeonlan.core.model.AppConfig
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.model.MacAddress
 import io.github.slaynaw.wakeonlan.core.status.HostProber
+import io.github.slaynaw.wakeonlan.core.status.LatencyLog
+import io.github.slaynaw.wakeonlan.core.status.LatencySample
 import io.github.slaynaw.wakeonlan.core.status.PowerState
 import io.github.slaynaw.wakeonlan.core.status.ProbeAvailability
 import io.github.slaynaw.wakeonlan.core.status.ProbeMethod
@@ -182,6 +184,87 @@ class StatusMonitorTest {
         testScheduler.advanceTimeBy(3_001)
         assertTrue(probes - before >= 3, "une sonde par seconde pendant le réveil ($probes)")
         job.cancel()
+    }
+
+    @Test
+    fun `latence relevee a chaque sonde, sans reponse comprise`() = runTest {
+        var latency: Long? = 4
+        val monitor = StatusMonitor(
+            prober = { latency?.let { ProbeResult(true, it, ProbeMethod.TCP) } ?: ProbeResult.UNREACHABLE },
+            clock = { testScheduler.currentTime },
+        )
+        val job = launch { monitor.run(MutableStateFlow(AppConfig(devices = listOf(device))), MutableStateFlow(ProbeAvailability.AVAILABLE)) }
+        runCurrent()
+        latency = 9
+        advanceTimeBy(3_001)
+        latency = null
+        advanceTimeBy(3_000)
+        assertEquals(listOf(4L, 9L, null), monitor.latency.value["pc"]?.map { it.latencyMs })
+        assertEquals(listOf(0L, 3_000L, 6_000L), monitor.latency.value["pc"]?.map { it.time })
+        job.cancel()
+    }
+
+    @Test
+    fun `terminal suivi en detail sonde chaque seconde`() = runTest {
+        var probes = 0
+        val monitor = StatusMonitor(prober = { probes++; ProbeResult(true, 2, ProbeMethod.TCP) }, clock = { testScheduler.currentTime })
+        val settings = AppConfig(devices = listOf(device)).let { it.copy(settings = it.settings.copy(pollIntervalSeconds = 30)) }
+        val job = launch { monitor.run(MutableStateFlow(settings), MutableStateFlow(ProbeAvailability.AVAILABLE)) }
+        runCurrent()
+        assertEquals(1, probes)
+
+        monitor.watch("pc")
+        monitor.watch("pc") // deux écrans
+        runCurrent()
+        assertEquals(2, probes, "sonde immédiate à l'ouverture du détail")
+        advanceTimeBy(3_001)
+        assertEquals(5, probes, "une sonde par seconde")
+
+        monitor.unwatch("pc")
+        advanceTimeBy(2_000)
+        assertEquals(7, probes, "toujours suivi par le second écran")
+
+        monitor.unwatch("pc")
+        advanceTimeBy(10_000)
+        assertEquals(8, probes, "retour à l'intervalle normal")
+        job.cancel()
+    }
+}
+
+class LatencyLogTest {
+    @Test
+    fun `fenetre de cinq minutes et nombre borne`() {
+        var samples = emptyList<LatencySample>()
+        for (i in 0..600) samples = LatencyLog.append(samples, LatencySample(i * 1_000L, i.toLong()))
+        assertEquals(LatencyLog.WINDOW_MS / 1_000 + 1, samples.size.toLong())
+        assertEquals(300_000L, samples.first().time)
+        repeat(500) { samples = LatencyLog.append(samples, LatencySample(600_000L + it, 1)) }
+        assertEquals(LatencyLog.MAX_SAMPLES, samples.size)
+    }
+
+    @Test
+    fun `synthese et echelle`() {
+        val samples = listOf(
+            LatencySample(0, 50),
+            LatencySample(1_000, 2),
+            LatencySample(2_000, null),
+            LatencySample(3_000, 5),
+        )
+        val stats = LatencyLog.stats(samples, from = 1_000)!!
+        assertEquals(2, stats.min)
+        assertEquals(4, stats.average) // 3,5 arrondi
+        assertEquals(5, stats.max)
+        assertEquals(1, stats.lost)
+        assertEquals(3, stats.count)
+        assertNull(LatencyLog.stats(samples, from = 10_000))
+        assertEquals(0, LatencyLog.stats(listOf(LatencySample(0, null)), 0)!!.max)
+
+        assertEquals(5, LatencyLog.scaleMax(0))
+        assertEquals(5, LatencyLog.scaleMax(4))
+        assertEquals(10, LatencyLog.scaleMax(5))
+        assertEquals(20, LatencyLog.scaleMax(12))
+        assertEquals(50, LatencyLog.scaleMax(40))
+        assertEquals(5_000, LatencyLog.scaleMax(100_000))
     }
 }
 

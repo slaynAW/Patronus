@@ -11,7 +11,7 @@ import (
 )
 
 // FastInterval est l'intervalle de vérification pendant un réveil / une extinction.
-const FastInterval = time.Second
+const FastInterval = LiveInterval
 
 // Availability indique si l'ordinateur peut vérifier l'état des PC en ce moment.
 type Availability struct {
@@ -26,8 +26,9 @@ type update struct {
 }
 
 // Monitor surveille en continu l'état de tous les PC : une boucle par PC, toutes les
-// pollIntervalSeconds, et toutes les secondes pendant une transition. Comme sur Android, la
-// surveillance ne tourne que lorsque la fenêtre est visible (active).
+// pollIntervalSeconds, et toutes les secondes pendant une transition ou pour le PC affiché en
+// détail (SetLive : sa latence est tracée en direct). Comme sur Android, la surveillance ne tourne
+// que lorsque la fenêtre est visible (active).
 type Monitor struct {
 	prober   Prober
 	clock    func() int64
@@ -37,6 +38,8 @@ type Monitor struct {
 	trackers map[string]*Tracker
 	signals  map[string]chan struct{}
 	statuses map[string]DeviceStatus
+	latency  map[string][]LatencySample
+	live     string
 	pending  *update
 	wake     chan struct{}
 }
@@ -52,7 +55,8 @@ func NewMonitor(prober Prober, clock func() int64, onChange func()) *Monitor {
 	return &Monitor{
 		prober: prober, clock: clock, onChange: onChange,
 		trackers: map[string]*Tracker{}, signals: map[string]chan struct{}{}, statuses: map[string]DeviceStatus{},
-		wake: make(chan struct{}, 1),
+		latency: map[string][]LatencySample{},
+		wake:    make(chan struct{}, 1),
 	}
 }
 
@@ -119,6 +123,36 @@ func (m *Monitor) Statuses() map[string]DeviceStatus {
 		out[k] = v
 	}
 	return out
+}
+
+// Latency renvoie une copie des mesures de latence d'un PC prises depuis since (ms).
+func (m *Monitor) Latency(id string, since int64) []LatencySample {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []LatencySample
+	for _, s := range m.latency[id] {
+		if s.T >= since {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// SetLive désigne le PC affiché en détail (vide : aucun) : il est sondé toutes les secondes.
+func (m *Monitor) SetLive(id string) {
+	m.mu.Lock()
+	changed := m.live != id
+	m.live = id
+	m.mu.Unlock()
+	if changed && id != "" {
+		m.Refresh(id)
+	}
+}
+
+func (m *Monitor) isLive(id string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.live == id
 }
 
 // Refresh demande une vérification immédiate (tous les PC si id est vide).
@@ -219,6 +253,11 @@ func (m *Monitor) prune(devices []model.Device) {
 			changed = true
 		}
 	}
+	for id := range m.latency {
+		if !keep[id] {
+			delete(m.latency, id)
+		}
+	}
 	m.mu.Unlock()
 	if changed {
 		m.onChange()
@@ -247,10 +286,19 @@ func (m *Monitor) pollLoop(ctx context.Context, d model.Device, settings model.A
 			if ctx.Err() != nil {
 				return
 			}
-			st = m.apply(d.ID, func(t *Tracker) DeviceStatus { return t.OnProbe(result) })
+			st = m.apply(d.ID, func(t *Tracker) DeviceStatus {
+				// Verrou pris par apply : la mesure est enregistrée avec le nouvel état.
+				sample := LatencySample{T: m.clock()}
+				if result.Reachable {
+					ms := result.LatencyMs
+					sample.Ms = &ms
+				}
+				m.latency[d.ID] = AppendLatency(m.latency[d.ID], sample)
+				return t.OnProbe(result)
+			})
 		}
 		wait := interval
-		if st.State.IsTransitional() {
+		if st.State.IsTransitional() || m.isLive(d.ID) {
 			wait = min(interval, FastInterval)
 		}
 		timer := time.NewTimer(wait)

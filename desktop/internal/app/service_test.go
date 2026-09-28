@@ -4,24 +4,29 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/protocol"
 	"github.com/slaynaw/wakeonlan/desktop/internal/agentclient/agenttest"
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
+	"github.com/slaynaw/wakeonlan/desktop/internal/history"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 	"github.com/slaynaw/wakeonlan/desktop/internal/netstate"
 	"github.com/slaynaw/wakeonlan/desktop/internal/status"
 )
 
 type fakePlatform struct {
-	saved     []byte
-	cancel    bool
-	opened    []string
-	clipboard string
+	saved      []byte
+	cancel     bool
+	opened     []string
+	clipboard  string
+	relaunched atomic.Int32
 }
 
 func (f *fakePlatform) SaveFile(_ string, content []byte) (string, error) {
@@ -38,6 +43,11 @@ func (f *fakePlatform) OpenURL(url string) error {
 }
 
 func (f *fakePlatform) ReadClipboard() (string, error) { return f.clipboard, nil }
+
+func (f *fakePlatform) Relaunch() error {
+	f.relaunched.Add(1)
+	return nil
+}
 
 func newService(t *testing.T) (*Service, *fakePlatform) {
 	t.Helper()
@@ -228,4 +238,139 @@ func TestOpenURLWhitelistAndPairing(t *testing.T) {
 	if _, err := s.Call("inconnue", nil); err == nil {
 		t.Error("méthode inconnue acceptée")
 	}
+}
+
+func TestHistoryRecordingAndAgentJournal(t *testing.T) {
+	store, err := config.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	histDir := t.TempDir()
+	histStore, err := history.NewStore(histDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyText, _ := protocol.NewKey()
+	agent, err := agenttest.Start(model.DecodeAgentKey(keyText), agenttest.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer agent.Close()
+	bootAt := time.Now().Add(-2 * time.Hour).Unix()
+	agent.SetHistory(&protocol.History{From: bootAt - 3600, Events: []protocol.HistoryEvent{{T: bootAt, K: protocol.HistoryBoot}}})
+
+	var reachable atomic.Bool
+	lan := netstate.State{Interfaces: []netstate.Interface{{Name: "eth0", Transport: netstate.Ethernet,
+		Addresses: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/8")}, HasGateway: true}}}
+	s := New(Options{
+		Version: "test", Store: store, Platform: &fakePlatform{}, History: histStore,
+		Prober: status.ProberFunc(func(context.Context, model.Device) status.ProbeResult {
+			return status.ProbeResult{Reachable: reachable.Load(), LatencyMs: 1, Method: status.MethodTCP}
+		}),
+		NetState: func() (netstate.State, error) { return lan, nil },
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.Run(ctx)
+
+	form := model.NewForm()
+	form.Name, form.MAC, form.Host = "PC", "aa:bb:cc:dd:ee:01", "127.0.0.1"
+	form.AgentEnabled, form.AgentPort, form.AgentKey = true, strconv.Itoa(agent.Port()), keyText
+	id := call(t, s, "saveDevice", map[string]any{"form": form})["id"].(string)
+	waitState(t, s, id, status.Offline)
+
+	// Le PC s'allume : allumage constaté, puis lecture du journal de l'agent.
+	reachable.Store(true)
+	s.monitor.Refresh("")
+	waitState(t, s, id, status.Online)
+	kindsOf := func() []string {
+		h := call(t, s, "getHistory", map[string]any{"id": id})
+		var out []string
+		for _, e := range h["events"].([]any) {
+			ev := e.(map[string]any)
+			out = append(out, ev["kind"].(string)+"/"+ev["source"].(string))
+		}
+		return out
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for !slices.Contains(kindsOf(), "on/agent") && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	got := kindsOf()
+	// Le constat de l'application (couvert par le journal de l'agent) est masqué au profit de l'heure exacte.
+	if !slices.Contains(got, "on/agent") || slices.Contains(got, "on/app") {
+		t.Fatalf("historique après allumage : %v", got)
+	}
+	if r := call(t, s, "getHistory", map[string]any{"id": id}); r["agent"] != AgentHistoryOK || r["hasAgent"] != true {
+		t.Errorf("état du journal : %v", r)
+	}
+
+	// Extinction demandée depuis l'application, puis PC éteint.
+	if r := call(t, s, "power", map[string]any{"id": id, "action": "shutdown"}); r["ok"] != true {
+		t.Fatalf("extinction : %v", r)
+	}
+	reachable.Store(false)
+	deadline = time.Now().Add(5 * time.Second)
+	for !slices.Contains(kindsOf(), "off/app") && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	got = kindsOf()
+	if len(got) < 3 || got[0] != "off/app" || got[1] != "shutdown_req/app" {
+		t.Fatalf("historique après extinction : %v", got)
+	}
+	if s.State().HistoryVersion == 0 {
+		t.Error("version d'historique non incrémentée")
+	}
+
+	// Historique enregistré sur le disque, puis supprimé avec le PC.
+	if len(histStore.Load().Events) == 0 {
+		t.Error("historique non enregistré")
+	}
+	call(t, s, "deleteDevice", map[string]any{"id": id})
+	if h := call(t, s, "getHistory", nil); len(h["events"].([]any)) != 0 {
+		t.Errorf("historique d'un PC supprimé : %v", h)
+	}
+	call(t, s, "clearHistory", nil)
+}
+
+func TestLatencyInStateAndLive(t *testing.T) {
+	store, err := config.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var probes atomic.Int64
+	lan := netstate.State{Interfaces: []netstate.Interface{{Name: "eth0", Transport: netstate.Ethernet,
+		Addresses: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/8")}, HasGateway: true}}}
+	s := New(Options{
+		Version: "test", Store: store, Platform: &fakePlatform{},
+		Prober: status.ProberFunc(func(context.Context, model.Device) status.ProbeResult {
+			n := probes.Add(1)
+			if n == 2 {
+				return status.ProbeResult{} // une sonde sans réponse
+			}
+			return status.ProbeResult{Reachable: true, LatencyMs: n, Method: status.MethodTCP}
+		}),
+		NetState: func() (netstate.State, error) { return lan, nil },
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.Run(ctx)
+
+	form := model.NewForm()
+	form.Name, form.MAC, form.Host = "PC", "aa:bb:cc:dd:ee:01", "127.0.0.1"
+	id := call(t, s, "saveDevice", map[string]any{"form": form})["id"].(string)
+	waitState(t, s, id, status.Online)
+
+	// Affiché en détail : une mesure par seconde (l'intervalle normal est de 3 s).
+	call(t, s, "setLive", map[string]any{"id": id})
+	time.Sleep(2500 * time.Millisecond)
+	samples := call(t, s, "getState", nil)["devices"].([]any)[0].(map[string]any)["latency"].([]any)
+	if len(samples) < 3 {
+		t.Fatalf("mesures en direct attendues : %v", samples)
+	}
+	first, second := samples[0].(map[string]any), samples[1].(map[string]any)
+	if first["ms"] != float64(1) || second["ms"] != nil || first["t"].(float64) <= 0 {
+		t.Errorf("mesures : %v", samples)
+	}
+	call(t, s, "setLive", map[string]any{"id": ""})
 }

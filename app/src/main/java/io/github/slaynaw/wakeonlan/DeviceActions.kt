@@ -5,6 +5,7 @@ import io.github.slaynaw.wakeonlan.core.agent.AgentError
 import io.github.slaynaw.wakeonlan.core.agent.AgentResult
 import io.github.slaynaw.wakeonlan.core.agent.AgentStatus
 import io.github.slaynaw.wakeonlan.core.agent.PowerAction
+import io.github.slaynaw.wakeonlan.core.history.HistoryKind
 import io.github.slaynaw.wakeonlan.core.model.AgentSettings
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.model.DeviceValidator
@@ -17,19 +18,26 @@ import io.github.slaynaw.wakeonlan.network.LanNetworkMonitor
 import java.net.Inet4Address
 import java.net.InetAddress
 
-/** Actions utilisateur sur un terminal : réveil, extinction / redémarrage / veille, test de l'agent. */
+/**
+ * Actions utilisateur sur un terminal : réveil, extinction / redémarrage / veille, test de l'agent.
+ * Chaque demande envoyée est notée dans l'historique (avant le changement d'état qu'elle provoque).
+ */
 class DeviceActions(
     private val network: LanNetworkMonitor,
     private val sender: WakeOnLanSender,
     private val agentClient: AgentClient,
     private val monitor: StatusMonitor,
+    private val history: HistoryTracker,
 ) {
     suspend fun wake(device: Device): WakeResult {
         val forced = device.broadcastAddress?.let { InetAddress.getByName(it) as? Inet4Address }
         val targets = BroadcastAddresses.targets(forced, network.state.value.addresses)
         val password = device.secureOnPassword?.let(DeviceValidator::secureOnBytes)
         val result = sender.send(MagicPacket.build(device.mac, password), targets, listOf(device.wolPort))
-        if (result.success) monitor.onWakeSent(device.id)
+        if (result.success) {
+            history.record(device.id, HistoryKind.WAKE_SENT)
+            monitor.onWakeSent(device.id)
+        }
         return result
     }
 
@@ -37,7 +45,17 @@ class DeviceActions(
         val agent = device.agent?.takeIf { it.hasKey && device.hasHost }
             ?: return AgentResult.Failure(AgentError.NO_KEY)
         val result = agentClient.power(device.host, agent, action, force = force)
-        if (result is AgentResult.Success) monitor.onPowerActionSent(device.id, action)
+        if (result is AgentResult.Success) {
+            history.record(
+                device.id,
+                when (action) {
+                    PowerAction.SHUTDOWN -> HistoryKind.SHUTDOWN_SENT
+                    PowerAction.REBOOT -> HistoryKind.REBOOT_SENT
+                    PowerAction.SLEEP -> HistoryKind.SLEEP_SENT
+                },
+            )
+            monitor.onPowerActionSent(device.id, action)
+        }
         return result
     }
 

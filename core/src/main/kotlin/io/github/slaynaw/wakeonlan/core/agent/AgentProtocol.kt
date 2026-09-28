@@ -25,6 +25,9 @@ object AgentProtocol {
     const val CLIENT_NONCE_BYTES = 16
     const val MAX_LINE_BYTES = 8 * 1024
 
+    /** Taille maximale de la réponse à la commande `history` (journal de 30 jours). */
+    const val MAX_HISTORY_BYTES = 512 * 1024
+
     private val b64 = Base64.getUrlEncoder().withoutPadding()
     private val b64Decoder = Base64.getUrlDecoder()
 
@@ -69,6 +72,20 @@ data class AgentStatus(
     @SerialName("uptime") val uptimeSeconds: Long = 0,
 )
 
+/**
+ * Journal du PC renvoyé par la commande `history` : 30 jours au plus, heures en secondes (Unix).
+ * [from] : début de la période couverte (installation de l'agent, ou 30 jours).
+ */
+@Serializable
+data class AgentHistory(val from: Long = 0, val events: List<AgentHistoryEvent> = emptyList())
+
+/**
+ * Évènement du journal : [t] heure (s), [k] type (`boot`, `shutdown`, `lost`, `sleep`, `resume`,
+ * `cmd`), [a] action d'une commande reçue, [c] adresse de l'appareil qui l'a envoyée.
+ */
+@Serializable
+data class AgentHistoryEvent(val t: Long, val k: String, val a: String? = null, val c: String? = null)
+
 @Serializable
 internal data class HelloMessage(val proto: String, val nonce: String)
 
@@ -99,6 +116,7 @@ internal data class ResponseBody(
     val arch: String = "",
     val version: String = "",
     val uptime: Long = 0,
+    val history: AgentHistory? = null,
 ) {
     fun toStatus() = AgentStatus(hostname, os, arch, version, uptime)
 }

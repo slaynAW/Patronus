@@ -302,3 +302,61 @@ func TestMonitorFastDuringTransition(t *testing.T) {
 		t.Errorf("une sonde par seconde pendant le réveil attendue (%d)", n)
 	}
 }
+
+func TestMonitorLatencyAndLive(t *testing.T) {
+	prober := &fakeProber{}
+	m := NewMonitor(prober, nil, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go m.Run(ctx)
+	cfg := model.NewConfig()
+	cfg.Settings.PollIntervalSeconds = 60
+	cfg.Devices = []model.Device{device(nil, "10.0.0.2", nil)}
+	m.Update(cfg, Availability{CanProbe: true}, true)
+	waitFor(t, "première sonde", func() bool { return len(m.Latency("x", 0)) == 1 })
+	if s := m.Latency("x", 0)[0]; s.Ms != nil {
+		t.Errorf("sonde sans réponse : latence nulle attendue (%v)", *s.Ms)
+	}
+
+	prober.reachable.Store(true)
+	m.SetLive("x")
+	waitFor(t, "sonde immédiate à l'ouverture du détail", func() bool { return len(m.Latency("x", 0)) == 2 })
+	if s := m.Latency("x", 0)[1]; s.Ms == nil || *s.Ms != 3 {
+		t.Errorf("latence mesurée attendue : %+v", s)
+	}
+	start := prober.probes.Load()
+	time.Sleep(2500 * time.Millisecond)
+	if n := prober.probes.Load() - start; n < 2 {
+		t.Errorf("une sonde par seconde pour le PC affiché en détail attendue (%d)", n)
+	}
+	m.SetLive("")
+	time.Sleep(1200 * time.Millisecond)
+	before := prober.probes.Load()
+	time.Sleep(1500 * time.Millisecond)
+	if n := prober.probes.Load() - before; n != 0 {
+		t.Errorf("retour à l'intervalle normal attendu (%d sondes)", n)
+	}
+	if got := m.Latency("x", m.Latency("x", 0)[1].T); len(got) == 0 || got[0].T < m.Latency("x", 0)[1].T {
+		t.Error("filtre par date")
+	}
+
+	m.Update(model.NewConfig(), Availability{CanProbe: true}, true)
+	waitFor(t, "mesures du PC supprimé oubliées", func() bool { return len(m.Latency("x", 0)) == 0 })
+}
+
+func TestAppendLatency(t *testing.T) {
+	var samples []LatencySample
+	for i := range 601 {
+		ms := int64(i)
+		samples = AppendLatency(samples, LatencySample{T: int64(i) * 1000, Ms: &ms})
+	}
+	if len(samples) != 301 || samples[0].T != 300_000 {
+		t.Fatalf("fenêtre de 5 minutes : %d relevés, premier à %d", len(samples), samples[0].T)
+	}
+	for i := range 500 {
+		samples = AppendLatency(samples, LatencySample{T: 600_000 + int64(i)})
+	}
+	if len(samples) != LatencyMaxSamples {
+		t.Errorf("nombre borné attendu : %d", len(samples))
+	}
+}

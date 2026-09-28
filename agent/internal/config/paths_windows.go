@@ -27,3 +27,13 @@ func restrictPermissions(path string) error {
 		"/grant:r", "*S-1-5-32-544:F", // Administrateurs
 	).Run()
 }
+
+// restrictDirPermissions réserve le dossier (et ce qui y sera créé : journal, signe de vie) à SYSTEM
+// et aux Administrateurs.
+func restrictDirPermissions(dir string) error {
+	icacls := filepath.Join(os.Getenv("SystemRoot"), "System32", "icacls.exe")
+	return exec.Command(icacls, dir, "/inheritance:r",
+		"/grant:r", "*S-1-5-18:(OI)(CI)F", // SYSTEM
+		"/grant:r", "*S-1-5-32-544:(OI)(CI)F", // Administrateurs
+	).Run()
+}

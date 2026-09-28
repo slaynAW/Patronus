@@ -147,11 +147,19 @@ func Save(path string, c *Config) error {
 		_ = os.Remove(tmp)
 		return err
 	}
-	return applyPermissions(path)
+	if err := applyPermissions(path); err != nil {
+		return err
+	}
+	// Journal et signe de vie sont créés dans ce dossier par le service : ils héritent de ses droits.
+	return applyDirPermissions(filepath.Dir(path))
 }
 
-// applyPermissions est remplaçable dans les tests (les ACL Windows dépendent de l'environnement).
-var applyPermissions = restrictPermissions
+// applyPermissions et applyDirPermissions sont remplaçables dans les tests (les ACL Windows
+// dépendent de l'environnement).
+var (
+	applyPermissions    = restrictPermissions
+	applyDirPermissions = restrictDirPermissions
+)
 
 func contains(list []string, value string) bool {
 	for _, v := range list {

@@ -15,6 +15,12 @@ jobs:
   generate:
     runs-on: ubuntu-latest
     steps:
+      # Dépôt public : les artefacts sont téléchargeables par tous, la clé serait exposée.
+      - name: Refus sur un dépôt public
+        if: ${{ !github.event.repository.private }}
+        run: |
+          echo "::error title=Clé de signature::Le dépôt est public : la clé serait téléchargeable par tous dans l'artefact. Créez-la sur votre ordinateur (docs/SIGNATURE.md)."
+          exit 1
       - uses: actions/setup-java@v5
         with:
           distribution: temurin

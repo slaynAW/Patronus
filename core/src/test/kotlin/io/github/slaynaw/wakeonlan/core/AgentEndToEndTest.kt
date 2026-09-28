@@ -29,6 +29,13 @@ class AgentEndToEndTest {
 
         val power = AgentClient().power("127.0.0.1", settings, PowerAction.SHUTDOWN, delaySeconds = 0)
         assertTrue(power is AgentResult.Success, "$power")
+
+        // Journal de l'agent : son démarrage et la commande reçue y figurent.
+        val history = AgentClient().history("127.0.0.1", settings)
+        assertTrue(history is AgentResult.Success, "$history")
+        val events = (history as AgentResult.Success).value.events
+        assertTrue(events.any { it.k == "boot" }, "$events")
+        assertTrue(events.any { it.k == "cmd" && it.a == "shutdown" }, "$events")
     }
 
     @Test

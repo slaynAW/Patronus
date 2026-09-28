@@ -2,6 +2,8 @@ package io.github.slaynaw.wakeonlan.core
 
 import io.github.slaynaw.wakeonlan.core.agent.AgentClient
 import io.github.slaynaw.wakeonlan.core.agent.AgentError
+import io.github.slaynaw.wakeonlan.core.agent.AgentHistory
+import io.github.slaynaw.wakeonlan.core.agent.AgentHistoryEvent
 import io.github.slaynaw.wakeonlan.core.agent.AgentKey
 import io.github.slaynaw.wakeonlan.core.agent.AgentProtocol
 import io.github.slaynaw.wakeonlan.core.agent.AgentResult
@@ -41,6 +43,22 @@ class AgentProtocolTest {
         assertEquals(32, keyBytes.size)
         assertEquals(null, AgentKey.decodeOrNull("trop-court"))
         assertEquals(key, AgentKey.encode(AgentKey.decode(" $key= ")))
+    }
+
+    @Test
+    fun `journal de l'agent, meme volumineux`() = runBlocking {
+        FakeAgentServer(keyBytes).use { server ->
+            val settings = AgentSettings(port = server.port, key = key)
+            // Agent trop ancien : la commande est refusée.
+            val old = AgentClient().history("127.0.0.1", settings)
+            assertEquals(AgentError.REJECTED, (old as AgentResult.Failure).error)
+            // Journal plus grand qu'un message ordinaire.
+            val events = List(1500) { AgentHistoryEvent(1_790_000_000L + it * 60, "cmd", "sleep", "192.168.100.100") }
+            server.history = AgentHistory(from = 1_789_000_000, events = events)
+            val result = AgentClient().history("127.0.0.1", settings)
+            assertTrue(result is AgentResult.Success, "$result")
+            assertEquals(server.history, (result as AgentResult.Success).value)
+        }
     }
 
     @Test

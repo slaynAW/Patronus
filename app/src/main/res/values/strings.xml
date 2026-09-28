@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Wake On LAN</string>
 
     <!-- Commun -->
@@ -9,6 +9,11 @@
     <string name="back">Retour</string>
     <string name="show">Afficher</string>
     <string name="hide">Masquer</string>
+
+    <!-- Navigation -->
+    <string name="tab_overview">Vue d’ensemble</string>
+    <string name="tab_devices">Appareils</string>
+    <string name="tab_settings">Réglages</string>
 
     <!-- Actions -->
     <string name="action_add_device">Ajouter un PC</string>
@@ -20,6 +25,7 @@
     <string name="action_shutdown">Éteindre</string>
     <string name="action_reboot">Redémarrer</string>
     <string name="action_sleep">Mettre en veille</string>
+    <string name="action_sleep_short">Veille</string>
     <string name="action_edit">Modifier</string>
     <string name="action_move_up">Monter</string>
     <string name="action_move_down">Descendre</string>
@@ -38,7 +44,9 @@
     <string name="state_online">Allumé</string>
     <string name="state_offline">Éteint</string>
     <string name="state_offline_seen">Éteint · vu il y a %1$s</string>
+    <string name="state_offline_ago">Éteint · il y a %1$s</string>
     <string name="state_unknown">État inconnu</string>
+    <string name="state_unknown_short">Inconnu</string>
     <string name="state_checking">Vérification…</string>
     <string name="state_waking">Démarrage en cours… %1$s</string>
     <string name="state_waking_short">Démarrage en cours</string>
@@ -46,6 +54,9 @@
     <string name="state_shutting_down_short">Arrêt en cours</string>
     <string name="state_restarting">Redémarrage en cours… %1$s</string>
     <string name="state_restarting_short">Redémarrage en cours</string>
+    <string name="state_waking_compact">Démarrage… %1$s</string>
+    <string name="state_shutting_down_compact">Arrêt… %1$s</string>
+    <string name="state_restarting_compact">Redémarrage… %1$s</string>
     <string name="state_with_detail">%1$s · %2$s</string>
     <string name="latency_ms">%1$d ms</string>
     <string name="unknown_no_host">adresse IP non renseignée</string>
@@ -56,8 +67,13 @@
     <string name="duration_minutes">%1$d min</string>
     <string name="duration_hours">%1$d h</string>
     <string name="duration_days">%1$d j</string>
+    <string name="duration_hours_minutes">%1$d h %2$d min</string>
+    <string name="duration_days_hours">%1$d j %2$d h</string>
 
     <string name="agent_info">%1$s · %2$s · allumé depuis %3$s</string>
+    <string name="agent_authenticated">Authentifié · %1$s</string>
+    <string name="agent_not_configured">Non installé</string>
+    <string name="agent_configured">Configuré</string>
     <string name="agent_problem">Agent : %1$s</string>
     <string name="notice_wake_timeout">Aucune réponse après l’envoi du paquet magique. Vérifiez que le Wake-on-LAN est activé (BIOS/UEFI et carte réseau).</string>
     <string name="notice_shutdown_timeout">Le PC répond toujours après la demande d’arrêt (application bloquante ?). Essayez l’option « Forcer ».</string>
@@ -72,7 +88,14 @@
     <string name="agent_error_protocol">réponse invalide de l’agent</string>
     <string name="agent_error_rejected">commande refusée par le PC</string>
 
-    <!-- Liste des PC -->
+    <!-- Vue d'ensemble et liste des PC -->
+    <string name="summary_ratio">%1$d/%2$d</string>
+    <string name="summary_caption">allumés</string>
+    <string name="summary_on">Allumés</string>
+    <string name="summary_busy">En cours</string>
+    <string name="summary_off">Éteints</string>
+    <string name="summary_unknown">Inconnus</string>
+    <string name="devices_summary">%1$d PC · vérification toutes les %2$d s</string>
     <string name="empty_title">Aucun PC pour l’instant</string>
     <string name="empty_text">Ajoutez un PC à réveiller. Si l’agent est installé dessus, scannez simplement son QR code : tout est rempli automatiquement.</string>
     <string name="network_wifi">Wi-Fi</string>
@@ -95,6 +118,59 @@
     <string name="agent_help_title">Agent nécessaire</string>
     <string name="agent_help_text">Pour éteindre « %1$s » à distance, installez l’agent Wake On LAN sur ce PC puis appairez-le (QR code) dans sa fiche.</string>
 
+    <!-- Fiche d'un PC -->
+    <string name="detail_ip">Adresse IP</string>
+    <string name="detail_mac">Adresse MAC</string>
+    <string name="detail_hostname">Nom du PC</string>
+    <string name="detail_system">Système</string>
+    <string name="detail_uptime">Allumé depuis</string>
+    <string name="latency_title">Latence</string>
+    <string name="latency_live">En direct</string>
+    <string name="latency_via_agent">via l’agent</string>
+    <string name="latency_via_tcp">via TCP</string>
+    <string name="latency_via_ping">via ping</string>
+    <string name="latency_no_answer">Pas de réponse</string>
+    <string name="latency_not_measured">Non mesurée</string>
+    <string name="latency_waiting">Mesure en cours…</string>
+    <string name="latency_axis_start">il y a 1 min</string>
+    <string name="latency_axis_end">maintenant</string>
+    <string name="latency_min">Min</string>
+    <string name="latency_avg">Moyenne</string>
+    <string name="latency_max">Max</string>
+    <string name="latency_lost">Pertes</string>
+    <string name="latency_lost_value">%1$d/%2$d</string>
+    <string name="latency_description">Latence de la dernière minute : moyenne %1$s, maximum %2$s, sans réponse %3$d sur %4$d</string>
+    <string name="detail_agent">Agent</string>
+    <string name="detail_not_set">Non renseignée</string>
+    <string name="hint_no_agent">Pour éteindre, redémarrer ou mettre ce PC en veille depuis le téléphone, installez l’agent sur ce PC puis appairez-le (Modifier).</string>
+
+    <!-- Historique -->
+    <string name="history_title">Historique</string>
+    <string name="history_show_all">Tout afficher</string>
+    <string name="history_subtitle">Démarrages et extinctions · 30 derniers jours</string>
+    <string name="history_empty">Aucun évènement sur les 30 derniers jours.</string>
+    <string name="history_all_devices">Tous les PC</string>
+    <string name="history_refresh">Relire le journal des agents</string>
+    <string name="history_note_outdated">Mettez à jour l’agent de ce PC pour un historique complet, même quand l’application est fermée.</string>
+    <string name="history_note_no_agent">Sans agent, seuls les changements vus pendant que l’application est ouverte sont notés.</string>
+    <string name="history_sources">Heures relevées par l’agent de chaque PC ; « ≈ » : heure constatée par le téléphone.</string>
+    <string name="history_today">Aujourd’hui</string>
+    <string name="history_yesterday">Hier</string>
+    <string name="history_yesterday_at">hier %1$s</string>
+    <string name="history_by">par %1$s</string>
+    <string name="history_approx">≈ %1$s</string>
+    <string name="history_lost_help">Coupure de courant, arrêt forcé ou plantage : heure du dernier signe de vie.</string>
+    <string name="kind_on">Allumé</string>
+    <string name="kind_off">Éteint</string>
+    <string name="kind_lost">Arrêt inattendu</string>
+    <string name="kind_sleep">Mis en veille</string>
+    <string name="kind_resume">Sorti de veille</string>
+    <string name="kind_wake">Démarrage demandé</string>
+    <string name="kind_shutdown_req">Extinction demandée</string>
+    <string name="kind_reboot_req">Redémarrage demandé</string>
+    <string name="kind_sleep_req">Mise en veille demandée</string>
+    <string name="kind_wake_timeout">Pas de réponse au démarrage</string>
+
     <!-- Messages -->
     <string name="message_wake_sent">Paquet magique envoyé à « %1$s »</string>
     <string name="message_wake_error">Échec de l’envoi : %1$s</string>
@@ -105,6 +181,7 @@
     <string name="message_deleted">« %1$s » supprimé</string>
     <string name="message_export_done">Configuration exportée (PC : %1$d)</string>
     <string name="message_import_done">Configuration importée (PC : %1$d)</string>
+    <string name="message_history_cleared">Historique effacé</string>
     <string name="message_error">Erreur : %1$s</string>
 
     <!-- Rapport de plantage -->
@@ -151,7 +228,6 @@
     <string name="test_ok">Connexion réussie : %1$s (%2$s, agent %3$s)</string>
 
     <!-- Réglages -->
-    <string name="settings_title">Réglages</string>
     <string name="section_monitoring">Surveillance</string>
     <string name="setting_poll_interval">Vérifier l’état toutes les</string>
     <string name="setting_poll_interval_value">%1$d s</string>
@@ -166,7 +242,7 @@
     <string name="export_without_secrets">Sans les clés</string>
     <string name="export_without_secrets_help">Fichier lisible ; les agents devront être ré-appairés.</string>
     <string name="field_password">Mot de passe</string>
-    <string name="field_password_help">%1$d caractères minimum. Il ne pourra pas être récupéré.</string>
+    <string name="field_password_help" tools:ignore="PluralsCandidate">%1$d caractères minimum. Il ne pourra pas être récupéré.</string>
     <string name="field_password_confirm">Confirmer le mot de passe</string>
     <string name="import_password_title">Sauvegarde protégée</string>
     <string name="import_wrong_password">Mot de passe incorrect</string>
@@ -175,12 +251,43 @@
     <string name="import_missing_keys">Cette sauvegarde ne contient pas les clés des agents : il faudra ré-appairer les PC concernés.</string>
     <string name="import_replace">Remplacer</string>
     <string name="import_merge">Fusionner</string>
+    <string name="section_history">Historique</string>
+    <string name="history_open">Afficher l’historique</string>
+    <string name="history_open_help">Démarrages, extinctions et mises en veille des 30 derniers jours</string>
+    <string name="history_clear">Effacer l’historique</string>
+    <string name="history_clear_help">Efface les évènements notés par le téléphone. Le journal tenu par l’agent de chaque PC est conservé.</string>
+    <string name="history_clear_title">Effacer l’historique ?</string>
+    <string name="history_clear_text">Les évènements notés par le téléphone seront supprimés. Le journal tenu par l’agent de chaque PC n’est pas modifié : il sera relu à la prochaine connexion.</string>
+    <string name="history_clear_action">Effacer</string>
     <string name="section_agent_download">Agent pour PC</string>
     <string name="agent_download">Télécharger l’agent</string>
-    <string name="agent_download_help">Windows, Linux et macOS. Nécessaire uniquement pour éteindre à distance.</string>
+    <string name="agent_download_help">Windows, Linux et macOS. Nécessaire uniquement pour éteindre à distance et pour l’historique complet.</string>
     <string name="section_about">À propos</string>
     <string name="about_version">Version</string>
     <string name="about_source">Code source</string>
     <string name="about_security">Sécurité</string>
-    <string name="about_security_text">Configuration chiffrée sur le téléphone (Keystore Android), aucune donnée envoyée sur Internet, commandes d’extinction authentifiées (HMAC-SHA256) et protégées contre le rejeu.</string>
+    <string name="about_security_text">Configuration et historique chiffrés sur le téléphone (Keystore Android), aucune donnée personnelle envoyée sur Internet (seule la recherche de mises à jour contacte GitHub), commandes d’extinction authentifiées (HMAC-SHA256) et protégées contre le rejeu.</string>
+
+    <!-- Mises à jour intégrées -->
+    <string name="section_updates">Mises à jour</string>
+    <string name="update_title">Mise à jour disponible</string>
+    <string name="update_meta_version">Version %1$s</string>
+    <string name="update_meta_size">%1$s Mo</string>
+    <string name="update_keep_data">Vos PC, vos réglages et l’historique sont conservés.</string>
+    <string name="update_later">Plus tard</string>
+    <string name="update_install">Mettre à jour</string>
+    <string name="update_retry">Réessayer</string>
+    <string name="update_downloading">Téléchargement… %1$d %%</string>
+    <string name="update_installing">Installation… Android peut vous demander de confirmer.</string>
+    <string name="update_check">Rechercher une mise à jour</string>
+    <string name="update_checking">Recherche en cours…</string>
+    <string name="update_available">Version %1$s disponible : voir les nouveautés</string>
+    <string name="update_up_to_date">Vous avez la dernière version.</string>
+    <string name="update_last_check">À jour · dernière vérification il y a %1$s</string>
+    <string name="update_never">Aucune vérification pour l’instant.</string>
+    <string name="update_auto">Rechercher automatiquement</string>
+    <string name="update_auto_help">À l’ouverture, au plus toutes les 12 h, sur GitHub. Rien n’est installé sans votre accord.</string>
+    <string name="update_disabled">Indisponible pour cette version (non signée avec la clé officielle) : téléchargez les versions sur GitHub.</string>
+    <string name="about_fonts">Polices</string>
+    <string name="about_fonts_text">Inter et JetBrains Mono, sous licence SIL Open Font License 1.1.</string>
 </resources>

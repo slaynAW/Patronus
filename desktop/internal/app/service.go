@@ -9,12 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/slaynaw/wakeonlan/desktop/internal/agentclient"
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
+	"github.com/slaynaw/wakeonlan/desktop/internal/history"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 	"github.com/slaynaw/wakeonlan/desktop/internal/netstate"
 	"github.com/slaynaw/wakeonlan/desktop/internal/pairing"
@@ -38,6 +40,8 @@ type Platform interface {
 	SaveFile(suggestedName string, content []byte) (string, error)
 	OpenURL(url string) error
 	ReadClipboard() (string, error)
+	// Relaunch démarre la nouvelle version de l'application (déjà installée) puis ferme celle-ci.
+	Relaunch() error
 }
 
 // Options configure le service.
@@ -50,6 +54,12 @@ type Options struct {
 	NetState func() (netstate.State, error)
 	// NetPoll est l'intervalle de vérification du réseau local.
 	NetPoll time.Duration
+	// History enregistre l'historique (nil : en mémoire seulement, pour les tests).
+	History *history.Store
+	// Now est l'horloge (remplaçable pour les tests).
+	Now func() time.Time
+	// Updates active les mises à jour intégrées (nil : désactivées).
+	Updates *UpdateOptions
 }
 
 // Service est le cœur de l'application.
@@ -70,6 +80,19 @@ type Service struct {
 	startupMessage string
 	pendingImport  *importState
 	listener       func()
+
+	now func() time.Time
+	// Historique (verrou distinct : jamais pris en même temps que mu, toujours après statusMu).
+	histMu      sync.Mutex
+	histStore   *history.Store
+	hist        history.Data
+	histVersion int
+	agentFetch  map[string]*agentFetchState
+	// Dernier relevé d'états, pour détecter les allumages / extinctions.
+	statusMu     sync.Mutex
+	lastStatuses map[string]status.DeviceStatus
+	// Mises à jour intégrées (verrou propre).
+	updates *updater
 }
 
 type importState struct {
@@ -89,6 +112,17 @@ func New(opts Options) *Service {
 		windowActive: true,
 		pageVisible:  true,
 		listener:     func() {},
+		now:          opts.Now,
+		histStore:    opts.History,
+		hist:         history.New(),
+		agentFetch:   map[string]*agentFetchState{},
+	}
+	if s.now == nil {
+		s.now = time.Now
+	}
+	s.updates = newUpdater(opts.Updates, filepath.Dir(opts.Store.Path()), s.now)
+	if s.histStore != nil {
+		s.hist = s.histStore.Load()
 	}
 	if s.netState == nil {
 		s.netState = netstate.Current
@@ -100,7 +134,7 @@ func New(opts Options) *Service {
 	if prober == nil {
 		prober = status.NewHostProber()
 	}
-	s.monitor = status.NewMonitor(prober, nil, s.notify)
+	s.monitor = status.NewMonitor(prober, func() int64 { return s.now().UnixMilli() }, s.onStatusChange)
 	cfg, err := s.store.Load()
 	if err != nil {
 		s.startupMessage = "Erreur : " + err.Error()
@@ -127,6 +161,7 @@ func (s *Service) notify() {
 // Run lance la surveillance des PC et du réseau jusqu'à l'annulation de ctx.
 func (s *Service) Run(ctx context.Context) {
 	go s.monitor.Run(ctx)
+	go s.runUpdates(ctx)
 	s.updateMonitor()
 	ticker := time.NewTicker(s.netPoll)
 	defer ticker.Stop()
@@ -185,6 +220,10 @@ type UIState struct {
 	Devices        []DeviceView      `json:"devices"`
 	HasSecrets     bool              `json:"hasSecrets"`
 	StartupMessage string            `json:"startupMessage,omitempty"`
+	// HistoryVersion change à chaque modification de l'historique (l'interface le relit alors).
+	HistoryVersion int `json:"historyVersion"`
+	// Update : mises à jour intégrées (recherche, nouvelle version, installation en cours).
+	Update UpdateView `json:"update"`
 }
 
 // NetworkView décrit le réseau local.
@@ -204,14 +243,26 @@ type DeviceView struct {
 	HasAgent    bool                `json:"hasAgent"`
 	CanShutdown bool                `json:"canShutdown"`
 	Status      status.DeviceStatus `json:"status"`
+	// Latency contient les mesures récentes (latencyView), pour le tracé en direct.
+	Latency []status.LatencySample `json:"latency,omitempty"`
 }
+
+// latencyView est la durée des mesures de latence envoyées à l'interface : la minute tracée,
+// plus une marge pour le défilement.
+const latencyView = 75 * time.Second
 
 // State renvoie l'état courant.
 func (s *Service) State() UIState {
 	statuses := s.monitor.Statuses()
+	updateView := s.updates.snapshot()
+	s.histMu.Lock()
+	historyVersion := s.histVersion
+	s.histMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	st := UIState{
+		Update:         updateView,
+		HistoryVersion: historyVersion,
 		Version:        s.version,
 		Settings:       s.cfg.Settings,
 		Devices:        []DeviceView{},
@@ -222,6 +273,7 @@ func (s *Service) State() UIState {
 	if p, ok := s.network.Primary(); ok {
 		st.Network.Transport = string(p.Transport)
 	}
+	since := s.now().Add(-latencyView).UnixMilli()
 	for _, d := range s.cfg.Devices {
 		ds, ok := statuses[d.ID]
 		if !ok {
@@ -230,6 +282,7 @@ func (s *Service) State() UIState {
 		st.Devices = append(st.Devices, DeviceView{
 			ID: d.ID, Name: d.Name, MAC: d.MAC.String(), Host: d.Host,
 			HasAgent: d.Agent != nil, CanShutdown: d.CanShutdown(), Status: ds,
+			Latency: s.monitor.Latency(d.ID, since),
 		})
 	}
 	return st
@@ -256,10 +309,12 @@ func (s *Service) Call(method string, params json.RawMessage) (any, error) {
 		Replace    bool             `json:"replace"`
 		URL        string           `json:"url"`
 		Visible    bool             `json:"visible"`
+		Refresh    bool             `json:"refresh"`
 		Poll       *int             `json:"pollIntervalSeconds"`
 		WakeTO     *int             `json:"wakeTimeoutSeconds"`
 		Confirm    *bool            `json:"confirmPowerActions"`
 		WithSecret bool             `json:"withSecrets"`
+		Enabled    bool             `json:"enabled"`
 	}
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("paramètres invalides : %w", err)
@@ -283,6 +338,29 @@ func (s *Service) Call(method string, params json.RawMessage) (any, error) {
 		return nil, nil
 	case "refresh":
 		s.monitor.Refresh(p.ID)
+		return nil, nil
+	case "checkUpdate":
+		err := s.checkUpdate(context.Background())
+		return s.updates.snapshot(), err
+	case "installUpdate":
+		return nil, s.installUpdate()
+	case "postponeUpdate":
+		s.postponeUpdate()
+		return nil, nil
+	case "setAutoUpdate":
+		s.setAutoUpdate(p.Enabled)
+		return nil, nil
+	case "setLive":
+		// PC affiché en détail (vide : aucun) : sondé chaque seconde pour le tracé de latence.
+		s.monitor.SetLive(p.ID)
+		return nil, nil
+	case "getHistory":
+		if p.Refresh {
+			s.refreshAgentHistories(p.ID, true)
+		}
+		return s.historyView(p.ID), nil
+	case "clearHistory":
+		s.clearHistory()
 		return nil, nil
 	case "clearNotice":
 		s.monitor.ClearNotice(p.ID)
@@ -363,6 +441,11 @@ func (s *Service) mutate(f func(model.AppConfig) model.AppConfig) error {
 	if err != nil {
 		return err
 	}
+	ids := map[string]bool{}
+	for _, d := range next.Devices {
+		ids[d.ID] = true
+	}
+	s.keepHistory(ids)
 	s.updateMonitor()
 	s.notify()
 	return nil
@@ -428,6 +511,8 @@ func (s *Service) wake(id string) (any, error) {
 		}
 		return map[string]any{"ok": false, "error": msg}, nil
 	}
+	// Demande enregistrée avant le changement d'état : l'allumage constaté ne peut pas la précéder.
+	s.record(history.Event{Device: id, Kind: history.WakeSent, Source: history.App})
 	s.monitor.OnWakeSent(id)
 	return map[string]any{"ok": true, "result": result}, nil
 }
@@ -446,6 +531,7 @@ func (s *Service) power(id string, action agentclient.Action, force bool) (any, 
 	if _, err := s.agent.Power(context.Background(), d.Host, *d.Agent, action, 0, force); err != nil {
 		return map[string]any{"ok": false, "code": agentclient.CodeOf(err)}, nil
 	}
+	s.record(history.Event{Device: id, Kind: requestKind(action), Source: history.App})
 	s.monitor.OnPowerActionSent(id, action)
 	return map[string]any{"ok": true}, nil
 }

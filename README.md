@@ -5,12 +5,20 @@ depuis votre téléphone ou depuis un autre PC.
 
 - ⚡ **Démarrage** des PC par Wake-on-LAN (paquet magique), fiabilisé (envois répétés, bonne adresse de diffusion, bon réseau).
 - 🟢 **État en temps réel** de chaque PC : allumé / éteint / en cours de démarrage / en cours d'arrêt, avec latence et « vu il y a… ».
+- 📈 **Latence en direct façon électrocardiogramme** : sur la fiche d'un PC, la valeur actuelle et le tracé de la dernière
+  minute (une mesure par seconde), avec min / moyenne / max et sondes restées sans réponse ; mini-tracés dans les listes.
 - ⏻ **Extinction, redémarrage et mise en veille à distance** grâce à un petit agent à installer sur les PC (Windows, Linux, macOS).
-- 🔒 **Sécurisée** : configuration chiffrée sur le téléphone, commandes authentifiées et non rejouables, aucune donnée envoyée sur Internet.
+- 🕘 **Historique discret** des démarrages et extinctions sur 30 jours (complet grâce au journal de l'agent, même quand
+  l'application était fermée).
+- 🌙 **Style sombre et moderne**, identique sur Android et Windows : synthèse en anneau, plan du réseau, fiche de chaque PC.
+- 🔄 **Mises à jour intégrées** : les applications proposent les nouvelles versions avec leurs nouveautés et s'installent
+  en un clic, sans toucher aux PC enregistrés ni à l'historique ([docs/MISES-A-JOUR.md](docs/MISES-A-JOUR.md)).
+- 🔒 **Sécurisée** : configuration chiffrée sur le téléphone, commandes authentifiées et non rejouables, aucune donnée
+  personnelle envoyée sur Internet (seule la recherche de mises à jour, désactivable, contacte GitHub).
 - 💾 **Export / import** de la configuration (fichier chiffré par mot de passe si les clés sont incluses).
 - 📷 **Appairage par QR code** : l'agent affiche un QR code, l'application remplit tout (IP, MAC, clé).
-- 🖥️ **Application Windows** très légère (un seul `.exe` de 4 Mo, sans installation) : même interface, mêmes fonctions,
-  sauvegardes interchangeables avec le téléphone.
+- 🖥️ **Application Windows** très légère (un seul `.exe` d'environ 8 Mo, sans installation) : mêmes fonctions et même
+  style, sauvegardes interchangeables avec le téléphone.
 
 Conçue pour Android 8 à Android 17 (testée pour le Pixel 8a, prête pour les versions suivantes) et Windows 10 / 11.
 
@@ -35,14 +43,15 @@ Conçue pour Android 8 à Android 17 (testée pour le Pixel 8a, prête pour les 
 
 L'APK est produit automatiquement par GitHub à chaque modification du code.
 
-1. Sur le téléphone, ouvrez la page **[Releases](https://github.com/slaynAW/WakeOnLan/releases)** du dépôt (connecté à votre compte GitHub, le dépôt étant privé).
+1. Sur le téléphone, ouvrez la page **[Releases](https://github.com/slaynAW/WakeOnLan/releases)** du dépôt.
    - `dev` : dernière version de développement ;
    - `vX.Y.Z` : versions officielles.
 2. Téléchargez **`WakeOnLan-….apk`**.
 3. Ouvrez le fichier. Android demande d'**autoriser l'installation depuis le navigateur** : acceptez (une seule fois).
 4. Au premier lancement sous Android 17, acceptez l'autorisation **« Appareils à proximité / réseau local »** : sans elle, Android bloque tout accès au réseau local.
 
-> **Mises à jour** : installez simplement le nouvel APK par-dessus l'ancien. Cela fonctionne tant que les APK sont signés avec la même clé :
+> **Mises à jour** : à partir de la version 1.2.0, l'application les propose elle-même (*Mettre à jour*, voir
+> [docs/MISES-A-JOUR.md](docs/MISES-A-JOUR.md)). On peut aussi installer le nouvel APK par-dessus l'ancien. Cela fonctionne tant que les APK sont signés avec la même clé :
 > configurez une fois la clé de signature en suivant **[docs/SIGNATURE.md](docs/SIGNATURE.md)** (5 minutes). Sans cette étape, chaque build
 > est signé avec une clé temporaire et il faut désinstaller avant de réinstaller (pensez à exporter la configuration).
 
@@ -106,12 +115,23 @@ Commandes utiles : `wol-agent pair` (réafficher le QR code), `wol-agent status`
 
 ## 5. Utilisation
 
-- **Écran principal** : un voyant par PC — 🟢 allumé, 🔴 éteint, 🟠 (clignotant) démarrage / arrêt en cours, ⚪ inconnu (par exemple quand le téléphone n'est pas sur le Wi-Fi : l'application préfère « inconnu » à un faux « éteint »).
+- **Vue d'ensemble** : anneau de synthèse (allumés, en cours, éteints, inconnus) et un voyant par PC — 🟢 allumé, 🔴 éteint,
+  🟠 (clignotant) démarrage / arrêt en cours, ⚪ inconnu (par exemple quand le téléphone n'est pas sur le Wi-Fi : l'application
+  préfère « inconnu » à un faux « éteint »). Sur Windows, un **plan du réseau** relie chaque PC selon son état.
 - **Démarrer** : envoie le paquet magique ; le voyant passe en « Démarrage en cours… » avec un chronomètre, puis au vert dès que le PC répond.
-- **Éteindre / Redémarrer / Veille** : via le menu ⋮ ou le bouton de la carte (confirmation demandée, option « Forcer la fermeture des applications »).
+- **Éteindre / Redémarrer / Veille** : depuis la fiche du PC, le menu ⋯ ou le bouton de la liste (confirmation demandée,
+  option « Forcer la fermeture des applications »).
+- **Fiche d'un PC** : état, actions, **latence en direct** (valeur et tracé défilant de la dernière minute : le PC affiché
+  est vérifié chaque seconde ; les traits rouges marquent les sondes sans réponse), adresse IP / MAC, système,
+  « allumé depuis », agent, et un **historique discret**
+  des derniers évènements (*Tout afficher* : 30 jours, groupés par jour). « ≈ » signale une heure constatée par
+  l'application (à quelques secondes près) plutôt que relevée par l'agent ; « arrêt inattendu » : coupure de courant,
+  arrêt forcé ou plantage.
 - **Ajouter un PC** : QR code de l'agent, lien collé, ou saisie manuelle (nom + adresse MAC suffisent pour le démarrage ; ajoutez l'IP pour l'état en temps réel).
-- **Réglages** : fréquence de vérification (3 s par défaut), délai d'attente du démarrage, confirmation, **export / import**.
-- **Windows** : mêmes écrans ; **F5** actualise, un fichier de sauvegarde glissé dans la fenêtre est importé.
+- **Réglages** : fréquence de vérification (3 s par défaut), délai d'attente du démarrage, confirmation, **export / import**,
+  historique (affichage complet, effacement).
+- **Windows** : mêmes fonctions en grand écran (plan du réseau, tableau des appareils, panneau de détail) ; **F5** actualise,
+  un fichier de sauvegarde glissé dans la fenêtre est importé.
 
 ## 6. Comment ça marche
 
@@ -136,6 +156,8 @@ flowchart LR
 - **Réveil** : le paquet magique (6 × `FF` + 16 × l'adresse MAC) est envoyé 3 fois sur l'adresse de diffusion du sous-réseau **et** sur `255.255.255.255`, en forçant l'utilisation du Wi-Fi (même si Android préfère les données mobiles quand le Wi-Fi n'a pas Internet).
 - **État en temps réel** : toutes les 3 s (1 s pendant un démarrage / arrêt), plusieurs sondes sont lancées en parallèle : agent (authentifié), connexion TCP à des ports courants (une connexion *refusée* prouve aussi que le PC est allumé) et ping. Une machine à états avec **hystérésis** évite les faux « éteint » (2 échecs consécutifs requis). La surveillance s'arrête quand l'application n'est pas à l'écran (pas de consommation de batterie).
 - **Extinction** : l'agent reçoit une commande signée, répond, puis lance l'arrêt complet du système.
+- **Historique** : l'agent tient un journal local de 30 jours (démarrages, arrêts, veille, commandes reçues) que les
+  applications relisent ; elles y ajoutent leurs propres demandes et les changements qu'elles constatent.
 
 L'application Windows reprend exactement la même logique (réécrite en Go, avec les mêmes tests) et le même format
 de sauvegarde : des fichiers de référence produits par un outil indépendant sont relus par les tests des deux applications.
@@ -147,7 +169,7 @@ Détails : **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** et **[docs/PROTOCOLE
 | Menace | Protection |
 |---|---|
 | Vol / analyse du téléphone | Configuration chiffrée AES-256-GCM avec une clé du **Keystore Android** (matériel sécurisé, non exportable) ; sauvegarde cloud Android désactivée. |
-| Copie de la configuration sur le PC Windows | Fichier chiffré par **DPAPI** (lié à la session Windows) : illisible depuis un autre compte ou un autre PC. |
+| Copie de la configuration sur le PC Windows | Fichier chiffré par **DPAPI** (lié à la session Windows) : illisible depuis un autre compte ou un autre PC. L'historique est chiffré de la même façon sur les deux applications. |
 | Quelqu'un sur le réseau envoie une fausse commande | Chaque commande est signée **HMAC-SHA256** avec une clé de 256 bits propre à chaque PC ; la clé ne circule jamais. |
 | Rejeu d'une commande capturée | Défi aléatoire (nonce) à chaque connexion : une signature n'est valable qu'une fois. |
 | Faux agent qui ment sur l'état | Les réponses de l'agent sont elles aussi signées (authentification mutuelle). |
@@ -163,9 +185,9 @@ Détails et limites : **[docs/SECURITE.md](docs/SECURITE.md)**.
 ```
 ├── app/        Application Android (Kotlin, Jetpack Compose, Material 3)
 ├── core/       Logique métier en Kotlin pur, testée sur la JVM (paquet magique, protocole, états…)
-├── desktop/    Application Windows en Go + WebView2 (interface HTML identique à l'app Android)
+├── desktop/    Application Windows en Go + WebView2 (interface HTML au même style que l'app Android)
 ├── agent/      Agent PC en Go (binaire unique, sans dépendance)
-├── protocol/   Vecteurs de test partagés (protocole, paquet magique, sauvegardes)
+├── protocol/   Vecteurs de test partagés (protocole, paquet magique, sauvegardes, historique)
 ├── docs/       Documentation
 └── .github/    CI/CD GitHub Actions
 ```
@@ -182,7 +204,7 @@ Détails et limites : **[docs/SECURITE.md](docs/SECURITE.md)**.
 
 Versions : AGP 9.4, Kotlin 2.4, Gradle 9.7, compileSdk/targetSdk 37, minSdk 26, Go 1.26.
 Publier une version officielle : onglet **Actions → Build → Run workflow**, branche `main`, champ
-« Version officielle à publier » (ex. `1.1.0`). La CI crée le tag `v1.1.0` et la Release avec l'APK et les agents
+« Version officielle à publier » (ex. `1.2.0`). La CI crée le tag `v1.2.0` et la Release avec l'APK et les agents
 (pousser un tag `vX.Y.Z` fonctionne aussi). Sans numéro, le build met simplement à jour la pré-version `dev`.
 Chaque Release contient l'APK, l'application Windows (x64 et ARM64) et les agents.
 
@@ -200,6 +222,7 @@ tuile de réglages rapides, raccourcis, notifications, verrouillage biométrique
 | Le voyant est rouge alors que le PC est allumé | Sans agent, Windows bloque souvent le ping : installez l'agent, ou ajoutez un port ouvert (RDP 3389, SMB 445…) dans *Options avancées*. |
 | « agent arrêté sur le PC » | Le PC répond mais le service ne tourne pas : `wol-agent status`, ou relancez l'installation. |
 | « clé refusée par l'agent » | La clé a changé (`rotate-key`) : ré-appairez avec `wol-agent pair`. |
+| Historique : « Mettez à jour l'agent de ce PC… » | L'agent est antérieur à la version 1.2 : relancez l'installation avec la nouvelle version (configuration et clé conservées). |
 | Mise à jour de l'APK refusée | Signature différente : voir [docs/SIGNATURE.md](docs/SIGNATURE.md). |
 | Windows : « composant WebView2 introuvable » | Rare (Windows 10 non à jour) : acceptez l'ouverture de la page Microsoft et installez le composant. |
 | Windows : un PC reste « État inconnu · pas de réseau local » | Ce PC n'a ni carte Ethernet ni Wi-Fi connectée (les cartes de machines virtuelles sont ignorées). |

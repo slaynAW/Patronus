@@ -10,7 +10,10 @@ l'application fonctionne, mais pour installer une nouvelle version il faut d'abo
 
 ## Configurer la clé (une seule fois, ~5 minutes)
 
-### Option A — tout depuis GitHub (recommandé)
+> **Dépôt public** : utilisez l'option B. Les artefacts d'un dépôt public sont téléchargeables par tous ;
+> le workflow de l'option A refuse donc de s'exécuter dans ce cas.
+
+### Option A — tout depuis GitHub (dépôt privé uniquement)
 
 1. Sur GitHub, onglet **Actions** → workflow **« Créer une clé de signature »** → **Run workflow**.
    > Le workflow n'apparaît qu'une fois le code présent sur la branche principale (`main`).

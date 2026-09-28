@@ -6,19 +6,28 @@ package main
 
 import (
 	"embed"
+	"encoding/base64"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
-// version est fixée à la compilation : -ldflags "-X main.version=1.1.0".
-var version = "dev"
+// version et buildCode (numéro croissant de la CI, comparé pour les mises à jour) sont fixés à la
+// compilation : -ldflags "-X main.version=1.2.0 -X main.buildCode=42".
+var (
+	version   = "dev"
+	buildCode = "0"
+)
 
 //go:embed ui
 var uiFiles embed.FS
 
-// inlinedPage renvoie la page de l'interface avec sa feuille de style et son script intégrés
-// (une seule chaîne, affichée sans serveur ni fichier temporaire).
+// fontURL repère les polices de la feuille de style (dossier ui/fonts).
+var fontURL = regexp.MustCompile(`url\(fonts/([a-z0-9-]+\.woff2)\)`)
+
+// inlinedPage renvoie la page de l'interface avec sa feuille de style, ses polices et son script
+// intégrés (une seule chaîne, affichée sans serveur ni fichier temporaire).
 func inlinedPage() (string, error) {
 	read := func(name string) (string, error) {
 		b, err := uiFiles.ReadFile("ui/" + name)
@@ -32,6 +41,9 @@ func inlinedPage() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if css, err = inlineFonts(css); err != nil {
+		return "", err
+	}
 	js, err := read("app.js")
 	if err != nil {
 		return "", err
@@ -43,6 +55,20 @@ func inlinedPage() (string, error) {
 	}
 	page = strings.Replace(page, `<script src="app.js"></script>`, "<script>\n"+js+"</script>", 1)
 	return page, nil
+}
+
+// inlineFonts remplace les références aux polices par leur contenu (URL « data: »).
+func inlineFonts(css string) (string, error) {
+	var failed error
+	css = fontURL.ReplaceAllStringFunc(css, func(match string) string {
+		b, err := uiFiles.ReadFile("ui/fonts/" + fontURL.FindStringSubmatch(match)[1])
+		if err != nil {
+			failed = err
+			return match
+		}
+		return "url(data:font/woff2;base64," + base64.StdEncoding.EncodeToString(b) + ")"
+	})
+	return css, failed
 }
 
 // defaultDataDir renvoie le dossier de configuration (Windows : %APPDATA%\WakeOnLan), ou celui

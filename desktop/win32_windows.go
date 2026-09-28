@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -10,7 +11,6 @@ import (
 
 	webview2 "github.com/jchv/go-webview2"
 	"golang.org/x/sys/windows"
-	"golang.org/x/sys/windows/registry"
 
 	"github.com/slaynaw/wakeonlan/desktop/internal/app"
 )
@@ -128,9 +128,26 @@ func shellOpen(hwnd windows.HWND, url string) error {
 type winPlatform struct {
 	w    webview2.WebView
 	hwnd windows.HWND
+	// exe : programme en cours (relancé après une mise à jour).
+	exe string
 }
 
 func (p *winPlatform) OpenURL(url string) error { return shellOpen(p.hwnd, url) }
+
+// Relaunch démarre la nouvelle version (elle attend la fermeture de celle-ci pour prendre la main)
+// puis ferme la fenêtre.
+func (p *winPlatform) Relaunch() error {
+	if p.exe == "" {
+		return errors.New("emplacement de l'application inconnu")
+	}
+	cmd := exec.Command(p.exe, afterUpdateFlag)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	_ = cmd.Process.Release()
+	p.w.Dispatch(func() { p.w.Terminate() })
+	return nil
+}
 
 // SaveFile affiche la boîte « Enregistrer sous » (sur le fil de la fenêtre) puis écrit le fichier.
 func (p *winPlatform) SaveFile(suggestedName string, content []byte) (string, error) {
@@ -256,22 +273,22 @@ func (p *winPlatform) ReadClipboard() (string, error) {
 	return text, nil
 }
 
-// systemUsesDarkTheme lit le thème des applications choisi dans les paramètres de Windows.
-func systemUsesDarkTheme() bool {
-	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`, registry.QUERY_VALUE)
-	if err != nil {
-		return false
+// Attributs DWM de la barre de titre propres à Windows 11 (refusés, sans conséquence, par Windows 10).
+const (
+	dwmwaCaptionColor = 35
+	dwmwaTextColor    = 36
+)
+
+// setDarkTitleBar donne à la barre de titre le thème sombre de l'interface (Windows 10 20H1+) et,
+// sous Windows 11, la couleur de la barre de navigation (#161A1F, texte #E7E9EC).
+func setDarkTitleBar(hwnd windows.HWND) {
+	set := func(attribute uint32, value uint32) {
+		_ = windows.DwmSetWindowAttribute(hwnd, attribute, unsafe.Pointer(&value), uint32(unsafe.Sizeof(value)))
 	}
-	defer k.Close()
-	light, _, err := k.GetIntegerValue("AppsUseLightTheme")
-	return err == nil && light == 0
+	set(windows.DWMWA_USE_IMMERSIVE_DARK_MODE, 1)
+	set(dwmwaCaptionColor, colorRef(0x16, 0x1a, 0x1f))
+	set(dwmwaTextColor, colorRef(0xe7, 0xe9, 0xec))
 }
 
-// setDarkTitleBar accorde la barre de titre au thème de l'interface (Windows 10 20H1+ / 11).
-func setDarkTitleBar(hwnd windows.HWND, dark bool) {
-	var value uint32
-	if dark {
-		value = 1
-	}
-	_ = windows.DwmSetWindowAttribute(hwnd, windows.DWMWA_USE_IMMERSIVE_DARK_MODE, unsafe.Pointer(&value), uint32(unsafe.Sizeof(value)))
-}
+// colorRef code une couleur au format COLORREF de Windows (0x00BBGGRR).
+func colorRef(r, g, b uint32) uint32 { return b<<16 | g<<8 | r }

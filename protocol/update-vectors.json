@@ -1,0 +1,58 @@
+{
+  "_comment": "Vecteurs partagés (Go : desktop/internal/update, Kotlin : core/update). Clé de TEST uniquement : la clé réelle est la clé de signature de l’APK (secrets de la CI).",
+  "publicKey": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAt+OUhGOnZIUAsm4vzjMzwPsdkYszgOTKFnjoNnAer/uhiW+9QHERm9+mv/0sN741HAFHKKfvqjOysAIzR8Jldi1dJp1NCZn/ZO8Fr+UScnrJJIV5FmvI7ughBYtgaFmoobqHze6trXr8/xRs3RjQHrqQJkcdZ4+ZjWgLAWex+xaCPNF83ZzNkc+w6Nc3fG+XCbZnMBN6tRlIgTN0h5L/iDX1t2zfJ7Nhiw8NLrkz3T3XYWA+ZsfjOkiOyqJrokMOwAEebjvyKEkUrQQhy2LutTUQ79tYG3CXYT9GpzyemabtrrPjH0kRBeFF3S0WyeYnXyQZUE0Rml8CukdIeFW+GwIDAQAB",
+  "manifest": "{\n  \"format\": 1,\n  \"version\": \"1.3.0\",\n  \"code\": 57,\n  \"date\": \"2026-10-04\",\n  \"notes\": \"### Nouveautés\\n- Mise à jour depuis l’application.\\n- Latence en direct.\\n\\n### Corrections\\n- Démarrage plus rapide.\",\n  \"files\": [\n    {\"platform\": \"android\", \"name\": \"WakeOnLan-1.3.0.apk\", \"size\": 2386450, \"sha256\": \"d284e2b1a353ea88032d4770c4e2d73b2ac8d3b1436021d8ccf7c493e2f1bb1e\"},\n    {\"platform\": \"windows-amd64\", \"name\": \"WakeOnLan-Windows-1.3.0-x64.exe\", \"size\": 4305408, \"sha256\": \"5ae09224fc0eb93d63d8e76fda8f36ab0d8a7b3a88af9151dcb8de78a3d8dd0f\"},\n    {\"platform\": \"windows-arm64\", \"name\": \"WakeOnLan-Windows-1.3.0-arm64.exe\", \"size\": 3997696, \"sha256\": \"3ebce35a8eb27ca4f3df0bb241e0e74159c1c1f26c2ddd27842529f3f7a31cf5\"}\n  ]\n}\n",
+  "signature": "BUTpiDcoV0XMDGuEQv6MGyFZi7oHsFvQomS7CpmdnECZrh1mKCs1sP9baAHx8KBs4vEGJfmQU5f6g7/6J4DQd9mMRvXg6cv8L5xDGPrQlK1pSK0hPyszOsx2Yqnyt8SCVv+3Y2Rafhsrv2HWX6PPxudGwMsqvoNoCc3l6tvMePgEeySQvPB9yZMXb3AeOiZqqhT7+wKIZ3h47/EsmEXprGTJXI69INdyY9DxsgipU5fYIBk6GAmvJnA9lZr0nLna3+8ZD+10P5EixdvJcr1AcUs7HTFp/mUV+lxtW0+T2KEuOmXcJxOF0AncHJJVpyF16RBXFEjXOwTcCU5P0DRBLw==",
+  "tamperedManifest": "{\n  \"format\": 1,\n  \"version\": \"1.3.0\",\n  \"code\": 58,\n  \"date\": \"2026-10-04\",\n  \"notes\": \"### Nouveautés\\n- Mise à jour depuis l’application.\\n- Latence en direct.\\n\\n### Corrections\\n- Démarrage plus rapide.\",\n  \"files\": [\n    {\"platform\": \"android\", \"name\": \"WakeOnLan-1.3.0.apk\", \"size\": 2386450, \"sha256\": \"d284e2b1a353ea88032d4770c4e2d73b2ac8d3b1436021d8ccf7c493e2f1bb1e\"},\n    {\"platform\": \"windows-amd64\", \"name\": \"WakeOnLan-Windows-1.3.0-x64.exe\", \"size\": 4305408, \"sha256\": \"5ae09224fc0eb93d63d8e76fda8f36ab0d8a7b3a88af9151dcb8de78a3d8dd0f\"},\n    {\"platform\": \"windows-arm64\", \"name\": \"WakeOnLan-Windows-1.3.0-arm64.exe\", \"size\": 3997696, \"sha256\": \"3ebce35a8eb27ca4f3df0bb241e0e74159c1c1f26c2ddd27842529f3f7a31cf5\"}\n  ]\n}\n",
+  "expected": {
+    "version": "1.3.0",
+    "code": 57,
+    "date": "2026-10-04",
+    "platforms": [
+      "android",
+      "windows-amd64",
+      "windows-arm64"
+    ],
+    "android": {
+      "platform": "android",
+      "name": "WakeOnLan-1.3.0.apk",
+      "size": 2386450,
+      "sha256": "d284e2b1a353ea88032d4770c4e2d73b2ac8d3b1436021d8ccf7c493e2f1bb1e"
+    },
+    "url": "https://github.com/slaynAW/WakeOnLan/releases/download/v1.3.0/WakeOnLan-1.3.0.apk"
+  },
+  "invalid": [
+    {
+      "reason": "format inconnu",
+      "manifest": "{\"format\": 2, \"version\": \"1.3.0\", \"code\": 57, \"date\": \"2026-10-04\", \"notes\": \"### Nouveautés\\n- Mise à jour depuis l’application.\\n- Latence en direct.\\n\\n### Corrections\\n- Démarrage plus rapide.\", \"files\": [{\"platform\": \"android\", \"name\": \"WakeOnLan-1.3.0.apk\", \"size\": 2386450, \"sha256\": \"d284e2b1a353ea88032d4770c4e2d73b2ac8d3b1436021d8ccf7c493e2f1bb1e\"}, {\"platform\": \"windows-amd64\", \"name\": \"WakeOnLan-Windows-1.3.0-x64.exe\", \"size\": 4305408, \"sha256\": \"5ae09224fc0eb93d63d8e76fda8f36ab0d8a7b3a88af9151dcb8de78a3d8dd0f\"}, {\"platform\": \"windows-arm64\", \"name\": \"WakeOnLan-Windows-1.3.0-arm64.exe\", \"size\": 3997696, \"sha256\": \"3ebce35a8eb27ca4f3df0bb241e0e74159c1c1f26c2ddd27842529f3f7a31cf5\"}]}"
+    },
+    {
+      "reason": "numéro de version invalide",
+      "manifest": "{\"format\": 1, \"version\": \"1.3\", \"code\": 57, \"date\": \"2026-10-04\", \"notes\": \"### Nouveautés\\n- Mise à jour depuis l’application.\\n- Latence en direct.\\n\\n### Corrections\\n- Démarrage plus rapide.\", \"files\": [{\"platform\": \"android\", \"name\": \"WakeOnLan-1.3.0.apk\", \"size\": 2386450, \"sha256\": \"d284e2b1a353ea88032d4770c4e2d73b2ac8d3b1436021d8ccf7c493e2f1bb1e\"}, {\"platform\": \"windows-amd64\", \"name\": \"WakeOnLan-Windows-1.3.0-x64.exe\", \"size\": 4305408, \"sha256\": \"5ae09224fc0eb93d63d8e76fda8f36ab0d8a7b3a88af9151dcb8de78a3d8dd0f\"}, {\"platform\": \"windows-arm64\", \"name\": \"WakeOnLan-Windows-1.3.0-arm64.exe\", \"size\": 3997696, \"sha256\": \"3ebce35a8eb27ca4f3df0bb241e0e74159c1c1f26c2ddd27842529f3f7a31cf5\"}]}"
+    },
+    {
+      "reason": "code de version nul",
+      "manifest": "{\"format\": 1, \"version\": \"1.3.0\", \"code\": 0, \"date\": \"2026-10-04\", \"notes\": \"### Nouveautés\\n- Mise à jour depuis l’application.\\n- Latence en direct.\\n\\n### Corrections\\n- Démarrage plus rapide.\", \"files\": [{\"platform\": \"android\", \"name\": \"WakeOnLan-1.3.0.apk\", \"size\": 2386450, \"sha256\": \"d284e2b1a353ea88032d4770c4e2d73b2ac8d3b1436021d8ccf7c493e2f1bb1e\"}, {\"platform\": \"windows-amd64\", \"name\": \"WakeOnLan-Windows-1.3.0-x64.exe\", \"size\": 4305408, \"sha256\": \"5ae09224fc0eb93d63d8e76fda8f36ab0d8a7b3a88af9151dcb8de78a3d8dd0f\"}, {\"platform\": \"windows-arm64\", \"name\": \"WakeOnLan-Windows-1.3.0-arm64.exe\", \"size\": 3997696, \"sha256\": \"3ebce35a8eb27ca4f3df0bb241e0e74159c1c1f26c2ddd27842529f3f7a31cf5\"}]}"
+    },
+    {
+      "reason": "nom de fichier dangereux",
+      "manifest": "{\"format\": 1, \"version\": \"1.3.0\", \"code\": 57, \"date\": \"2026-10-04\", \"notes\": \"### Nouveautés\\n- Mise à jour depuis l’application.\\n- Latence en direct.\\n\\n### Corrections\\n- Démarrage plus rapide.\", \"files\": [{\"platform\": \"android\", \"name\": \"../WakeOnLan.apk\", \"size\": 2386450, \"sha256\": \"d284e2b1a353ea88032d4770c4e2d73b2ac8d3b1436021d8ccf7c493e2f1bb1e\"}, {\"platform\": \"windows-amd64\", \"name\": \"WakeOnLan-Windows-1.3.0-x64.exe\", \"size\": 4305408, \"sha256\": \"5ae09224fc0eb93d63d8e76fda8f36ab0d8a7b3a88af9151dcb8de78a3d8dd0f\"}, {\"platform\": \"windows-arm64\", \"name\": \"WakeOnLan-Windows-1.3.0-arm64.exe\", \"size\": 3997696, \"sha256\": \"3ebce35a8eb27ca4f3df0bb241e0e74159c1c1f26c2ddd27842529f3f7a31cf5\"}]}"
+    },
+    {
+      "reason": "empreinte invalide",
+      "manifest": "{\"format\": 1, \"version\": \"1.3.0\", \"code\": 57, \"date\": \"2026-10-04\", \"notes\": \"### Nouveautés\\n- Mise à jour depuis l’application.\\n- Latence en direct.\\n\\n### Corrections\\n- Démarrage plus rapide.\", \"files\": [{\"platform\": \"android\", \"name\": \"WakeOnLan-1.3.0.apk\", \"size\": 2386450, \"sha256\": \"d284e2b1a353ea88032d4770c4e2d73b2ac8d3b1436021d8ccf7c493e2f1bb1e\"}, {\"platform\": \"windows-amd64\", \"name\": \"WakeOnLan-Windows-1.3.0-x64.exe\", \"size\": 4305408, \"sha256\": \"xyz\"}, {\"platform\": \"windows-arm64\", \"name\": \"WakeOnLan-Windows-1.3.0-arm64.exe\", \"size\": 3997696, \"sha256\": \"3ebce35a8eb27ca4f3df0bb241e0e74159c1c1f26c2ddd27842529f3f7a31cf5\"}]}"
+    },
+    {
+      "reason": "taille excessive",
+      "manifest": "{\"format\": 1, \"version\": \"1.3.0\", \"code\": 57, \"date\": \"2026-10-04\", \"notes\": \"### Nouveautés\\n- Mise à jour depuis l’application.\\n- Latence en direct.\\n\\n### Corrections\\n- Démarrage plus rapide.\", \"files\": [{\"platform\": \"android\", \"name\": \"WakeOnLan-1.3.0.apk\", \"size\": 2386450, \"sha256\": \"d284e2b1a353ea88032d4770c4e2d73b2ac8d3b1436021d8ccf7c493e2f1bb1e\"}, {\"platform\": \"windows-amd64\", \"name\": \"WakeOnLan-Windows-1.3.0-x64.exe\", \"size\": 4305408, \"sha256\": \"5ae09224fc0eb93d63d8e76fda8f36ab0d8a7b3a88af9151dcb8de78a3d8dd0f\"}, {\"platform\": \"windows-arm64\", \"name\": \"WakeOnLan-Windows-1.3.0-arm64.exe\", \"size\": 209715200, \"sha256\": \"3ebce35a8eb27ca4f3df0bb241e0e74159c1c1f26c2ddd27842529f3f7a31cf5\"}]}"
+    },
+    {
+      "reason": "taille nulle",
+      "manifest": "{\"format\": 1, \"version\": \"1.3.0\", \"code\": 57, \"date\": \"2026-10-04\", \"notes\": \"### Nouveautés\\n- Mise à jour depuis l’application.\\n- Latence en direct.\\n\\n### Corrections\\n- Démarrage plus rapide.\", \"files\": [{\"platform\": \"android\", \"name\": \"WakeOnLan-1.3.0.apk\", \"size\": 2386450, \"sha256\": \"d284e2b1a353ea88032d4770c4e2d73b2ac8d3b1436021d8ccf7c493e2f1bb1e\"}, {\"platform\": \"windows-amd64\", \"name\": \"WakeOnLan-Windows-1.3.0-x64.exe\", \"size\": 4305408, \"sha256\": \"5ae09224fc0eb93d63d8e76fda8f36ab0d8a7b3a88af9151dcb8de78a3d8dd0f\"}, {\"platform\": \"windows-arm64\", \"name\": \"WakeOnLan-Windows-1.3.0-arm64.exe\", \"size\": 0, \"sha256\": \"3ebce35a8eb27ca4f3df0bb241e0e74159c1c1f26c2ddd27842529f3f7a31cf5\"}]}"
+    },
+    {
+      "reason": "plateforme en double",
+      "manifest": "{\"format\": 1, \"version\": \"1.3.0\", \"code\": 57, \"date\": \"2026-10-04\", \"notes\": \"### Nouveautés\\n- Mise à jour depuis l’application.\\n- Latence en direct.\\n\\n### Corrections\\n- Démarrage plus rapide.\", \"files\": [{\"platform\": \"android\", \"name\": \"WakeOnLan-1.3.0.apk\", \"size\": 2386450, \"sha256\": \"d284e2b1a353ea88032d4770c4e2d73b2ac8d3b1436021d8ccf7c493e2f1bb1e\"}, {\"platform\": \"windows-amd64\", \"name\": \"WakeOnLan-Windows-1.3.0-x64.exe\", \"size\": 4305408, \"sha256\": \"5ae09224fc0eb93d63d8e76fda8f36ab0d8a7b3a88af9151dcb8de78a3d8dd0f\"}, {\"platform\": \"windows-arm64\", \"name\": \"WakeOnLan-Windows-1.3.0-arm64.exe\", \"size\": 3997696, \"sha256\": \"3ebce35a8eb27ca4f3df0bb241e0e74159c1c1f26c2ddd27842529f3f7a31cf5\"}, {\"platform\": \"android\", \"name\": \"WakeOnLan-1.3.0.apk\", \"size\": 2386450, \"sha256\": \"d284e2b1a353ea88032d4770c4e2d73b2ac8d3b1436021d8ccf7c493e2f1bb1e\"}]}"
+    }
+  ]
+}

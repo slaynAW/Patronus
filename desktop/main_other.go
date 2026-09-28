@@ -17,11 +17,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/slaynaw/wakeonlan/desktop/internal/app"
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
+	"github.com/slaynaw/wakeonlan/desktop/internal/history"
 )
 
 type devPlatform struct{}
@@ -36,6 +38,11 @@ func (devPlatform) OpenURL(url string) error {
 
 func (devPlatform) ReadClipboard() (string, error) { return "", fmt.Errorf("indisponible") }
 
+// Relaunch : en mode développement, la nouvelle version est vérifiée mais pas installée.
+func (devPlatform) Relaunch() error {
+	return fmt.Errorf("mode développement : nouvelle version vérifiée, non installée")
+}
+
 func main() {
 	listen := flag.String("listen", "127.0.0.1:0", "adresse d'écoute (locale uniquement)")
 	dataDir := flag.String("data", defaultDataDir(), "dossier de configuration")
@@ -45,7 +52,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	svc := app.New(app.Options{Version: version, Store: store, Platform: devPlatform{}})
+	histStore, err := history.NewStore(*dataDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	svc := app.New(app.Options{Version: version, Store: store, Platform: devPlatform{}, History: histStore})
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	go svc.Run(ctx)
@@ -58,6 +69,14 @@ func main() {
 	mux.HandleFunc("GET /{$}", serveFile("index.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /app.css", serveFile("app.css", "text/css; charset=utf-8"))
 	mux.HandleFunc("GET /app.js", serveFile("app.js", "text/javascript; charset=utf-8"))
+	mux.HandleFunc("GET /fonts/{name}", func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		if !strings.HasSuffix(name, ".woff2") {
+			http.NotFound(w, r)
+			return
+		}
+		serveFile("fonts/"+name, "font/woff2")(w, r)
+	})
 	mux.HandleFunc("POST /rpc", func(w http.ResponseWriter, r *http.Request) {
 		if subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Token")), []byte(token)) != 1 {
 			http.Error(w, "jeton invalide", http.StatusForbidden)

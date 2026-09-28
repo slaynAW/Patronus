@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Android 17+ : accès au réseau local, demandé à l'utilisateur au premier lancement. -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <!-- Mises à jour intégrées : installation de la nouvelle version (confirmée par l'utilisateur). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".WolApplication"
@@ -32,6 +34,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Résultat de l'installation d'une mise à jour (confirmation, échec). -->
+        <receiver
+            android:name=".update.UpdateInstallReceiver"
+            android:exported="false" />
 
         <!-- Télécharge à l'avance le module de lecture de QR code de Google Play Services. -->
         <meta-data

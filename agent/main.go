@@ -14,14 +14,18 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/internal/config"
+	"github.com/slaynaw/wakeonlan/agent/internal/history"
 	"github.com/slaynaw/wakeonlan/agent/internal/netinfo"
 	"github.com/slaynaw/wakeonlan/agent/internal/pairing"
 	"github.com/slaynaw/wakeonlan/agent/internal/power"
 	"github.com/slaynaw/wakeonlan/agent/internal/server"
 	"github.com/slaynaw/wakeonlan/agent/internal/service"
+	"github.com/slaynaw/wakeonlan/agent/internal/sysinfo"
 	"github.com/slaynaw/wakeonlan/agent/internal/terminal"
+	"github.com/slaynaw/wakeonlan/agent/protocol"
 )
 
 // version est injectée à la compilation (-ldflags "-X main.version=1.0.0").
@@ -111,7 +115,27 @@ func cmdRun(args []string) error {
 		if err != nil {
 			return err
 		}
-		return srv.ListenAndServe(ctx)
+		journal := startHistory(*cfgPath, logger)
+		if journal != nil {
+			srv.SetHistory(journal)
+			watch, stopWatch := context.WithCancel(context.Background())
+			defer stopWatch()
+			watcher := &history.Watcher{
+				Log:       journal,
+				AlivePath: alivePath(*cfgPath),
+				OnError:   func(err error) { logger.Printf("journal : %v", err) },
+			}
+			go watcher.Run(watch)
+		}
+		err = srv.ListenAndServe(ctx)
+		// Arrêt du service : arrêt du PC, sauf arrêt demandé (mise à jour, désinstallation). Sous
+		// Linux / macOS la cause est inconnue : l'arrêt est provisoire et retiré si le PC n'a pas redémarré.
+		if journal != nil && ctx.Err() != nil && !errors.Is(context.Cause(ctx), service.ErrStopRequested) {
+			if err := journal.Stopping(); err != nil {
+				logger.Printf("journal : %v", err)
+			}
+		}
+		return err
 	}
 
 	// Lancé par le gestionnaire de services Windows ?
@@ -121,6 +145,26 @@ func cmdRun(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return runServer(ctx)
+}
+
+// historyPath et alivePath : journal du PC et dernier signe de vie, à côté de la configuration.
+func historyPath(cfgPath string) string { return filepath.Join(filepath.Dir(cfgPath), "history.json") }
+
+func alivePath(cfgPath string) string { return filepath.Join(filepath.Dir(cfgPath), "alive.json") }
+
+// startHistory ouvre le journal et enregistre le démarrage (nil si le journal est indisponible :
+// l'agent fonctionne quand même).
+func startHistory(cfgPath string, logger *log.Logger) *history.Log {
+	journal, err := history.Open(historyPath(cfgPath), time.Now)
+	if err != nil {
+		logger.Printf("journal indisponible : %v", err)
+		return nil
+	}
+	boot := history.CurrentBoot(sysinfo.Current().Uptime, time.Now())
+	if err := journal.Started(boot, history.ReadAlive(alivePath(cfgPath))); err != nil {
+		logger.Printf("journal : %v", err)
+	}
+	return journal
 }
 
 func cmdInstall(args []string) error {
@@ -240,7 +284,32 @@ func cmdStatus(args []string) error {
 	if iface, err := netinfo.Detect(""); err == nil {
 		fmt.Printf("Carte réseau  : %s — IP %s — MAC %s\n", iface.Name, iface.IP, iface.MAC)
 	}
+	if journal, err := history.Open(historyPath(*cfgPath), time.Now); err == nil {
+		h := journal.Snapshot()
+		fmt.Printf("Journal       : %d évènement(s) depuis le %s\n", len(h.Events), time.Unix(h.From, 0).Format("02/01/2006 15:04"))
+		for _, e := range h.Events[max(0, len(h.Events)-5):] {
+			fmt.Printf("                %s  %s\n", time.Unix(e.T, 0).Format("02/01 15:04"), describeEvent(e))
+		}
+	}
 	return nil
+}
+
+func describeEvent(e protocol.HistoryEvent) string {
+	switch e.K {
+	case protocol.HistoryBoot:
+		return "démarrage"
+	case protocol.HistoryShutdown:
+		return "arrêt"
+	case protocol.HistoryLost:
+		return "arrêt non enregistré (coupure ?)"
+	case protocol.HistorySleep:
+		return "mise en veille"
+	case protocol.HistoryResume:
+		return "sortie de veille"
+	case protocol.HistoryCommand:
+		return fmt.Sprintf("%s demandée par %s", power.Action(e.A).Label(), e.C)
+	}
+	return e.K
 }
 
 func cmdUninstall(args []string) error {

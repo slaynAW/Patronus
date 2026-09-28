@@ -7,12 +7,14 @@ import (
 	"io"
 	"log"
 	"net"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/internal/config"
+	"github.com/slaynaw/wakeonlan/agent/internal/history"
 	"github.com/slaynaw/wakeonlan/agent/internal/power"
 	"github.com/slaynaw/wakeonlan/agent/protocol"
 )
@@ -33,6 +35,11 @@ func (r *recorder) Do(a power.Action, _ bool) error {
 
 func start(t *testing.T, mutate func(*config.Config)) (*config.Config, *recorder, string) {
 	t.Helper()
+	return startServer(t, mutate, nil)
+}
+
+func startServer(t *testing.T, mutate func(*config.Config), setup func(*Server)) (*config.Config, *recorder, string) {
+	t.Helper()
 	cfg, err := config.New("test", 1)
 	if err != nil {
 		t.Fatal(err)
@@ -44,6 +51,9 @@ func start(t *testing.T, mutate func(*config.Config)) (*config.Config, *recorder
 	srv, err := New(cfg, rec, "test", log.New(io.Discard, "", 0))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if setup != nil {
+		setup(srv)
 	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -198,3 +208,47 @@ func TestOversizedMessage(t *testing.T) {
 		t.Fatalf("réponse inattendue : %q", line)
 	}
 }
+
+func TestHistoryCommand(t *testing.T) {
+	minActionDelay = 10 * time.Millisecond
+	journal, err := history.Open(filepath.Join(t.TempDir(), "history.json"), time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = journal.Started(history.Boot{ID: "x", At: time.Now().Add(-time.Hour)}, time.Time{})
+	cfg, rec, addr := startServer(t, nil, func(s *Server) { s.SetHistory(journal) })
+
+	resp, _ := exchange(t, addr, cfg.Key, `{"cmd":"sleep","delay":0}`)
+	if body := decodeBody(t, resp); !body.OK {
+		t.Fatalf("veille refusée : %+v", body)
+	}
+	<-rec.done
+	resp, _ = exchange(t, addr, cfg.Key, `{"cmd":"history"}`)
+	body := decodeBody(t, resp)
+	if !body.OK || body.History == nil || len(body.History.Events) != 2 {
+		t.Fatalf("journal inattendu : %+v", body)
+	}
+	cmd := body.History.Events[1]
+	if body.History.Events[0].K != protocol.HistoryBoot || cmd.K != protocol.HistoryCommand || cmd.A != "sleep" || cmd.C != "127.0.0.1" {
+		t.Fatalf("évènements : %+v", body.History.Events)
+	}
+	if body.History.From > body.History.Events[0].T {
+		t.Errorf("début de couverture %d après le premier évènement", body.History.From)
+	}
+
+	// Lecture seule : autorisée avec « status », même si « history » n'est pas listé (anciennes configurations).
+	cfg, _, addr = startServer(t, func(c *config.Config) { c.Commands = []string{"status"} }, func(s *Server) { s.SetHistory(journal) })
+	if body := decodeBody(t, first(exchange(t, addr, cfg.Key, `{"cmd":"history"}`))); !body.OK {
+		t.Fatalf("journal refusé avec status : %+v", body)
+	}
+	cfg, _, addr = startServer(t, func(c *config.Config) { c.Commands = []string{"sleep"} }, func(s *Server) { s.SetHistory(journal) })
+	if body := decodeBody(t, first(exchange(t, addr, cfg.Key, `{"cmd":"history"}`))); body.OK || body.Code != "forbidden" {
+		t.Fatalf("journal accepté sans status : %+v", body)
+	}
+	cfg, _, addr = start(t, nil)
+	if body := decodeBody(t, first(exchange(t, addr, cfg.Key, `{"cmd":"history"}`))); body.OK || body.Code != "unsupported" {
+		t.Fatalf("journal absent : %+v", body)
+	}
+}
+
+func first(resp protocol.Response, _ string) protocol.Response { return resp }
