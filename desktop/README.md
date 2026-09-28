@@ -96,7 +96,7 @@ cd desktop
 go test ./...
 # Ressources (icône, manifeste) puis exécutable Windows sans console :
 go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --arch amd64,arm64
-GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-H windowsgui -s -w -X main.version=1.1.0" -o WakeOnLan.exe .
+GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-H windowsgui -s -w -X main.version=1.2.0" -o WakeOnLan.exe .
 ```
 
 Mode développement (Linux / macOS) : `go run .` affiche une adresse `http://127.0.0.1:…/#token=…`

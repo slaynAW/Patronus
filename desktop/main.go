@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-// version est fixée à la compilation : -ldflags "-X main.version=1.1.0".
+// version est fixée à la compilation : -ldflags "-X main.version=1.2.0".
 var version = "dev"
 
 //go:embed ui

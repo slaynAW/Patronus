@@ -196,7 +196,7 @@ Détails et limites : **[docs/SECURITE.md](docs/SECURITE.md)**.
 
 Versions : AGP 9.4, Kotlin 2.4, Gradle 9.7, compileSdk/targetSdk 37, minSdk 26, Go 1.26.
 Publier une version officielle : onglet **Actions → Build → Run workflow**, branche `main`, champ
-« Version officielle à publier » (ex. `1.1.0`). La CI crée le tag `v1.1.0` et la Release avec l'APK et les agents
+« Version officielle à publier » (ex. `1.2.0`). La CI crée le tag `v1.2.0` et la Release avec l'APK et les agents
 (pousser un tag `vX.Y.Z` fonctionne aussi). Sans numéro, le build met simplement à jour la pré-version `dev`.
 Chaque Release contient l'APK, l'application Windows (x64 et ARM64) et les agents.
 

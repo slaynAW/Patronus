@@ -12,6 +12,7 @@ import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.status.DeviceStatus
 import io.github.slaynaw.wakeonlan.core.status.PowerState
 import io.github.slaynaw.wakeonlan.data.HistoryRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -123,7 +124,13 @@ class HistoryTracker(
             state.last = now
         }
         scope.launch {
-            val result = withTimeoutOrNull(TIMEOUT_MS) { agentClient.history(device.host, agent) }
+            val result = try {
+                withTimeoutOrNull(TIMEOUT_MS) { agentClient.history(device.host, agent) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: RuntimeException) {
+                null // réponse inattendue : traitée comme un agent injoignable
+            }
             val journal = when {
                 result is AgentResult.Success -> {
                     if (devices.containsKey(device.id)) {

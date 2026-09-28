@@ -34,8 +34,11 @@ class HistoryRepository(context: Context, scope: CoroutineScope) {
 
     init {
         scope.launch(Dispatchers.IO) {
-            _data.value = load()
-            loaded.complete(Unit)
+            try {
+                _data.value = load()
+            } finally {
+                loaded.complete(Unit)
+            }
         }
     }
 
@@ -60,6 +63,10 @@ class HistoryRepository(context: Context, scope: CoroutineScope) {
         } catch (e: IOException) {
             Log.w(TAG, "Historique illisible, réinitialisation", e)
             HistoryData.EMPTY
+        } catch (e: RuntimeException) {
+            // Keystore défaillant sur certains appareils (ProviderException…) : l'historique repart de zéro.
+            Log.w(TAG, "Historique illisible, réinitialisation", e)
+            HistoryData.EMPTY
         }
     }
 
@@ -73,6 +80,8 @@ class HistoryRepository(context: Context, scope: CoroutineScope) {
         } catch (e: GeneralSecurityException) {
             Log.w(TAG, "Historique non enregistré", e)
         } catch (e: IOException) {
+            Log.w(TAG, "Historique non enregistré", e)
+        } catch (e: RuntimeException) {
             Log.w(TAG, "Historique non enregistré", e)
         }
     }
