@@ -92,12 +92,17 @@ func TestSharedVectors(t *testing.T) {
 }
 
 func TestReleaseCertificate(t *testing.T) {
-	// Tant que le certificat réel n'est pas ajouté, la source officielle est indisponible (et non
-	// une source sans vérification).
-	if _, err := ReleaseKey(); err != nil {
-		if _, err := Official(); err == nil {
-			t.Error("source officielle sans clé")
-		}
+	// Certificat de la clé de signature de l'APK (vérifié par la CI à chaque publication).
+	key, err := ReleaseKey()
+	if err != nil {
+		t.Fatalf("certificat de mise à jour : %v", err)
+	}
+	if key.N.BitLen() < 2048 {
+		t.Errorf("clé trop courte : %d bits", key.N.BitLen())
+	}
+	src, err := Official()
+	if err != nil || src.Base != DefaultBase || src.Key == nil {
+		t.Errorf("source officielle : %+v (%v)", src, err)
 	}
 }
 

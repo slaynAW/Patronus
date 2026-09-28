@@ -17,7 +17,7 @@ depuis votre téléphone ou depuis un autre PC.
   personnelle envoyée sur Internet (seule la recherche de mises à jour, désactivable, contacte GitHub).
 - 💾 **Export / import** de la configuration (fichier chiffré par mot de passe si les clés sont incluses).
 - 📷 **Appairage par QR code** : l'agent affiche un QR code, l'application remplit tout (IP, MAC, clé).
-- 🖥️ **Application Windows** très légère (un seul `.exe` d'environ 4 Mo, sans installation) : mêmes fonctions et même
+- 🖥️ **Application Windows** très légère (un seul `.exe` d'environ 8 Mo, sans installation) : mêmes fonctions et même
   style, sauvegardes interchangeables avec le téléphone.
 
 Conçue pour Android 8 à Android 17 (testée pour le Pixel 8a, prête pour les versions suivantes) et Windows 10 / 11.

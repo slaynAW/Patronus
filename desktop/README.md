@@ -16,7 +16,7 @@ Version Windows de l'application : **mêmes fonctions et même style** que l'app
 - 💾 Export / import **compatibles avec le téléphone** : une sauvegarde du téléphone s'importe sur le PC, et inversement.
 - 🔒 Configuration chiffrée pour votre compte Windows, aucune donnée envoyée sur Internet.
 
-**Très légère** : un seul fichier `.exe` d'environ 4 Mo, sans installation. L'affichage utilise Microsoft Edge WebView2,
+**Très légère** : un seul fichier `.exe` d'environ 8 Mo, sans installation. L'affichage utilise Microsoft Edge WebView2,
 déjà présent dans Windows 11 et installé par les mises à jour de Windows 10.
 
 ## Installation
