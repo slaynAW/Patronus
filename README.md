@@ -133,10 +133,12 @@ Commandes utiles : `wol-agent pair` (réafficher le QR code), `wol-agent status`
   « allumé depuis », agent, et un **historique discret**
   des derniers évènements (*Tout afficher* : 30 jours, groupés par jour). « ≈ » signale une heure constatée par
   l'application (à quelques secondes près) plutôt que relevée par l'agent ; « arrêt inattendu » : coupure de courant,
-  arrêt forcé ou plantage.
+  arrêt forcé ou plantage. Avec l'agent 1.4.0, l'historique est **commun** au téléphone et au PC Windows : chaque demande
+  (démarrage, extinction…) y figure avec l'appareil qui l'a faite (« par Pixel 8 »).
 - **Ajouter un PC** : QR code de l'agent, lien collé, ou saisie manuelle (nom + adresse MAC suffisent pour le démarrage ; ajoutez l'IP pour l'état en temps réel).
 - **Réglages** : fréquence de vérification (3 s par défaut), délai d'attente du démarrage, confirmation, **partage**
-  (*Partager mes PC*, *PC partagés avec moi*), **export / import**, historique (affichage complet, effacement).
+  (*Partager mes PC*, *PC partagés avec moi*), **export / import** (la sauvegarde complète contient aussi l'historique,
+  ajouté à celui de l'appareil qui l'importe), historique (affichage complet, effacement).
 - **Partage** : *Partager mes PC* → connexion GitHub (une fois) → *Inviter une personne* ; elle *Demande un accès* et vous
   renvoie sa demande ; vous comparez le code de vérification puis choisissez ses PC et ses droits. Guide :
   [docs/PARTAGE.md](docs/PARTAGE.md).

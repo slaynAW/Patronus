@@ -6,6 +6,8 @@ Chaque section « ## X.Y.Z » est affichée dans les applications au moment de p
 ## 1.4.0
 
 - **Agent Windows à jour tout seul** : l'agent des PC (1.4.0) propose ses nouvelles versions à l'utilisateur du PC et s'installe après son accord, sans changer sa clé ni l'appairage. À installer une fois à la main depuis cette version.
+- **Historique commun** au téléphone et au PC Windows (avec l'agent 1.4.0) : chaque démarrage, extinction ou mise en veille indique l'appareil qui l'a demandé (« par Pixel 8 »).
+- **Historique dans la sauvegarde complète** : il suit lors d'un changement de téléphone ou de PC et s'ajoute à celui de l'appareil qui l'importe.
 - Le tracé de latence des listes s'arrête au milieu de la ligne et ne passe plus sur le nom du PC.
 
 ## 1.3.1

@@ -109,6 +109,8 @@ type importState struct {
 	config *model.AppConfig
 	// sharing : clé de partage contenue dans une sauvegarde complète.
 	sharing *share.ExportedOwner
+	// history : historique contenu dans une sauvegarde complète, ajouté à celui de ce PC.
+	history *history.Data
 }
 
 // New crée le service et charge la configuration.
@@ -680,12 +682,21 @@ func (s *Service) exportConfig(withSecrets bool, password string) (any, error) {
 		App:        "WakeOnLan Windows " + s.version,
 	}
 	if password != "" {
-		// Sauvegarde complète : la clé de partage suit, pour changer d'appareil sans réinviter.
+		// Sauvegarde complète : la clé de partage suit, pour changer d'appareil sans réinviter, et
+		// l'historique, pour le retrouver sur le nouvel appareil.
+		opts.Extra = map[string]json.RawMessage{}
 		if extra, err := s.shareExport(); err != nil {
 			return nil, err
 		} else if extra != nil {
-			opts.Extra = map[string]json.RawMessage{"sharing": extra}
+			opts.Extra["sharing"] = extra
 		}
+		s.histMu.Lock()
+		hist, err := json.Marshal(s.hist.ForBackup(now.UnixMilli()))
+		s.histMu.Unlock()
+		if err != nil {
+			return nil, err
+		}
+		opts.Extra["history"] = hist
 	}
 	text, err := config.Export(cfg, opts)
 	if err != nil {
@@ -757,6 +768,15 @@ func (s *Service) importPassword(password string) (any, error) {
 			}
 		}
 	}
+	if raw, ok := extra["history"]; ok {
+		var h history.Data
+		if json.Unmarshal(raw, &h) == nil && len(h.Events) > 0 {
+			s.mu.Lock()
+			s.pendingImport.history = &h
+			s.mu.Unlock()
+			step["history"] = len(h.Events)
+		}
+	}
 	return step, nil
 }
 
@@ -793,6 +813,9 @@ func (s *Service) importConfirm(replace bool) (any, error) {
 	result := map[string]any{"ok": true, "count": len(imported.Devices)}
 	if pending.sharing != nil && s.shareImport(*pending.sharing) {
 		result["sharing"] = true
+	}
+	if pending.history != nil {
+		s.mergeHistory(*pending.history)
 	}
 	return result, nil
 }

@@ -60,12 +60,16 @@ sealed interface AgentResult<out T> {
     }
 }
 
-/** Client du protocole « wolagent/1 » (voir [AgentProtocol]). */
+/**
+ * Client du protocole « wolagent/1 » (voir [AgentProtocol]). [deviceName] : nom de cet appareil, noté
+ * par l'agent (1.4.0 ou plus) avec chaque demande, pour l'historique commun.
+ */
 class AgentClient(
     private val binder: NetworkBinder = NetworkBinder.Default,
     private val connectTimeoutMs: Int = 2_000,
     private val readTimeoutMs: Int = 4_000,
     private val random: SecureRandom = SecureRandom(),
+    private val deviceName: () -> String? = { null },
 ) {
     private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
 
@@ -87,7 +91,7 @@ class AgentClient(
         force: Boolean = false,
     ): AgentResult<String> {
         require(delaySeconds in 0..3600) { "Délai invalide" }
-        val body = RequestBody(cmd = action.wire, delay = delaySeconds, force = force)
+        val body = RequestBody(cmd = action.wire, delay = delaySeconds, force = force, by = name())
         return when (val r = exchange(host, agent, body)) {
             is AgentResult.Success -> AgentResult.Success(r.value.message)
             is AgentResult.Failure -> r
@@ -101,6 +105,22 @@ class AgentClient(
                 r.value.history?.let { AgentResult.Success(it) } ?: protocolError("journal absent de la réponse")
             is AgentResult.Failure -> r
         }
+
+    /**
+     * Signale au journal du PC les démarrages demandés depuis cet appareil ([times] en secondes), et
+     * renvoie le journal à jour. Un agent antérieur à 1.4.0 répond [AgentError.REJECTED].
+     */
+    suspend fun reportWakes(host: String, agent: AgentSettings, times: List<Long>): AgentResult<AgentHistory> {
+        require(times.size in 1..AgentProtocol.MAX_WAKES) { "Nombre de démarrages invalide" }
+        val body = RequestBody(cmd = "wakes", wakes = times, by = name())
+        return when (val r = exchange(host, agent, body, AgentProtocol.MAX_HISTORY_BYTES)) {
+            is AgentResult.Success ->
+                r.value.history?.let { AgentResult.Success(it) } ?: protocolError("journal absent de la réponse")
+            is AgentResult.Failure -> r
+        }
+    }
+
+    private fun name(): String? = deviceName()?.trim()?.take(AgentProtocol.MAX_BY_LENGTH)?.takeIf { it.isNotEmpty() }
 
     private suspend fun exchange(
         host: String,

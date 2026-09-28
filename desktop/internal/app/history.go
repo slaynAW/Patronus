@@ -6,6 +6,7 @@ import (
 
 	"github.com/slaynaw/wakeonlan/desktop/internal/agentclient"
 	"github.com/slaynaw/wakeonlan/desktop/internal/history"
+	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 	"github.com/slaynaw/wakeonlan/desktop/internal/status"
 )
 
@@ -28,6 +29,8 @@ type agentFetchState struct {
 	last    time.Time
 	running bool
 	status  string
+	// wakesUnsupported : agent antérieur à 1.4.0, les démarrages ne lui sont plus signalés.
+	wakesUnsupported bool
 }
 
 // HistoryItem est un évènement affiché par l'interface.
@@ -109,6 +112,20 @@ func (s *Service) keepHistory(ids map[string]bool) {
 	s.saveHistoryLocked()
 }
 
+// mergeHistory ajoute l'historique d'une sauvegarde importée (sans doublon), pour les PC configurés.
+func (s *Service) mergeHistory(h history.Data) {
+	ids := map[string]bool{}
+	for _, d := range s.allDevices() {
+		ids[d.ID] = true
+	}
+	s.histMu.Lock()
+	s.hist = s.hist.Merge(h, s.now().UnixMilli()).Keep(ids)
+	s.histVersion++
+	s.saveHistoryLocked()
+	s.histMu.Unlock()
+	s.notify()
+}
+
 func (s *Service) clearHistory() {
 	s.histMu.Lock()
 	s.hist = history.New()
@@ -163,14 +180,17 @@ func (s *Service) refreshAgentHistory(id string, force bool) {
 		defer cancel()
 		h, err := s.agent.History(ctx, host, settings)
 		_, stillThere := s.device(id)
+		var wakes []int64
 		s.histMu.Lock()
-		st.running = false
 		switch {
 		case err == nil && stillThere && s.agentFetch[id] == st:
 			st.status = AgentHistoryOK
 			now := s.now().UnixMilli()
 			s.hist = s.hist.ReplaceAgent(id, h, now, now)
 			s.saveHistoryLocked()
+			if !st.wakesUnsupported {
+				wakes = s.hist.UnreportedWakes(id, h)
+			}
 		case agentclient.CodeOf(err) == agentclient.Rejected:
 			st.status = AgentHistoryOutdated
 		case err != nil:
@@ -179,7 +199,34 @@ func (s *Service) refreshAgentHistory(id string, force bool) {
 		s.histVersion++
 		s.histMu.Unlock()
 		s.notify()
+		if len(wakes) > 0 {
+			s.reportWakes(id, st, host, settings, wakes)
+		}
+		s.histMu.Lock()
+		st.running = false
+		s.histMu.Unlock()
 	}()
+}
+
+// reportWakes signale à l'agent les démarrages demandés depuis cette application, qu'il ne peut pas
+// voir (paquet magique) : tous les appareils affichent ainsi le même historique (agent 1.4.0 ou plus).
+func (s *Service) reportWakes(id string, st *agentFetchState, host string, settings model.AgentSettings, wakes []int64) {
+	ctx, cancel := context.WithTimeout(context.Background(), agentFetchTimeout)
+	defer cancel()
+	h, err := s.agent.ReportWakes(ctx, host, settings, wakes)
+	_, stillThere := s.device(id)
+	s.histMu.Lock()
+	switch {
+	case err == nil && stillThere && s.agentFetch[id] == st:
+		now := s.now().UnixMilli()
+		s.hist = s.hist.ReplaceAgent(id, h, now, now)
+		s.saveHistoryLocked()
+		s.histVersion++
+	case agentclient.CodeOf(err) == agentclient.Rejected:
+		st.wakesUnsupported = true
+	}
+	s.histMu.Unlock()
+	s.notify()
 }
 
 // historyView renvoie l'historique affiché (un PC, ou tous si id est vide).

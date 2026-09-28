@@ -22,11 +22,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonElement
 import java.io.IOException
 import java.time.Instant
 
@@ -39,7 +41,7 @@ data class SettingsUiState(
 /** Étapes de l'import d'une sauvegarde. */
 sealed interface ImportStep {
     data class NeedPassword(val text: String, val wrongPassword: Boolean = false) : ImportStep
-    data class Confirm(val config: AppConfig, val sharing: ExportedShareOwner? = null) : ImportStep {
+    data class Confirm(val config: AppConfig, val sharing: ExportedShareOwner? = null, val history: HistoryData? = null) : ImportStep {
         /** Sauvegarde « sans secrets » : certaines clés d'agent devront être ressaisies. */
         val missingKeys: Boolean get() = config.devices.any { it.agent?.hasKey == false }
     }
@@ -79,9 +81,14 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     /** Écrit la sauvegarde ; [password] nul = export lisible sans aucun secret. */
     fun export(resolver: ContentResolver, uri: Uri, password: CharArray?) = work {
         val config = container.repository.current()
-        // Sauvegarde complète : la clé de partage suit, pour changer d'appareil sans réinviter.
-        val sharing = if (password != null) container.share.exportOwner() else null
-        val extra = sharing?.let { mapOf("sharing" to ConfigCodec.json.encodeToJsonElement(ExportedShareOwner.serializer(), it)) }.orEmpty()
+        // Sauvegarde complète : la clé de partage suit, pour changer d'appareil sans réinviter, et
+        // l'historique, pour le retrouver sur le nouvel appareil.
+        val extra = buildMap<String, JsonElement> {
+            if (password == null) return@buildMap
+            container.share.exportOwner()?.let { put("sharing", ConfigCodec.json.encodeToJsonElement(ExportedShareOwner.serializer(), it)) }
+            val history = container.history.data.value.forBackup(System.currentTimeMillis())
+            put("history", ConfigCodec.json.parseToJsonElement(HistoryData.encode(history)))
+        }
         val text = withContext(Dispatchers.Default) {
             ExportCodec.export(config, password, Instant.now().toString(), "WakeOnLan ${BuildConfig.VERSION_NAME}", extra = extra)
         }
@@ -117,7 +124,8 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                 val sharing = extra["sharing"]?.let { element ->
                     runCatching { ConfigCodec.json.decodeFromJsonElement(ExportedShareOwner.serializer(), element).also { it.toOwner() } }.getOrNull()
                 }
-                _importStep.value = ImportStep.Confirm(config, sharing)
+                val history = extra["history"]?.let { HistoryData.decode(it.toString()) }?.takeIf { it.events.isNotEmpty() }
+                _importStep.value = ImportStep.Confirm(config, sharing, history)
             } catch (e: ConfigException) {
                 if (e.reason != ConfigException.Reason.WRONG_PASSWORD) throw e
                 _importStep.value = step.copy(wrongPassword = true)
@@ -132,6 +140,11 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         _importStep.value = null
         work {
             if (replace) container.repository.replaceWith(step.config) else container.repository.mergeWith(step.config)
+            // Historique de la sauvegarde ajouté à celui du téléphone (les PC absents sont écartés ensuite).
+            step.history?.let { imported ->
+                val ids = container.allDevices.first().devices.mapTo(HashSet()) { it.id }
+                container.history.update { it.merge(imported, System.currentTimeMillis()).keep(ids) }
+            }
             _messages.send(UiMessage(R.string.message_import_done, listOf(step.config.devices.size)))
             val sharing = step.sharing
             if (sharing != null && container.share.importOwner(sharing)) _sharingImported.value = true

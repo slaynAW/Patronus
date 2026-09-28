@@ -11,6 +11,7 @@ package history
 import (
 	"cmp"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/protocol"
@@ -48,7 +49,7 @@ type Event struct {
 	Source Source `json:"s"`
 	// Approx : heure constatée par l'application (à quelques secondes près), pas mesurée par le PC.
 	Approx bool `json:"x,omitempty"`
-	// Client : pour une commande reçue par l'agent, adresse de l'appareil qui l'a envoyée.
+	// Client : pour une demande notée par l'agent, nom de l'appareil qui l'a faite (à défaut, son adresse).
 	Client string `json:"c,omitempty"`
 }
 
@@ -73,7 +74,13 @@ const (
 	// MatchWindow : une commande vue par l'agent à moins de cet écart d'une demande faite depuis cette
 	// application est la même (elle n'est affichée qu'une fois).
 	MatchWindow = time.Minute
-	version     = 1
+	// WakeLead : un démarrage demandé est accepté par l'agent jusqu'à cet écart avant le début de son journal.
+	WakeLead = 10 * time.Minute
+	// MaxReportedWakes : démarrages signalés à l'agent en une fois (protocol.MaxWakes).
+	MaxReportedWakes = protocol.MaxWakes
+	// MaxBackupEvents : évènements joints à une sauvegarde complète (environ 300 Ko).
+	MaxBackupEvents = 5_000
+	version         = 1
 )
 
 // New renvoie un historique vide.
@@ -105,6 +112,72 @@ func (d Data) ReplaceAgent(device string, h protocol.History, fetchedAt, now int
 	return d.prune(now)
 }
 
+// ForBackup renvoie l'historique joint à une sauvegarde complète : les MaxBackupEvents évènements les
+// plus récents, pour que le fichier reste sous la taille acceptée à l'import (1 Mo), même par les
+// anciennes versions.
+func (d Data) ForBackup(now int64) Data {
+	d = d.clone().prune(now)
+	if len(d.Events) > MaxBackupEvents {
+		slices.SortStableFunc(d.Events, func(a, b Event) int { return cmp.Compare(a.Time, b.Time) })
+		d.Events = slices.Clone(d.Events[len(d.Events)-MaxBackupEvents:])
+	}
+	return d
+}
+
+// Merge ajoute un historique importé (sauvegarde d'un autre appareil) : les évènements déjà présents
+// ne sont pas dupliqués ; la période couverte par le journal de chaque agent est étendue.
+func (d Data) Merge(other Data, now int64) Data {
+	d = d.clone()
+	known := make(map[Event]bool, len(d.Events))
+	for _, e := range d.Events {
+		known[e] = true
+	}
+	for _, e := range other.Events {
+		if !e.valid() {
+			continue
+		}
+		if !known[e] {
+			known[e] = true
+			d.Events = append(d.Events, e)
+		}
+	}
+	for device, c := range other.Coverage {
+		if mine, ok := d.Coverage[device]; ok {
+			c = Coverage{From: min(mine.From, c.From), Until: max(mine.Until, c.Until)}
+		}
+		d.Coverage[device] = c
+	}
+	return d.prune(now)
+}
+
+// UnreportedWakes renvoie les démarrages demandés depuis cette application que le journal de l'agent
+// d'un PC ne contient pas encore (heures en secondes), à lui signaler (agent 1.4.0 ou plus). Ceux qui
+// précèdent le début du journal (à WakeLead près) sont ignorés : l'agent les refuserait.
+func (d Data) UnreportedWakes(device string, h protocol.History) []int64 {
+	window := MatchWindow.Milliseconds()
+	from := h.From*1000 - WakeLead.Milliseconds()
+	var out []int64
+	for _, e := range d.Events {
+		if e.Device != device || e.Source != App || e.Kind != WakeSent || e.Time < from {
+			continue
+		}
+		known := false
+		for _, raw := range h.Events {
+			if raw.K == protocol.HistoryWake && raw.T*1000-e.Time <= window && e.Time-raw.T*1000 <= window {
+				known = true
+				break
+			}
+		}
+		if t := e.Time / 1000; !known && !slices.Contains(out, t) {
+			out = append(out, t)
+		}
+	}
+	if len(out) > MaxReportedWakes {
+		out = out[len(out)-MaxReportedWakes:]
+	}
+	return out
+}
+
 // Keep ne conserve que les PC encore configurés.
 func (d Data) Keep(ids map[string]bool) Data {
 	d = d.clone()
@@ -126,8 +199,8 @@ func (d Data) Keep(ids map[string]bool) Data {
 // View renvoie les évènements à afficher (tous les PC si device est vide), du plus récent au plus ancien :
 //   - le journal de l'agent fait foi sur la période qu'il couvre : les changements d'état constatés
 //     par l'application pendant cette période sont masqués ;
-//   - une commande reçue par l'agent qui correspond à une demande faite depuis cette application n'est
-//     affichée qu'une fois (la demande).
+//   - une demande notée par l'agent qui correspond à une demande faite depuis cette application n'est
+//     affichée qu'une fois (celle de l'application) ; celles des autres appareils restent.
 func (d Data) View(device string, now int64) []Event {
 	limit := now - Retention.Milliseconds()
 	var out []Event
@@ -165,7 +238,10 @@ func (d Data) hasOwnRequest(agentEvent Event) bool {
 	return false
 }
 
-func isRequest(k Kind) bool { return k == ShutdownSent || k == RebootSent || k == SleepSent }
+// isRequest : demande faite depuis une application (notée aussi par l'agent).
+func isRequest(k Kind) bool {
+	return k == ShutdownSent || k == RebootSent || k == SleepSent || k == WakeSent
+}
 
 // FromAgent convertit un évènement du journal de l'agent.
 func FromAgent(device string, raw protocol.HistoryEvent) (Event, bool) {
@@ -192,11 +268,28 @@ func FromAgent(device string, raw protocol.HistoryEvent) (Event, bool) {
 		default:
 			return Event{}, false
 		}
-		e.Client = raw.C
+	case protocol.HistoryWake:
+		e.Kind = WakeSent
 	default:
 		return Event{}, false
 	}
+	if isRequest(e.Kind) {
+		e.Client = raw.C
+		if strings.TrimSpace(raw.B) != "" {
+			e.Client = raw.B
+		}
+	}
 	return e, true
+}
+
+// valid écarte les évènements d'une sauvegarde qu'une version plus récente aurait pu ajouter.
+func (e Event) valid() bool {
+	switch e.Kind {
+	case On, Off, Lost, Sleep, Resume, WakeSent, ShutdownSent, RebootSent, SleepSent, WakeTimeout:
+	default:
+		return false
+	}
+	return (e.Source == App || e.Source == Agent) && e.Device != "" && len(e.Client) <= 256
 }
 
 func (d Data) clone() Data {

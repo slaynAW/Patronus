@@ -1,6 +1,8 @@
 package io.github.slaynaw.wakeonlan
 
 import android.content.Context
+import android.os.Build
+import android.provider.Settings
 import io.github.slaynaw.wakeonlan.core.agent.AgentClient
 import io.github.slaynaw.wakeonlan.core.model.AppConfig
 import io.github.slaynaw.wakeonlan.core.status.HostProber
@@ -42,7 +44,8 @@ class AppContainer(private val context: Context) {
         if (shared.isEmpty()) config else config.copy(devices = config.devices + shared.map { it.device })
     }
 
-    private val agentClient = AgentClient(binder = network)
+    /** Le nom du téléphone accompagne chaque demande : les agents le notent dans l'historique commun. */
+    private val agentClient = AgentClient(binder = network, deviceName = ::deviceName)
     val statusMonitor = StatusMonitor(prober = HostProber(binder = network, agentClient = agentClient))
     val history = HistoryRepository(context, scope)
     val historyTracker = HistoryTracker(allDevices, statusMonitor.statuses, agentClient, history, scope)
@@ -55,6 +58,10 @@ class AppContainer(private val context: Context) {
 
     /** Autorisation Android 17 « réseau local » accordée (toujours vrai avant Android 17). */
     val localNetworkGranted: StateFlow<Boolean> = _localNetworkGranted.asStateFlow()
+
+    /** Nom de ce téléphone (réglages Android « Nom de l'appareil »), à défaut son modèle. */
+    private fun deviceName(): String =
+        Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() } ?: Build.MODEL
 
     fun refreshPermissions() {
         _localNetworkGranted.value = LocalNetworkAccess.isGranted(context)

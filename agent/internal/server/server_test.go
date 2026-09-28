@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -252,3 +253,59 @@ func TestHistoryCommand(t *testing.T) {
 }
 
 func first(resp protocol.Response, _ string) protocol.Response { return resp }
+
+func TestWakesCommand(t *testing.T) {
+	minActionDelay = 10 * time.Millisecond
+	journal, err := history.Open(filepath.Join(t.TempDir(), "history.json"), time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bootAt := time.Now().Add(-time.Hour)
+	_ = journal.Started(history.Boot{ID: "x", At: bootAt}, time.Time{})
+	cfg, rec, addr := startServer(t, func(c *config.Config) { c.Commands = []string{"status", "sleep"} }, func(s *Server) { s.SetHistory(journal) })
+
+	wake := bootAt.Add(-time.Minute).Unix()
+	resp, _ := exchange(t, addr, cfg.Key, fmt.Sprintf(`{"cmd":"wakes","wakes":[%d],"by":"  Pixel\u0007 8 de   Léa "}`, wake))
+	body := decodeBody(t, resp)
+	if !body.OK || body.History == nil || len(body.History.Events) != 2 {
+		t.Fatalf("démarrage refusé : %+v", body)
+	}
+	if e := body.History.Events[0]; e.K != protocol.HistoryWake || e.T != wake || e.B != "Pixel 8 de Léa" || e.C != "127.0.0.1" {
+		t.Fatalf("démarrage noté : %+v", e)
+	}
+
+	// Nom de l'appareil noté avec les commandes d'alimentation.
+	if body := decodeBody(t, first(exchange(t, addr, cfg.Key, `{"cmd":"sleep","delay":0,"by":"PC-SALON"}`))); !body.OK {
+		t.Fatalf("veille refusée : %+v", body)
+	}
+	<-rec.done
+	h := journal.Snapshot()
+	if e := h.Events[len(h.Events)-1]; e.K != protocol.HistoryCommand || e.B != "PC-SALON" {
+		t.Fatalf("commande notée : %+v", e)
+	}
+
+	for _, bad := range []string{`{"cmd":"wakes"}`, `{"cmd":"wakes","wakes":[` + strings.Repeat("1,", protocol.MaxWakes) + `1]}`} {
+		if body := decodeBody(t, first(exchange(t, addr, cfg.Key, bad))); body.OK || body.Code != "bad_request" {
+			t.Errorf("requête invalide acceptée : %+v", body)
+		}
+	}
+	// Comme la lecture du journal : refusé sans « status ».
+	cfg, _, addr = startServer(t, func(c *config.Config) { c.Commands = []string{"sleep"} }, func(s *Server) { s.SetHistory(journal) })
+	if body := decodeBody(t, first(exchange(t, addr, cfg.Key, fmt.Sprintf(`{"cmd":"wakes","wakes":[%d]}`, wake)))); body.OK || body.Code != "forbidden" {
+		t.Fatalf("accepté sans status : %+v", body)
+	}
+}
+
+func TestCleanName(t *testing.T) {
+	for in, want := range map[string]string{
+		"Pixel 8":               "Pixel 8",
+		"  PC\tsalon  ":         "PC salon",
+		"a\u200bb":              "ab",
+		strings.Repeat("é", 50): strings.Repeat("é", protocol.MaxByLength),
+		"":                      "",
+	} {
+		if got := CleanName(in); got != want {
+			t.Errorf("CleanName(%q) = %q", in, got)
+		}
+	}
+}

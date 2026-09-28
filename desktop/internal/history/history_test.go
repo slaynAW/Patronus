@@ -20,7 +20,14 @@ type vectors struct {
 		FetchedAt int64            `json:"fetchedAt"`
 		History   protocol.History `json:"history"`
 	} `json:"agent"`
-	Expected map[string][][]any `json:"expected"`
+	Expected   map[string][][]any `json:"expected"`
+	Clients    map[string]string  `json:"clients"`
+	Unreported map[string][]int64 `json:"unreported"`
+	Import     Data               `json:"import"`
+	Merged     struct {
+		PC3 [][]any `json:"pc3"`
+		All int     `json:"all"`
+	} `json:"merged"`
 }
 
 func loadVectors(t *testing.T) vectors {
@@ -62,11 +69,32 @@ func TestSharedHistoryVectors(t *testing.T) {
 			t.Errorf("%s :\nobtenu  %v\nattendu %v", device, got, v.Expected[device])
 		}
 	}
-	// La commande d'un autre appareil garde son origine.
+	// Les demandes des autres appareils gardent leur origine (nom, à défaut adresse).
 	for _, e := range d.View("pc1", v.Now) {
-		if e.Kind == SleepSent && e.Client != "192.168.1.50" {
-			t.Errorf("client perdu : %+v", e)
+		if want, ok := v.Clients[string(e.Kind)]; ok && e.Source == Agent && e.Client != want {
+			t.Errorf("appareil de %s : %q, attendu %q", e.Kind, e.Client, want)
 		}
+	}
+	// Démarrages demandés ici, inconnus du journal de l'agent : à lui signaler.
+	for device, want := range v.Unreported {
+		h := protocol.History{}
+		if device == v.Agent.Device {
+			h = v.Agent.History
+		}
+		if got := d.UnreportedWakes(device, h); !reflect.DeepEqual(got, want) && (len(got) != 0 || len(want) != 0) {
+			t.Errorf("démarrages à signaler (%s) : %v, attendu %v", device, got, want)
+		}
+	}
+	// Sauvegarde importée : fusionnée sans doublon, deux fois de suite sans effet.
+	merged := d.Merge(v.Import, v.Now)
+	if got := summary(merged.View("pc3", v.Now)); !reflect.DeepEqual(got, v.Merged.PC3) {
+		t.Errorf("pc3 importé :\nobtenu  %v\nattendu %v", got, v.Merged.PC3)
+	}
+	if n := len(merged.View("", v.Now)); n != v.Merged.All || len(merged.Merge(v.Import, v.Now).View("", v.Now)) != n {
+		t.Errorf("fusion : %d évènements affichés, attendu %d", n, v.Merged.All)
+	}
+	if len(d.View("", v.Now)) != len(v.Expected["all"]) {
+		t.Error("la fusion a modifié l'historique d'origine")
 	}
 	// Nouvelle lecture du journal : l'ancienne version de l'agent est remplacée, pas dupliquée.
 	again := d.ReplaceAgent(v.Agent.Device, v.Agent.History, v.Agent.FetchedAt, v.Now)

@@ -327,9 +327,18 @@ func describeEvent(e protocol.HistoryEvent) string {
 	case protocol.HistoryResume:
 		return "sortie de veille"
 	case protocol.HistoryCommand:
-		return fmt.Sprintf("%s demandée par %s", power.Action(e.A).Label(), e.C)
+		return fmt.Sprintf("%s demandée par %s", power.Action(e.A).Label(), eventClient(e))
+	case protocol.HistoryWake:
+		return "démarrage demandé par " + eventClient(e)
 	}
 	return e.K
+}
+
+func eventClient(e protocol.HistoryEvent) string {
+	if e.B == "" {
+		return e.C
+	}
+	return e.B + " (" + e.C + ")"
 }
 
 func cmdUninstall(args []string) error {

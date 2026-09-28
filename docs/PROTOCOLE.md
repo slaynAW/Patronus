@@ -39,16 +39,19 @@ et comparées en temps constant.
 ```json
 {"cmd":"status"}
 {"cmd":"history"}
-{"cmd":"shutdown","delay":0,"force":false}
+{"cmd":"wakes","wakes":[1790563950],"by":"Pixel 8"}
+{"cmd":"shutdown","delay":0,"force":false,"by":"Pixel 8"}
 {"cmd":"reboot","delay":0,"force":true}
 {"cmd":"sleep","delay":0}
 ```
 
 | Champ | Description |
 |---|---|
-| `cmd` | `status`, `history` (journal, voir plus bas), `shutdown`, `reboot` ou `sleep` |
+| `cmd` | `status`, `history` (journal, voir plus bas), `wakes` (démarrages demandés, agent 1.4.0 ou plus), `shutdown`, `reboot` ou `sleep` |
 | `delay` | secondes avant l'action (0 – 3600). L'agent attend au minimum 1,5 s pour que la réponse parte d'abord. |
 | `force` | fermer les applications sans attendre (Windows `/f`, Linux `--ignore-inhibitors`) |
+| `by` | facultatif : nom de l'appareil qui envoie la demande (40 caractères au plus), noté au journal (agent 1.4.0 ou plus ; ignoré avant) |
+| `wakes` | pour `wakes` : heures (secondes Unix) des démarrages demandés, 50 au plus |
 
 ### Réponse `R`
 
@@ -79,17 +82,32 @@ pendant qu'elles étaient fermées. Commande en lecture seule, autorisée dès q
 |---|---|
 | `from` | début de la période couverte (secondes Unix) : installation de l'agent, ou 30 jours |
 | `t` | heure de l'évènement (secondes Unix, horloge du PC) |
-| `k` | `boot` démarrage, `shutdown` arrêt propre, `lost` arrêt non enregistré (coupure de courant, arrêt forcé, plantage ; daté du dernier signe de vie), `sleep` / `resume` mise en veille / sortie de veille, `cmd` commande reçue |
-| `a`, `c` | pour `cmd` : action (`shutdown`, `reboot`, `sleep`) et adresse de l'appareil qui l'a envoyée |
+| `k` | `boot` démarrage, `shutdown` arrêt propre, `lost` arrêt non enregistré (coupure de courant, arrêt forcé, plantage ; daté du dernier signe de vie), `sleep` / `resume` mise en veille / sortie de veille, `cmd` commande reçue, `wake` démarrage demandé par une application |
+| `a` | pour `cmd` : action (`shutdown`, `reboot`, `sleep`) |
+| `c`, `b` | pour `cmd` et `wake` : adresse et nom (`by`, s'il a été indiqué) de l'appareil à l'origine de la demande |
 
 La réponse peut dépasser la limite ordinaire d'une ligne : les clients acceptent jusqu'à **512 Kio** pour cette seule
 commande. Un agent antérieur à la version 1.2 répond `forbidden` ou `unsupported` : les applications affichent alors
 « agent à mettre à jour » et se contentent des changements d'état qu'elles constatent elles-mêmes.
 
+### Démarrages demandés (`wakes`, agent 1.4.0 ou plus)
+
+Le paquet magique ne passe pas par l'agent : il ne peut pas savoir qui a démarré le PC. Après chaque lecture du
+journal, l'application lui signale donc les démarrages qu'elle a demandés et qu'il ne contient pas encore (à une
+minute près). L'agent les ajoute (type `wake`, avec l'adresse et le nom de l'appareil) et répond comme à `history`,
+avec le journal à jour. Il ignore les heures futures, celles qui précèdent le début de son journal de plus de
+10 minutes (une demande précède le démarrage qu'elle provoque) et celles déjà connues à une minute près. Commande
+autorisée dès que `status` l'est, comme la lecture du journal. Un agent plus ancien répond `forbidden` : les
+applications n'insistent pas.
+
+Ainsi, téléphone, PC Windows et personnes avec qui les PC sont partagés (droit « démarrer et éteindre ») voient le
+même historique : qui a demandé quoi, et quand.
+
 Règles d'affichage communes à Android et Windows (vérifiées par le scénario `protocol/history-vectors.json`) :
 le journal de l'agent fait foi sur la période qu'il couvre (les allumages / extinctions constatés par l'application
-pendant cette période sont masqués), et une commande reçue par l'agent qui correspond à une demande faite depuis
-l'application dans la minute n'est affichée qu'une fois.
+pendant cette période sont masqués), et une demande notée par l'agent (commande ou démarrage) qui correspond à une
+demande faite depuis l'application dans la minute n'est affichée qu'une fois ; celles des autres appareils sont
+affichées avec leur nom (« par Pixel 8 »), à défaut leur adresse.
 
 ### Erreurs non signées
 

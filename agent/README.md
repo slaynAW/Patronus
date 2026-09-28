@@ -112,7 +112,9 @@ L'agent répond au téléphone **avant** d'exécuter l'action (délai minimal 1,
 ## Journal des démarrages et extinctions
 
 L'agent note dans `history.json` (à côté de `config.json`) les **30 derniers jours** : démarrages, arrêts, mises en veille
-et sorties de veille, commandes reçues (avec l'adresse de l'appareil qui les a envoyées). Un arrêt qu'il n'a pas pu noter
+et sorties de veille, commandes reçues et démarrages demandés depuis les applications (avec le nom et l'adresse de
+l'appareil à l'origine de la demande ; agent 1.4.0 ou plus). Toutes les applications relisent ce même journal : le
+téléphone et le PC Windows affichent le même historique. Un arrêt qu'il n'a pas pu noter
 (coupure de courant, arrêt forcé, plantage) apparaît comme « arrêt inattendu », daté du dernier signe de vie (`alive.json`,
 mis à jour chaque minute). Les applications relisent ce journal dès que le PC répond.
 

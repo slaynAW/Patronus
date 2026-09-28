@@ -3,11 +3,13 @@ package io.github.slaynaw.wakeonlan.core
 import io.github.slaynaw.wakeonlan.core.agent.AgentHistory
 import io.github.slaynaw.wakeonlan.core.agent.AgentHistoryEvent
 import io.github.slaynaw.wakeonlan.core.agent.AgentStatus
+import io.github.slaynaw.wakeonlan.core.config.ExportCodec
 import io.github.slaynaw.wakeonlan.core.history.HistoryData
 import io.github.slaynaw.wakeonlan.core.history.HistoryEvent
 import io.github.slaynaw.wakeonlan.core.history.HistoryKind
 import io.github.slaynaw.wakeonlan.core.history.HistoryRecorder
 import io.github.slaynaw.wakeonlan.core.history.HistorySource
+import io.github.slaynaw.wakeonlan.core.model.AppConfig
 import io.github.slaynaw.wakeonlan.core.status.DeviceStatus
 import io.github.slaynaw.wakeonlan.core.status.PowerState
 import io.github.slaynaw.wakeonlan.core.status.StatusNotice
@@ -28,11 +30,18 @@ class HistoryTest {
     private data class AgentPart(val device: String, val fetchedAt: Long, val history: AgentHistory)
 
     @Serializable
+    private data class Merged(val pc3: List<JsonArray>, val all: Int)
+
+    @Serializable
     private data class Vectors(
         val now: Long,
         val events: List<HistoryEvent>,
         val agent: AgentPart,
         val expected: Map<String, List<JsonArray>>,
+        val clients: Map<String, String>,
+        val unreported: Map<String, List<Long>>,
+        val import: HistoryData,
+        val merged: Merged,
     )
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -56,9 +65,22 @@ class HistoryTest {
 
         assertEquals(v.expected.getValue("pc1"), summary(data.view("pc1", v.now)))
         assertEquals(v.expected.getValue("all"), summary(data.view(null, v.now)))
-        // La commande d'un autre appareil garde son origine.
-        val sleepRequest = data.view("pc1", v.now).single { it.kind == HistoryKind.SLEEP_SENT }
-        assertEquals("192.168.1.50", sleepRequest.client)
+        // Les demandes des autres appareils gardent leur origine (nom, à défaut adresse).
+        for (e in data.view("pc1", v.now).filter { it.source == HistorySource.AGENT }) {
+            val want = v.clients[json.encodeToJsonElement(e.kind).toString().trim('"')] ?: continue
+            assertEquals(want, e.client, "appareil de ${e.kind}")
+        }
+        // Démarrages demandés ici, inconnus du journal de l'agent : à lui signaler.
+        for ((device, want) in v.unreported) {
+            val journal = if (device == v.agent.device) v.agent.history else AgentHistory()
+            assertEquals(want, data.unreportedWakes(device, journal), "démarrages à signaler ($device)")
+        }
+        // Sauvegarde importée : fusionnée sans doublon, deux fois de suite sans effet.
+        val merged = data.merge(v.import, v.now)
+        assertEquals(v.merged.pc3, summary(merged.view("pc3", v.now)))
+        assertEquals(v.merged.all, merged.view(null, v.now).size)
+        assertEquals(v.merged.all, merged.merge(v.import, v.now).view(null, v.now).size)
+        assertEquals(v.expected.getValue("all").size, data.view(null, v.now).size)
         // Nouvelle lecture du journal : l'ancienne version est remplacée, pas dupliquée.
         val again = data.replaceAgent(v.agent.device, v.agent.history, v.agent.fetchedAt, v.now)
         assertEquals(v.expected.getValue("all").size, again.view(null, v.now).size)
@@ -66,6 +88,26 @@ class HistoryTest {
         val kept = data.keep(setOf("pc2"))
         assertEquals(1, kept.view(null, v.now).size)
         assertTrue(kept.coverage.isEmpty())
+    }
+
+    @Test
+    fun `historique dans la sauvegarde complete`() {
+        val now = 1_790_600_000_000
+        val events = (0 until HistoryData.MAX_BACKUP_EVENTS + 10).map {
+            HistoryEvent("a", now - it * 1000L, HistoryKind.WAKE_SENT, HistorySource.APP)
+        }
+        // Les plus récents seulement : le fichier reste sous la taille acceptée à l'import.
+        val backup = HistoryData(version = HistoryData.VERSION, events = events).forBackup(now)
+        assertEquals(HistoryData.MAX_BACKUP_EVENTS, backup.events.size)
+        assertEquals(now, backup.events.maxOf { it.time })
+
+        val extra = mapOf("history" to json.parseToJsonElement(HistoryData.encode(backup)))
+        val text = ExportCodec.export(AppConfig(), "motdepasse".toCharArray(), "2026-09-28T16:00:00Z", extra = extra, iterations = ExportCodec.MIN_ITERATIONS)
+        assertTrue(text.length < 1024 * 1024, "sauvegarde de ${text.length} octets")
+        val restored = HistoryData.decode(ExportCodec.importWithExtra(text, "motdepasse".toCharArray()).second.getValue("history").toString())
+        assertEquals(backup.events, restored?.events)
+        // Export lisible : jamais d'historique.
+        assertFalse(ExportCodec.export(AppConfig(), null, "2026-09-28T16:00:00Z", extra = extra).contains("history"))
     }
 
     @Test

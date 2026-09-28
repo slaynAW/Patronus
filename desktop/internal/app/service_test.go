@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/netip"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -284,6 +285,12 @@ func TestHistoryRecordingAndAgentJournal(t *testing.T) {
 	id := call(t, s, "saveDevice", map[string]any{"form": form})["id"].(string)
 	waitState(t, s, id, status.Offline)
 
+	// Démarrage demandé d'ici : l'agent ne le voit pas, il lui sera signalé une fois le PC joignable.
+	if r := call(t, s, "wake", map[string]any{"id": id}); r["ok"] != true {
+		t.Fatalf("démarrage : %v", r)
+	}
+	wakeAt := time.Now().Unix()
+
 	// Le PC s'allume : allumage constaté, puis lecture du journal de l'agent.
 	reachable.Store(true)
 	s.monitor.Refresh("")
@@ -308,6 +315,27 @@ func TestHistoryRecordingAndAgentJournal(t *testing.T) {
 	}
 	if r := call(t, s, "getHistory", map[string]any{"id": id}); r["agent"] != AgentHistoryOK || r["hasAgent"] != true {
 		t.Errorf("état du journal : %v", r)
+	}
+	// Démarrage signalé à l'agent (avec le nom de ce PC), affiché une seule fois.
+	var reported *protocol.RequestBody
+	for deadline := time.Now().Add(3 * time.Second); reported == nil && time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		for _, r := range agent.Requests() {
+			if r.Cmd == protocol.CmdWakes {
+				reported = &r
+			}
+		}
+	}
+	host, _ := os.Hostname()
+	if reported == nil || len(reported.Wakes) != 1 || reported.Wakes[0] < wakeAt-5 || reported.Wakes[0] > wakeAt || reported.By != host {
+		t.Fatalf("démarrage signalé : %+v", reported)
+	}
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if slices.ContainsFunc(histStore.Load().Events, func(e history.Event) bool { return e.Kind == history.WakeSent && e.Source == history.Agent }) {
+			break
+		}
+	}
+	if n := strings.Count(strings.Join(kindsOf(), ","), "wake/"); n != 1 || !slices.Contains(kindsOf(), "wake/app") {
+		t.Errorf("démarrage affiché %d fois : %v", n, kindsOf())
 	}
 
 	// Extinction demandée depuis l'application, puis PC éteint.

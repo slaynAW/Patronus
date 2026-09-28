@@ -15,7 +15,9 @@ import kotlin.math.abs
  * - l'application : ses propres demandes (démarrage, extinction...) et les changements d'état
  *   constatés pendant la surveillance (heure approximative) ;
  * - le journal de l'agent (commande « history ») : démarrages, arrêts, veille, à l'heure exacte,
- *   même quand l'application était fermée. Il fait foi sur la période qu'il couvre.
+ *   même quand l'application était fermée. Il fait foi sur la période qu'il couvre. Depuis l'agent
+ *   1.4.0, il contient aussi les demandes de tous les appareils (démarrages signalés par chaque
+ *   application, commandes reçues) avec le nom de l'appareil : chacun voit le même historique.
  */
 
 /** Type d'un évènement (noms identiques côté Windows). */
@@ -64,6 +66,9 @@ enum class HistoryKind {
 
     /** Commande d'alimentation transmise à l'agent. */
     val isPowerRequest: Boolean get() = this == SHUTDOWN_SENT || this == REBOOT_SENT || this == SLEEP_SENT
+
+    /** Demande faite depuis une application (notée aussi par l'agent, voir [HistoryData.view]). */
+    val isRequest: Boolean get() = isPowerRequest || this == WAKE_SENT
 }
 
 /** Origine d'un évènement. */
@@ -85,7 +90,7 @@ data class HistoryEvent(
     @SerialName("s") val source: HistorySource,
     /** Heure constatée par l'application (à quelques secondes près), pas mesurée par le PC. */
     @SerialName("x") val approx: Boolean = false,
-    /** Commande reçue par l'agent : adresse de l'appareil qui l'a envoyée. */
+    /** Demande notée par l'agent : nom de l'appareil qui l'a faite (à défaut, son adresse). */
     @SerialName("c") val client: String? = null,
 )
 
@@ -112,6 +117,45 @@ data class HistoryData(
         ).pruned(now)
     }
 
+    /**
+     * Ajoute un historique importé (sauvegarde d'un autre appareil) : les évènements déjà présents ne
+     * sont pas dupliqués ; la période couverte par le journal de chaque agent est étendue.
+     */
+    fun merge(other: HistoryData, now: Long): HistoryData {
+        val known = events.toHashSet()
+        val merged = coverage.toMutableMap()
+        for ((device, c) in other.coverage) {
+            val mine = merged[device]
+            merged[device] = if (mine == null) c else HistoryCoverage(minOf(mine.from, c.from), maxOf(mine.until, c.until))
+        }
+        return copy(events = events + other.events.filter { known.add(it) }, coverage = merged).pruned(now)
+    }
+
+    /**
+     * Historique joint à une sauvegarde complète : les [MAX_BACKUP_EVENTS] évènements les plus récents,
+     * pour que le fichier reste sous la taille acceptée à l'import (1 Mo), même par les anciennes versions.
+     */
+    fun forBackup(now: Long): HistoryData {
+        val recent = pruned(now)
+        return if (recent.events.size <= MAX_BACKUP_EVENTS) recent else recent.copy(events = recent.events.sortedBy { it.time }.takeLast(MAX_BACKUP_EVENTS))
+    }
+
+    /**
+     * Démarrages demandés depuis cette application que le journal de l'agent d'un PC ne contient pas
+     * encore (heures en secondes), à lui signaler (agent 1.4.0 ou plus). Ceux qui précèdent le début
+     * du journal (à [WAKE_LEAD_MS] près) sont ignorés : l'agent les refuserait.
+     */
+    fun unreportedWakes(device: String, journal: AgentHistory): List<Long> {
+        val known = journal.events.filter { it.k == "wake" }.map { it.t * 1000 }
+        val from = journal.from * 1000 - WAKE_LEAD_MS
+        return events
+            .filter { it.device == device && it.source == HistorySource.APP && it.kind == HistoryKind.WAKE_SENT && it.time >= from }
+            .filter { e -> known.none { abs(it - e.time) <= MATCH_WINDOW_MS } }
+            .map { it.time / 1000 }
+            .distinct()
+            .takeLast(MAX_REPORTED_WAKES)
+    }
+
     /** Ne conserve que les PC encore configurés. */
     fun keep(ids: Set<String>): HistoryData =
         copy(events = events.filter { it.device in ids }, coverage = coverage.filterKeys { it in ids })
@@ -120,13 +164,13 @@ data class HistoryData(
      * Évènements à afficher ([device], ou tous les PC si `null`), du plus récent au plus ancien :
      * - le journal de l'agent fait foi sur la période qu'il couvre : les changements d'état constatés
      *   par l'application pendant cette période sont masqués ;
-     * - une commande reçue par l'agent qui correspond à une demande faite depuis cette application
-     *   n'est affichée qu'une fois (la demande).
+     * - une demande notée par l'agent qui correspond à une demande faite depuis cette application
+     *   n'est affichée qu'une fois (celle de l'application) ; celles des autres appareils restent.
      */
     fun view(device: String?, now: Long): List<HistoryEvent> {
         val limit = now - RETENTION_MS
         val ownRequests = events
-            .filter { it.source == HistorySource.APP && it.kind.isPowerRequest }
+            .filter { it.source == HistorySource.APP && it.kind.isRequest }
             .groupBy({ it.device to it.kind }, { it.time })
         val out = ArrayList<HistoryEvent>()
         // Parcours du plus récent ajouté au plus ancien : à heure égale, le dernier enregistré passe devant.
@@ -137,7 +181,7 @@ data class HistoryData(
                 val c = coverage[e.device]
                 if (c != null && e.time >= c.from && e.time <= c.until) continue
             }
-            if (e.source == HistorySource.AGENT && e.kind.isPowerRequest &&
+            if (e.source == HistorySource.AGENT && e.kind.isRequest &&
                 ownRequests[e.device to e.kind].orEmpty().any { abs(it - e.time) <= MATCH_WINDOW_MS }
             ) {
                 continue
@@ -168,6 +212,15 @@ data class HistoryData(
         /** Une commande vue par l'agent à moins de cet écart d'une demande de l'application est la même. */
         const val MATCH_WINDOW_MS = 60_000L
 
+        /** Un démarrage demandé est accepté par l'agent jusqu'à cet écart avant le début de son journal. */
+        const val WAKE_LEAD_MS = 10 * 60_000L
+
+        /** Démarrages signalés à l'agent en une fois (protocole : 50 au plus). */
+        const val MAX_REPORTED_WAKES = 50
+
+        /** Évènements joints à une sauvegarde complète (environ 300 Ko). */
+        const val MAX_BACKUP_EVENTS = 5_000
+
         val EMPTY = HistoryData(version = VERSION)
 
         private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
@@ -191,6 +244,7 @@ data class HistoryData(
                     "sleep" -> HistoryKind.SLEEP_SENT
                     else -> return null
                 }
+                "wake" -> HistoryKind.WAKE_SENT
                 else -> return null
             }
             return HistoryEvent(
@@ -198,7 +252,7 @@ data class HistoryData(
                 time = raw.t * 1000,
                 kind = kind,
                 source = HistorySource.AGENT,
-                client = if (raw.k == "cmd") raw.c else null,
+                client = if (kind.isRequest) raw.b?.takeIf { it.isNotBlank() } ?: raw.c else null,
             )
         }
     }
