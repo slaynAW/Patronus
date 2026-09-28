@@ -16,10 +16,10 @@ import (
 	webview2 "github.com/jchv/go-webview2"
 	"golang.org/x/sys/windows"
 
+	"github.com/slaynaw/wakeonlan/agent/update"
 	"github.com/slaynaw/wakeonlan/desktop/internal/app"
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
 	"github.com/slaynaw/wakeonlan/desktop/internal/history"
-	"github.com/slaynaw/wakeonlan/desktop/internal/update"
 )
 
 const (
@@ -57,6 +57,7 @@ func updateOptions(exe string) *app.UpdateOptions {
 		log.Printf("mises à jour désactivées : %v", err)
 		return nil
 	}
+	src.UserAgent = "WakeOnLan-Windows"
 	return &app.UpdateOptions{Source: src, Code: code, Platform: "windows-" + runtime.GOARCH, Exe: exe}
 }
 

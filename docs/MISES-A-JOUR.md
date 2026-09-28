@@ -2,7 +2,8 @@
 
 Les applications Android et Windows proposent elles-mêmes les nouvelles versions officielles, avec
 leurs nouveautés, et s'installent en un clic. Les PC enregistrés, leurs clés, les réglages et
-l'historique sont conservés.
+l'historique sont conservés. L'agent Windows se met aussi à jour, après l'accord de l'utilisateur du
+PC (voir [Agent](#agent)).
 
 ## Ce que voit l'utilisateur
 
@@ -30,6 +31,8 @@ l'application (même clé de signature, numéro de version plus grand).
 
 1. Compléter **`NOUVEAUTES.md`** : une section `## X.Y.Z` (titres `###`, listes `-`, `**gras**`).
    C'est ce texte qui s'affiche dans les applications (et en tête de la Release GitHub).
+   Si l'agent a changé : ajouter aussi une section (numéro supérieur) en tête de
+   **`agent/NOUVEAUTES.md`**, qui donne le numéro de l'agent.
 2. Fusionner dans `main`, puis **Actions → Build → Run workflow** avec le numéro `X.Y.Z`
    (ou pousser un tag `vX.Y.Z`).
 3. La CI publie la Release avec l'APK, l'application Windows, les agents et le manifeste
@@ -39,24 +42,43 @@ l'application (même clé de signature, numéro de version plus grand).
 Seules les versions officielles sont proposées (la pré-version `dev` est ignorée). Le numéro comparé
 est le code de build (numéro d'exécution de la CI), qui augmente à chaque build.
 
+## Agent
+
+L'agent a son propre numéro, donné par la première section de `agent/NOUVEAUTES.md` : les binaires
+sont compilés avec ce numéro (`X.Y.Z-dev.N` pour les pré-versions), et le manifeste le reprend dans
+sa section `agent` avec les nouveautés de l'agent et, pour Windows (`windows-amd64`,
+`windows-arm64`), le nom, la taille et l'empreinte SHA-256 de chaque binaire.
+
+Chaque jour, le service de l'agent (Windows) lit le manifeste de la dernière version officielle,
+vérifie sa signature avec le même certificat que l'application Windows, et compare le numéro de
+l'agent au sien. Une version plus récente est proposée à l'utilisateur connecté (fenêtre Oui / Non) ;
+une fois acceptée, elle est téléchargée dans `C:\Program Files\WolAgent` (dossier réservé aux
+administrateurs), contrôlée (taille, empreinte, numéro affiché par `wol-agent version`), mise à la
+place de l'ancienne (gardée en `.old`), puis un processus détaché redémarre le service et vérifie
+qu'il répond, sinon remet l'ancienne version. Voir [agent/README.md](../agent/README.md).
+
+La CI teste ce parcours de bout en bout sous Windows : un vrai service est installé puis se met à
+jour depuis un faux serveur de versions, signé avec une clé de test intégrée uniquement à ces
+compilations de test.
+
 ## Sécurité
 
 - `update.json` contient le numéro de version, le code de build, les nouveautés, et pour chaque
   plateforme le nom, la taille et l'empreinte **SHA-256** du fichier.
 - Il est **signé par la CI avec la clé de signature de l'APK** (secrets `WOL_KEYSTORE_*`,
   RSA / SHA-256). Aucun nouveau secret n'est nécessaire.
-- **Android** vérifie la signature avec le certificat de l'application installée ; **Windows** avec
-  le certificat `desktop/internal/update/release-cert.pem` intégré à l'application. Un manifeste non
-  signé ou modifié est refusé.
+- **Android** vérifie la signature avec le certificat de l'application installée ; **Windows** et
+  **l'agent** avec le certificat `agent/update/release-cert.pem` qui leur est intégré. Un manifeste
+  non signé ou modifié est refusé.
 - Le fichier téléchargé doit avoir exactement la taille et l'empreinte annoncées, sinon il est
   supprimé sans être installé. Sur Android, l'installateur vérifie en plus que l'APK est signé avec
   la même clé que l'application installée.
 - Seule la recherche de mises à jour contacte Internet (GitHub, en HTTPS) ; elle ne transmet aucune
   donnée personnelle et peut être désactivée.
 
-### Certificat de l'application Windows
+### Certificat de l'application Windows et de l'agent
 
-`desktop/internal/update/release-cert.pem` contient le certificat **public** de la clé de signature.
+`agent/update/release-cert.pem` contient le certificat **public** de la clé de signature.
 À chaque build, la CI vérifie qu'il correspond à la clé des secrets : sinon elle affiche le
 certificat attendu dans le journal (étape « Manifeste de mise à jour ») et refuse de publier une
 version officielle. Tant qu'il est absent, les mises à jour intégrées de l'application Windows sont
@@ -70,3 +92,4 @@ désactivées (elle l'indique dans ses réglages).
 | « Mise à jour impossible : impossible de remplacer l'application » (Windows) | Le `.exe` est dans un dossier protégé (ex. `C:\Program Files`) : le déplacer dans un dossier personnel (ex. `Documents`) ou télécharger la version depuis GitHub. |
 | « Installation annulée » (Android) | La confirmation d'Android a été refusée : relancer *Mettre à jour*. |
 | Aucune proposition alors qu'une version existe | La Release ne contient pas `update.json` (versions antérieures à 1.2.0) ou elle est marquée « pré-version ». |
+| L'agent ne propose pas sa mise à jour | Agent antérieur à 1.4.0 (à installer une fois à la main), recherche désactivée (`wol-agent status`), ou refus récent (reproposée le lendemain). Journal : `C:\ProgramData\WolAgent\agent.log` ; `wol-agent update` force la recherche. |

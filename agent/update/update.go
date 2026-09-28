@@ -1,11 +1,14 @@
-// Package update recherche, télécharge et installe les nouvelles versions de l'application
-// (mêmes règles que l'application Android : core/update).
+// Package update recherche, télécharge et installe les nouvelles versions de l'application Windows
+// et de l'agent (mêmes règles que l'application Android : core/update).
 //
 // Chaque version officielle publiée par la CI contient un manifeste « update.json » (numéro,
 // nouveautés, taille et empreinte SHA-256 de chaque fichier) signé avec la clé de signature de
 // l'APK (« update.json.sig », RSA PKCS#1 v1.5 / SHA-256, en base64). Le manifeste n'est accepté
 // que si la signature est valide, puis chaque fichier téléchargé doit avoir exactement la taille et
 // l'empreinte annoncées : un fichier modifié ou incomplet n'est jamais installé.
+//
+// Le manifeste décrit aussi l'agent joint à la version (section « agent ») : il a son propre numéro,
+// qui ne change que lorsque l'agent change.
 package update
 
 import (
@@ -27,6 +30,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -71,6 +76,16 @@ type Manifest struct {
 	Date  string `json:"date"`
 	Notes string `json:"notes"`
 	Files []File `json:"files"`
+	// Agent : agent joint à la version (absent des manifestes antérieurs à l'agent 1.4.0).
+	Agent *Agent `json:"agent,omitempty"`
+}
+
+// Agent décrit l'agent joint à une version. Ses fichiers se téléchargent avec ceux de la version
+// (FileURL), mais son numéro lui est propre : c'est lui qui est comparé (Newer).
+type Agent struct {
+	Version string `json:"version"`
+	Notes   string `json:"notes"`
+	Files   []File `json:"files"`
 }
 
 // ErrSignature signale un manifeste dont la signature est absente ou invalide.
@@ -141,31 +156,82 @@ func Parse(data []byte) (Manifest, error) {
 	case len(m.Notes) > 32<<10:
 		return m, errors.New("nouveautés trop longues")
 	}
-	seen := map[string]bool{}
-	for _, f := range m.Files {
+	if err := checkFiles(m.Files); err != nil {
+		return m, err
+	}
+	if a := m.Agent; a != nil {
 		switch {
-		case f.Platform == "" || seen[f.Platform]:
-			return m, fmt.Errorf("plateforme absente ou en double : %q", f.Platform)
-		case !namePattern.MatchString(f.Name):
-			return m, fmt.Errorf("nom de fichier invalide : %q", f.Name)
-		case f.Size <= 0 || f.Size > MaxFileSize:
-			return m, fmt.Errorf("taille invalide pour %s", f.Name)
-		case !sha256Pattern.MatchString(f.SHA256):
-			return m, fmt.Errorf("empreinte invalide pour %s", f.Name)
+		case !versionPattern.MatchString(a.Version):
+			return m, fmt.Errorf("numéro de version de l'agent invalide : %q", a.Version)
+		case len(a.Notes) > 8<<10:
+			return m, errors.New("nouveautés de l'agent trop longues")
 		}
-		seen[f.Platform] = true
+		if err := checkFiles(a.Files); err != nil {
+			return m, err
+		}
 	}
 	return m, nil
 }
 
+func checkFiles(files []File) error {
+	seen := map[string]bool{}
+	for _, f := range files {
+		switch {
+		case f.Platform == "" || seen[f.Platform]:
+			return fmt.Errorf("plateforme absente ou en double : %q", f.Platform)
+		case !namePattern.MatchString(f.Name):
+			return fmt.Errorf("nom de fichier invalide : %q", f.Name)
+		case f.Size <= 0 || f.Size > MaxFileSize:
+			return fmt.Errorf("taille invalide pour %s", f.Name)
+		case !sha256Pattern.MatchString(f.SHA256):
+			return fmt.Errorf("empreinte invalide pour %s", f.Name)
+		}
+		seen[f.Platform] = true
+	}
+	return nil
+}
+
 // File renvoie le fichier destiné à une plateforme.
-func (m Manifest) File(platform string) (File, bool) {
-	for _, f := range m.Files {
+func (m Manifest) File(platform string) (File, bool) { return findFile(m.Files, platform) }
+
+// File renvoie le fichier de l'agent destiné à une plateforme (« windows-amd64 »…).
+func (a Agent) File(platform string) (File, bool) { return findFile(a.Files, platform) }
+
+func findFile(files []File, platform string) (File, bool) {
+	for _, f := range files {
 		if f.Platform == platform {
 			return f, true
 		}
 	}
 	return File{}, false
+}
+
+// Newer indique si la version candidate (« X.Y.Z ») est plus récente que current. Une pré-version
+// (« 1.4.0-dev.12 ») précède la version « 1.4.0 » ; une version non numérotée (« dev », compilation
+// locale) n'est jamais mise à jour.
+func Newer(candidate, current string) bool {
+	c, cPre, ok := parseVersion(candidate)
+	n, nPre, ok2 := parseVersion(current)
+	if !ok || !ok2 || cPre {
+		return false
+	}
+	for i := range c {
+		if c[i] != n[i] {
+			return c[i] > n[i]
+		}
+	}
+	return nPre
+}
+
+func parseVersion(v string) (nums [3]int, pre bool, ok bool) {
+	base, suffix, hasSuffix := strings.Cut(v, "-")
+	if !versionPattern.MatchString(base) || (hasSuffix && suffix == "") {
+		return nums, false, false
+	}
+	for i, part := range strings.Split(base, ".") {
+		nums[i], _ = strconv.Atoi(part)
+	}
+	return nums, hasSuffix, true
 }
 
 // Source est l'emplacement des versions publiées et la clé qui les authentifie.
@@ -175,15 +241,32 @@ type Source struct {
 	Base   string
 	Key    *rsa.PublicKey
 	Client *http.Client
+	// UserAgent identifie le programme auprès du serveur (« WakeOnLan » par défaut).
+	UserAgent string
 }
+
+// Source de test : remplacées uniquement pour le test de bout en bout de la CI (-ldflags -X), jamais
+// dans les versions publiées. testKey est une clé publique RSA (SubjectPublicKeyInfo DER, base64).
+var testBase, testKey string
 
 // Official renvoie la source des versions officielles (GitHub, clé de signature de l'APK).
 func Official() (Source, error) {
+	if testBase != "" && testKey != "" {
+		key, err := ParsePublicKey(testKey)
+		return Source{Base: testBase, Key: key}, err
+	}
 	key, err := ReleaseKey()
 	if err != nil {
 		return Source{}, err
 	}
 	return Source{Base: DefaultBase, Key: key}, nil
+}
+
+func (s Source) userAgent() string {
+	if s.UserAgent == "" {
+		return "WakeOnLan"
+	}
+	return s.UserAgent
 }
 
 func (s Source) client() *http.Client {
@@ -225,7 +308,7 @@ func (s Source) get(ctx context.Context, url string, limit int64) ([]byte, error
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "WakeOnLan-Windows")
+	req.Header.Set("User-Agent", s.userAgent())
 	resp, err := s.client().Do(req)
 	if err != nil {
 		return nil, err
@@ -254,7 +337,7 @@ func (s Source) Download(ctx context.Context, m Manifest, f File, dest string, p
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", "WakeOnLan-Windows")
+	req.Header.Set("User-Agent", s.userAgent())
 	resp, err := s.client().Do(req)
 	if err != nil {
 		return err

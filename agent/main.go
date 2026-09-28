@@ -41,11 +41,14 @@ Commandes :
   pair         Réaffiche le QR code / lien d'appairage.  Options : --ip, --png fichier.png, --invert
   rotate-key   Génère une nouvelle clé (l'ancienne ne fonctionne plus : ré-appairez le téléphone).
   status       Affiche l'état du service et la configuration.
+  update       Recherche une nouvelle version de l'agent et l'installe (Windows ; clé conservée).
+               Options : --check (vérifier seulement), --yes (sans confirmation),
+               --auto on|off (recherche quotidienne, installée après accord de l'utilisateur connecté)
   uninstall    Désinstalle le service.  Option : --purge (supprime aussi la configuration).
   run          Lance l'agent au premier plan (utilisé par le service).  Options : --config, --dry-run
   version      Affiche la version.
 
-Les commandes install, pair, rotate-key et uninstall nécessitent les droits administrateur
+Les commandes install, pair, rotate-key, update et uninstall nécessitent les droits administrateur
 (Windows : invite de commandes « Exécuter en tant qu'administrateur » ; Linux/macOS : sudo).
 `
 
@@ -74,6 +77,10 @@ func main() {
 		err = cmdStatus(args[1:])
 	case "uninstall":
 		err = cmdUninstall(args[1:])
+	case "update":
+		err = cmdUpdate(args[1:])
+	case "update-finish": // lancé par le service après le remplacement de l'exécutable
+		err = cmdUpdateFinish()
 	case "version", "--version", "-v":
 		fmt.Println("wol-agent", version)
 	case "help", "--help", "-h":
@@ -138,8 +145,14 @@ func cmdRun(args []string) error {
 		return err
 	}
 
-	// Lancé par le gestionnaire de services Windows ?
-	if handled, err := service.Run(runServer); handled || err != nil {
+	// Lancé par le gestionnaire de services Windows ? Le service recherche aussi les mises à jour.
+	asService := func(ctx context.Context) error {
+		if !*dryRun {
+			startAutoUpdate(ctx, *cfgPath, logger)
+		}
+		return runServer(ctx)
+	}
+	if handled, err := service.Run(asService); handled || err != nil {
 		return err
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -281,6 +294,13 @@ func cmdStatus(args []string) error {
 		return nil
 	}
 	fmt.Printf("Nom           : %s\nPort          : %d\nCommandes     : %v\nRéseaux       : %v\n", cfg.Name, cfg.Port, cfg.Commands, cfg.Allow)
+	if runtime.GOOS == "windows" {
+		if cfg.AutoUpdates() {
+			fmt.Println("Mises à jour  : recherche quotidienne, installées après accord de l'utilisateur connecté")
+		} else {
+			fmt.Println("Mises à jour  : recherche automatique désactivée (« wol-agent update --auto on »)")
+		}
+	}
 	if iface, err := netinfo.Detect(""); err == nil {
 		fmt.Printf("Carte réseau  : %s — IP %s — MAC %s\n", iface.Name, iface.IP, iface.MAC)
 	}

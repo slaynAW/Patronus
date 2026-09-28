@@ -34,7 +34,7 @@ type vectors struct {
 
 func load(t *testing.T) vectors {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "protocol", "update-vectors.json"))
+	raw, err := os.ReadFile(filepath.Join("..", "..", "protocol", "update-vectors.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,5 +209,63 @@ func TestReplace(t *testing.T) {
 	}
 	if data, _ := os.ReadFile(exe); string(data) != "v2" {
 		t.Errorf("exécutable restauré : %q", data)
+	}
+}
+
+func TestAgentSection(t *testing.T) {
+	sum := strings.Repeat("ab", 32)
+	manifest := func(agent string) []byte {
+		return []byte(`{"format":1,"version":"1.4.0","code":60,"files":[],"agent":` + agent + `}`)
+	}
+	m, err := Parse(manifest(`{"version":"1.4.0","notes":"- Mises à jour","files":[` +
+		`{"platform":"windows-amd64","name":"wol-agent-windows-amd64.exe","size":10,"sha256":"` + sum + `"},` +
+		`{"platform":"windows-arm64","name":"wol-agent-windows-arm64.exe","size":11,"sha256":"` + sum + `"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, ok := m.Agent.File("windows-arm64")
+	if m.Agent.Version != "1.4.0" || !ok || f.Name != "wol-agent-windows-arm64.exe" || f.Size != 11 {
+		t.Errorf("agent : %+v", m.Agent)
+	}
+	if _, ok := m.Agent.File("linux-amd64"); ok {
+		t.Error("plateforme absente trouvée")
+	}
+	// Manifestes antérieurs : pas de section agent.
+	if m, err := Parse([]byte(`{"format":1,"version":"1.3.1","code":58,"files":[]}`)); err != nil || m.Agent != nil {
+		t.Errorf("sans agent : %+v, %v", m.Agent, err)
+	}
+	for _, bad := range []string{
+		`{"version":"1.4","files":[]}`,
+		`{"version":"1.4.0","files":[{"platform":"windows-amd64","name":"../wol-agent.exe","size":1,"sha256":"` + sum + `"}]}`,
+		`{"version":"1.4.0","files":[{"platform":"windows-amd64","name":"a.exe","size":1,"sha256":"00"}]}`,
+		`{"version":"1.4.0","files":[{"platform":"windows-amd64","name":"a.exe","size":0,"sha256":"` + sum + `"}]}`,
+	} {
+		if _, err := Parse(manifest(bad)); err == nil {
+			t.Errorf("section agent invalide acceptée : %s", bad)
+		}
+	}
+}
+
+func TestNewer(t *testing.T) {
+	for _, c := range []struct {
+		candidate, current string
+		want               bool
+	}{
+		{"1.4.0", "1.3.1", true},
+		{"1.4.0", "1.2.0", true},
+		{"1.10.0", "1.9.9", true},
+		{"2.0.0", "1.99.99", true},
+		{"1.4.0", "1.4.0-dev.61", true}, // version officielle après une pré-version
+		{"1.4.0", "1.4.0", false},
+		{"1.3.1", "1.4.0", false},
+		{"1.4.0", "1.4.1-dev.3", false},
+		{"1.4.0", "dev", false}, // compilation locale : jamais mise à jour
+		{"1.4.0", "", false},
+		{"1.5.0-dev.2", "1.4.0", false}, // seules les versions officielles sont proposées
+		{"abc", "1.0.0", false},
+	} {
+		if got := Newer(c.candidate, c.current); got != c.want {
+			t.Errorf("Newer(%q, %q) = %v", c.candidate, c.current, got)
+		}
 	}
 }

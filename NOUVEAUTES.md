@@ -3,6 +3,11 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.4.0
+
+- **Agent Windows à jour tout seul** : l'agent des PC (1.4.0) propose ses nouvelles versions à l'utilisateur du PC et s'installe après son accord, sans changer sa clé ni l'appairage. À installer une fois à la main depuis cette version.
+- Le tracé de latence des listes s'arrête au milieu de la ligne et ne passe plus sur le nom du PC.
+
 ## 1.3.1
 
 - **Partage** : la connexion à GitHub aboutit désormais même si le téléphone coupe Internet à l'application pendant la validation du code (elle se termine dès le retour dans l'application).

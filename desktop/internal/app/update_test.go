@@ -16,11 +16,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/slaynaw/wakeonlan/agent/update"
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 	"github.com/slaynaw/wakeonlan/desktop/internal/netstate"
 	"github.com/slaynaw/wakeonlan/desktop/internal/status"
-	"github.com/slaynaw/wakeonlan/desktop/internal/update"
 )
 
 // releaseServer imite GitHub Releases : manifeste signé avec une clé de test et fichier de la version.

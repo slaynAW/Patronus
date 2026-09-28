@@ -84,6 +84,11 @@ func Uninstall() error {
 // Restart redémarre le service.
 func Restart() error { return run("systemctl", "restart", unitName) }
 
+// IsRunning indique si le service est démarré.
+func IsRunning() bool {
+	return exec.Command("systemctl", "is-active", "--quiet", unitName).Run() == nil
+}
+
 // Status décrit l'état du service.
 func Status() string {
 	out, _ := exec.Command("systemctl", "is-active", unitName).Output()

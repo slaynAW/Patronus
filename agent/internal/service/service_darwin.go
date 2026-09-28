@@ -62,6 +62,9 @@ func Uninstall() error {
 // Restart redémarre le démon.
 func Restart() error { return run("launchctl", "kickstart", "-k", "system/"+label) }
 
+// IsRunning indique si le service est chargé par launchd.
+func IsRunning() bool { return exec.Command("launchctl", "print", "system/"+label).Run() == nil }
+
 // Status décrit l'état du démon.
 func Status() string {
 	if exec.Command("launchctl", "print", "system/"+label).Run() != nil {

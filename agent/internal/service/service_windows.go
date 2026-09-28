@@ -123,6 +123,22 @@ func Restart() error {
 	return s.Start()
 }
 
+// IsRunning indique si le service est démarré.
+func IsRunning() bool {
+	m, err := mgr.Connect()
+	if err != nil {
+		return false
+	}
+	defer m.Disconnect()
+	s, err := m.OpenService(name)
+	if err != nil {
+		return false
+	}
+	defer s.Close()
+	st, err := s.Query()
+	return err == nil && st.State == svc.Running
+}
+
 // Status décrit l'état du service.
 func Status() string {
 	m, err := mgr.Connect()

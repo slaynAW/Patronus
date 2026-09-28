@@ -37,6 +37,7 @@ jobs:
     outputs:
       name: ${{ steps.v.outputs.name }}
       official: ${{ steps.v.outputs.official }}
+      agent: ${{ steps.v.outputs.agent }}
     steps:
       - uses: actions/checkout@v6
       - id: v
@@ -56,9 +57,18 @@ jobs:
           else
             name="${base}-dev.${GITHUB_RUN_NUMBER}"
           fi
+          # L'agent a son propre numéro (première section de agent/NOUVEAUTES.md) : il ne change que
+          # lorsque l'agent change, et c'est lui que les agents installés comparent au leur.
+          agent=$(awk '/^## [0-9]+\.[0-9]+\.[0-9]+[[:space:]]*$/ { print $2; exit }' agent/NOUVEAUTES.md)
+          if [[ -z "$agent" ]]; then
+            echo "::error title=Agent::agent/NOUVEAUTES.md ne contient pas de section « ## X.Y.Z »."
+            exit 1
+          fi
+          [[ "$official" == true ]] || agent="${agent}-dev.${GITHUB_RUN_NUMBER}"
           echo "name=$name" >> "$GITHUB_OUTPUT"
           echo "official=$official" >> "$GITHUB_OUTPUT"
-          echo "Version : $name (code $WOL_VERSION_CODE, officielle : $official)"
+          echo "agent=$agent" >> "$GITHUB_OUTPUT"
+          echo "Version : $name (code $WOL_VERSION_CODE, officielle : $official) ; agent $agent"
 
   agent:
     name: Agent PC (tests + binaires)
@@ -83,7 +93,7 @@ jobs:
         run: go test -race ./...
       - name: Binaires
         env:
-          VERSION: ${{ needs.version.outputs.name }}
+          VERSION: ${{ needs.version.outputs.agent }}
         run: |
           mkdir -p ../dist
           build() { # os arch [suffixe] [variables]
@@ -119,6 +129,10 @@ jobs:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
       - run: go test ./...
+      # Service réellement installé, puis mis à jour par lui-même depuis un faux serveur de versions
+      # (manifeste signé par une clé de test) : recherche, téléchargement, remplacement, redémarrage.
+      - name: Mise à jour de bout en bout
+        run: go test -tags e2e -count=1 -run TestUpdateEndToEnd -v -timeout 10m .
 
   desktop:
     name: Application Windows (tests + exécutables)
@@ -346,6 +360,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       VERSION: ${{ needs.version.outputs.name }}
+      AGENT_VERSION: ${{ needs.version.outputs.agent }}
     steps:
       - uses: actions/checkout@v6
       # Uniquement les fichiers publiés (pas les captures d'écran ni les rapports de test).
@@ -382,7 +397,7 @@ jobs:
             echo "Au premier lancement, SmartScreen peut afficher « Windows a protégé votre ordinateur » :"
             echo "*Informations complémentaires* → *Exécuter quand même*."
             echo
-            echo "## 💻 Agent PC (facultatif, pour éteindre à distance)"
+            echo "## 💻 Agent PC ${AGENT_VERSION} (facultatif, pour éteindre à distance)"
             echo "- **Windows** : \`wol-agent-windows-amd64.exe\` → double-clic → accepter l'invite administrateur → scanner le QR code."
             echo "- **Linux** : \`chmod +x wol-agent-linux-amd64 && sudo ./wol-agent-linux-amd64 install\`"
             echo "- **macOS** : \`chmod +x wol-agent-darwin-arm64 && sudo ./wol-agent-darwin-arm64 install\`"

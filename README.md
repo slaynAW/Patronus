@@ -114,8 +114,11 @@ chmod +x wol-agent-darwin-arm64
 sudo ./wol-agent-darwin-arm64 install
 ```
 
+Sous Windows, l'agent (1.4.0 ou plus) propose lui-même ses nouvelles versions à l'utilisateur du PC et s'installe
+après son accord, sans changer la clé.
+
 Commandes utiles : `wol-agent pair` (réafficher le QR code), `wol-agent status`, `wol-agent rotate-key` (changer la clé),
-`wol-agent uninstall`. Détails : **[agent/README.md](agent/README.md)**.
+`wol-agent update` (mettre à jour), `wol-agent uninstall`. Détails : **[agent/README.md](agent/README.md)**.
 
 ## 5. Utilisation
 
