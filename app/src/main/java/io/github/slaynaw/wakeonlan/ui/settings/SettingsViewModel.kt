@@ -9,6 +9,7 @@ import io.github.slaynaw.wakeonlan.BuildConfig
 import io.github.slaynaw.wakeonlan.R
 import io.github.slaynaw.wakeonlan.core.config.ConfigException
 import io.github.slaynaw.wakeonlan.core.config.ExportCodec
+import io.github.slaynaw.wakeonlan.core.history.HistoryData
 import io.github.slaynaw.wakeonlan.core.model.AppConfig
 import io.github.slaynaw.wakeonlan.core.model.AppSettings
 import io.github.slaynaw.wakeonlan.ui.devices.UiMessage
@@ -121,6 +122,13 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     fun cancelImport() {
         _importStep.value = null
+    }
+
+    /** Efface l'historique noté par le téléphone ; le journal des agents sera relu. */
+    fun clearHistory() = viewModelScope.launch {
+        container.history.update { HistoryData.EMPTY }
+        container.historyTracker.reset()
+        _messages.send(UiMessage(R.string.message_history_cleared))
     }
 
     /** Exécute une opération longue en affichant l'indicateur d'activité et les erreurs. */

@@ -3,6 +3,8 @@ package io.github.slaynaw.wakeonlan.ui.edit
 import android.app.Activity
 import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,32 +17,28 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +49,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -59,15 +60,23 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.slaynaw.wakeonlan.R
 import io.github.slaynaw.wakeonlan.appContainer
 import io.github.slaynaw.wakeonlan.core.model.DeviceField
+import io.github.slaynaw.wakeonlan.ui.common.BusySpinner
+import io.github.slaynaw.wakeonlan.ui.common.ButtonKind
 import io.github.slaynaw.wakeonlan.ui.common.ScanFailure
+import io.github.slaynaw.wakeonlan.ui.common.SectionLabel
+import io.github.slaynaw.wakeonlan.ui.common.WolButton
+import io.github.slaynaw.wakeonlan.ui.common.WolIcons
 import io.github.slaynaw.wakeonlan.ui.common.label
 import io.github.slaynaw.wakeonlan.ui.common.osLabel
 import io.github.slaynaw.wakeonlan.ui.common.scanQrCode
+import io.github.slaynaw.wakeonlan.ui.theme.MonoStyle
+import io.github.slaynaw.wakeonlan.ui.theme.WolPalette
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -104,22 +113,26 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
     }
 
     Scaffold(
+        containerColor = WolPalette.Background,
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(if (state.isNew) R.string.edit_title_new else R.string.edit_title)) },
                 navigationIcon = {
                     IconButton(onClick = onDone) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                        Icon(WolIcons.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 actions = {
                     if (!state.isNew) {
                         IconButton(onClick = { showDeleteDialog = true }) {
-                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete))
+                            Icon(WolIcons.Delete, contentDescription = stringResource(R.string.action_delete), tint = WolPalette.DangerText)
                         }
                     }
-                    TextButton(onClick = vm::save, enabled = !state.loading) { Text(stringResource(R.string.save)) }
+                    TextButton(onClick = vm::save, enabled = !state.loading) {
+                        Text(stringResource(R.string.save), color = WolPalette.Blue, style = MaterialTheme.typography.labelLarge)
+                    }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = WolPalette.Background),
             )
         },
     ) { padding ->
@@ -135,7 +148,7 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
         ) {
             PairingCard(onScan = scan, onPaste = { showPasteDialog = true })
 
-            SectionTitle(stringResource(R.string.section_device))
+            SectionLabel(stringResource(R.string.section_device), Modifier.padding(top = 6.dp))
             FormField(
                 value = form.name,
                 onValueChange = { vm.onFormChange(form.copy(name = it)) },
@@ -150,6 +163,7 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
                 supporting = stringResource(R.string.field_mac_help),
                 error = state.errors[DeviceField.MAC],
                 keyboard = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, keyboardType = KeyboardType.Ascii),
+                mono = true,
             )
             FormField(
                 value = form.host,
@@ -160,19 +174,27 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
                 keyboard = KeyboardOptions(keyboardType = KeyboardType.Uri),
             )
 
-            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+            HorizontalDivider(Modifier.padding(vertical = 4.dp), color = WolPalette.Line)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    SectionTitle(stringResource(R.string.section_agent))
+                    Text(stringResource(R.string.section_agent), style = MaterialTheme.typography.titleSmall)
                     Text(
                         stringResource(R.string.section_agent_help),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = WolPalette.Text2,
                     )
                 }
+                Spacer(Modifier.width(12.dp))
                 Switch(
                     checked = form.agentEnabled,
                     onCheckedChange = { vm.onFormChange(form.copy(agentEnabled = it)) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = WolPalette.Blue,
+                        uncheckedThumbColor = WolPalette.Text2,
+                        uncheckedTrackColor = WolPalette.Surface3,
+                        uncheckedBorderColor = WolPalette.Line2,
+                    ),
                 )
             }
             AnimatedVisibility(form.agentEnabled) {
@@ -194,27 +216,37 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
                         visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailing = {
                             TextButton(onClick = { keyVisible = !keyVisible }) {
-                                Text(stringResource(if (keyVisible) R.string.hide else R.string.show))
+                                Text(stringResource(if (keyVisible) R.string.hide else R.string.show), color = WolPalette.Blue)
                             }
                         },
+                        mono = true,
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedButton(onClick = vm::testAgent, enabled = !state.testing) {
-                            Text(stringResource(R.string.action_test_agent))
-                        }
+                        WolButton(
+                            stringResource(R.string.action_test_agent),
+                            onClick = vm::testAgent,
+                            enabled = !state.testing,
+                            icon = WolIcons.Shield,
+                        )
                         if (state.testing) {
                             Spacer(Modifier.width(12.dp))
-                            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                            BusySpinner()
                         }
                     }
                     state.testResult?.let { TestResultCard(it) }
                 }
             }
 
-            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+            HorizontalDivider(Modifier.padding(vertical = 4.dp), color = WolPalette.Line)
             TextButton(onClick = { showAdvanced = !showAdvanced }) {
-                Text(stringResource(R.string.section_advanced))
-                Icon(if (showAdvanced) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null)
+                Text(stringResource(R.string.section_advanced), color = WolPalette.Blue)
+                Spacer(Modifier.width(6.dp))
+                Icon(
+                    if (showAdvanced) WolIcons.ChevronUp else WolIcons.ChevronDown,
+                    contentDescription = null,
+                    tint = WolPalette.Blue,
+                    modifier = Modifier.size(16.dp),
+                )
             }
             AnimatedVisibility(showAdvanced) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -249,11 +281,18 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
                         supporting = stringResource(R.string.field_secure_on_help),
                         error = state.errors[DeviceField.SECURE_ON],
                         keyboard = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, keyboardType = KeyboardType.Ascii),
+                        mono = true,
                     )
                 }
             }
 
-            Button(onClick = vm::save, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.save)) }
+            WolButton(
+                stringResource(R.string.save),
+                onClick = vm::save,
+                modifier = Modifier.fillMaxWidth(),
+                kind = ButtonKind.PRIMARY,
+                height = 48.dp,
+            )
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -319,21 +358,29 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
 
 @Composable
 private fun PairingCard(onScan: () -> Unit, onPaste: () -> Unit) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-        modifier = Modifier.fillMaxWidth(),
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Brush.linearGradient(listOf(Color(0xFF13243D), Color(0xFF161D2B))))
+            .border(1.dp, Color(0xFF22385A), shape)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.pairing_title), style = MaterialTheme.typography.titleSmall)
-            Text(stringResource(R.string.pairing_text), style = MaterialTheme.typography.bodyMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onScan) {
-                    Icon(painterResource(R.drawable.ic_qr_code_scanner), null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.action_scan_qr))
-                }
-                OutlinedButton(onClick = onPaste) { Text(stringResource(R.string.action_paste_link)) }
+        Text(stringResource(R.string.pairing_title), style = MaterialTheme.typography.titleSmall)
+        Text(stringResource(R.string.pairing_text), style = MaterialTheme.typography.bodyMedium, color = Color(0xFFB6C3D6))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = onScan,
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = WolPalette.Blue, contentColor = Color.White),
+            ) {
+                Icon(painterResource(R.drawable.ic_qr_code_scanner), null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.action_scan_qr), style = MaterialTheme.typography.labelLarge)
             }
+            WolButton(stringResource(R.string.action_paste_link), onClick = onPaste, icon = WolIcons.Paste, height = 40.dp)
         }
     }
 }
@@ -341,14 +388,17 @@ private fun PairingCard(onScan: () -> Unit, onPaste: () -> Unit) {
 @Composable
 private fun TestResultCard(result: AgentTestResult) {
     val success = result is AgentTestResult.Success
+    val content = if (success) WolPalette.SuccessText else WolPalette.DangerText
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (success) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer,
+            containerColor = if (success) WolPalette.SuccessBackground else WolPalette.DangerBackground,
+            contentColor = content,
         ),
+        shape = RoundedCornerShape(10.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(if (success) Icons.Default.CheckCircle else Icons.Default.Warning, contentDescription = null)
+            Icon(if (success) WolIcons.Check else WolIcons.Warning, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(12.dp))
             Text(
                 when (result) {
@@ -391,11 +441,6 @@ private fun PasteLinkDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit) 
 }
 
 @Composable
-private fun SectionTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-}
-
-@Composable
 private fun FormField(
     value: String,
     onValueChange: (String) -> Unit,
@@ -405,6 +450,7 @@ private fun FormField(
     supporting: String? = null,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     trailing: (@Composable () -> Unit)? = null,
+    mono: Boolean = false,
 ) {
     val helper = error ?: supporting
     OutlinedTextField(
@@ -421,6 +467,18 @@ private fun FormField(
         keyboardOptions = keyboard,
         visualTransformation = visualTransformation,
         trailingIcon = trailing,
+        textStyle = if (mono) MonoStyle.copy(fontSize = 15.sp) else MaterialTheme.typography.bodyLarge,
+        shape = RoundedCornerShape(10.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = WolPalette.Background,
+            unfocusedContainerColor = WolPalette.Background,
+            focusedBorderColor = WolPalette.Blue,
+            unfocusedBorderColor = WolPalette.Line2,
+            focusedLabelColor = WolPalette.Blue,
+            unfocusedLabelColor = WolPalette.Text2,
+            unfocusedSupportingTextColor = WolPalette.Text3,
+            focusedSupportingTextColor = WolPalette.Text3,
+        ),
         modifier = Modifier.fillMaxWidth(),
     )
 }

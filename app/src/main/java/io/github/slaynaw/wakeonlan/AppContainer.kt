@@ -8,8 +8,12 @@ import io.github.slaynaw.wakeonlan.core.status.StatusMonitor
 import io.github.slaynaw.wakeonlan.core.status.UnknownReason
 import io.github.slaynaw.wakeonlan.core.wol.WakeOnLanSender
 import io.github.slaynaw.wakeonlan.data.ConfigRepository
+import io.github.slaynaw.wakeonlan.data.HistoryRepository
 import io.github.slaynaw.wakeonlan.network.LanNetworkMonitor
 import io.github.slaynaw.wakeonlan.network.LocalNetworkAccess
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,11 +25,16 @@ import kotlinx.coroutines.flow.combine
  * simple). Une seule instance, créée par [WolApplication].
  */
 class AppContainer(private val context: Context) {
+    /** Tâches de fond de l'application (enregistrement de l'historique, lecture du journal des agents). */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     val network = LanNetworkMonitor(context)
     val repository = ConfigRepository(context)
     private val agentClient = AgentClient(binder = network)
     val statusMonitor = StatusMonitor(prober = HostProber(binder = network, agentClient = agentClient))
-    val actions = DeviceActions(network, WakeOnLanSender(binder = network), agentClient, statusMonitor)
+    val history = HistoryRepository(context, scope)
+    val historyTracker = HistoryTracker(repository.config, statusMonitor.statuses, agentClient, history, scope)
+    val actions = DeviceActions(network, WakeOnLanSender(binder = network), agentClient, statusMonitor, historyTracker)
 
     private val _localNetworkGranted = MutableStateFlow(LocalNetworkAccess.isGranted(context))
 

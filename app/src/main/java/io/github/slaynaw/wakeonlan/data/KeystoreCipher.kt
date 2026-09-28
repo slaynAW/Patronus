@@ -14,9 +14,12 @@ import javax.crypto.spec.GCMParameterSpec
  * Chiffrement AES-256-GCM avec une clé générée et conservée dans le Keystore Android
  * (matériel sécurisé du téléphone). La clé n'est jamais exportable, même avec un accès root.
  *
- * Format produit : `[version=1][taille IV][IV][texte chiffré + tag]`.
+ * Format produit : `[version=1][taille IV][IV][texte chiffré + tag]`. [aad] lie les données à leur
+ * usage (configuration, historique) : un fichier ne peut pas être substitué à l'autre.
  */
-class KeystoreCipher(private val alias: String = DEFAULT_ALIAS) {
+class KeystoreCipher(private val alias: String = DEFAULT_ALIAS, aad: String = DEFAULT_AAD) {
+
+    private val aad = aad.toByteArray()
 
     private val keyStore: KeyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
 
@@ -40,7 +43,7 @@ class KeystoreCipher(private val alias: String = DEFAULT_ALIAS) {
     fun encrypt(plain: ByteArray): ByteArray {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, key())
-        cipher.updateAAD(AAD)
+        cipher.updateAAD(aad)
         val iv = cipher.iv
         val encrypted = cipher.doFinal(plain)
         return ByteBuffer.allocate(2 + iv.size + encrypted.size)
@@ -58,7 +61,7 @@ class KeystoreCipher(private val alias: String = DEFAULT_ALIAS) {
         val iv = data.copyOfRange(2, 2 + ivSize)
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv))
-        cipher.updateAAD(AAD)
+        cipher.updateAAD(aad)
         return cipher.doFinal(data, 2 + ivSize, data.size - 2 - ivSize)
     }
 
@@ -67,6 +70,6 @@ class KeystoreCipher(private val alias: String = DEFAULT_ALIAS) {
         const val DEFAULT_ALIAS = "wakeonlan-config-v1"
         const val TRANSFORMATION = "AES/GCM/NoPadding"
         const val FORMAT_VERSION: Byte = 1
-        val AAD = "wakeonlan/config".toByteArray()
+        const val DEFAULT_AAD = "wakeonlan/config"
     }
 }

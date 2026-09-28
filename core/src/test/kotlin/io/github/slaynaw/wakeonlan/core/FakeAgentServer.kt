@@ -1,10 +1,12 @@
 package io.github.slaynaw.wakeonlan.core
 
+import io.github.slaynaw.wakeonlan.core.agent.AgentHistory
 import io.github.slaynaw.wakeonlan.core.agent.AgentProtocol
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -26,6 +28,10 @@ class FakeAgentServer(
     private val server = ServerSocket(0, 50, InetAddress.getLoopbackAddress())
     val port: Int get() = server.localPort
     val commands = mutableListOf<String>()
+
+    /** Journal renvoyé par la commande `history` ; `null` : agent trop ancien (commande refusée). */
+    @Volatile
+    var history: AgentHistory? = null
 
     init {
         thread(isDaemon = true) {
@@ -64,7 +70,8 @@ class FakeAgentServer(
         }
         val cmd = Json.parseToJsonElement(body).jsonObject.str("cmd")
         synchronized(commands) { commands += cmd }
-        val ok = behavior != Behavior.REJECT
+        val journal = history
+        val ok = behavior != Behavior.REJECT && (cmd != "history" || journal != null)
         val responseBody = buildJsonObject {
             put("ok", ok)
             put("code", if (ok) "ok" else "error")
@@ -74,6 +81,7 @@ class FakeAgentServer(
             put("arch", "amd64")
             put("version", "1.0.0")
             put("uptime", 3600)
+            if (ok && cmd == "history") put("history", Json.encodeToJsonElement(journal))
         }.toString()
         var mac = AgentProtocol.responseMac(key, nonce, cnonce, responseBody)
         if (behavior == Behavior.BAD_RESPONSE_MAC) mac = AgentProtocol.responseMac(ByteArray(32), nonce, cnonce, responseBody)

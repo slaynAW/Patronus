@@ -94,7 +94,20 @@ class AgentClient(
         }
     }
 
-    private suspend fun exchange(host: String, agent: AgentSettings, request: RequestBody): AgentResult<ResponseBody> {
+    /** Lit le journal du PC (30 jours). Un agent trop ancien répond [AgentError.REJECTED]. */
+    suspend fun history(host: String, agent: AgentSettings): AgentResult<AgentHistory> =
+        when (val r = exchange(host, agent, RequestBody(cmd = "history"), AgentProtocol.MAX_HISTORY_BYTES)) {
+            is AgentResult.Success ->
+                r.value.history?.let { AgentResult.Success(it) } ?: protocolError("journal absent de la réponse")
+            is AgentResult.Failure -> r
+        }
+
+    private suspend fun exchange(
+        host: String,
+        agent: AgentSettings,
+        request: RequestBody,
+        maxResponseBytes: Int = AgentProtocol.MAX_LINE_BYTES,
+    ): AgentResult<ResponseBody> {
         val key = AgentKey.decodeOrNull(agent.key) ?: return AgentResult.Failure(AgentError.NO_KEY)
         var connected = false
         return try {
@@ -103,7 +116,7 @@ class AgentClient(
                 socket.connectBound(binder, address, connectTimeoutMs)
                 connected = true
                 socket.soTimeout = readTimeoutMs
-                converse(socket, key, request)
+                converse(socket, key, request, maxResponseBytes)
             }
         } catch (e: UnknownHostException) {
             AgentResult.Failure(AgentError.UNKNOWN_HOST, e.message)
@@ -116,11 +129,11 @@ class AgentClient(
         }
     }
 
-    private fun converse(socket: Socket, key: ByteArray, request: RequestBody): AgentResult<ResponseBody> {
+    private fun converse(socket: Socket, key: ByteArray, request: RequestBody, maxResponseBytes: Int): AgentResult<ResponseBody> {
         val input = socket.getInputStream().buffered()
         val output = socket.getOutputStream()
 
-        val helloLine = readLine(input)
+        val helloLine = readLine(input, AgentProtocol.MAX_LINE_BYTES)
         // Un agent qui bloque ce téléphone envoie directement une erreur à la place de la salutation.
         val hello = decode<HelloMessage>(helloLine) ?: return earlyError(helloLine)
         if (hello.proto != AgentProtocol.PROTO) return protocolError("version de protocole inconnue : ${hello.proto}")
@@ -135,7 +148,7 @@ class AgentClient(
         output.write((message + "\n").toByteArray(Charsets.UTF_8))
         output.flush()
 
-        val response = decode<ResponseMessage>(readLine(input)) ?: return protocolError("réponse illisible")
+        val response = decode<ResponseMessage>(readLine(input, maxResponseBytes)) ?: return protocolError("réponse illisible")
         if (response.error != null) return errorFrom(response.error)
         val responseBody = response.body ?: return protocolError("réponse sans contenu")
         val responseMac = response.mac ?: return protocolError("réponse non signée")
@@ -161,13 +174,13 @@ class AgentClient(
     private fun protocolError(detail: String) = AgentResult.Failure(AgentError.PROTOCOL, detail)
 
     /** Lit une ligne terminée par `\n`, de taille bornée (protection contre un pair malveillant). */
-    private fun readLine(input: InputStream): String? {
+    private fun readLine(input: InputStream, maxBytes: Int): String? {
         val buffer = ByteArrayOutputStream()
         while (true) {
             val b = input.read()
             if (b == -1) return if (buffer.size() == 0) null else buffer.toString(Charsets.UTF_8.name())
             if (b == '\n'.code) return buffer.toString(Charsets.UTF_8.name()).trimEnd('\r')
-            if (buffer.size() >= AgentProtocol.MAX_LINE_BYTES) throw IOException("message trop long")
+            if (buffer.size() >= maxBytes) throw IOException("message trop long")
             buffer.write(b)
         }
     }
