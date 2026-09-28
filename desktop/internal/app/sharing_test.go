@@ -311,3 +311,57 @@ func TestShareRejectsForeignRequest(t *testing.T) {
 		t.Error("partage indisponible")
 	}
 }
+
+// La clé de partage suit la sauvegarde complète : sur un nouvel appareil, les accès continuent
+// après reconnexion à GitHub (même Gist, mêmes personnes).
+func TestShareKeyInFullBackup(t *testing.T) {
+	_, srv := newGistServer(t)
+	a := newShareService(t, srv, testDevice(t, "dev-1", "PC", "192.168.1.20", ""))
+	call(t, a, "shareLogin", map[string]any{"name": "Hugo"})
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) && (a.State().Share.Owner == nil || !a.State().Share.Owner.Connected) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	device, _ := share.NewDeviceKey()
+	call(t, a, "shareGrant", map[string]any{"device": share.DevicePublic(device), "name": "Léa", "rights": map[string]string{"dev-1": "wake"}})
+
+	platform := a.platform.(*fakePlatform)
+	call(t, a, "exportConfig", map[string]any{"withSecrets": true, "password": "motdepasse"})
+	backup := platform.saved
+	if strings.Contains(string(backup), "Léa") {
+		t.Fatal("sauvegarde lisible")
+	}
+	// Export lisible : jamais la clé de partage.
+	call(t, a, "exportConfig", map[string]any{"withSecrets": false})
+	if strings.Contains(string(platform.saved), "sharing") {
+		t.Error("clé de partage dans un export lisible")
+	}
+
+	b := newShareService(t, srv)
+	if r := call(t, b, "importFile", map[string]any{"text": string(backup)}); r["step"] != "password" {
+		t.Fatalf("import : %v", r)
+	}
+	step := call(t, b, "importPassword", map[string]any{"password": "motdepasse"})
+	info, _ := step["sharing"].(map[string]any)
+	if info["name"] != "Hugo" || info["people"] != float64(1) {
+		t.Fatalf("partage annoncé : %v", step)
+	}
+	if r := call(t, b, "importConfirm", map[string]any{"replace": true}); r["sharing"] != true {
+		t.Fatalf("partage repris : %v", r)
+	}
+	o := b.State().Share.Owner
+	if o == nil || o.Connected || o.Name != "Hugo" || o.User != "hugo" || len(o.People) != 1 || o.People[0].Name != "Léa" {
+		t.Fatalf("partage importé : %+v", o)
+	}
+	// Même clé : l'invitation reste valable après reconnexion.
+	call(t, b, "shareLogin", map[string]any{"name": ""})
+	deadline = time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) && !b.State().Share.Owner.Connected {
+		time.Sleep(10 * time.Millisecond)
+	}
+	ia := call(t, a, "shareInvite", nil)["link"]
+	ib := call(t, b, "shareInvite", nil)["link"]
+	if ia != ib {
+		t.Errorf("invitations différentes :\n%v\n%v", ia, ib)
+	}
+}

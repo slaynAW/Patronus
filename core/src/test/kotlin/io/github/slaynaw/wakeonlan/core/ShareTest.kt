@@ -2,9 +2,13 @@ package io.github.slaynaw.wakeonlan.core
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import io.github.slaynaw.wakeonlan.core.config.ConfigCodec
+import io.github.slaynaw.wakeonlan.core.config.ExportCodec
 import io.github.slaynaw.wakeonlan.core.model.AgentSettings
+import io.github.slaynaw.wakeonlan.core.model.AppConfig
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.model.MacAddress
+import io.github.slaynaw.wakeonlan.core.share.ExportedShareOwner
 import io.github.slaynaw.wakeonlan.core.share.QrCode
 import io.github.slaynaw.wakeonlan.core.share.ShareAccess
 import io.github.slaynaw.wakeonlan.core.share.ShareContent
@@ -291,6 +295,26 @@ class ShareTest {
         } finally {
             server.stop(0)
         }
+    }
+
+    @Test
+    fun `cle de partage dans la sauvegarde complete`() {
+        val key = ShareCrypto.newKeyPair()
+        val guest = ShareCrypto.newKeyPair()
+        val owner = ShareOwner(key = key.privateEncoded, publicKey = key.publicEncoded, name = "Hugo", token = "gho_secret", user = "slaynAW", gist = "0123456789abcdef0123456789abcdef")
+            .grant(SharePerson("Léa", guest.publicEncoded, 1, mapOf("a" to ShareRight.WAKE)))
+        val config = AppConfig(devices = listOf(device("a", "PC streaming", "192.168.1.20")))
+        val extra = mapOf("sharing" to ConfigCodec.json.encodeToJsonElement(ExportedShareOwner.serializer(), ExportedShareOwner.of(owner)))
+        val text = ExportCodec.export(config, "motdepasse".toCharArray(), "2026-09-28T16:00:00Z", extra = extra, iterations = ExportCodec.MIN_ITERATIONS)
+        assertFalse(text.contains("Hugo") || text.contains("gho_secret"))
+        val (back, found) = ExportCodec.importWithExtra(text, "motdepasse".toCharArray())
+        assertEquals(config.devices, back.devices)
+        val restored = ConfigCodec.json.decodeFromJsonElement(ExportedShareOwner.serializer(), found.getValue("sharing")).toOwner()
+        assertEquals("", restored.token, "jeton jamais exporté")
+        assertEquals(owner.people, restored.people)
+        assertEquals(owner.publicKey, restored.publicKey)
+        // Export lisible : jamais de clé de partage.
+        assertFalse(ExportCodec.export(config, null, "2026-09-28T16:00:00Z", extra = extra).contains("sharing"))
     }
 
     /** Fichier produit par Android, relu par les tests Windows (WOL_WRITE_SHARE_VECTORS=1 pour le régénérer). */

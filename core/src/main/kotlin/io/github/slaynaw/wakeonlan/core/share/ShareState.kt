@@ -127,6 +127,37 @@ data class ShareOwner(
     }
 }
 
+/**
+ * Côté « je partage » dans une sauvegarde complète (« sharing », même format que Windows) : sans le
+ * jeton GitHub, à reconnecter sur le nouvel appareil.
+ */
+@Serializable
+data class ExportedShareOwner(
+    val key: String,
+    val publicKey: String,
+    val name: String,
+    val user: String = "",
+    val gist: String = "",
+    val revision: Long = 0,
+    val people: List<SharePerson> = emptyList(),
+) {
+    /** Vérifie la sauvegarde et renvoie l'état correspondant (connexion GitHub à refaire). */
+    fun toOwner(): ShareOwner {
+        val valid = runCatching { ShareCrypto.keyPair(key, publicKey) }.isSuccess &&
+            ShareCrypto.isValidName(name) && people.size <= ShareOwner.MAX_PEOPLE &&
+            (user.isEmpty() || ShareLinks.LOGIN.matches(user)) && (gist.isEmpty() || ShareLinks.GIST.matches(gist)) &&
+            people.all { ShareCrypto.isValidName(it.name) && ShareCrypto.isValidPublicKey(it.device) }
+        if (!valid) throw ShareException(ShareException.Reason.INVALID, "partage de la sauvegarde invalide")
+        return ShareOwner(key = key, publicKey = publicKey, name = name, user = user, gist = gist, revision = revision, people = people)
+    }
+
+    override fun toString(): String = "ExportedShareOwner(name=$name, people=${people.size}, key=***)"
+
+    companion object {
+        fun of(owner: ShareOwner) = ExportedShareOwner(owner.key, owner.publicKey, owner.name, owner.user, owner.gist, owner.revision, owner.people)
+    }
+}
+
 /** Résultat de la lecture du Gist d'un partage reçu. */
 enum class ShareSyncResult { UNCHANGED, UPDATED, GRANTED, WITHDRAWN }
 

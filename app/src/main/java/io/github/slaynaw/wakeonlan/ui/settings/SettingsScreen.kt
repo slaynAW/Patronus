@@ -103,6 +103,7 @@ fun SettingsTab(
     val scope = rememberCoroutineScope()
     val busy by vm.busy.collectAsStateWithLifecycle()
     val importStep by vm.importStep.collectAsStateWithLifecycle()
+    val sharingImported by vm.sharingImported.collectAsStateWithLifecycle()
 
     var showExportDialog by remember { mutableStateOf(false) }
     var showClearHistory by remember { mutableStateOf(false) }
@@ -182,6 +183,16 @@ fun SettingsTab(
         onShareDialog = { shareDialog = it },
     )
 
+    if (sharingImported) {
+        AlertDialog(
+            onDismissRequest = vm::dismissSharingImported,
+            icon = { Icon(WolIcons.Share, contentDescription = null, tint = WolPalette.Blue) },
+            title = { Text(stringResource(R.string.section_share_mine)) },
+            text = { Text(stringResource(R.string.import_sharing_done)) },
+            confirmButton = { TextButton(onClick = vm::dismissSharingImported) { Text(stringResource(R.string.ok)) } },
+        )
+    }
+
     ShareDialogHost(
         dialog = shareDialog,
         onDialog = { shareDialog = it },
@@ -240,6 +251,7 @@ fun SettingsTab(
                     if (step.missingKeys) {
                         Text(stringResource(R.string.import_missing_keys), color = WolPalette.DangerText)
                     }
+                    step.sharing?.let { Text(stringResource(R.string.import_sharing, it.name, it.people.size)) }
                 }
             },
             confirmButton = {

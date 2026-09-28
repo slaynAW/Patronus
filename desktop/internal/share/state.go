@@ -294,3 +294,52 @@ func SharedID(owner, deviceID string) string {
 	sum := sha256.Sum256([]byte(owner + "/" + deviceID))
 	return "s-" + hex.EncodeToString(sum[:16])
 }
+
+// --- Sauvegarde (export complet protégé par mot de passe) ---
+
+// ExportedOwner est le côté « je partage » tel qu'il figure dans l'export chiffré (« sharing ») :
+// sans le jeton GitHub, à reconnecter sur le nouvel appareil. Même format qu'Android.
+type ExportedOwner struct {
+	Key       string   `json:"key"`
+	PublicKey string   `json:"publicKey"`
+	Name      string   `json:"name"`
+	User      string   `json:"user"`
+	Gist      string   `json:"gist"`
+	Revision  int64    `json:"revision"`
+	People    []Person `json:"people"`
+}
+
+// Export prépare la sauvegarde du côté « je partage ».
+func (o *Owner) Export() (ExportedOwner, error) {
+	key, err := ParseOwnerPrivate(o.Key)
+	if err != nil {
+		return ExportedOwner{}, err
+	}
+	people := slices.Clone(o.People)
+	if people == nil {
+		people = []Person{}
+	}
+	return ExportedOwner{Key: o.Key, PublicKey: OwnerPublic(key), Name: o.Name, User: o.User, Gist: o.Gist, Revision: o.Revision, People: people}, nil
+}
+
+// Owner vérifie une sauvegarde et renvoie l'état correspondant (connexion GitHub à refaire).
+func (e ExportedOwner) Owner() (*Owner, error) {
+	key, err := ParseOwnerPrivate(e.Key)
+	if err != nil || OwnerPublic(key) != e.PublicKey || !ValidName(e.Name) || len(e.People) > MaxPeople {
+		return nil, ErrInvalid
+	}
+	if (e.User != "" && !loginPattern.MatchString(e.User)) || (e.Gist != "" && !gistPattern.MatchString(e.Gist)) {
+		return nil, ErrInvalid
+	}
+	for _, p := range e.People {
+		if !ValidName(p.Name) || !ValidDeviceKey(p.Device) {
+			return nil, ErrInvalid
+		}
+		for _, r := range p.Rights {
+			if !r.Valid() {
+				return nil, ErrInvalid
+			}
+		}
+	}
+	return &Owner{Key: e.Key, Name: e.Name, User: e.User, Gist: e.Gist, Revision: e.Revision, People: slices.Clone(e.People)}, nil
+}

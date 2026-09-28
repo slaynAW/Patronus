@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -756,6 +757,53 @@ func (s *Service) shareSyncNow() {
 		sh.mu.Unlock()
 		sh.poke()
 	}
+}
+
+// --- Sauvegarde ---
+
+// shareExport renvoie la clé de partage à inclure dans une sauvegarde complète (nil : pas de partage).
+func (s *Service) shareExport() (json.RawMessage, error) {
+	sh := s.sharing
+	if sh == nil {
+		return nil, nil
+	}
+	sh.mu.Lock()
+	o := sh.state.Owner
+	var exported share.ExportedOwner
+	var err error
+	if o != nil {
+		exported, err = o.Export()
+	}
+	sh.mu.Unlock()
+	if o == nil || err != nil {
+		return nil, err
+	}
+	return json.Marshal(exported)
+}
+
+// shareImport reprend la clé de partage d'une sauvegarde si cet appareil ne partage pas encore :
+// il reste à se reconnecter à GitHub (même compte) pour republier les accès.
+func (s *Service) shareImport(e share.ExportedOwner) bool {
+	sh := s.sharing
+	if sh == nil {
+		return false
+	}
+	owner, err := e.Owner()
+	if err != nil {
+		return false
+	}
+	sh.mu.Lock()
+	defer sh.mu.Unlock()
+	if sh.state.Owner != nil {
+		return false
+	}
+	sh.state.Owner = owner
+	sh.dirty = true
+	if sh.saveLocked() != nil {
+		sh.state.Owner = nil
+		return false
+	}
+	return true
 }
 
 // --- État affiché ---

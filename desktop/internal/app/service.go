@@ -20,6 +20,7 @@ import (
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 	"github.com/slaynaw/wakeonlan/desktop/internal/netstate"
 	"github.com/slaynaw/wakeonlan/desktop/internal/pairing"
+	"github.com/slaynaw/wakeonlan/desktop/internal/share"
 	"github.com/slaynaw/wakeonlan/desktop/internal/status"
 	"github.com/slaynaw/wakeonlan/desktop/internal/wol"
 )
@@ -106,6 +107,8 @@ type Service struct {
 type importState struct {
 	text   []byte
 	config *model.AppConfig
+	// sharing : clé de partage contenue dans une sauvegarde complète.
+	sharing *share.ExportedOwner
 }
 
 // New crée le service et charge la configuration.
@@ -671,11 +674,20 @@ func (s *Service) exportConfig(withSecrets bool, password string) (any, error) {
 		return nil, errors.New("Mot de passe trop court")
 	}
 	now := time.Now()
-	text, err := config.Export(cfg, config.ExportOptions{
+	opts := config.ExportOptions{
 		Password:   password,
 		ExportedAt: now.UTC().Format("2006-01-02T15:04:05.000Z"),
 		App:        "WakeOnLan Windows " + s.version,
-	})
+	}
+	if password != "" {
+		// Sauvegarde complète : la clé de partage suit, pour changer d'appareil sans réinviter.
+		if extra, err := s.shareExport(); err != nil {
+			return nil, err
+		} else if extra != nil {
+			opts.Extra = map[string]json.RawMessage{"sharing": extra}
+		}
+	}
+	text, err := config.Export(cfg, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -722,7 +734,7 @@ func (s *Service) importPassword(password string) (any, error) {
 	if pending == nil {
 		return nil, errors.New("aucun import en cours")
 	}
-	cfg, err := config.Import(pending.text, password)
+	cfg, extra, err := config.ImportWithExtra(pending.text, password)
 	var cfgErr *config.Error
 	if errors.As(err, &cfgErr) && cfgErr.Reason == config.WrongPassword {
 		return map[string]any{"step": "password", "wrongPassword": true}, nil
@@ -733,7 +745,19 @@ func (s *Service) importPassword(password string) (any, error) {
 		s.mu.Unlock()
 		return nil, err
 	}
-	return s.confirmStep(cfg), nil
+	step := s.confirmStep(cfg)
+	if raw, ok := extra["sharing"]; ok {
+		var owner share.ExportedOwner
+		if json.Unmarshal(raw, &owner) == nil {
+			if _, err := owner.Owner(); err == nil {
+				s.mu.Lock()
+				s.pendingImport.sharing = &owner
+				s.mu.Unlock()
+				step["sharing"] = map[string]any{"name": owner.Name, "people": len(owner.People)}
+			}
+		}
+	}
+	return step, nil
 }
 
 func (s *Service) confirmStep(cfg model.AppConfig) map[string]any {
@@ -766,5 +790,9 @@ func (s *Service) importConfirm(replace bool) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"ok": true, "count": len(imported.Devices)}, nil
+	result := map[string]any{"ok": true, "count": len(imported.Devices)}
+	if pending.sharing != nil && s.shareImport(*pending.sharing) {
+		result["sharing"] = true
+	}
+	return result, nil
 }

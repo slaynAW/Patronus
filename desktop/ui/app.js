@@ -233,7 +233,7 @@
     section_backup: "Sauvegarde",
     export_title: "Exporter la configuration",
     export_with_secrets: "Complète, protégée par mot de passe",
-    export_with_secrets_help: "Inclut les clés des agents. Fichier chiffré (AES-256).",
+    export_with_secrets_help: "Inclut les clés des agents et votre clé de partage. Fichier chiffré (AES-256).",
     export_without_secrets: "Sans les clés",
     export_without_secrets_help: "Fichier lisible ; les agents devront être ré-appairés.",
     field_password: "Mot de passe",
@@ -355,6 +355,8 @@
     share_by: "Partagé par %1$s",
     detail_shared: "Partagé par",
     hint_shared: "PC partagé par %1$s : lui seul peut le modifier.",
+    import_sharing: "Contient aussi votre partage (%1$s, personnes autorisées : %2$d), repris si cet ordinateur ne partage pas déjà ses PC.",
+    import_sharing_done: "Votre partage a été repris. Reconnectez-vous à GitHub (Réglages → Partager mes PC) avec le même compte pour que les accès continuent.",
   };
 
   const REPO_URL = "https://github.com/slaynAW/WakeOnLan";
@@ -3194,6 +3196,7 @@
   function importConfirmDialog(step) {
     const body = [h("p", { text: S.import_confirm_text })];
     if (step.missingKeys) body.push(h("p", { class: "error", text: S.import_missing_keys }));
+    if (step.sharing) body.push(h("p", { text: fmt(S.import_sharing, step.sharing.name, step.sharing.people) }));
     const dialog = openDialog({
       iconName: "upload",
       title: fmt(S.import_confirm_title, step.count),
@@ -3211,6 +3214,7 @@
       try {
         const r = await api.call("importConfirm", { replace });
         snackbar(fmt(S.message_import_done, r.count));
+        if (r.sharing) alertDialog(S.section_share_mine, S.import_sharing_done);
       } catch (e) {
         snackbar(errorMessage(e));
       } finally {

@@ -7,11 +7,13 @@ import androidx.lifecycle.viewModelScope
 import io.github.slaynaw.wakeonlan.AppContainer
 import io.github.slaynaw.wakeonlan.BuildConfig
 import io.github.slaynaw.wakeonlan.R
+import io.github.slaynaw.wakeonlan.core.config.ConfigCodec
 import io.github.slaynaw.wakeonlan.core.config.ConfigException
 import io.github.slaynaw.wakeonlan.core.config.ExportCodec
 import io.github.slaynaw.wakeonlan.core.history.HistoryData
 import io.github.slaynaw.wakeonlan.core.model.AppConfig
 import io.github.slaynaw.wakeonlan.core.model.AppSettings
+import io.github.slaynaw.wakeonlan.core.share.ExportedShareOwner
 import io.github.slaynaw.wakeonlan.ui.devices.UiMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -37,7 +39,7 @@ data class SettingsUiState(
 /** Étapes de l'import d'une sauvegarde. */
 sealed interface ImportStep {
     data class NeedPassword(val text: String, val wrongPassword: Boolean = false) : ImportStep
-    data class Confirm(val config: AppConfig) : ImportStep {
+    data class Confirm(val config: AppConfig, val sharing: ExportedShareOwner? = null) : ImportStep {
         /** Sauvegarde « sans secrets » : certaines clés d'agent devront être ressaisies. */
         val missingKeys: Boolean get() = config.devices.any { it.agent?.hasKey == false }
     }
@@ -62,6 +64,14 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     private val _messages = Channel<UiMessage>(Channel.BUFFERED)
     val messages: Flow<UiMessage> = _messages.receiveAsFlow()
 
+    /** Partage repris d'une sauvegarde : il faut se reconnecter à GitHub (message affiché une fois). */
+    private val _sharingImported = MutableStateFlow(false)
+    val sharingImported: StateFlow<Boolean> = _sharingImported.asStateFlow()
+
+    fun dismissSharingImported() {
+        _sharingImported.value = false
+    }
+
     fun updateSettings(transform: (AppSettings) -> AppSettings) = viewModelScope.launch {
         container.repository.updateSettings(transform)
     }
@@ -69,8 +79,11 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     /** Écrit la sauvegarde ; [password] nul = export lisible sans aucun secret. */
     fun export(resolver: ContentResolver, uri: Uri, password: CharArray?) = work {
         val config = container.repository.current()
+        // Sauvegarde complète : la clé de partage suit, pour changer d'appareil sans réinviter.
+        val sharing = if (password != null) container.share.exportOwner() else null
+        val extra = sharing?.let { mapOf("sharing" to ConfigCodec.json.encodeToJsonElement(ExportedShareOwner.serializer(), it)) }.orEmpty()
         val text = withContext(Dispatchers.Default) {
-            ExportCodec.export(config, password, Instant.now().toString(), "WakeOnLan ${BuildConfig.VERSION_NAME}")
+            ExportCodec.export(config, password, Instant.now().toString(), "WakeOnLan ${BuildConfig.VERSION_NAME}", extra = extra)
         }
         password?.fill(' ')
         withContext(Dispatchers.IO) {
@@ -100,8 +113,11 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         val step = _importStep.value as? ImportStep.NeedPassword ?: return
         work {
             try {
-                val config = withContext(Dispatchers.Default) { ExportCodec.import(step.text, password) }
-                _importStep.value = ImportStep.Confirm(config)
+                val (config, extra) = withContext(Dispatchers.Default) { ExportCodec.importWithExtra(step.text, password) }
+                val sharing = extra["sharing"]?.let { element ->
+                    runCatching { ConfigCodec.json.decodeFromJsonElement(ExportedShareOwner.serializer(), element).also { it.toOwner() } }.getOrNull()
+                }
+                _importStep.value = ImportStep.Confirm(config, sharing)
             } catch (e: ConfigException) {
                 if (e.reason != ConfigException.Reason.WRONG_PASSWORD) throw e
                 _importStep.value = step.copy(wrongPassword = true)
@@ -117,6 +133,8 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         work {
             if (replace) container.repository.replaceWith(step.config) else container.repository.mergeWith(step.config)
             _messages.send(UiMessage(R.string.message_import_done, listOf(step.config.devices.size)))
+            val sharing = step.sharing
+            if (sharing != null && container.share.importOwner(sharing)) _sharingImported.value = true
         }
     }
 

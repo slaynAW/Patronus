@@ -3,6 +3,7 @@ package io.github.slaynaw.wakeonlan.share
 import android.content.Context
 import io.github.slaynaw.wakeonlan.BuildConfig
 import io.github.slaynaw.wakeonlan.core.model.Device
+import io.github.slaynaw.wakeonlan.core.share.ExportedShareOwner
 import io.github.slaynaw.wakeonlan.core.share.GitHubDeviceCode
 import io.github.slaynaw.wakeonlan.core.share.ShareAccess
 import io.github.slaynaw.wakeonlan.core.share.ShareCrypto
@@ -252,6 +253,23 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
             }
             runtime.update { it.copy(publishing = false, publishError = message, publishFailedAt = System.currentTimeMillis()) }
         }
+    }
+
+    /** Côté « je partage » à inclure dans une sauvegarde complète (null : pas de partage). */
+    suspend fun exportOwner(): ExportedShareOwner? = repo.current().owner?.let { ExportedShareOwner.of(it) }
+
+    /**
+     * Reprend le partage d'une sauvegarde si le téléphone ne partage pas encore ; il reste à se
+     * reconnecter à GitHub (même compte) pour que les accès continuent. Renvoie vrai s'il est repris.
+     */
+    suspend fun importOwner(exported: ExportedShareOwner): Boolean {
+        val owner = exported.toOwner()
+        var adopted = false
+        repo.update { st ->
+            adopted = st.owner == null
+            if (adopted) st.copy(owner = owner) else st
+        }
+        return adopted
     }
 
     // --- Je reçois les PC d'une autre personne ---
