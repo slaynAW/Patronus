@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Wake On LAN</string>
 
     <!-- Commun -->
@@ -16,7 +16,6 @@
     <string name="tab_settings">Réglages</string>
 
     <!-- Actions -->
-    <string name="action_add">Ajouter</string>
     <string name="action_add_device">Ajouter un PC</string>
     <string name="action_refresh">Actualiser l’état</string>
     <string name="action_more">Plus d’actions</string>
@@ -97,13 +96,10 @@
     <string name="summary_off">Éteints</string>
     <string name="summary_unknown">Inconnus</string>
     <string name="devices_summary">%1$d PC · vérification toutes les %2$d s</string>
-    <string name="capability_power">Extinction à distance</string>
-    <string name="capability_wake">Démarrage uniquement</string>
     <string name="empty_title">Aucun PC pour l’instant</string>
     <string name="empty_text">Ajoutez un PC à réveiller. Si l’agent est installé dessus, scannez simplement son QR code : tout est rempli automatiquement.</string>
     <string name="network_wifi">Wi-Fi</string>
     <string name="network_ethernet">Ethernet</string>
-    <string name="network_vpn">VPN</string>
     <string name="banner_permission_title">Accès au réseau local nécessaire</string>
     <string name="banner_permission_text">Android demande votre accord pour que l’application puisse joindre vos PC sur le réseau local.</string>
     <string name="banner_permission_action">Autoriser</string>
@@ -217,7 +213,6 @@
     <string name="test_ok">Connexion réussie : %1$s (%2$s, agent %3$s)</string>
 
     <!-- Réglages -->
-    <string name="settings_title">Réglages</string>
     <string name="section_monitoring">Surveillance</string>
     <string name="setting_poll_interval">Vérifier l’état toutes les</string>
     <string name="setting_poll_interval_value">%1$d s</string>
@@ -232,7 +227,7 @@
     <string name="export_without_secrets">Sans les clés</string>
     <string name="export_without_secrets_help">Fichier lisible ; les agents devront être ré-appairés.</string>
     <string name="field_password">Mot de passe</string>
-    <string name="field_password_help">%1$d caractères minimum. Il ne pourra pas être récupéré.</string>
+    <string name="field_password_help" tools:ignore="PluralsCandidate">%1$d caractères minimum. Il ne pourra pas être récupéré.</string>
     <string name="field_password_confirm">Confirmer le mot de passe</string>
     <string name="import_password_title">Sauvegarde protégée</string>
     <string name="import_wrong_password">Mot de passe incorrect</string>

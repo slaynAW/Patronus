@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -129,21 +130,12 @@ fun MainScreen(
         dialogs.requestPower(device, action, state.settings.confirmPowerActions, vm::power)
     }
 
-    Scaffold(
-        containerColor = WolPalette.Background,
-        bottomBar = { WolNavigationBar(tab, onSelect = { tab = it }) },
-        snackbarHost = { SnackbarHost(snackbar) },
-        floatingActionButton = {
-            if (tab == MainTab.DEVICES && state.items.isNotEmpty()) {
-                ExtendedFloatingActionButton(
-                    onClick = onAddDevice,
-                    containerColor = WolPalette.Blue,
-                    contentColor = Color.White,
-                    icon = { Icon(WolIcons.Plus, contentDescription = null) },
-                    text = { Text(stringResource(R.string.action_add_device)) },
-                )
-            }
-        },
+    MainScaffold(
+        tab = tab,
+        onSelectTab = { tab = it },
+        snackbar = snackbar,
+        showAddButton = tab == MainTab.DEVICES && state.items.isNotEmpty(),
+        onAddDevice = onAddDevice,
     ) { padding ->
         when (tab) {
             MainTab.OVERVIEW -> OverviewTab(
@@ -220,6 +212,35 @@ fun MainScreen(
             },
         )
     }
+}
+
+/** Cadre de l'écran principal : barre de navigation en bas, messages, bouton d'ajout (onglet Appareils). */
+@Composable
+fun MainScaffold(
+    tab: MainTab,
+    onSelectTab: (MainTab) -> Unit,
+    snackbar: SnackbarHostState,
+    showAddButton: Boolean,
+    onAddDevice: () -> Unit,
+    content: @Composable (PaddingValues) -> Unit,
+) {
+    Scaffold(
+        containerColor = WolPalette.Background,
+        bottomBar = { WolNavigationBar(tab, onSelect = onSelectTab) },
+        snackbarHost = { SnackbarHost(snackbar) },
+        floatingActionButton = {
+            if (showAddButton) {
+                ExtendedFloatingActionButton(
+                    onClick = onAddDevice,
+                    containerColor = WolPalette.Blue,
+                    contentColor = Color.White,
+                    icon = { Icon(WolIcons.Plus, contentDescription = null) },
+                    text = { Text(stringResource(R.string.action_add_device)) },
+                )
+            }
+        },
+        content = content,
+    )
 }
 
 @Composable

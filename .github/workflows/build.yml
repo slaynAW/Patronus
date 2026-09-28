@@ -308,6 +308,21 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+      # Captures d'écran des écrans principaux, rendues sans émulateur (Robolectric) avec des données
+      # d'exemple : contrôle visuel de l'interface (ne bloque pas la publication).
+      - name: Captures d'écran de l'interface
+        continue-on-error: true
+        run: ./gradlew --stacktrace :app:testDebugUnitTest --tests '*ScreenshotTest*'
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: captures-android
+          path: |
+            app/build/captures/android/
+            app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: ignore
+
       - name: Rapports (en cas d'échec)
         if: failure()
         uses: actions/upload-artifact@v6

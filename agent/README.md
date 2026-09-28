@@ -1,7 +1,8 @@
 # wol-agent — agent PC
 
-Petit programme (un seul fichier, sans dépendance) installé sur chaque PC pour que l'application Android puisse
-**l'éteindre, le redémarrer ou le mettre en veille**, et connaître son état de façon fiable.
+Petit programme (un seul fichier, sans dépendance) installé sur chaque PC pour que les applications (Android et Windows)
+puissent **l'éteindre, le redémarrer ou le mettre en veille**, connaître son état de façon fiable et afficher
+l'**historique de ses démarrages et extinctions** sur 30 jours, y compris quand l'application était fermée.
 
 Téléchargement : section **Releases** du dépôt (`wol-agent-<système>-<architecture>`).
 
@@ -42,7 +43,7 @@ sudo ./wol-agent-linux-amd64 install
 |---|---|
 | `wol-agent install [--port 9770] [--name "PC Bureau"] [--ip 192.168.1.20] [--no-firewall] [--firewall-public]` | Installe / met à jour le service |
 | `wol-agent pair [--ip …] [--png qr.png] [--invert]` | Réaffiche le QR code (ou l'enregistre en PNG) et le lien d'appairage |
-| `wol-agent status` | État du service, configuration, carte réseau détectée |
+| `wol-agent status` | État du service, configuration, carte réseau détectée, derniers évènements du journal |
 | `wol-agent rotate-key` | Nouvelle clé ; l'ancienne est immédiatement refusée (ré-appairer) |
 | `wol-agent uninstall [--purge]` | Désinstalle (`--purge` supprime aussi la configuration) |
 | `wol-agent run [--config …] [--dry-run]` | Lance l'agent au premier plan ; `--dry-run` n'éteint rien (test) |
@@ -63,7 +64,8 @@ afin que le QR code contienne la bonne adresse MAC.
 ```
 
 - `allow` : réseaux autorisés à se connecter (par défaut uniquement des adresses privées).
-- `commands` : retirez par exemple `"shutdown"` pour n'autoriser que la veille.
+- `commands` : retirez par exemple `"shutdown"` pour n'autoriser que la veille. La lecture du journal (`history`) est
+  autorisée dès que `status` l'est.
 - Après modification : redémarrez le service (`wol-agent install` le fait, ou `systemctl restart wol-agent`,
   ou *Services* → *Wake On LAN - Agent* → *Redémarrer* sous Windows).
 
@@ -77,6 +79,17 @@ afin que le QR code contienne la bonne adresse MAC.
 | Forcer | `/f` (ferme les applications) | `--ignore-inhibitors` | — |
 
 L'agent répond au téléphone **avant** d'exécuter l'action (délai minimal 1,5 s).
+
+## Journal des démarrages et extinctions
+
+L'agent note dans `history.json` (à côté de `config.json`) les **30 derniers jours** : démarrages, arrêts, mises en veille
+et sorties de veille, commandes reçues (avec l'adresse de l'appareil qui les a envoyées). Un arrêt qu'il n'a pas pu noter
+(coupure de courant, arrêt forcé, plantage) apparaît comme « arrêt inattendu », daté du dernier signe de vie (`alive.json`,
+mis à jour chaque minute). Les applications relisent ce journal dès que le PC répond.
+
+> Mettre à jour l'agent (version 1.2 ou plus) suffit pour en profiter : relancez simplement `install` avec la nouvelle
+> version, la configuration et la clé sont conservées. Avec un agent plus ancien, les applications n'affichent que les
+> changements qu'elles constatent elles-mêmes, pendant qu'elles sont ouvertes.
 
 ## Compilation
 

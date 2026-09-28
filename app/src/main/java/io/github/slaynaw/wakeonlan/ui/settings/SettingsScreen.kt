@@ -2,7 +2,6 @@ package io.github.slaynaw.wakeonlan.ui.settings
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -51,6 +50,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.slaynaw.wakeonlan.BuildConfig
@@ -104,129 +104,25 @@ fun SettingsTab(contentPadding: PaddingValues, snackbar: SnackbarHostState, onOp
 
     fun openUrl(url: String) {
         try {
-            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
         } catch (_: ActivityNotFoundException) {
             // Aucun navigateur : rien à faire.
         }
     }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(contentPadding)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Spacer(Modifier.size(2.dp))
-        ScreenHeader(stringResource(R.string.tab_settings))
-        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = WolPalette.Blue, trackColor = WolPalette.BlueSoft)
-
-        SectionLabel(stringResource(R.string.section_monitoring), Modifier.padding(top = 6.dp))
-        WolCard {
-            SliderSetting(
-                title = stringResource(R.string.setting_poll_interval),
-                valueLabel = { stringResource(R.string.setting_poll_interval_value, it) },
-                value = state.settings.pollIntervalSeconds,
-                range = AppSettings.POLL_INTERVAL_RANGE.first..30,
-                step = 1,
-                onChange = { v -> vm.updateSettings { it.copy(pollIntervalSeconds = v) } },
-            )
-            RowDivider()
-            SliderSetting(
-                title = stringResource(R.string.setting_wake_timeout),
-                valueLabel = { stringResource(R.string.setting_wake_timeout_value, it) },
-                value = state.settings.wakeTimeoutSeconds,
-                range = 60..600,
-                step = 30,
-                onChange = { v -> vm.updateSettings { it.copy(wakeTimeoutSeconds = v) } },
-            )
-            RowDivider()
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.setting_confirm), style = MaterialTheme.typography.titleSmall)
-                    Text(stringResource(R.string.setting_confirm_help), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
-                }
-                Spacer(Modifier.width(12.dp))
-                Switch(
-                    checked = state.settings.confirmPowerActions,
-                    onCheckedChange = { checked -> vm.updateSettings { it.copy(confirmPowerActions = checked) } },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = WolPalette.Blue,
-                        uncheckedThumbColor = WolPalette.Text2,
-                        uncheckedTrackColor = WolPalette.Surface3,
-                        uncheckedBorderColor = WolPalette.Line2,
-                    ),
-                )
-            }
-        }
-
-        SectionLabel(stringResource(R.string.section_backup), Modifier.padding(top = 6.dp))
-        WolCard {
-            SettingItem(
-                icon = WolIcons.Download,
-                title = stringResource(R.string.action_export),
-                text = stringResource(R.string.action_export_help, state.deviceCount),
-                enabled = !busy && state.deviceCount > 0,
-                onClick = { showExportDialog = true },
-            )
-            RowDivider()
-            SettingItem(
-                icon = WolIcons.Upload,
-                title = stringResource(R.string.action_import),
-                text = stringResource(R.string.action_import_help),
-                enabled = !busy,
-                onClick = { importLauncher.launch(arrayOf("application/json", "text/*", "application/octet-stream")) },
-            )
-        }
-
-        SectionLabel(stringResource(R.string.section_history), Modifier.padding(top = 6.dp))
-        WolCard {
-            SettingItem(
-                icon = WolIcons.History,
-                title = stringResource(R.string.history_open),
-                text = stringResource(R.string.history_open_help),
-                onClick = onOpenHistory,
-            )
-            RowDivider()
-            SettingItem(
-                icon = WolIcons.Delete,
-                title = stringResource(R.string.history_clear),
-                text = stringResource(R.string.history_clear_help),
-                danger = true,
-                chevron = false,
-                onClick = { showClearHistory = true },
-            )
-        }
-
-        SectionLabel(stringResource(R.string.section_agent_download), Modifier.padding(top = 6.dp))
-        WolCard {
-            SettingItem(
-                icon = WolIcons.Download,
-                title = stringResource(R.string.agent_download),
-                text = stringResource(R.string.agent_download_help),
-                onClick = { openUrl(RELEASES_URL) },
-            )
-        }
-
-        SectionLabel(stringResource(R.string.section_about), Modifier.padding(top = 6.dp))
-        WolCard {
-            SettingItem(icon = WolIcons.Info, title = stringResource(R.string.about_version), text = BuildConfig.VERSION_NAME)
-            RowDivider()
-            SettingItem(
-                icon = WolIcons.Code,
-                title = stringResource(R.string.about_source),
-                text = REPO_URL,
-                onClick = { openUrl(REPO_URL) },
-            )
-            RowDivider()
-            SettingItem(icon = WolIcons.Lock, title = stringResource(R.string.about_security), text = stringResource(R.string.about_security_text))
-            RowDivider()
-            SettingItem(icon = WolIcons.Info, title = stringResource(R.string.about_fonts), text = stringResource(R.string.about_fonts_text))
-        }
-        Spacer(Modifier.size(20.dp))
-    }
+    SettingsContent(
+        contentPadding = contentPadding,
+        settings = state.settings,
+        deviceCount = state.deviceCount,
+        busy = busy,
+        version = BuildConfig.VERSION_NAME,
+        onUpdateSettings = { vm.updateSettings(it) },
+        onExport = { showExportDialog = true },
+        onImport = { importLauncher.launch(arrayOf("application/json", "text/*", "application/octet-stream")) },
+        onOpenHistory = onOpenHistory,
+        onClearHistory = { showClearHistory = true },
+        onOpenUrl = ::openUrl,
+    )
 
     if (showExportDialog) {
         ExportDialog(
@@ -290,6 +186,140 @@ fun SettingsTab(contentPadding: PaddingValues, snackbar: SnackbarHostState, onOp
             dismissButton = { TextButton(onClick = vm::cancelImport) { Text(stringResource(R.string.cancel)) } },
         )
         null -> Unit
+    }
+}
+
+/** Contenu de l'onglet (sans état propre : aperçus et captures d'écran). */
+@Composable
+fun SettingsContent(
+    contentPadding: PaddingValues,
+    settings: AppSettings,
+    deviceCount: Int,
+    busy: Boolean,
+    version: String,
+    onUpdateSettings: ((AppSettings) -> AppSettings) -> Unit,
+    onExport: () -> Unit,
+    onImport: () -> Unit,
+    onOpenHistory: () -> Unit,
+    onClearHistory: () -> Unit,
+    onOpenUrl: (String) -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(contentPadding)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Spacer(Modifier.size(2.dp))
+        ScreenHeader(stringResource(R.string.tab_settings))
+        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = WolPalette.Blue, trackColor = WolPalette.BlueSoft)
+
+        SectionLabel(stringResource(R.string.section_monitoring), Modifier.padding(top = 6.dp))
+        WolCard {
+            SliderSetting(
+                title = stringResource(R.string.setting_poll_interval),
+                valueLabel = { stringResource(R.string.setting_poll_interval_value, it) },
+                value = settings.pollIntervalSeconds,
+                range = AppSettings.POLL_INTERVAL_RANGE.first..30,
+                step = 1,
+                onChange = { v -> onUpdateSettings { it.copy(pollIntervalSeconds = v) } },
+            )
+            RowDivider()
+            SliderSetting(
+                title = stringResource(R.string.setting_wake_timeout),
+                valueLabel = { stringResource(R.string.setting_wake_timeout_value, it) },
+                value = settings.wakeTimeoutSeconds,
+                range = 60..600,
+                step = 30,
+                onChange = { v -> onUpdateSettings { it.copy(wakeTimeoutSeconds = v) } },
+            )
+            RowDivider()
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.setting_confirm), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.setting_confirm_help), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
+                }
+                Spacer(Modifier.width(12.dp))
+                Switch(
+                    checked = settings.confirmPowerActions,
+                    onCheckedChange = { checked -> onUpdateSettings { it.copy(confirmPowerActions = checked) } },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = WolPalette.Blue,
+                        uncheckedThumbColor = WolPalette.Text2,
+                        uncheckedTrackColor = WolPalette.Surface3,
+                        uncheckedBorderColor = WolPalette.Line2,
+                    ),
+                )
+            }
+        }
+
+        SectionLabel(stringResource(R.string.section_backup), Modifier.padding(top = 6.dp))
+        WolCard {
+            SettingItem(
+                icon = WolIcons.Download,
+                title = stringResource(R.string.action_export),
+                text = stringResource(R.string.action_export_help, deviceCount),
+                enabled = !busy && deviceCount > 0,
+                onClick = onExport,
+            )
+            RowDivider()
+            SettingItem(
+                icon = WolIcons.Upload,
+                title = stringResource(R.string.action_import),
+                text = stringResource(R.string.action_import_help),
+                enabled = !busy,
+                onClick = onImport,
+            )
+        }
+
+        SectionLabel(stringResource(R.string.section_history), Modifier.padding(top = 6.dp))
+        WolCard {
+            SettingItem(
+                icon = WolIcons.History,
+                title = stringResource(R.string.history_open),
+                text = stringResource(R.string.history_open_help),
+                onClick = onOpenHistory,
+            )
+            RowDivider()
+            SettingItem(
+                icon = WolIcons.Delete,
+                title = stringResource(R.string.history_clear),
+                text = stringResource(R.string.history_clear_help),
+                danger = true,
+                chevron = false,
+                onClick = onClearHistory,
+            )
+        }
+
+        SectionLabel(stringResource(R.string.section_agent_download), Modifier.padding(top = 6.dp))
+        WolCard {
+            SettingItem(
+                icon = WolIcons.Download,
+                title = stringResource(R.string.agent_download),
+                text = stringResource(R.string.agent_download_help),
+                onClick = { onOpenUrl(RELEASES_URL) },
+            )
+        }
+
+        SectionLabel(stringResource(R.string.section_about), Modifier.padding(top = 6.dp))
+        WolCard {
+            SettingItem(icon = WolIcons.Info, title = stringResource(R.string.about_version), text = version)
+            RowDivider()
+            SettingItem(
+                icon = WolIcons.Code,
+                title = stringResource(R.string.about_source),
+                text = REPO_URL,
+                onClick = { onOpenUrl(REPO_URL) },
+            )
+            RowDivider()
+            SettingItem(icon = WolIcons.Lock, title = stringResource(R.string.about_security), text = stringResource(R.string.about_security_text))
+            RowDivider()
+            SettingItem(icon = WolIcons.Info, title = stringResource(R.string.about_fonts), text = stringResource(R.string.about_fonts_text))
+        }
+        Spacer(Modifier.size(20.dp))
     }
 }
 

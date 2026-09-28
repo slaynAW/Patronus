@@ -60,13 +60,25 @@ import io.github.slaynaw.wakeonlan.ui.common.tint
 import io.github.slaynaw.wakeonlan.ui.theme.WolPalette
 
 /** Historique complet des 30 derniers jours, groupé par jour, pour un PC ou pour tous. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(deviceId: String?, onBack: () -> Unit) {
     val container = LocalContext.current.appContainer
     val vm: HistoryViewModel = viewModel(key = "history-screen-${deviceId.orEmpty()}") { HistoryViewModel(container, deviceId) }
     val state by vm.state.collectAsStateWithLifecycle()
     val now = rememberNow(periodMs = 60_000)
+    HistoryContent(state, now, onBack = onBack, onRefresh = vm::refresh, onSelect = vm::select)
+}
+
+/** Contenu de l'historique (sans état propre : aperçus et captures d'écran). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HistoryContent(
+    state: HistoryUiState,
+    now: Long,
+    onBack: () -> Unit,
+    onRefresh: () -> Unit,
+    onSelect: (String?) -> Unit,
+) {
     val days = state.events.groupBy { dayKey(it.event.time) }
 
     Scaffold(
@@ -85,7 +97,7 @@ fun HistoryScreen(deviceId: String?, onBack: () -> Unit) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = vm::refresh) {
+                    IconButton(onClick = onRefresh) {
                         Icon(WolIcons.Refresh, contentDescription = stringResource(R.string.history_refresh), tint = WolPalette.Text2)
                     }
                 },
@@ -112,9 +124,9 @@ fun HistoryScreen(deviceId: String?, onBack: () -> Unit) {
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        FilterOption(stringResource(R.string.history_all_devices), state.filter == null) { vm.select(null) }
+                        FilterOption(stringResource(R.string.history_all_devices), state.filter == null) { onSelect(null) }
                         state.devices.forEach { (id, name) ->
-                            FilterOption(name, state.filter == id) { vm.select(id) }
+                            FilterOption(name, state.filter == id) { onSelect(id) }
                         }
                     }
                 }

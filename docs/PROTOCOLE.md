@@ -38,6 +38,7 @@ et comparées en temps constant.
 
 ```json
 {"cmd":"status"}
+{"cmd":"history"}
 {"cmd":"shutdown","delay":0,"force":false}
 {"cmd":"reboot","delay":0,"force":true}
 {"cmd":"sleep","delay":0}
@@ -45,7 +46,7 @@ et comparées en temps constant.
 
 | Champ | Description |
 |---|---|
-| `cmd` | `status`, `shutdown`, `reboot` ou `sleep` |
+| `cmd` | `status`, `history` (journal, voir plus bas), `shutdown`, `reboot` ou `sleep` |
 | `delay` | secondes avant l'action (0 – 3600). L'agent attend au minimum 1,5 s pour que la réponse parte d'abord. |
 | `force` | fermer les applications sans attendre (Windows `/f`, Linux `--ignore-inhibitors`) |
 
@@ -61,6 +62,34 @@ et comparées en temps constant.
 | `message` | texte lisible |
 | `hostname`, `os`, `arch`, `version` | informations sur le PC et l'agent (`os` = `windows`, `linux`, `darwin`) |
 | `uptime` | secondes depuis le démarrage du système |
+| `history` | réponse à `history` uniquement (voir ci-dessous) |
+
+### Journal du PC (`history`)
+
+L'agent tient un journal local de **30 jours** (2 000 évènements au plus) : démarrages, arrêts et mises en veille
+du PC, et commandes reçues. Les applications le relisent pour afficher l'historique, y compris ce qui s'est passé
+pendant qu'elles étaient fermées. Commande en lecture seule, autorisée dès que `status` l'est.
+
+```json
+{"ok":true,"code":"ok","message":"Journal : 3 évènements","hostname":"PC-BUREAU","os":"windows","arch":"amd64","version":"1.2.0","uptime":3600,
+ "history":{"from":1790000000,"events":[{"t":1790500000,"k":"boot"},{"t":1790510000,"k":"cmd","a":"shutdown","c":"192.168.1.37"},{"t":1790510004,"k":"shutdown"}]}}
+```
+
+| Champ | Description |
+|---|---|
+| `from` | début de la période couverte (secondes Unix) : installation de l'agent, ou 30 jours |
+| `t` | heure de l'évènement (secondes Unix, horloge du PC) |
+| `k` | `boot` démarrage, `shutdown` arrêt propre, `lost` arrêt non enregistré (coupure de courant, arrêt forcé, plantage ; daté du dernier signe de vie), `sleep` / `resume` mise en veille / sortie de veille, `cmd` commande reçue |
+| `a`, `c` | pour `cmd` : action (`shutdown`, `reboot`, `sleep`) et adresse de l'appareil qui l'a envoyée |
+
+La réponse peut dépasser la limite ordinaire d'une ligne : les clients acceptent jusqu'à **512 Kio** pour cette seule
+commande. Un agent antérieur à la version 1.2 répond `forbidden` ou `unsupported` : les applications affichent alors
+« agent à mettre à jour » et se contentent des changements d'état qu'elles constatent elles-mêmes.
+
+Règles d'affichage communes à Android et Windows (vérifiées par le scénario `protocol/history-vectors.json`) :
+le journal de l'agent fait foi sur la période qu'il couvre (les allumages / extinctions constatés par l'application
+pendant cette période sont masqués), et une commande reçue par l'agent qui correspond à une demande faite depuis
+l'application dans la minute n'est affichée qu'une fois.
 
 ### Erreurs non signées
 

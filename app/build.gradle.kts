@@ -69,6 +69,11 @@ android {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
 
+    // Captures d'écran rendues sur la JVM (Robolectric, sans émulateur) : app/build/captures/android.
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
     lint {
         abortOnError = true
         checkReleaseBuilds = true
@@ -105,4 +110,16 @@ dependencies {
 
     // Lecture du QR code d'appairage via Google Play Services : aucune permission caméra requise.
     implementation(libs.play.services.code.scanner)
+
+    testImplementation(libs.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
+}
+
+tasks.withType<Test>().configureEach {
+    // Roborazzi n'écrit les images qu'en mode « enregistrement ».
+    systemProperty("roborazzi.test.record", "true")
 }

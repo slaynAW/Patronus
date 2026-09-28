@@ -1,10 +1,14 @@
 # Wake On LAN pour Windows
 
-Version Windows de l'application : **même interface, mêmes fonctions** que l'application Android.
+Version Windows de l'application : **mêmes fonctions et même style** que l'application Android (thème sombre
+« topologie & panneau de détail »).
 
+- 🗺️ Plan du réseau : ce PC, le réseau et chaque PC, reliés selon leur état (allumé, en cours, éteint).
 - ⚡ Démarrer les PC (Wake-on-LAN, envois répétés sur chaque carte réseau).
 - 🟢 État en temps réel (allumé / éteint / démarrage / arrêt en cours, latence, « vu il y a… »).
 - ⏻ Éteindre, redémarrer, mettre en veille (avec l'[agent](../agent/README.md) installé sur les PC).
+- 🕘 Historique discret des démarrages et extinctions sur 30 jours (complet avec l'agent 1.2 ou plus, même quand
+  l'application était fermée).
 - 💾 Export / import **compatibles avec le téléphone** : une sauvegarde du téléphone s'importe sur le PC, et inversement.
 - 🔒 Configuration chiffrée pour votre compte Windows, aucune donnée envoyée sur Internet.
 
@@ -35,6 +39,7 @@ Mise à jour : remplacez simplement le fichier (la configuration est conservée 
 | Élément | Emplacement |
 |---|---|
 | Configuration (PC, clés des agents, réglages) | `%APPDATA%\WakeOnLan\config.dat`, chiffrée avec **DPAPI** (liée à votre session Windows : illisible depuis un autre compte ou un autre PC). |
+| Historique (30 jours) | `%APPDATA%\WakeOnLan\history.dat`, chiffré avec DPAPI. *Réglages* → *Effacer l'historique* le vide (le journal tenu par l'agent de chaque PC est conservé). |
 | Journal technique | `%APPDATA%\WakeOnLan\wakeonlan.log` |
 | Cache d'affichage WebView2 | `%LOCALAPPDATA%\WakeOnLan\WebView2` |
 
@@ -50,8 +55,9 @@ Désinstaller : supprimez le `.exe` et les deux dossiers ci-dessus.
 | Configuration chiffrée par le Keystore Android | Configuration chiffrée par DPAPI (Windows) |
 | Autorisation « réseau local » d'Android 17 | Aucune autorisation nécessaire |
 
-Raccourcis : **F5** actualise l'état, **Échap** ferme un menu ou un dialogue. Une seule fenêtre à la fois : relancer
-le programme ramène la fenêtre existante au premier plan.
+Raccourcis : **F5** actualise l'état, **Échap** ferme un menu, un panneau ou un dialogue. Une seule fenêtre à la fois :
+relancer le programme ramène la fenêtre existante au premier plan. Fenêtre étroite : le panneau de détail passe
+par-dessus le plan du réseau.
 
 ## Fonctionnement
 
@@ -60,13 +66,14 @@ desktop/
 ├── main.go, main_windows.go   fenêtre WebView2, pont JavaScript ↔ Go, autotest de démarrage
 ├── win32_windows.go           boîte « Enregistrer sous », presse-papiers, instance unique, DPI
 ├── main_other.go              mode développement (hors Windows) : interface servie sur 127.0.0.1
-├── ui/                        interface (HTML/CSS/JS sans dépendance), intégrée au .exe
+├── ui/                        interface (HTML/CSS/JS sans dépendance) et polices, intégrées au .exe
 ├── winres/                    icône, manifeste (DPI, contrôles modernes), informations de version
 └── internal/
     ├── model/        PC, réglages, validation (mêmes règles et messages qu'Android)
     ├── config/       format JSON, export/import chiffré (PBKDF2 + AES-256-GCM), stockage DPAPI
     ├── wol/          paquet magique, diffusion par carte réseau
     ├── agentclient/  client du protocole wolagent/1 (réutilise agent/protocol)
+    ├── history/      historique sur 30 jours (mêmes règles que le téléphone), stockage DPAPI
     ├── status/       sondes (agent, TCP, ping ICMP), machine à états, surveillance
     ├── netstate/     cartes Ethernet / Wi-Fi / VPN (GetAdaptersAddresses)
     ├── pairing/      lien d'appairage
@@ -94,6 +101,9 @@ GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-H windowsgui -s -w -X ma
 
 Mode développement (Linux / macOS) : `go run .` affiche une adresse `http://127.0.0.1:…/#token=…`
 à ouvrir dans un navigateur (interface et moteur réels, boîtes de dialogue remplacées par le navigateur).
+
+Polices : [Inter](https://github.com/rsms/inter) et [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono),
+sous licence SIL Open Font License 1.1 (textes dans `ui/fonts/`).
 
 La CI compile les versions x64 et ARM64, exécute les tests sous Linux **et** Windows (DPAPI, ping, cartes réseau), le test
 de bout en bout contre le vrai agent, puis **lance réellement l'application** sur Windows (autotest `WOL_SELFTEST`).

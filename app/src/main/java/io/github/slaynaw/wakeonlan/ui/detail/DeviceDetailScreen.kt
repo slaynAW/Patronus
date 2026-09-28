@@ -114,6 +114,45 @@ fun DeviceDetailScreen(
         item?.let { dialogs.requestPower(it.device, action, state.settings.confirmPowerActions, vm::power) }
     }
 
+    DeviceDetailContent(
+        item = item,
+        isFirst = index == 0,
+        isLast = index == state.items.lastIndex,
+        history = history,
+        now = now,
+        snackbar = snackbar,
+        onBack = onBack,
+        onWake = { item?.let { vm.wake(it.device) } },
+        onPower = { requestPower(it) },
+        onEdit = { onEdit(deviceId) },
+        onOpenHistory = { onOpenHistory(deviceId) },
+        onMove = { offset -> item?.let { vm.move(it.device, offset) } },
+        onDelete = { item?.let { dialogs.pendingDelete = it.device } },
+        onClearNotice = { item?.let { vm.clearNotice(it.device) } },
+    )
+
+    DeviceDialogs(dialogs, onPower = vm::power, onDelete = vm::delete, onConfigure = onEdit)
+}
+
+/** Contenu de la fiche (sans état propre : aperçus et captures d'écran). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DeviceDetailContent(
+    item: DeviceItem?,
+    isFirst: Boolean,
+    isLast: Boolean,
+    history: HistoryUiState,
+    now: Long,
+    snackbar: SnackbarHostState,
+    onBack: () -> Unit,
+    onWake: () -> Unit,
+    onPower: (PowerAction) -> Unit,
+    onEdit: () -> Unit,
+    onOpenHistory: () -> Unit,
+    onMove: (Int) -> Unit,
+    onDelete: () -> Unit,
+    onClearNotice: () -> Unit,
+) {
     Scaffold(
         containerColor = WolPalette.Background,
         topBar = {
@@ -128,14 +167,14 @@ fun DeviceDetailScreen(
                     if (item != null) {
                         DeviceMenu(
                             canShutdown = item.device.canShutdown,
-                            isFirst = index == 0,
-                            isLast = index == state.items.lastIndex,
-                            onWake = { vm.wake(item.device) },
-                            onPower = { requestPower(it) },
-                            onEdit = { onEdit(deviceId) },
-                            onHistory = { onOpenHistory(deviceId) },
-                            onMove = { vm.move(item.device, it) },
-                            onDelete = { dialogs.pendingDelete = item.device },
+                            isFirst = isFirst,
+                            isLast = isLast,
+                            onWake = onWake,
+                            onPower = onPower,
+                            onEdit = onEdit,
+                            onHistory = onOpenHistory,
+                            onMove = onMove,
+                            onDelete = onDelete,
                         )
                     }
                 },
@@ -162,25 +201,18 @@ fun DeviceDetailScreen(
                             StatusNotice.SHUTDOWN_TIMEOUT -> R.string.notice_shutdown_timeout
                         },
                     ),
-                    onDismiss = { vm.clearNotice(item.device) },
+                    onDismiss = onClearNotice,
                 )
             }
-            Actions(
-                item = item,
-                onWake = { vm.wake(item.device) },
-                onPower = { requestPower(it) },
-                onEdit = { onEdit(deviceId) },
-            )
+            Actions(item = item, onWake = onWake, onPower = onPower, onEdit = onEdit)
             if (item.status.state == PowerState.ONLINE && !item.device.canShutdown) {
                 Text(stringResource(R.string.hint_no_agent), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
             }
             InfoCard(item)
-            RecentHistory(history, now, onShowAll = { onOpenHistory(deviceId) })
+            RecentHistory(history, now, onShowAll = onOpenHistory)
             Spacer(Modifier.height(24.dp))
         }
     }
-
-    DeviceDialogs(dialogs, onPower = vm::power, onDelete = vm::delete, onConfigure = onEdit)
 }
 
 /** Anneau lumineux, nom et état du PC. */
