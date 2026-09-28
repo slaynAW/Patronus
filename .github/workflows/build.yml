@@ -166,11 +166,13 @@ jobs:
           numeric="$(echo "$VERSION" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+').${GITHUB_RUN_NUMBER}"
           go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --arch amd64,arm64 \
             --product-version "$numeric" --file-version "$numeric"
+          # Identifiant public de l'application OAuth GitHub (connexion du partage), comme pour Android.
+          client_id=$(grep '^wol.githubClientId=' ../gradle.properties | cut -d= -f2)
           mkdir -p ../dist
           for arch in amd64 arm64; do
             label=$([ "$arch" = amd64 ] && echo x64 || echo arm64)
             CGO_ENABLED=0 GOOS=windows GOARCH=$arch go build -trimpath \
-              -ldflags "-H windowsgui -s -w -X main.version=$VERSION -X main.buildCode=$WOL_VERSION_CODE" \
+              -ldflags "-H windowsgui -s -w -X main.version=$VERSION -X main.buildCode=$WOL_VERSION_CODE -X main.githubClientID=$client_id" \
               -o "../dist/WakeOnLan-Windows-${VERSION}-${label}.exe" .
           done
           ls -l ../dist

@@ -30,8 +30,8 @@ type GitHub struct {
 	Client   *http.Client
 	// UserAgent identifie l'application auprès de GitHub.
 	UserAgent string
-	// pollUnit est l'unité des délais d'attente de la connexion (1 s ; raccourcie dans les tests).
-	pollUnit time.Duration
+	// PollUnit est l'unité des délais d'attente de la connexion (0 : 1 s ; raccourcie dans les tests).
+	PollUnit time.Duration
 }
 
 // Erreurs de l'API.
@@ -87,7 +87,7 @@ func (g *GitHub) StartLogin(ctx context.Context) (DeviceCode, error) {
 
 // WaitLogin attend que l'utilisateur valide le code sur github.com et renvoie le jeton d'accès.
 func (g *GitHub) WaitLogin(ctx context.Context, dc DeviceCode) (string, error) {
-	unit := g.pollUnit
+	unit := g.PollUnit
 	if unit == 0 {
 		unit = time.Second
 	}

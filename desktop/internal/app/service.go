@@ -28,6 +28,8 @@ import (
 const (
 	RepoURL     = "https://github.com/slaynAW/WakeOnLan"
 	ReleasesURL = RepoURL + "/releases"
+	// GitHubDeviceURL est la page où saisir le code de connexion GitHub (partage).
+	GitHubDeviceURL = "https://github.com/login/device"
 )
 
 // ErrCancelled signale que l'utilisateur a annulé une boîte de dialogue.
@@ -60,6 +62,8 @@ type Options struct {
 	Now func() time.Time
 	// Updates active les mises à jour intégrées (nil : désactivées).
 	Updates *UpdateOptions
+	// Share active le partage des PC entre personnes (nil : désactivé).
+	Share *ShareOptions
 }
 
 // Service est le cœur de l'application.
@@ -93,6 +97,8 @@ type Service struct {
 	lastStatuses map[string]status.DeviceStatus
 	// Mises à jour intégrées (verrou propre).
 	updates *updater
+	// Partage des PC (verrou propre, jamais pris en tenant mu) ; nil si désactivé.
+	sharing *sharer
 }
 
 type importState struct {
@@ -121,6 +127,7 @@ func New(opts Options) *Service {
 		s.now = time.Now
 	}
 	s.updates = newUpdater(opts.Updates, filepath.Dir(opts.Store.Path()), s.now)
+	s.sharing = newSharer(opts.Share)
 	if s.histStore != nil {
 		s.hist = s.histStore.Load()
 	}
@@ -162,6 +169,7 @@ func (s *Service) notify() {
 func (s *Service) Run(ctx context.Context) {
 	go s.monitor.Run(ctx)
 	go s.runUpdates(ctx)
+	go s.runShare(ctx)
 	s.updateMonitor()
 	ticker := time.NewTicker(s.netPoll)
 	defer ticker.Stop()
@@ -199,8 +207,10 @@ func (s *Service) SetWindowActive(active bool) {
 }
 
 func (s *Service) updateMonitor() {
+	devices := s.allDevices()
 	s.mu.Lock()
 	cfg := s.cfg
+	cfg.Devices = devices
 	avail := status.Availability{CanProbe: true}
 	if !s.network.Connected() && !s.network.VPNActive {
 		avail = status.Availability{CanProbe: false, Reason: status.NoNetwork}
@@ -224,6 +234,8 @@ type UIState struct {
 	HistoryVersion int `json:"historyVersion"`
 	// Update : mises à jour intégrées (recherche, nouvelle version, installation en cours).
 	Update UpdateView `json:"update"`
+	// Share : partage des PC entre personnes.
+	Share ShareView `json:"share"`
 }
 
 // NetworkView décrit le réseau local.
@@ -245,6 +257,14 @@ type DeviceView struct {
 	Status      status.DeviceStatus `json:"status"`
 	// Latency contient les mesures récentes (latencyView), pour le tracé en direct.
 	Latency []status.LatencySample `json:"latency,omitempty"`
+	// Shared est présent pour un PC reçu d'une autre personne (non modifiable).
+	Shared *SharedView `json:"shared,omitempty"`
+}
+
+// SharedView indique qui partage un PC reçu.
+type SharedView struct {
+	Owner     string `json:"owner"`
+	OwnerName string `json:"ownerName"`
 }
 
 // latencyView est la durée des mesures de latence envoyées à l'interface : la minute tracée,
@@ -255,6 +275,8 @@ const latencyView = 75 * time.Second
 func (s *Service) State() UIState {
 	statuses := s.monitor.Statuses()
 	updateView := s.updates.snapshot()
+	shareView := s.shareView()
+	shared := s.sharedDevices()
 	s.histMu.Lock()
 	historyVersion := s.histVersion
 	s.histMu.Unlock()
@@ -262,6 +284,7 @@ func (s *Service) State() UIState {
 	defer s.mu.Unlock()
 	st := UIState{
 		Update:         updateView,
+		Share:          shareView,
 		HistoryVersion: historyVersion,
 		Version:        s.version,
 		Settings:       s.cfg.Settings,
@@ -274,16 +297,24 @@ func (s *Service) State() UIState {
 		st.Network.Transport = string(p.Transport)
 	}
 	since := s.now().Add(-latencyView).UnixMilli()
-	for _, d := range s.cfg.Devices {
+	view := func(d model.Device) DeviceView {
 		ds, ok := statuses[d.ID]
 		if !ok {
 			ds = status.DeviceStatus{State: status.Unknown}
 		}
-		st.Devices = append(st.Devices, DeviceView{
+		return DeviceView{
 			ID: d.ID, Name: d.Name, MAC: d.MAC.String(), Host: d.Host,
 			HasAgent: d.Agent != nil, CanShutdown: d.CanShutdown(), Status: ds,
 			Latency: s.monitor.Latency(d.ID, since),
-		})
+		}
+	}
+	for _, d := range s.cfg.Devices {
+		st.Devices = append(st.Devices, view(d))
+	}
+	for _, sd := range shared {
+		v := view(sd.device)
+		v.Shared = &SharedView{Owner: sd.owner, OwnerName: sd.ownerName}
+		st.Devices = append(st.Devices, v)
 	}
 	return st
 }
@@ -296,25 +327,29 @@ func (s *Service) Call(method string, params json.RawMessage) (any, error) {
 		params = json.RawMessage("{}")
 	}
 	var p struct {
-		ID         string           `json:"id"`
-		Offset     int              `json:"offset"`
-		Action     string           `json:"action"`
-		Force      bool             `json:"force"`
-		Form       model.DeviceForm `json:"form"`
-		Host       string           `json:"host"`
-		Port       string           `json:"port"`
-		Key        string           `json:"key"`
-		Text       string           `json:"text"`
-		Password   string           `json:"password"`
-		Replace    bool             `json:"replace"`
-		URL        string           `json:"url"`
-		Visible    bool             `json:"visible"`
-		Refresh    bool             `json:"refresh"`
-		Poll       *int             `json:"pollIntervalSeconds"`
-		WakeTO     *int             `json:"wakeTimeoutSeconds"`
-		Confirm    *bool            `json:"confirmPowerActions"`
-		WithSecret bool             `json:"withSecrets"`
-		Enabled    bool             `json:"enabled"`
+		ID         string            `json:"id"`
+		Offset     int               `json:"offset"`
+		Action     string            `json:"action"`
+		Force      bool              `json:"force"`
+		Form       model.DeviceForm  `json:"form"`
+		Host       string            `json:"host"`
+		Port       string            `json:"port"`
+		Key        string            `json:"key"`
+		Text       string            `json:"text"`
+		Password   string            `json:"password"`
+		Replace    bool              `json:"replace"`
+		URL        string            `json:"url"`
+		Visible    bool              `json:"visible"`
+		Refresh    bool              `json:"refresh"`
+		Poll       *int              `json:"pollIntervalSeconds"`
+		WakeTO     *int              `json:"wakeTimeoutSeconds"`
+		Confirm    *bool             `json:"confirmPowerActions"`
+		WithSecret bool              `json:"withSecrets"`
+		Enabled    bool              `json:"enabled"`
+		Name       string            `json:"name"`
+		Device     string            `json:"device"`
+		Owner      string            `json:"owner"`
+		Rights     map[string]string `json:"rights"`
 	}
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("paramètres invalides : %w", err)
@@ -370,8 +405,14 @@ func (s *Service) Call(method string, params json.RawMessage) (any, error) {
 	case "saveDevice":
 		return s.saveDevice(p.ID, p.Form)
 	case "deleteDevice":
+		if s.isShared(p.ID) {
+			return nil, errShared
+		}
 		return nil, s.mutate(func(c model.AppConfig) model.AppConfig { return c.Remove(p.ID) })
 	case "moveDevice":
+		if s.isShared(p.ID) {
+			return nil, errShared
+		}
 		return nil, s.mutate(func(c model.AppConfig) model.AppConfig { return c.Move(p.ID, p.Offset) })
 	case "wake":
 		return s.wake(p.ID)
@@ -418,7 +459,36 @@ func (s *Service) Call(method string, params json.RawMessage) (any, error) {
 		s.pendingImport = nil
 		s.mu.Unlock()
 		return nil, nil
+	case "shareLogin":
+		return s.shareLogin(p.Name)
+	case "shareCancelLogin":
+		s.shareCancelLogin()
+		return nil, nil
+	case "shareInvite":
+		return s.shareInvite()
+	case "shareReadRequest":
+		return s.shareReadRequest(p.Text)
+	case "shareGrant":
+		return s.shareGrant(p.Device, p.Name, p.Rights)
+	case "shareRevoke":
+		return nil, s.shareRevoke(p.Device)
+	case "shareStop":
+		return nil, s.shareStop()
+	case "shareReadInvite":
+		return s.shareReadInvite(p.Text)
+	case "shareRequest":
+		return s.shareRequest(p.Text, p.Name)
+	case "shareRequestView":
+		return s.shareRequestView(p.Owner)
+	case "shareLeave":
+		return nil, s.shareLeave(p.Owner)
+	case "shareSync":
+		s.shareSyncNow()
+		return nil, nil
 	case "openUrl":
+		if p.URL == GitHubDeviceURL {
+			return nil, s.platform.OpenURL(p.URL)
+		}
 		if p.URL != RepoURL && !strings.HasPrefix(p.URL, RepoURL+"/") {
 			return nil, errors.New("adresse non autorisée")
 		}
@@ -442,30 +512,62 @@ func (s *Service) mutate(f func(model.AppConfig) model.AppConfig) error {
 		return err
 	}
 	ids := map[string]bool{}
-	for _, d := range next.Devices {
+	for _, d := range s.allDevices() {
 		ids[d.ID] = true
 	}
 	s.keepHistory(ids)
 	s.updateMonitor()
+	s.markShareDirty()
 	s.notify()
 	return nil
 }
 
+// errShared : les PC reçus d'une autre personne ne se modifient pas.
+var errShared = errors.New("PC partagé par une autre personne : non modifiable")
+
+// device cherche un PC de l'appareil ou reçu d'une autre personne.
 func (s *Service) device(id string) (model.Device, bool) {
+	if d, ok := s.ownDevice(id); ok {
+		return d, true
+	}
+	for _, sd := range s.sharedDevices() {
+		if sd.device.ID == id {
+			return sd.device, true
+		}
+	}
+	return model.Device{}, false
+}
+
+// ownDevice cherche un PC de l'appareil (modifiable).
+func (s *Service) ownDevice(id string) (model.Device, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.cfg.Device(id)
 }
 
+func (s *Service) isShared(id string) bool {
+	if _, own := s.ownDevice(id); own {
+		return false
+	}
+	_, ok := s.device(id)
+	return ok
+}
+
 func (s *Service) getDevice(id string) map[string]any {
-	if d, ok := s.device(id); ok {
+	if s.isShared(id) {
+		return map[string]any{"isNew": false, "shared": true}
+	}
+	if d, ok := s.ownDevice(id); ok {
 		return map[string]any{"isNew": false, "form": model.FormFrom(d)}
 	}
 	return map[string]any{"isNew": true, "form": model.NewForm()}
 }
 
 func (s *Service) saveDevice(id string, form model.DeviceForm) (any, error) {
-	if _, ok := s.device(id); !ok {
+	if s.isShared(id) {
+		return nil, errShared
+	}
+	if _, ok := s.ownDevice(id); !ok {
 		id = ""
 	}
 	d, errs := form.Build(id)

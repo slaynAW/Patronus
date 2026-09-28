@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
@@ -171,7 +172,9 @@ func (o *Owner) Prepare(devices []model.Device, now time.Time, all bool) (Public
 		pub.Files[FileName(p.Device)] = &text
 	}
 	for _, device := range o.Withdrawn {
-		pub.Files[FileName(device)] = nil
+		if o.Person(device) < 0 {
+			pub.Files[FileName(device)] = nil
+		}
 	}
 	if len(pub.Files) > 0 {
 		pub.Revision = revision
@@ -179,13 +182,40 @@ func (o *Owner) Prepare(devices []model.Device, now time.Time, all bool) (Public
 	return pub, nil
 }
 
-// Commit enregistre une publication réussie.
+// Commit enregistre une publication réussie. L'état a pu changer pendant l'envoi : seules les
+// personnes toujours autorisées et les suppressions effectivement publiées sont prises en compte.
 func (o *Owner) Commit(p Publication) {
 	if p.Revision > o.Revision {
 		o.Revision = p.Revision
 	}
-	o.Published = p.Fingerprints
-	o.Withdrawn = nil
+	if o.Published == nil {
+		o.Published = map[string]string{}
+	}
+	for device, fp := range p.Fingerprints {
+		if o.Person(device) >= 0 {
+			o.Published[device] = fp
+		}
+	}
+	o.Withdrawn = slices.DeleteFunc(o.Withdrawn, func(device string) bool {
+		f, ok := p.Files[FileName(device)]
+		return ok && f == nil
+	})
+}
+
+// Grant autorise (ou met à jour) une personne ; son fichier sera publié à la prochaine publication.
+func (o *Owner) Grant(p Person) error {
+	if i := o.Person(p.Device); i >= 0 {
+		p.Added = o.People[i].Added
+		o.People[i] = p
+	} else {
+		if len(o.People) >= MaxPeople {
+			return fmt.Errorf("%d personnes au maximum", MaxPeople)
+		}
+		o.People = append(o.People, p)
+	}
+	o.Withdrawn = slices.DeleteFunc(o.Withdrawn, func(d string) bool { return d == p.Device })
+	delete(o.Published, p.Device)
+	return nil
 }
 
 // Withdraw retire une personne ; son fichier sera supprimé à la prochaine publication.

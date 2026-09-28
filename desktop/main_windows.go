@@ -135,7 +135,7 @@ func main() {
 	}
 	svc := app.New(app.Options{
 		Version: version, Store: store, Platform: platform, History: histStore,
-		Updates: updateOptions(exe),
+		Updates: updateOptions(exe), Share: shareOptions(dataDir),
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

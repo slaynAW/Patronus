@@ -135,7 +135,7 @@ func newFakeGitHub(t *testing.T) (*fakeGitHub, *GitHub) {
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	gh := &GitHub{API: srv.URL, Web: srv.URL, ClientID: "client-test", Client: srv.Client(), pollUnit: time.Millisecond}
+	gh := &GitHub{API: srv.URL, Web: srv.URL, ClientID: "client-test", Client: srv.Client(), PollUnit: time.Millisecond}
 	return f, gh
 }
 
@@ -198,7 +198,7 @@ func TestGitHubLoginRefused(t *testing.T) {
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
-	gh := &GitHub{API: srv.URL, Web: srv.URL, ClientID: "c", Client: srv.Client(), pollUnit: time.Millisecond}
+	gh := &GitHub{API: srv.URL, Web: srv.URL, ClientID: "c", Client: srv.Client(), PollUnit: time.Millisecond}
 	if _, err := gh.WaitLogin(context.Background(), DeviceCode{DeviceCode: "d", Interval: 1, ExpiresIn: 60}); !errors.Is(err, ErrDenied) {
 		t.Errorf("refus : %v", err)
 	}

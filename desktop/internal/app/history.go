@@ -121,14 +121,12 @@ func (s *Service) clearHistory() {
 
 // refreshAgentHistories relit le journal d'un agent (id) ou de tous (id vide).
 func (s *Service) refreshAgentHistories(id string, force bool) {
-	s.mu.Lock()
 	var ids []string
-	for _, d := range s.cfg.Devices {
+	for _, d := range s.allDevices() {
 		if id == "" || d.ID == id {
 			ids = append(ids, d.ID)
 		}
 	}
-	s.mu.Unlock()
 	for _, target := range ids {
 		s.refreshAgentHistory(target, force)
 	}
@@ -186,16 +184,14 @@ func (s *Service) refreshAgentHistory(id string, force bool) {
 
 // historyView renvoie l'historique affiché (un PC, ou tous si id est vide).
 func (s *Service) historyView(id string) map[string]any {
-	s.mu.Lock()
 	names := map[string]string{}
 	hasAgent := false
-	for _, d := range s.cfg.Devices {
+	for _, d := range s.allDevices() {
 		names[d.ID] = d.Name
 		if d.ID == id && d.Agent != nil && d.Agent.HasKey() {
 			hasAgent = true
 		}
 	}
-	s.mu.Unlock()
 
 	s.histMu.Lock()
 	events := s.hist.View(id, s.now().UnixMilli())

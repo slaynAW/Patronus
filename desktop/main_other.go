@@ -56,7 +56,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	svc := app.New(app.Options{Version: version, Store: store, Platform: devPlatform{}, History: histStore})
+	svc := app.New(app.Options{Version: version, Store: store, Platform: devPlatform{}, History: histStore, Share: shareOptions(*dataDir)})
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	go svc.Run(ctx)
