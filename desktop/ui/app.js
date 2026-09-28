@@ -283,9 +283,82 @@
     update_auto: "Rechercher automatiquement",
     update_auto_help: "Au démarrage puis une fois par jour, sur GitHub. Rien n’est installé sans votre accord.",
     update_disabled: "Indisponible pour cette version (version de développement) : téléchargez les versions sur GitHub.",
+
+    section_share_mine: "Partager mes PC",
+    section_share_received: "PC partagés avec moi",
+    share_start: "Partager mes PC",
+    share_start_help: "Choisissez qui peut démarrer (ou éteindre) chacun de vos PC. Nécessite un compte GitHub gratuit.",
+    share_unavailable: "Connexion GitHub non configurée dans cette version : vous pouvez seulement recevoir des accès.",
+    share_setup_text: "Vos PC restent sur vos appareils. Pour chaque personne autorisée, un fichier chiffré que seul son appareil peut lire est déposé dans un espace privé de votre compte GitHub (un « Gist » secret). L’application ne reçoit que le droit de gérer ces fichiers : aucun accès à vos dépôts.",
+    share_field_name: "Votre nom, affiché aux personnes invitées",
+    share_connect: "Se connecter à GitHub",
+    share_login_title: "Connexion à GitHub",
+    share_login_text: "Sur la page GitHub qui s’ouvre, connectez-vous puis saisissez ce code :",
+    share_login_open: "Ouvrir GitHub",
+    share_login_copy: "Copier le code",
+    share_login_waiting: "En attente de la validation sur GitHub…",
+    share_login_done: "Partage activé : invitez maintenant une personne.",
+    share_copied: "Copié dans le presse-papiers",
+    share_reconnect: "Se reconnecter à GitHub",
+    share_reconnect_help: "Nécessaire pour publier les accès (connexion expirée ou nouvel appareil).",
+    share_account: "Compte GitHub : @%1$s",
+    share_account_help: "Accès publiés, chiffrés pour chaque personne.",
+    share_publishing: "Publication en cours…",
+    share_invite: "Inviter une personne",
+    share_invite_help: "QR code ou lien à lui envoyer (aucun secret dedans).",
+    share_invite_text: "Sur son téléphone ou son PC : Wake On LAN → Réglages → « Demander un accès », puis scanner ce QR code ou coller ce lien. Elle vous renverra ensuite sa demande.",
+    share_copy_link: "Copier le lien",
+    share_add_request: "Ajouter une demande d’accès",
+    share_add_request_help: "Collez le lien de demande reçu de la personne.",
+    share_request_paste_text: "Collez le lien « wolshare://request… » reçu de la personne.",
+    share_grant_title: "Autoriser %1$s",
+    share_edit_title: "Accès de %1$s",
+    share_verify: "Vérifiez avec %1$s que son application affiche ce code :",
+    share_verify_help: "Comparez-le de vive voix ou par téléphone. S’il est différent, la demande a été modifiée : n’autorisez pas.",
+    share_rights: "PC partagés",
+    share_right_none: "Non partagé",
+    share_right_wake: "Démarrer",
+    share_right_full: "Démarrer et éteindre",
+    share_grant: "Autoriser",
+    share_person_waiting: "%1$s · publication en attente",
+    share_revoke: "Retirer l’accès",
+    share_revoke_title: "Retirer l’accès de %1$s ?",
+    share_revoke_text: "Ses PC partagés disparaîtront de son application à sa prochaine vérification. S’il pouvait éteindre certains PC, changez aussi la clé de leur agent.",
+    share_stop: "Arrêter le partage",
+    share_stop_help: "Supprime l’espace de partage : tous les accès sont retirés.",
+    share_stop_title: "Arrêter le partage ?",
+    share_stop_text: "L’espace de partage sera supprimé de GitHub : toutes les personnes autorisées perdront l’accès à vos PC.",
+    share_granted: "Accès accordé à %1$s",
+    share_revoked: "Accès retiré à %1$s",
+    share_no_devices: "Ajoutez d’abord un PC à partager.",
+    share_request: "Demander un accès",
+    share_request_help: "Accédez aux PC d’une autre personne, avec son accord.",
+    share_invite_paste_text: "Collez le lien d’invitation « wolshare://invite… » reçu de la personne qui partage.",
+    share_field_my_name: "Votre nom, affiché à %1$s",
+    share_request_title: "Demande envoyée à %1$s",
+    share_request_text: "Envoyez ce lien à %1$s (message, e-mail), ou montrez-lui ce QR code. Il ne contient aucun secret.",
+    share_request_code: "Code de vérification à comparer avec %1$s :",
+    share_request_wait: "Les PC apparaîtront dans la liste dès que %1$s aura autorisé l’accès.",
+    share_access_title: "PC de %1$s",
+    share_access_pending: "En attente de l’autorisation de %1$s",
+    share_access_active: "%1$s · vérifié il y a %2$s",
+    share_access_removed: "Accès retiré par %1$s",
+    share_access_devices: "PC reçus : %1$s",
+    share_access_none: "Aucun PC pour l’instant.",
+    share_show_request: "Afficher ma demande",
+    share_sync_now: "Vérifier maintenant",
+    share_leave: "Quitter ce partage",
+    share_leave_title: "Quitter le partage de %1$s ?",
+    share_leave_text: "Ses PC disparaîtront de cette application. Pour y accéder à nouveau, il faudra une nouvelle invitation.",
+    share_cancel_request: "Annuler la demande",
+    share_remove: "Retirer de la liste",
+    share_by: "Partagé par %1$s",
+    detail_shared: "Partagé par",
+    hint_shared: "PC partagé par %1$s : lui seul peut le modifier.",
   };
 
   const REPO_URL = "https://github.com/slaynAW/WakeOnLan";
+  const GITHUB_DEVICE_URL = "https://github.com/login/device";
   const RELEASES_URL = REPO_URL + "/releases";
   const MIN_PASSWORD_LENGTH = 8;
   const MAX_IMPORT_BYTES = 1024 * 1024;
@@ -336,6 +409,10 @@
     clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
     bolt: '<path d="M13 2.5 4.5 13.5H12l-1 8 8.5-11H12z"/>',
     send: '<path d="M21 3 10.5 13.5"/><path d="M21 3l-6.5 18-4-7.5L3 9.5z"/>',
+    share: '<circle cx="18" cy="5.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="18.5" r="2.5"/><path d="M8.2 10.8l7.6-4.1M8.2 13.2l7.6 4.1"/>',
+    users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.2a6.5 6.5 0 0 1 3 5.8"/>',
+    copy: '<rect x="8.5" y="8.5" width="12" height="12" rx="2"/><path d="M15.5 8.5v-3a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/>',
+    cloud: '<path d="M7 18.5h10.5a4 4 0 0 0 .6-8 6 6 0 0 0-11.6-1.4A4.8 4.8 0 0 0 7 18.5z"/>',
   };
 
   function icon(name, cls = "", size = 0) {
@@ -1012,10 +1089,11 @@
     let id = null;
     const dot = h("span", { class: "dot" });
     const name = h("b");
+    const sharedIcon = icon("share", "small shared-ic");
     const host = h("span", { class: "mono" });
     const info = latencyCell("lat-cell");
     const el = h("div", { class: "row", tabindex: "0", role: "button", onClick: () => select(id), onKeydown: activate(() => select(id)) },
-      dot, name, host, info.el, icon("chevron", "small"));
+      dot, h("span", { class: "row-name" }, name, sharedIcon), host, info.el, icon("chevron", "small"));
     return {
       el,
       update(d, now) {
@@ -1025,6 +1103,8 @@
         setClass(dot, dotClass(st));
         dot.title = stateName(st);
         setText(name, d.name);
+        sharedIcon.classList.toggle("hidden", !d.shared);
+        el.title = d.shared ? fmt(S.share_by, d.shared.ownerName) : "";
         setText(host, d.host || "—");
         const online = st === "ONLINE";
         setClass(info.el, "lat-cell" + (online ? "" : " state-text"));
@@ -1253,7 +1333,7 @@
         const online = st === "ONLINE";
         setClass(el, `tr st-${st}${d.id === selectedId ? " sel" : ""}`);
         setText(name, d.name);
-        setText(capability, d.canShutdown ? S.capability_power : S.capability_wake);
+        setText(capability, d.shared ? fmt(S.share_by, d.shared.ownerName) : d.canShutdown ? S.capability_power : S.capability_wake);
         setText(host, d.host || "—");
         setClass(dot, dotClass(st));
         setText(stateText, shortState(s, now));
@@ -1738,12 +1818,13 @@
       notice.classList.toggle("hidden", !s.notice);
       if (s.notice) setText(noticeText, s.notice === "WAKE_TIMEOUT" ? S.notice_wake_timeout : S.notice_shutdown_timeout);
 
-      const sig = [d.id, st, d.canShutdown].join("|");
+      const sig = [d.id, st, d.canShutdown, !!d.shared].join("|");
       if (sig !== actsSig) {
         actsSig = sig;
         renderActions(d);
       }
-      hint.classList.toggle("hidden", !(st === "ONLINE" && !d.canShutdown));
+      setText(hint, d.shared ? fmt(S.hint_shared, d.shared.ownerName) : S.hint_no_agent);
+      hint.classList.toggle("hidden", !d.shared && !(st === "ONLINE" && !d.canShutdown));
       latency.el.classList.toggle("hidden", !d.host);
       if (d.host) latency.update(d, now);
       renderInfo(d);
@@ -1753,7 +1834,8 @@
     function renderActions(d) {
       const id = d.id;
       const st = d.status.state;
-      const edit = (cls) => btn("sec " + cls, S.action_edit, () => openEditSheet(id), "edit");
+      // Un PC reçu d'une autre personne ne se modifie pas.
+      const edit = (cls) => (d.shared ? null : btn("sec " + cls, S.action_edit, () => openEditSheet(id), "edit"));
       let parts;
       if (st === "ONLINE") {
         parts = d.canShutdown
@@ -1771,6 +1853,8 @@
       } else {
         parts = [btn("primary wide", S.action_wake, () => wake(id), "power"), edit("wide")];
       }
+      parts = parts.filter(Boolean);
+      if (parts.length % 2 === 1) parts[parts.length - 1].classList.add("wide");
       acts.replaceChildren(...parts);
     }
 
@@ -1786,7 +1870,10 @@
         rows.push({ key: "sys", label: S.detail_system, text: [osLabel(s.agent.os), archLabel(s.agent.arch)].filter(Boolean).join(" · ") });
         rows.push({ key: "up", label: S.detail_uptime, text: formatLong(s.agent.uptime) });
       }
-      if (!d.hasAgent) rows.push({ key: "agent", label: S.detail_agent, text: S.agent_not_configured, cls: "muted" });
+      if (d.shared) rows.push({ key: "shared", label: S.detail_shared, text: d.shared.ownerName, cls: "shared-by", iconName: "share" });
+      if (!d.hasAgent) {
+        if (!d.shared) rows.push({ key: "agent", label: S.detail_agent, text: S.agent_not_configured, cls: "muted" });
+      }
       else if (online && s.agentError) rows.push({ key: "agent", label: S.detail_agent, text: agentErrorLabel(s.agentError), cls: "bad" });
       else if (online && s.agent) rows.push({ key: "agent", label: S.detail_agent, text: fmt(S.agent_authenticated, versionLabel(s.agent.version)), cls: "ok", iconName: "shield" });
       else rows.push({ key: "agent", label: S.detail_agent, text: S.agent_configured, cls: "muted" });
@@ -1957,7 +2044,8 @@
   function openDeviceMenu(anchor, id) {
     const d = deviceById(id);
     if (!d) return;
-    const index = state.devices.indexOf(d);
+    const own = state.devices.filter((x) => !x.shared);
+    const index = own.indexOf(d);
     const items = [{ label: S.action_wake_menu, icon: "power", onClick: () => wake(id) }];
     if (d.canShutdown) {
       items.push(
@@ -1965,11 +2053,16 @@
         { label: S.action_reboot, icon: "restart", onClick: () => requestPower(id, "reboot") },
         { label: S.action_sleep, icon: "moon", onClick: () => requestPower(id, "sleep") });
     }
+    if (d.shared) {
+      items.push("sep", { label: S.history_title, icon: "history", onClick: () => openHistorySheet(id) });
+      openMenu(anchor, items);
+      return;
+    }
     items.push("sep",
       { label: S.action_edit, icon: "edit", onClick: () => openEditSheet(id) },
       { label: S.history_title, icon: "history", onClick: () => openHistorySheet(id) });
     if (index > 0) items.push({ label: S.action_move_up, icon: "arrowUp", onClick: () => move(id, -1) });
-    if (index < state.devices.length - 1) items.push({ label: S.action_move_down, icon: "arrowDown", onClick: () => move(id, 1) });
+    if (index < own.length - 1) items.push({ label: S.action_move_down, icon: "arrowDown", onClick: () => move(id, 1) });
     items.push("sep", { label: S.action_delete, icon: "delete", danger: true, onClick: () => confirmDelete(id) });
     openMenu(anchor, items);
   }
@@ -2415,6 +2508,432 @@
   // ---------------------------------------------------------------------------------------------
   // Onglet « Réglages » (SettingsScreen)
   // ---------------------------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------------------------
+  // Partage des PC entre personnes (docs/PARTAGE.md) : tout le chiffrement est dans le moteur Go.
+  // ---------------------------------------------------------------------------------------------
+  const sharing = (() => {
+    const ownDevices = () => state.devices.filter((d) => !d.shared);
+
+    async function copy(text) {
+      try {
+        await api.call("copyText", { text });
+      } catch {
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch (e) {
+          snackbar(errorMessage(e));
+          return;
+        }
+      }
+      snackbar(S.share_copied);
+    }
+
+    /** QR code dessiné par le moteur (SVG de carrés, sans texte ni script). */
+    function qrView(svg) {
+      const box = h("div", { class: "qr" });
+      box.innerHTML = svg;
+      return box;
+    }
+
+    function linkBox(link) {
+      return h("div", { class: "share-link" },
+        h("code", { class: "mono selectable", text: link }),
+        iconBtn("copy", S.share_copy_link, () => copy(link), "flat"));
+    }
+
+    function codeView(code) {
+      return h("div", { class: "share-code mono", text: code });
+    }
+
+    /** Dialogue « coller un lien » ; le presse-papiers est proposé d'emblée s'il contient un lien de partage. */
+    async function pasteDialog({ title, text, placeholder, onLink }) {
+      let initial = "";
+      try {
+        initial = (await api.call("readClipboard")).text || "";
+      } catch {
+        // Presse-papiers indisponible : saisie manuelle.
+      }
+      if (!/^wolshare:\/\//i.test(initial.trim())) initial = "";
+      const input = field({ multiline: true, placeholder, value: initial.trim(), onInput: (v) => dialog.setActions(actions(v)) });
+      const actions = (v) => [
+        { label: S.cancel, onClick: () => dialog.close() },
+        { label: S.ok, disabled: !v.trim(), onClick: () => onLink(input.input.value.trim(), dialog) },
+      ];
+      const dialog = openDialog({ iconName: "paste", title, body: [h("p", { text }), input.wrap], actions: actions(initial) });
+    }
+
+    // --- Je partage mes PC ---
+
+    function setupDialog() {
+      let name = state.share.owner?.name || "";
+      const nameField = field({ label: S.share_field_name, value: name, onInput: (v) => { name = v; refresh(); }, onEnter: () => name.trim() && go() });
+      const dialog = openDialog({
+        iconName: "share",
+        title: S.share_start,
+        body: [h("p", { text: S.share_setup_text }), nameField.wrap],
+        actions: [],
+      });
+      refresh();
+      function refresh() {
+        dialog.setActions([
+          { label: S.cancel, onClick: () => dialog.close() },
+          { label: S.share_connect, disabled: !name.trim(), onClick: go },
+        ]);
+      }
+      function go() {
+        dialog.close();
+        startLogin(name.trim());
+      }
+    }
+
+    async function startLogin(name) {
+      let r;
+      try {
+        r = await api.call("shareLogin", { name });
+      } catch (e) {
+        alertDialog(S.share_login_title, e.message);
+        return;
+      }
+      const status = h("p", { class: "muted", text: S.share_login_waiting });
+      const onState = () => {
+        const sh = state.share;
+        if (sh.login?.error) {
+          status.className = "bad";
+          setText(status, sh.login.error);
+        } else if (!sh.login && sh.owner?.connected) {
+          close();
+          snackbar(S.share_login_done);
+        }
+      };
+      const close = () => {
+        stateListeners.delete(onState);
+        dialog.close();
+      };
+      const dialog = openDialog({
+        iconName: "cloud",
+        title: S.share_login_title,
+        body: [h("p", { text: S.share_login_text }), codeView(r.code), status],
+        actions: [
+          { label: S.cancel, onClick: () => { api.call("shareCancelLogin").catch(() => {}); close(); } },
+          { label: S.share_login_copy, kind: "sec", onClick: () => copy(r.code) },
+          { label: S.share_login_open, onClick: () => openUrl(GITHUB_DEVICE_URL) },
+        ],
+        onDismiss: () => {
+          stateListeners.delete(onState);
+          api.call("shareCancelLogin").catch(() => {});
+        },
+      });
+      stateListeners.add(onState);
+      openUrl(GITHUB_DEVICE_URL);
+    }
+
+    async function inviteDialog() {
+      let r;
+      try {
+        r = await api.call("shareInvite");
+      } catch (e) {
+        snackbar(errorMessage(e));
+        return;
+      }
+      const dialog = openDialog({
+        iconName: "share",
+        title: S.share_invite,
+        body: [h("p", { text: S.share_invite_text }), qrView(r.qr), linkBox(r.link)],
+        actions: [{ label: S.share_copy_link, kind: "sec", onClick: () => copy(r.link) }, { label: S.close, onClick: () => dialog.close() }],
+      });
+    }
+
+    function requestPasteDialog() {
+      if (!ownDevices().length) {
+        alertDialog(S.share_add_request, S.share_no_devices);
+        return;
+      }
+      pasteDialog({
+        title: S.share_add_request,
+        text: S.share_request_paste_text,
+        placeholder: "wolshare://request?…",
+        onLink: async (text, dialog) => {
+          try {
+            const r = await api.call("shareReadRequest", { text });
+            if (!r.ok) {
+              alertDialog(S.share_add_request, r.error);
+              return;
+            }
+            dialog.close();
+            rightsDialog({ name: r.name, device: r.device, code: r.code, rights: r.rights || {}, isNew: !r.rights });
+          } catch (e) {
+            snackbar(errorMessage(e));
+          }
+        },
+      });
+    }
+
+    /** Choix des PC partagés et des droits (nouvelle personne ou modification). */
+    function rightsDialog({ name, device, code, rights, isNew }) {
+      const chosen = { ...rights };
+      const rows = ownDevices().map((d) => {
+        const selectEl = h("select", { "aria-label": d.name },
+          h("option", { value: "", text: S.share_right_none }),
+          h("option", { value: "wake", text: S.share_right_wake }),
+          d.canShutdown ? h("option", { value: "full", text: S.share_right_full }) : null);
+        selectEl.value = chosen[d.id] === "full" && !d.canShutdown ? "wake" : chosen[d.id] || "";
+        selectEl.addEventListener("change", () => {
+          if (selectEl.value) chosen[d.id] = selectEl.value;
+          else delete chosen[d.id];
+          refresh();
+        });
+        return h("div", { class: "right-row" }, h("span", { class: "ni" }, icon("monitor", "", 16)), h("b", { text: d.name }), selectEl);
+      });
+      const body = [];
+      if (code) {
+        body.push(h("p", { text: fmt(S.share_verify, name) }), codeView(code), h("p", { class: "muted small", text: S.share_verify_help }));
+      }
+      body.push(h("div", { class: "form-title", text: S.share_rights }), h("div", { class: "rights" }, rows));
+      const dialog = openDialog({ iconName: "users", title: fmt(isNew ? S.share_grant_title : S.share_edit_title, name), body, actions: [] });
+      refresh();
+      function refresh() {
+        const actions = [{ label: S.cancel, onClick: () => dialog.close() }];
+        if (!isNew) actions.unshift({ label: S.share_revoke, kind: "danger", onClick: () => { dialog.close(); revokeDialog(name, device); } });
+        actions.push({
+          label: isNew ? S.share_grant : S.save,
+          disabled: !Object.keys(chosen).length,
+          onClick: async () => {
+            try {
+              await api.call("shareGrant", { device, name, rights: chosen });
+              dialog.close();
+              snackbar(fmt(S.share_granted, name));
+            } catch (e) {
+              snackbar(errorMessage(e));
+            }
+          },
+        });
+        dialog.setActions(actions);
+      }
+    }
+
+    function revokeDialog(name, device) {
+      const dialog = openDialog({
+        iconName: "users",
+        title: fmt(S.share_revoke_title, name),
+        body: h("p", { text: S.share_revoke_text }),
+        actions: [
+          { label: S.cancel, onClick: () => dialog.close() },
+          {
+            label: S.share_revoke,
+            kind: "danger",
+            onClick: async () => {
+              dialog.close();
+              try {
+                await api.call("shareRevoke", { device });
+                snackbar(fmt(S.share_revoked, name));
+              } catch (e) {
+                snackbar(errorMessage(e));
+              }
+            },
+          },
+        ],
+      });
+    }
+
+    function stopDialog() {
+      const dialog = openDialog({
+        iconName: "warning",
+        title: S.share_stop_title,
+        body: h("p", { text: S.share_stop_text }),
+        actions: [
+          { label: S.cancel, onClick: () => dialog.close() },
+          {
+            label: S.share_stop,
+            kind: "danger",
+            onClick: async () => {
+              dialog.close();
+              try {
+                await api.call("shareStop");
+              } catch (e) {
+                alertDialog(S.share_stop, e.message);
+              }
+            },
+          },
+        ],
+      });
+    }
+
+    // --- Je reçois les PC d'une autre personne ---
+
+    function invitePasteDialog() {
+      pasteDialog({
+        title: S.share_request,
+        text: S.share_invite_paste_text,
+        placeholder: "wolshare://invite?…",
+        onLink: async (text, dialog) => {
+          try {
+            const r = await api.call("shareReadInvite", { text });
+            if (!r.ok) {
+              alertDialog(S.share_request, r.error);
+              return;
+            }
+            dialog.close();
+            nameDialog(text, r.name);
+          } catch (e) {
+            snackbar(errorMessage(e));
+          }
+        },
+      });
+    }
+
+    function nameDialog(link, ownerName) {
+      let name = "";
+      const nameField = field({ label: fmt(S.share_field_my_name, ownerName), onInput: (v) => { name = v; refresh(); }, onEnter: () => name.trim() && send() });
+      const dialog = openDialog({ iconName: "users", title: S.share_request, body: [nameField.wrap], actions: [] });
+      refresh();
+      function refresh() {
+        dialog.setActions([{ label: S.cancel, onClick: () => dialog.close() }, { label: S.ok, disabled: !name.trim(), onClick: send }]);
+      }
+      async function send() {
+        try {
+          const r = await api.call("shareRequest", { text: link, name: name.trim() });
+          dialog.close();
+          requestDialog(r);
+        } catch (e) {
+          nameField.setError(e.message);
+        }
+      }
+    }
+
+    function requestDialog(r) {
+      const dialog = openDialog({
+        iconName: "send",
+        title: fmt(S.share_request_title, r.ownerName),
+        body: [
+          h("p", { text: fmt(S.share_request_text, r.ownerName) }),
+          qrView(r.qr),
+          linkBox(r.link),
+          h("p", { text: fmt(S.share_request_code, r.ownerName) }),
+          codeView(r.code),
+          h("p", { class: "muted small", text: fmt(S.share_request_wait, r.ownerName) }),
+        ],
+        actions: [{ label: S.share_copy_link, kind: "sec", onClick: () => copy(r.link) }, { label: S.close, onClick: () => dialog.close() }],
+      });
+    }
+
+    async function showRequest(owner) {
+      try {
+        requestDialog(await api.call("shareRequestView", { owner }));
+      } catch (e) {
+        snackbar(errorMessage(e));
+      }
+    }
+
+    function accessDialog(a) {
+      const body = [];
+      if (a.active) body.push(h("p", { text: a.devices.length ? fmt(S.share_access_devices, a.devices.join(", ")) : S.share_access_none }));
+      else if (a.removed) body.push(h("p", { text: fmt(S.share_access_removed, a.ownerName) }));
+      else body.push(h("p", { text: fmt(S.share_request_wait, a.ownerName) }));
+      if (a.error) body.push(h("p", { class: "bad", text: a.error }));
+      const leaveLabel = a.active ? S.share_leave : a.removed ? S.share_remove : S.share_cancel_request;
+      const actions = [{ label: leaveLabel, kind: "danger", onClick: () => { dialog.close(); leaveDialog(a, leaveLabel); } }];
+      if (!a.active && !a.removed) actions.push({ label: S.share_show_request, kind: "sec", onClick: () => { dialog.close(); showRequest(a.owner); } });
+      actions.push({ label: S.share_sync_now, kind: "sec", onClick: () => { api.call("shareSync").catch(() => {}); dialog.close(); } });
+      actions.push({ label: S.close, onClick: () => dialog.close() });
+      const dialog = openDialog({ iconName: "monitor", title: fmt(S.share_access_title, a.ownerName), body, actions });
+    }
+
+    function leaveDialog(a, label) {
+      const dialog = openDialog({
+        title: fmt(S.share_leave_title, a.ownerName),
+        body: h("p", { text: S.share_leave_text }),
+        actions: [
+          { label: S.cancel, onClick: () => dialog.close() },
+          {
+            label,
+            kind: "danger",
+            onClick: async () => {
+              dialog.close();
+              try {
+                await api.call("shareLeave", { owner: a.owner });
+              } catch (e) {
+                snackbar(errorMessage(e));
+              }
+            },
+          },
+        ],
+      });
+    }
+
+    // --- Sections des réglages ---
+
+    function ownerItems(sh) {
+      const o = sh.owner;
+      if (!o) {
+        return [settingItem("share", S.share_start, sh.canLogin ? S.share_start_help : S.share_unavailable, sh.canLogin ? setupDialog : null)];
+      }
+      if (!o.connected) {
+        return [
+          settingItem("cloud", S.share_reconnect, o.error || S.share_reconnect_help, sh.canLogin ? () => startLogin(o.name) : null),
+          settingItem("delete", S.share_stop, S.share_stop_help, stopDialog, { danger: true, chevron: false }),
+        ];
+      }
+      const names = new Map(ownDevices().map((d) => [d.id, d.name]));
+      const items = [
+        settingItem("share", S.share_invite, S.share_invite_help, inviteDialog),
+        settingItem("paste", S.share_add_request, S.share_add_request_help, requestPasteDialog),
+      ];
+      for (const p of o.people) {
+        const summary = p.devices.join(", ");
+        items.push(settingItem("users", p.name, p.published || o.publishing ? summary : fmt(S.share_person_waiting, summary),
+          () => rightsDialog({ name: p.name, device: p.device, rights: Object.fromEntries(Object.entries(p.rights).filter(([id]) => names.has(id))), isNew: false })));
+      }
+      const status = o.publishing ? S.share_publishing : o.error || S.share_account_help;
+      const account = settingItem("cloud", fmt(S.share_account, o.user), status);
+      if (o.error) account.querySelector(".supporting").classList.add("bad");
+      items.push(account, settingItem("delete", S.share_stop, S.share_stop_help, stopDialog, { danger: true, chevron: false }));
+      return items;
+    }
+
+    function accessSummary(a, now) {
+      if (a.error) return a.error;
+      if (a.removed) return fmt(S.share_access_removed, a.ownerName);
+      if (!a.active) return fmt(S.share_access_pending, a.ownerName);
+      const list = a.devices.length ? a.devices.join(", ") : S.share_access_none;
+      return fmt(S.share_access_active, list, formatDuration(Math.max(0, now - (a.synced || now))));
+    }
+
+    function receivedItems(sh, now) {
+      const items = sh.received.map((a) => {
+        const item = settingItem("monitor", fmt(S.share_access_title, a.ownerName), accessSummary(a, now), () => accessDialog(a));
+        if (a.error || a.removed) item.querySelector(".supporting").classList.add("bad");
+        return item;
+      });
+      items.push(settingItem("download", S.share_request, S.share_request_help, invitePasteDialog));
+      return items;
+    }
+
+    /** Sections « Partager mes PC » et « PC partagés avec moi », reconstruites quand l'état change. */
+    function sections() {
+      const mine = h("section", { class: "card" });
+      const received = h("section", { class: "card" });
+      let sig = "";
+      let minute = -1;
+      return {
+        els: [h("h2", { class: "section-title", text: S.section_share_mine }), mine,
+          h("h2", { class: "section-title", text: S.section_share_received }), received],
+        update() {
+          const sh = state.share || { received: [] };
+          const now = Date.now();
+          const next = JSON.stringify([sh, ownDevices().map((d) => [d.id, d.name, d.canShutdown])]);
+          // Les durées (« vérifié il y a… ») sont rafraîchies chaque minute.
+          if (next === sig && Math.floor(now / 60000) === minute) return;
+          sig = next;
+          minute = Math.floor(now / 60000);
+          mine.replaceChildren(...ownerItems(sh));
+          received.replaceChildren(...receivedItems(sh, now));
+        },
+      };
+    }
+
+    return { sections };
+  })();
+
   function settingsView() {
     const poll = sliderSetting(S.setting_poll_interval, 1, 30, 1, (v) => updateSettings({ pollIntervalSeconds: v }));
     const wakeTimeout = sliderSetting(S.setting_wake_timeout, 60, 600, 30, (v) => updateSettings({ wakeTimeoutSeconds: v }));
@@ -2431,9 +2950,11 @@
       h("div", { class: "texts" }, h("div", { class: "headline", text: S.update_auto }), h("div", { class: "supporting", text: S.update_auto_help })),
       autoUpdate.el);
     const section = (title, ...items) => [h("h2", { class: "section-title", text: title }), h("section", { class: "card" }, items)];
+    const shareSections = sharing.sections();
     const el = h("div", { class: "main-inner narrow" },
       section(S.section_monitoring, poll.el, wakeTimeout.el,
         h("div", { class: "item" }, h("div", { class: "texts" }, h("div", { class: "headline", text: S.setting_confirm }), h("div", { class: "supporting", text: S.setting_confirm_help })), confirmSwitch.el)),
+      shareSections.els,
       section(S.section_backup, exportItem, importItem),
       section(S.section_history, settingItem("history", S.history_open, S.history_open_help, () => openHistorySheet("")), clearItem),
       section(S.section_agent_download, settingItem("download", S.agent_download, S.agent_download_help, () => openUrl(RELEASES_URL))),
@@ -2449,8 +2970,9 @@
         poll.set(state.settings.pollIntervalSeconds);
         wakeTimeout.set(state.settings.wakeTimeoutSeconds);
         confirmSwitch.input.checked = state.settings.confirmPowerActions;
-        setText(exportSupporting, fmt(S.action_export_help, state.devices.length));
-        exportItem.classList.toggle("disabled", busy || state.devices.length === 0);
+        const ownCount = state.devices.filter((d) => !d.shared).length;
+        setText(exportSupporting, fmt(S.action_export_help, ownCount));
+        exportItem.classList.toggle("disabled", busy || ownCount === 0);
         importItem.classList.toggle("disabled", busy);
         const u = state.update || {};
         let text;
@@ -2463,6 +2985,7 @@
         updateSupporting.classList.toggle("accent", !!u.available);
         autoUpdateItem.classList.toggle("hidden", !u.enabled);
         if (document.activeElement !== autoUpdate.input) autoUpdate.input.checked = !!u.auto;
+        shareSections.update();
       },
     };
   }

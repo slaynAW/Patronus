@@ -27,10 +27,14 @@ var (
 	procOpenClipboard                 = user32.NewProc("OpenClipboard")
 	procCloseClipboard                = user32.NewProc("CloseClipboard")
 	procGetClipboardData              = user32.NewProc("GetClipboardData")
+	procEmptyClipboard                = user32.NewProc("EmptyClipboard")
+	procSetClipboardData              = user32.NewProc("SetClipboardData")
 
 	kernel32         = windows.NewLazySystemDLL("kernel32.dll")
 	procGlobalLock   = kernel32.NewProc("GlobalLock")
 	procGlobalUnlock = kernel32.NewProc("GlobalUnlock")
+	procGlobalAlloc  = kernel32.NewProc("GlobalAlloc")
+	procGlobalFree   = kernel32.NewProc("GlobalFree")
 
 	comdlg32                 = windows.NewLazySystemDLL("comdlg32.dll")
 	procGetSaveFileNameW     = comdlg32.NewProc("GetSaveFileNameW")
@@ -42,6 +46,7 @@ const (
 	swRestore                = 9
 	spiGetWorkArea           = 0x0030
 	cfUnicodeText            = 13
+	gmemMoveable             = 0x0002
 	ofnOverwritePrompt       = 0x00000002
 	ofnNoChangeDir           = 0x00000008
 	ofnPathMustExist         = 0x00000800
@@ -243,17 +248,21 @@ func utf16List(items ...string) []uint16 {
 	return append(out, 0)
 }
 
-// ReadClipboard lit le texte du presse-papiers.
-func (p *winPlatform) ReadClipboard() (string, error) {
-	var opened uintptr
+// openClipboard ouvre le presse-papiers (quelques essais : une autre application peut le tenir).
+func openClipboard() error {
 	for range 5 {
-		if opened, _, _ = procOpenClipboard.Call(0); opened != 0 {
-			break
+		if opened, _, _ := procOpenClipboard.Call(0); opened != 0 {
+			return nil
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if opened == 0 {
-		return "", errors.New("presse-papiers occupé")
+	return errors.New("presse-papiers occupé")
+}
+
+// ReadClipboard lit le texte du presse-papiers.
+func (p *winPlatform) ReadClipboard() (string, error) {
+	if err := openClipboard(); err != nil {
+		return "", err
 	}
 	defer procCloseClipboard.Call()
 	handle, _, _ := procGetClipboardData.Call(cfUnicodeText)
@@ -266,11 +275,42 @@ func (p *winPlatform) ReadClipboard() (string, error) {
 	}
 	defer procGlobalUnlock.Call(handle)
 	text := windows.UTF16PtrToString(*(**uint16)(unsafe.Pointer(&ptr)))
-	// Seul un lien d'appairage est utile : on ne renvoie pas le reste du presse-papiers à l'interface.
-	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(text)), "wolagent://") {
+	// Seuls les liens de l'application sont utiles (appairage, partage) : on ne renvoie pas le reste
+	// du presse-papiers à l'interface.
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if !strings.HasPrefix(lower, "wolagent://") && !strings.HasPrefix(lower, "wolshare://") {
 		return "", nil
 	}
 	return text, nil
+}
+
+// WriteClipboard copie un texte dans le presse-papiers.
+func (p *winPlatform) WriteClipboard(text string) error {
+	data, err := windows.UTF16FromString(text)
+	if err != nil {
+		return err
+	}
+	if err := openClipboard(); err != nil {
+		return err
+	}
+	defer procCloseClipboard.Call()
+	procEmptyClipboard.Call()
+	handle, _, _ := procGlobalAlloc.Call(gmemMoveable, uintptr(len(data)*2))
+	if handle == 0 {
+		return errors.New("mémoire insuffisante")
+	}
+	ptr, _, _ := procGlobalLock.Call(handle)
+	if ptr == 0 {
+		procGlobalFree.Call(handle)
+		return errors.New("presse-papiers inaccessible")
+	}
+	copy(unsafe.Slice(*(**uint16)(unsafe.Pointer(&ptr)), len(data)), data)
+	procGlobalUnlock.Call(handle)
+	if set, _, _ := procSetClipboardData.Call(cfUnicodeText, handle); set == 0 {
+		procGlobalFree.Call(handle)
+		return errors.New("copie impossible")
+	}
+	return nil // le presse-papiers possède désormais la mémoire
 }
 
 // Attributs DWM de la barre de titre propres à Windows 11 (refusés, sans conséquence, par Windows 10).

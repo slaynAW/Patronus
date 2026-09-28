@@ -42,6 +42,8 @@ type Platform interface {
 	SaveFile(suggestedName string, content []byte) (string, error)
 	OpenURL(url string) error
 	ReadClipboard() (string, error)
+	// WriteClipboard copie un texte (lien de partage, code).
+	WriteClipboard(text string) error
 	// Relaunch démarre la nouvelle version de l'application (déjà installée) puis ferme celle-ci.
 	Relaunch() error
 }
@@ -426,6 +428,11 @@ func (s *Service) Call(method string, params json.RawMessage) (any, error) {
 			return map[string]any{"ok": false, "error": err.Error()}, nil
 		}
 		return map[string]any{"ok": true, "info": info}, nil
+	case "copyText":
+		if len(p.Text) > 4096 {
+			return nil, errors.New("texte trop long")
+		}
+		return nil, s.platform.WriteClipboard(p.Text)
 	case "readClipboard":
 		text, err := s.platform.ReadClipboard()
 		if err != nil {
