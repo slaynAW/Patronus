@@ -107,7 +107,7 @@ func New() *Client { return &Client{ConnectTimeout: 2 * time.Second, ReadTimeout
 
 // Status interroge l'agent.
 func (c *Client) Status(ctx context.Context, host string, agent model.AgentSettings) (Status, error) {
-	body, err := c.exchange(ctx, host, agent, protocol.RequestBody{Cmd: "status"})
+	body, err := c.exchange(ctx, host, agent, protocol.RequestBody{Cmd: protocol.CmdStatus}, protocol.MaxLineBytes)
 	if err != nil {
 		return Status{}, err
 	}
@@ -122,25 +122,38 @@ func (c *Client) Power(ctx context.Context, host string, agent model.AgentSettin
 	if delaySeconds < 0 || delaySeconds > 3600 {
 		return "", &Error{Code: Rejected, Detail: "délai invalide"}
 	}
-	body, err := c.exchange(ctx, host, agent, protocol.RequestBody{Cmd: string(action), Delay: &delaySeconds, Force: &force})
+	body, err := c.exchange(ctx, host, agent, protocol.RequestBody{Cmd: string(action), Delay: &delaySeconds, Force: &force}, protocol.MaxLineBytes)
 	if err != nil {
 		return "", err
 	}
 	return body.Message, nil
 }
 
-type responseBody struct {
-	OK       *bool   `json:"ok"`
-	Code     *string `json:"code"`
-	Message  string  `json:"message"`
-	Hostname string  `json:"hostname"`
-	OS       string  `json:"os"`
-	Arch     string  `json:"arch"`
-	Version  string  `json:"version"`
-	Uptime   int64   `json:"uptime"`
+// History lit le journal du PC (30 jours). Un agent trop ancien répond Rejected.
+func (c *Client) History(ctx context.Context, host string, agent model.AgentSettings) (protocol.History, error) {
+	body, err := c.exchange(ctx, host, agent, protocol.RequestBody{Cmd: protocol.CmdHistory}, protocol.MaxHistoryBytes)
+	if err != nil {
+		return protocol.History{}, err
+	}
+	if body.History == nil {
+		return protocol.History{}, &Error{Code: Protocol, Detail: "journal absent de la réponse"}
+	}
+	return *body.History, nil
 }
 
-func (c *Client) exchange(ctx context.Context, host string, agent model.AgentSettings, request protocol.RequestBody) (*responseBody, error) {
+type responseBody struct {
+	OK       *bool             `json:"ok"`
+	Code     *string           `json:"code"`
+	Message  string            `json:"message"`
+	Hostname string            `json:"hostname"`
+	OS       string            `json:"os"`
+	Arch     string            `json:"arch"`
+	Version  string            `json:"version"`
+	Uptime   int64             `json:"uptime"`
+	History  *protocol.History `json:"history"`
+}
+
+func (c *Client) exchange(ctx context.Context, host string, agent model.AgentSettings, request protocol.RequestBody, maxResponse int) (*responseBody, error) {
 	key := model.DecodeAgentKey(agent.Key)
 	if key == nil {
 		return nil, &Error{Code: NoKey}
@@ -154,7 +167,7 @@ func (c *Client) exchange(ctx context.Context, host string, agent model.AgentSet
 	stop := context.AfterFunc(ctx, func() { conn.Close() })
 	defer stop()
 
-	body, err := c.converse(conn, key, request)
+	body, err := c.converse(conn, key, request, maxResponse)
 	if err != nil {
 		var e *Error
 		if errors.As(err, &e) {
@@ -166,12 +179,12 @@ func (c *Client) exchange(ctx context.Context, host string, agent model.AgentSet
 	return body, nil
 }
 
-func (c *Client) converse(conn net.Conn, key []byte, request protocol.RequestBody) (*responseBody, error) {
+func (c *Client) converse(conn net.Conn, key []byte, request protocol.RequestBody, maxResponse int) (*responseBody, error) {
 	reader := bufio.NewReaderSize(conn, 4096)
 	deadline := func() { _ = conn.SetDeadline(time.Now().Add(c.ReadTimeout)) }
 
 	deadline()
-	line, err := readLine(reader)
+	line, err := readLine(reader, protocol.MaxLineBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +225,7 @@ func (c *Client) converse(conn net.Conn, key []byte, request protocol.RequestBod
 	}
 
 	deadline()
-	line, err = readLine(reader)
+	line, err = readLine(reader, maxResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -264,12 +277,12 @@ func errorFrom(code string) error {
 func protocolError(detail string) error { return &Error{Code: Protocol, Detail: detail} }
 
 // readLine lit une ligne terminée par « \n », de taille bornée (protection contre un pair malveillant).
-func readLine(r *bufio.Reader) ([]byte, error) {
+func readLine(r *bufio.Reader, maxBytes int) ([]byte, error) {
 	var line []byte
 	for {
 		chunk, err := r.ReadSlice('\n')
 		line = append(line, chunk...)
-		if len(line) > protocol.MaxLineBytes+1 {
+		if len(line) > maxBytes+1 {
 			return nil, errors.New("message trop long")
 		}
 		switch {

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/internal/config"
+	"github.com/slaynaw/wakeonlan/agent/internal/history"
 	"github.com/slaynaw/wakeonlan/agent/internal/power"
 	"github.com/slaynaw/wakeonlan/agent/internal/sysinfo"
 	"github.com/slaynaw/wakeonlan/agent/protocol"
@@ -38,6 +39,8 @@ type Server struct {
 	limiter  *rateLimiter
 	slots    chan struct{}
 	info     func() sysinfo.Info
+	history  *history.Log
+	now      func() time.Time
 
 	mu      sync.Mutex
 	pending *time.Timer // action d'alimentation programmée
@@ -63,8 +66,12 @@ func New(cfg *config.Config, controller power.Controller, version string, logger
 		limiter:  newRateLimiter(5, time.Minute, 5*time.Minute),
 		slots:    make(chan struct{}, maxConnections),
 		info:     sysinfo.Current,
+		now:      time.Now,
 	}, nil
 }
+
+// SetHistory branche le journal du PC (commande « history » et enregistrement des commandes reçues).
+func (s *Server) SetHistory(l *history.Log) { s.history = l }
 
 // ListenAndServe écoute sur le port configuré jusqu'à l'annulation de ctx.
 func (s *Server) ListenAndServe(ctx context.Context) error {
@@ -189,6 +196,19 @@ func (s *Server) execute(rawBody, ip string) protocol.ResponseBody {
 	if err := json.Unmarshal([]byte(rawBody), &body); err != nil {
 		return fail("bad_request", "requête illisible")
 	}
+	// Le journal est en lecture seule, comme l'état : autorisé dès que « status » l'est.
+	if body.Cmd == protocol.CmdHistory {
+		if !s.cfg.Allows(protocol.CmdStatus) && !s.cfg.Allows(protocol.CmdHistory) {
+			return fail("forbidden", "commande « history » désactivée sur ce PC")
+		}
+		if s.history == nil {
+			return fail("unsupported", "journal indisponible sur ce PC")
+		}
+		snapshot := s.history.Snapshot()
+		resp.History = &snapshot
+		resp.OK, resp.Code = true, "ok"
+		return resp
+	}
 	if !s.cfg.Allows(body.Cmd) {
 		return fail("forbidden", fmt.Sprintf("commande « %s » désactivée sur ce PC", body.Cmd))
 	}
@@ -211,6 +231,12 @@ func (s *Server) execute(rawBody, ip string) protocol.ResponseBody {
 
 	s.schedule(action, force, time.Duration(delay)*time.Second)
 	s.logger.Printf("%s demandée par %s (délai %d s, forcer=%v)", action.Label(), ip, delay, force)
+	if s.history != nil {
+		event := protocol.HistoryEvent{T: s.now().Unix(), K: protocol.HistoryCommand, A: string(action), C: ip}
+		if err := s.history.Add(event); err != nil {
+			s.logger.Printf("journal : %v", err)
+		}
+	}
 	resp.OK, resp.Code = true, "ok"
 	resp.Message = fmt.Sprintf("%s dans %d s", action.Label(), delay)
 	return resp

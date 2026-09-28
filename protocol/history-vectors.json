@@ -1,0 +1,229 @@
+{
+  "description": "Scénario de référence de l'historique (30 jours), vérifié à l'identique par les tests Kotlin (Android) et Go (Windows) : fusion du journal de l'agent et des évènements de l'application. expected = [type, source, heure en ms], du plus récent au plus ancien.",
+  "now": 1790600000000,
+  "events": [
+    {
+      "d": "pc1",
+      "t": 1787921600000,
+      "k": "wake",
+      "s": "app"
+    },
+    {
+      "d": "pc1",
+      "t": 1790564000000,
+      "k": "wake",
+      "s": "app"
+    },
+    {
+      "d": "pc1",
+      "t": 1790564060000,
+      "k": "on",
+      "s": "app",
+      "x": true
+    },
+    {
+      "d": "pc1",
+      "t": 1790592800000,
+      "k": "shutdown_req",
+      "s": "app"
+    },
+    {
+      "d": "pc1",
+      "t": 1790592920000,
+      "k": "off",
+      "s": "app",
+      "x": true
+    },
+    {
+      "d": "pc2",
+      "t": 1790585600000,
+      "k": "on",
+      "s": "app",
+      "x": true
+    },
+    {
+      "d": "pc1",
+      "t": 1790598800000,
+      "k": "off",
+      "s": "app",
+      "x": true
+    },
+    {
+      "d": "pc1",
+      "t": 1790599400000,
+      "k": "wake",
+      "s": "app"
+    }
+  ],
+  "agent": {
+    "device": "pc1",
+    "fetchedAt": 1790596400000,
+    "history": {
+      "from": 1788872000,
+      "events": [
+        {
+          "t": 1789304000,
+          "k": "lost"
+        },
+        {
+          "t": 1790564010,
+          "k": "boot"
+        },
+        {
+          "t": 1790578400,
+          "k": "cmd",
+          "a": "sleep",
+          "c": "192.168.1.50"
+        },
+        {
+          "t": 1790578405,
+          "k": "sleep"
+        },
+        {
+          "t": 1790582000,
+          "k": "resume"
+        },
+        {
+          "t": 1790592802,
+          "k": "cmd",
+          "a": "shutdown",
+          "c": "192.168.1.37"
+        },
+        {
+          "t": 1790592810,
+          "k": "shutdown"
+        },
+        {
+          "t": 1790594600,
+          "k": "boot"
+        },
+        {
+          "t": 1790595200,
+          "k": "cmd",
+          "a": "unknown"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "pc1": [
+      [
+        "wake",
+        "app",
+        1790599400000
+      ],
+      [
+        "off",
+        "app",
+        1790598800000
+      ],
+      [
+        "on",
+        "agent",
+        1790594600000
+      ],
+      [
+        "off",
+        "agent",
+        1790592810000
+      ],
+      [
+        "shutdown_req",
+        "app",
+        1790592800000
+      ],
+      [
+        "resume",
+        "agent",
+        1790582000000
+      ],
+      [
+        "sleep",
+        "agent",
+        1790578405000
+      ],
+      [
+        "sleep_req",
+        "agent",
+        1790578400000
+      ],
+      [
+        "on",
+        "agent",
+        1790564010000
+      ],
+      [
+        "wake",
+        "app",
+        1790564000000
+      ],
+      [
+        "lost",
+        "agent",
+        1789304000000
+      ]
+    ],
+    "all": [
+      [
+        "wake",
+        "app",
+        1790599400000
+      ],
+      [
+        "off",
+        "app",
+        1790598800000
+      ],
+      [
+        "on",
+        "agent",
+        1790594600000
+      ],
+      [
+        "off",
+        "agent",
+        1790592810000
+      ],
+      [
+        "shutdown_req",
+        "app",
+        1790592800000
+      ],
+      [
+        "on",
+        "app",
+        1790585600000
+      ],
+      [
+        "resume",
+        "agent",
+        1790582000000
+      ],
+      [
+        "sleep",
+        "agent",
+        1790578405000
+      ],
+      [
+        "sleep_req",
+        "agent",
+        1790578400000
+      ],
+      [
+        "on",
+        "agent",
+        1790564010000
+      ],
+      [
+        "wake",
+        "app",
+        1790564000000
+      ],
+      [
+        "lost",
+        "agent",
+        1789304000000
+      ]
+    ]
+  }
+}

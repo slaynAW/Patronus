@@ -1,5 +1,6 @@
-// Wake On LAN — interface Windows. Mêmes écrans, textes et comportements que l'application Android
-// (app/src/main/java/.../ui) ; toute la logique (réseau, états, chiffrement) est dans le moteur Go.
+// Wake On LAN — interface Windows, thème sombre « topologie & panneau de détail ».
+// Mêmes fonctions et mêmes textes que l'application Android ; toute la logique (réseau, états,
+// chiffrement, historique) est dans le moteur Go, appelé par api.call().
 "use strict";
 
 (() => {
@@ -10,11 +11,16 @@
     app_name: "Wake On LAN",
     ok: "OK",
     cancel: "Annuler",
+    close: "Fermer",
     save: "Enregistrer",
-    back: "Retour",
     show: "Afficher",
     hide: "Masquer",
 
+    tab_overview: "Vue d’ensemble",
+    tab_devices: "Appareils",
+    tab_settings: "Réglages",
+
+    action_add: "Ajouter",
     action_add_device: "Ajouter un PC",
     action_refresh: "Actualiser l’état",
     action_more: "Plus d’actions",
@@ -24,6 +30,7 @@
     action_shutdown: "Éteindre",
     action_reboot: "Redémarrer",
     action_sleep: "Mettre en veille",
+    action_sleep_short: "Veille",
     action_edit: "Modifier",
     action_move_up: "Monter",
     action_move_down: "Descendre",
@@ -35,19 +42,25 @@
     action_export_short: "Exporter",
     action_export_help: "Sauvegarde dans un fichier (PC enregistrés : %1$d)",
     action_import: "Importer une configuration",
+    action_import_short: "Importer",
     action_import_help: "Restaurer une sauvegarde ou récupérer la configuration du téléphone (vous pouvez aussi glisser le fichier dans la fenêtre)",
 
     state_online: "Allumé",
     state_offline: "Éteint",
     state_offline_seen: "Éteint · vu il y a %1$s",
+    state_offline_ago: "Éteint · il y a %1$s",
     state_unknown: "État inconnu",
+    state_unknown_short: "Inconnu",
     state_checking: "Vérification…",
     state_waking: "Démarrage en cours… %1$s",
-    state_waking_short: "Démarrage en cours",
+    state_waking_short: "Démarrage… %1$s",
+    state_waking_name: "Démarrage en cours",
     state_shutting_down: "Arrêt en cours… %1$s",
-    state_shutting_down_short: "Arrêt en cours",
+    state_shutting_down_short: "Arrêt… %1$s",
+    state_shutting_down_name: "Arrêt en cours",
     state_restarting: "Redémarrage en cours… %1$s",
-    state_restarting_short: "Redémarrage en cours",
+    state_restarting_short: "Redémarrage… %1$s",
+    state_restarting_name: "Redémarrage en cours",
     state_with_detail: "%1$s · %2$s",
     latency_ms: "%1$d ms",
     unknown_no_host: "adresse IP non renseignée",
@@ -58,8 +71,6 @@
     duration_hours: "%1$d h",
     duration_days: "%1$d j",
 
-    agent_info: "%1$s · %2$s · allumé depuis %3$s",
-    agent_problem: "Agent : %1$s",
     notice_wake_timeout: "Aucune réponse après l’envoi du paquet magique. Vérifiez que le Wake-on-LAN est activé (BIOS/UEFI et carte réseau).",
     notice_shutdown_timeout: "Le PC répond toujours après la demande d’arrêt (application bloquante ?). Essayez l’option « Forcer ».",
 
@@ -73,12 +84,76 @@
     agent_error_REJECTED: "commande refusée par le PC",
 
     empty_title: "Aucun PC pour l’instant",
-    empty_text: "Ajoutez un PC à réveiller. Si l’agent est installé dessus, collez simplement son lien d’appairage : tout est rempli automatiquement. Vous pouvez aussi importer la configuration exportée depuis le téléphone (Réglages).",
+    empty_text: "Ajoutez un PC à réveiller. Si l’agent est installé dessus, collez simplement son lien d’appairage : tout est rempli automatiquement. Vous pouvez aussi importer la configuration exportée depuis le téléphone.",
     network_wifi: "Wi-Fi",
     network_ethernet: "Ethernet",
+    network_vpn: "VPN",
+    network_disconnected: "Déconnecté",
     banner_no_lan_title: "Pas de réseau local",
     banner_no_lan_text: "Connectez ce PC au réseau de la maison pour démarrer vos PC et voir leur état.",
     banner_no_lan_vpn_text: "Ce PC n’est pas sur le réseau local, mais un VPN est actif : l’état des PC est vérifié à travers le VPN. Le réveil à distance nécessite un relais sur le réseau local.",
+
+    topology_title: "Réseau local",
+    topology_this_pc: "Ce PC",
+    topology_network: "Réseau",
+    legend_on: "Allumé",
+    legend_busy: "En cours",
+    legend_off: "Éteint",
+    devices_title: "Appareils",
+    devices_summary: "%1$d PC · vérification toutes les %2$d s",
+    col_name: "Nom",
+    col_host: "Adresse IP",
+    col_state: "État",
+    col_mac: "Adresse MAC",
+    col_system: "Système",
+    col_latency: "Latence",
+    capability_power: "Extinction à distance",
+    capability_wake: "Démarrage uniquement",
+
+    detail_ip: "Adresse IP",
+    detail_mac: "Adresse MAC",
+    detail_hostname: "Nom du PC",
+    detail_system: "Système",
+    detail_uptime: "Allumé depuis",
+    detail_latency: "Latence",
+    detail_agent: "Agent",
+    detail_not_set: "Non renseignée",
+    agent_authenticated: "Authentifié · %1$s",
+    agent_not_configured: "Non installé",
+    agent_configured: "Configuré",
+    hint_no_agent: "Pour éteindre, redémarrer ou mettre ce PC en veille d’ici, installez l’agent sur ce PC puis appairez-le (Modifier).",
+    select_hint: "Sélectionnez un PC pour afficher son état et ses actions.",
+
+    history_title: "Historique",
+    history_show_all: "Tout afficher",
+    history_empty: "Aucun évènement sur les 30 derniers jours.",
+    history_subtitle: "Démarrages et extinctions · 30 derniers jours",
+    history_all_devices: "Tous les PC",
+    history_filter: "PC affichés",
+    history_refresh: "Relire le journal des agents",
+    history_more: "Afficher plus",
+    history_note_outdated: "Mettez à jour l’agent de ce PC pour un historique complet, même quand cette application est fermée.",
+    history_note_no_agent: "Sans agent, seuls les changements vus pendant que cette application est ouverte sont notés.",
+    history_sources: "Heures relevées par l’agent de chaque PC ; « ≈ » : heure constatée par cette application.",
+    history_today: "Aujourd’hui",
+    history_yesterday: "Hier",
+    history_yesterday_at: "hier %1$s",
+    history_by: "par %1$s",
+    history_source_agent: "Journal du PC (agent)",
+    history_source_request: "Demandé depuis cette application",
+    history_source_seen: "Constaté par cette application",
+    history_source_seen_approx: "Constaté par cette application (heure approximative)",
+    history_lost_help: "Coupure de courant, arrêt forcé ou plantage : heure du dernier signe de vie.",
+    kind_on: "Allumé",
+    kind_off: "Éteint",
+    kind_lost: "Arrêt inattendu",
+    kind_sleep: "Mis en veille",
+    kind_resume: "Sorti de veille",
+    kind_wake: "Démarrage demandé",
+    kind_shutdown_req: "Extinction demandée",
+    kind_reboot_req: "Redémarrage demandé",
+    kind_sleep_req: "Mise en veille demandée",
+    kind_wake_timeout: "Pas de réponse au démarrage",
 
     confirm_shutdown_title: "Éteindre « %1$s » ?",
     confirm_reboot_title: "Redémarrer « %1$s » ?",
@@ -99,6 +174,7 @@
     message_deleted: "« %1$s » supprimé",
     message_export_done: "Configuration exportée (PC : %1$d)",
     message_import_done: "Configuration importée (PC : %1$d)",
+    message_history_cleared: "Historique effacé",
     message_error: "Erreur : %1$s",
 
     edit_title_new: "Ajouter un PC",
@@ -132,7 +208,6 @@
     field_secure_on_help: "Rarement utilisé. 6 octets hexadécimaux.",
     test_ok: "Connexion réussie : %1$s (%2$s, agent %3$s)",
 
-    settings_title: "Réglages",
     section_monitoring: "Surveillance",
     setting_poll_interval: "Vérifier l’état toutes les",
     setting_seconds_value: "%1$d s",
@@ -156,20 +231,30 @@
     import_replace: "Remplacer",
     import_merge: "Fusionner",
     import_too_big: "Fichier trop volumineux",
+    section_history: "Historique",
+    history_open: "Afficher l’historique",
+    history_open_help: "Démarrages, extinctions et mises en veille des 30 derniers jours",
+    history_clear: "Effacer l’historique",
+    history_clear_help: "Efface les évènements notés par cette application. Le journal tenu par l’agent de chaque PC est conservé.",
+    history_clear_title: "Effacer l’historique ?",
+    history_clear_text: "Les évènements notés par cette application seront supprimés. Le journal tenu par l’agent de chaque PC n’est pas modifié : il sera relu à la prochaine connexion.",
+    history_clear_action: "Effacer",
     section_agent_download: "Agent pour PC",
     agent_download: "Télécharger l’agent",
-    agent_download_help: "Windows, Linux et macOS. Nécessaire uniquement pour éteindre à distance.",
+    agent_download_help: "Windows, Linux et macOS. Nécessaire uniquement pour éteindre à distance et pour l’historique complet.",
     section_about: "À propos",
     about_version: "Version",
     about_source: "Code source",
     about_security: "Sécurité",
-    about_security_text: "Configuration chiffrée sur ce PC (protection des données Windows), aucune donnée envoyée sur Internet, commandes d’extinction authentifiées (HMAC-SHA256) et protégées contre le rejeu.",
+    about_security_text: "Configuration et historique chiffrés sur ce PC (protection des données Windows), aucune donnée envoyée sur Internet, commandes d’extinction authentifiées (HMAC-SHA256) et protégées contre le rejeu.",
   };
 
   const REPO_URL = "https://github.com/slaynAW/WakeOnLan";
   const RELEASES_URL = REPO_URL + "/releases";
   const MIN_PASSWORD_LENGTH = 8;
   const MAX_IMPORT_BYTES = 1024 * 1024;
+  const SIDE_HISTORY_COUNT = 6;
+  const HISTORY_PAGE = 300;
 
   /** Remplace %1$s, %2$d… comme String.format côté Android. */
   function fmt(template, ...args) {
@@ -177,33 +262,61 @@
   }
 
   // ---------------------------------------------------------------------------------------------
-  // Icônes Material (Apache 2.0), mêmes symboles que l'application Android.
+  // Icônes (traits, 24 × 24)
   // ---------------------------------------------------------------------------------------------
+  const SVG_NS = "http://www.w3.org/2000/svg";
   const ICONS = {
-    power: "M13 3h-2v10h2V3zm4.83 2.17-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z",
-    refresh: "M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z",
-    settings: "M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z",
-    add: "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z",
-    more: "M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z",
-    edit: "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
-    delete: "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z",
-    up: "M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z",
-    down: "M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z",
-    back: "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z",
-    warning: "M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z",
-    check: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z",
-    paste: "M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z",
+    power: '<path d="M12 3.5v7.5"/><path d="M6.7 6.9a7.5 7.5 0 1 0 10.6 0"/>',
+    topology: '<rect x="9" y="3" width="6" height="5" rx="1.2"/><rect x="3" y="16" width="6" height="5" rx="1.2"/><rect x="15" y="16" width="6" height="5" rx="1.2"/><path d="M12 8v4M6 16v-2.5h12V16"/>',
+    list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".8"/><circle cx="4.5" cy="12" r=".8"/><circle cx="4.5" cy="18" r=".8"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    refresh: '<path d="M20.5 12a8.5 8.5 0 1 1-2.5-6l2.5 2.5"/><path d="M20.5 3.5v5h-5"/>',
+    restart: '<path d="M3.5 12a8.5 8.5 0 1 0 2.5-6L3.5 8.5"/><path d="M3.5 3.5v5h5"/>',
+    moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
+    edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14 8l2 2"/>',
+    shield: '<path d="M12 3l7.5 3v5.5c0 4.5-3.2 8-7.5 9.5-4.3-1.5-7.5-5-7.5-9.5V6z"/><path d="M8.8 12l2.2 2.2 4.2-4.4"/>',
+    monitor: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16v4"/>',
+    hub: '<rect x="2.5" y="8" width="19" height="8" rx="2"/><path d="M6 12h.01M9 12h.01M12 12h.01M15 12h.01M18 12h1"/>',
+    wifi: '<path d="M12 19.5h.01"/><path d="M8.6 16a4.8 4.8 0 0 1 6.8 0"/><path d="M5.5 12.9a9.2 9.2 0 0 1 13 0"/><path d="M2.5 9.7a13.4 13.4 0 0 1 19 0"/>',
+    chevron: '<path d="M9 5l7 7-7 7"/>',
+    down: '<path d="M6 9l6 6 6-6"/>',
+    up: '<path d="M6 15l6-6 6 6"/>',
+    arrowUp: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+    arrowDown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+    more: '<circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/>',
+    delete: '<path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/><path d="M10 11v5M14 11v5"/>',
+    close: '<path d="M6 6l12 12M18 6 6 18"/>',
+    warning: '<path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.5h.01"/>',
+    check: '<circle cx="12" cy="12" r="9"/><path d="M8.5 12.2l2.4 2.4 4.8-5"/>',
+    paste: '<rect x="5" y="4.5" width="14" height="16.5" rx="2"/><path d="M9 4.5V3h6v1.5M9 11h6M9 15h4"/>',
+    history: '<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5v4h4"/><path d="M12 7.5V12l3 2"/>',
+    download: '<path d="M12 4v11M7 10.5l5 5 5-5"/><path d="M4.5 19.5h15"/>',
+    upload: '<path d="M12 16V5M7 9.5l5-5 5 5"/><path d="M4.5 19.5h15"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.5h.01"/>',
+    code: '<path d="M8.5 7 3.5 12l5 5M15.5 7l5 5-5 5"/>',
+    lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
+    clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    bolt: '<path d="M13 2.5 4.5 13.5H12l-1 8 8.5-11H12z"/>',
+    send: '<path d="M21 3 10.5 13.5"/><path d="M21 3l-6.5 18-4-7.5L3 9.5z"/>',
   };
 
-  function icon(name, cls = "") {
-    const ns = "http://www.w3.org/2000/svg";
-    const svg = document.createElementNS(ns, "svg");
+  function icon(name, cls = "", size = 0) {
+    const svg = document.createElementNS(SVG_NS, "svg");
     svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.7");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
     svg.setAttribute("class", ("icon " + cls).trim());
     svg.setAttribute("aria-hidden", "true");
-    const path = document.createElementNS(ns, "path");
-    path.setAttribute("d", ICONS[name]);
-    svg.append(path);
+    if (size) {
+      svg.style.width = size + "px";
+      svg.style.height = size + "px";
+    }
+    svg.innerHTML = ICONS[name] || ""; // dessins fixes ci-dessus, jamais de données
     return svg;
   }
 
@@ -231,23 +344,54 @@
     }
   }
 
-  function iconButton(name, label, onClick) {
-    return h("button", { class: "icon-button", title: label, "aria-label": label, onClick }, icon(name));
+  const setText = (el, text) => {
+    if (el.textContent !== text) el.textContent = text;
+  };
+  const setClass = (el, cls) => {
+    if (el.className !== cls) el.className = cls;
+  };
+
+  function btn(kind, label, onClick, iconName, extra = {}) {
+    return h("button", { class: "btn " + kind, type: "button", onClick, ...extra }, iconName ? icon(iconName, "small") : null, label);
   }
 
-  function button(kind, label, onClick, iconName, extra = {}) {
-    return h("button", { class: `btn ${kind}${iconName ? " with-icon" : ""}`, onClick, ...extra }, iconName ? icon(iconName, "small") : null, label);
+  function iconBtn(name, label, onClick, cls = "") {
+    return h("button", { class: ("icon-btn " + cls).trim(), type: "button", title: label, "aria-label": label, onClick }, icon(name));
   }
 
-  function topBar(title, onBack, actions = []) {
-    return h("header", { class: `top-bar${onBack ? " with-nav" : ""}` },
-      onBack ? iconButton("back", S.back, onBack) : null,
-      h("h1", { text: title }),
-      actions);
-  }
+  /** Entrée / espace sur un élément focalisable qui se comporte comme un bouton. */
+  const activate = (f) => (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
+      e.preventDefault();
+      f();
+    }
+  };
 
-  function watchScroll(content, bar) {
-    content.addEventListener("scroll", () => bar.classList.toggle("scrolled", content.scrollTop > 0));
+  /** Clic qui ne remonte pas à la ligne (qui, elle, sélectionne le PC). */
+  const own = (f) => (e) => {
+    e.stopPropagation();
+    f(e);
+  };
+
+  /** Met à jour une liste d'éléments identifiés par id, dans l'ordre donné, sans tout reconstruire. */
+  function syncList(container, map, items, create, update) {
+    const seen = new Set();
+    items.forEach((item, i) => {
+      let entry = map.get(item.id);
+      if (!entry) {
+        entry = create();
+        map.set(item.id, entry);
+      }
+      update(entry, item, i);
+      seen.add(item.id);
+      if (container.children[i] !== entry.el) container.insertBefore(entry.el, container.children[i] || null);
+    });
+    for (const [id, entry] of map) {
+      if (!seen.has(id)) {
+        entry.el.remove();
+        map.delete(id);
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -312,27 +456,41 @@
     return fmt(S.duration_days, Math.floor(seconds / 86400));
   }
 
-  const osLabel = (os) => ({ windows: "Windows", linux: "Linux", darwin: "macOS" })[os] || os;
+  /** Durée détaillée : « 3 h 12 min », « 2 j 4 h ». */
+  function formatLong(totalSeconds) {
+    const s = Math.max(0, Math.floor(totalSeconds));
+    const days = Math.floor(s / 86400);
+    const hours = Math.floor((s % 86400) / 3600);
+    const minutes = Math.floor((s % 3600) / 60);
+    if (days > 0) return hours > 0 ? `${days} j ${hours} h` : `${days} j`;
+    if (hours > 0) return minutes > 0 ? `${hours} h ${minutes} min` : `${hours} h`;
+    if (minutes > 0) return `${minutes} min`;
+    return `${s} s`;
+  }
+
+  const osLabel = (os) => ({ windows: "Windows", linux: "Linux", darwin: "macOS" })[os] || os || "";
+  const archLabel = (arch) => ({ amd64: "x64", "386": "x86", arm64: "ARM64", arm: "ARM" })[arch] || arch || "";
+  const versionLabel = (v) => (/^\d/.test(v || "") ? "v" + v : v || "");
+  const methodLabel = (m) => ({ AGENT: "agent", TCP: "TCP", PING: "ping" })[m] || "";
   const agentErrorLabel = (code) => S["agent_error_" + code] || S.agent_error_PROTOCOL;
   const actionLabel = (a) => ({ shutdown: S.action_shutdown, reboot: S.action_reboot, sleep: S.action_sleep })[a];
   const confirmTitle = (a) => ({ shutdown: S.confirm_shutdown_title, reboot: S.confirm_reboot_title, sleep: S.confirm_sleep_title })[a];
   const sentMessage = (a) => ({ shutdown: S.message_shutdown_sent, reboot: S.message_reboot_sent, sleep: S.message_sleep_sent })[a];
   const unknownLabel = (r) => ({ NO_HOST: S.unknown_no_host, NO_NETWORK: S.unknown_no_network })[r];
 
-  function stateDescription(st) {
+  function stateName(st) {
     return {
-      ONLINE: S.state_online, OFFLINE: S.state_offline, UNKNOWN: S.state_unknown, WAKING: S.state_waking_short,
-      SHUTTING_DOWN: S.state_shutting_down_short, RESTARTING: S.state_restarting_short,
-    }[st];
+      ONLINE: S.state_online, OFFLINE: S.state_offline, UNKNOWN: S.state_unknown, WAKING: S.state_waking_name,
+      SHUTTING_DOWN: S.state_shutting_down_name, RESTARTING: S.state_restarting_name,
+    }[st] || S.state_unknown;
   }
 
+  /** Texte complet de l'état (panneau de détail). */
   function statusText(status, now) {
     const sinceAction = now - (status.actionStartedAt ?? now);
     switch (status.state) {
       case "ONLINE":
-        return status.latencyMs != null
-          ? fmt(S.state_with_detail, S.state_online, fmt(S.latency_ms, status.latencyMs))
-          : S.state_online;
+        return status.latencyMs != null ? fmt(S.state_with_detail, S.state_online, fmt(S.latency_ms, status.latencyMs)) : S.state_online;
       case "OFFLINE":
         return status.lastSeen != null ? fmt(S.state_offline_seen, formatDuration(now - status.lastSeen)) : S.state_offline;
       case "WAKING":
@@ -342,14 +500,89 @@
       case "RESTARTING":
         return fmt(S.state_restarting, formatDuration(sinceAction));
       default:
-        return status.unknownReason
-          ? fmt(S.state_with_detail, S.state_unknown, unknownLabel(status.unknownReason))
-          : S.state_checking;
+        return status.unknownReason ? fmt(S.state_with_detail, S.state_unknown, unknownLabel(status.unknownReason)) : S.state_checking;
     }
   }
 
+  /** Texte court de l'état (plan du réseau, listes). */
+  function shortState(status, now) {
+    const sinceAction = now - (status.actionStartedAt ?? now);
+    switch (status.state) {
+      case "ONLINE":
+        return S.state_online;
+      case "OFFLINE":
+        return status.lastSeen != null ? fmt(S.state_offline_ago, formatDuration(now - status.lastSeen)) : S.state_offline;
+      case "WAKING":
+        return fmt(S.state_waking_short, formatDuration(sinceAction));
+      case "SHUTTING_DOWN":
+        return fmt(S.state_shutting_down_short, formatDuration(sinceAction));
+      case "RESTARTING":
+        return fmt(S.state_restarting_short, formatDuration(sinceAction));
+      default:
+        return status.unknownReason ? S.state_unknown_short : S.state_checking;
+    }
+  }
+
+  const dotClass = (st) => "dot" + (st === "ONLINE" ? " glow" : "") + (isTransitional(st) ? " pulse" : "");
+
+  function networkLabel(net) {
+    if (!net.connected) return net.vpn ? S.network_vpn : S.network_disconnected;
+    return net.transport === "wifi" ? S.network_wifi : S.network_ethernet;
+  }
+
+  // Dates de l'historique.
+  const clockFmt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const shortDateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+  const longDateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  const fullFmt = new Intl.DateTimeFormat("fr-FR", { dateStyle: "full", timeStyle: "medium" });
+
+  function startOfDay(ms, offsetDays = 0) {
+    const d = new Date(ms);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate() + offsetDays).getTime();
+  }
+
+  function eventTime(ms, now) {
+    const clock = clockFmt.format(ms);
+    if (ms >= startOfDay(now)) return clock;
+    if (ms >= startOfDay(now, -1)) return fmt(S.history_yesterday_at, clock);
+    return shortDateFmt.format(ms) + " " + clock;
+  }
+
+  function dayLabel(ms, now) {
+    if (ms >= startOfDay(now)) return S.history_today;
+    if (ms >= startOfDay(now, -1)) return S.history_yesterday;
+    return longDateFmt.format(ms);
+  }
+
+  const KIND_ICONS = {
+    on: "power", off: "power", lost: "bolt", sleep: "moon", resume: "sun", wake: "send",
+    shutdown_req: "power", reboot_req: "restart", sleep_req: "moon", wake_timeout: "clock",
+  };
+  const REQUEST_KINDS = new Set(["wake", "shutdown_req", "reboot_req", "sleep_req"]);
+
+  function eventTooltip(e) {
+    let source;
+    if (e.source === "agent") source = S.history_source_agent;
+    else if (REQUEST_KINDS.has(e.kind)) source = S.history_source_request;
+    else source = e.approx ? S.history_source_seen_approx : S.history_source_seen;
+    const lines = [fullFmt.format(e.time), source];
+    if (e.kind === "lost") lines.push(S.history_lost_help);
+    return lines.join("\n");
+  }
+
+  /** Ligne d'historique : icône, libellé (« · par 192.168.1.50 » pour une commande venue d'ailleurs), heure. */
+  function eventRow(e, now, { withName = false, clockOnly = false } = {}) {
+    const by = e.client ? fmt(S.history_by, e.client) : "";
+    const when = (e.approx ? "≈ " : "") + (clockOnly ? clockFmt.format(e.time) : eventTime(e.time, now));
+    return h("div", { class: "ev k-" + e.kind, title: eventTooltip(e) },
+      h("span", { class: "ic" }, icon(KIND_ICONS[e.kind] || "info")),
+      h("span", { class: "lbl" }, S["kind_" + e.kind] || e.kind, by ? h("small", { text: " · " + by }) : null),
+      withName ? h("span", { class: "who", text: e.name }) : null,
+      h("time", { datetime: new Date(e.time).toISOString(), text: when }));
+  }
+
   // ---------------------------------------------------------------------------------------------
-  // Superpositions : menus, dialogues, snackbar
+  // Superpositions : menus, dialogues, panneaux, snackbar
   // ---------------------------------------------------------------------------------------------
   const overlays = document.getElementById("overlays");
   const stack = [];
@@ -364,30 +597,31 @@
     for (const entry of [...stack]) if (entry.kind === "menu") entry.dismiss();
   }
 
+  /** items : [{label, icon, onClick, danger}] ou "sep". */
   function openMenu(anchor, items) {
     closeMenus();
     const menu = h("div", { class: "menu", role: "menu" });
     const entry = { kind: "menu", dismiss: close };
     for (const item of items) {
-      if (item === "divider") {
-        menu.append(h("div", { class: "menu-divider" }));
+      if (item === "sep") {
+        menu.append(h("div", { class: "menu-sep" }));
         continue;
       }
       menu.append(h("button", {
-        class: "menu-item", role: "menuitem",
+        class: "menu-item" + (item.danger ? " danger" : ""), type: "button", role: "menuitem",
         onClick: (e) => {
           e.stopPropagation();
           close();
           item.onClick();
         },
-      }, item.icon ? icon(item.icon) : h("span", { class: "no-icon" }), item.label));
+      }, item.icon ? icon(item.icon, "small") : h("span", { class: "no-icon" }), item.label));
     }
     overlays.append(menu);
     const r = anchor.getBoundingClientRect();
     const width = menu.offsetWidth;
     const height = menu.offsetHeight;
-    let top = r.bottom;
-    if (top + height > window.innerHeight - 8) top = Math.max(8, r.top - height);
+    let top = r.bottom + 4;
+    if (top + height > window.innerHeight - 8) top = Math.max(8, r.top - height - 4);
     const left = Math.min(Math.max(8, r.right - width), window.innerWidth - width - 8);
     menu.style.top = top + "px";
     menu.style.left = left + "px";
@@ -411,37 +645,39 @@
   }
 
   /**
-   * Ouvre un dialogue (AlertDialog). actions : [{label, onClick, disabled}] ; onDismiss : clic hors
-   * du dialogue ou Échap.
+   * Ouvre un dialogue. actions : [{label, onClick, disabled, kind}] (la dernière est l'action
+   * principale) ; onDismiss : clic hors du dialogue ou Échap.
    */
   function openDialog({ iconName, title, body, actions = [], onDismiss }) {
-    const scrim = h("div", { class: "scrim" });
-    const bodyEl = h("div", { class: "dialog-body selectable" }, body);
-    const actionsEl = h("div", { class: "dialog-actions" });
-    const dialog = h("div", { class: "dialog", role: "dialog", "aria-modal": "true" },
-      iconName ? icon(iconName, "dialog-icon") : null,
+    const bodyEl = h("div", { class: "d-body selectable" }, body);
+    const actionsEl = h("div", { class: "d-actions" });
+    const dialog = h("div", { class: "dialog", role: "dialog", "aria-modal": "true", "aria-label": title || null },
+      iconName ? h("div", { class: "d-icon" }, icon(iconName)) : null,
       title ? h("h2", { text: title }) : null,
       bodyEl,
       actionsEl);
+    const wrap = h("div", { class: "dialog-wrap" }, dialog);
     const entry = { kind: "dialog", dismiss };
     const handle = { close, body: bodyEl, setActions };
     setActions(actions);
-    scrim.append(dialog);
-    scrim.addEventListener("mousedown", (e) => {
-      if (e.target === scrim) dismiss();
+    wrap.addEventListener("mousedown", (e) => {
+      if (e.target === wrap) dismiss();
     });
     closeMenus();
     stack.push(entry);
-    overlays.append(scrim);
+    overlays.append(wrap);
     const focusTarget = bodyEl.querySelector("input:not([type=checkbox]):not([type=radio]), textarea") ||
       actionsEl.querySelector("button:last-child");
     focusTarget?.focus();
     return handle;
 
     function setActions(list) {
-      actionsEl.replaceChildren(...list.map((a) => a === "spacer"
-        ? h("span", { class: "spacer" })
-        : h("button", { class: "btn text", disabled: !!a.disabled, onClick: a.onClick }, a.label)));
+      actionsEl.replaceChildren(...list.map((a, i) => h("button", {
+        type: "button",
+        class: "btn " + (a.kind || (i === list.length - 1 ? "primary" : "sec")),
+        disabled: !!a.disabled,
+        onClick: a.onClick,
+      }, a.label)));
     }
     function dismiss() {
       close();
@@ -451,13 +687,39 @@
       const i = stack.indexOf(entry);
       if (i < 0) return;
       stack.splice(i, 1);
-      scrim.remove();
+      wrap.remove();
     }
   }
 
   function alertDialog(title, text) {
-    const d = openDialog({ title, body: h("p", { style: "margin:0", text }), actions: [{ label: S.ok, onClick: () => d.close() }] });
+    const d = openDialog({ title, body: h("p", { text }), actions: [{ label: S.ok, onClick: () => d.close() }] });
     return d;
+  }
+
+  /** Panneau latéral (fiche d'un PC, historique complet). */
+  function openSheet({ title, subtitle, headExtra = [], body, foot, onClose, closeOnScrim = true }) {
+    const scrim = h("div", { class: "scrim" });
+    const titleEl = h("h2", {}, title, subtitle ? h("small", { text: subtitle }) : null);
+    const bodyEl = h("div", { class: "sheet-body" }, body);
+    const sheet = h("div", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-label": title },
+      h("div", { class: "sheet-head" }, titleEl, headExtra, iconBtn("close", S.close, () => close(), "flat")),
+      bodyEl,
+      foot ? h("div", { class: "sheet-foot" }, foot) : null);
+    const entry = { kind: "sheet", dismiss: close };
+    if (closeOnScrim) scrim.addEventListener("mousedown", () => close());
+    closeMenus();
+    stack.push(entry);
+    overlays.append(scrim, sheet);
+    return { el: sheet, body: bodyEl, close };
+
+    function close() {
+      const i = stack.indexOf(entry);
+      if (i < 0) return;
+      stack.splice(i, 1);
+      scrim.remove();
+      sheet.remove();
+      onClose?.();
+    }
   }
 
   const snackbarEl = document.getElementById("snackbar");
@@ -484,14 +746,18 @@
     }, 4000);
   }
 
-  function field({ label, helper, value = "", type = "text", mono = false, onInput, trailing, multiline = false, placeholder }) {
+  let fieldSeq = 0;
+
+  function field({ label, helper, value = "", type = "text", mono = false, onInput, onEnter, trailing, multiline = false, placeholder }) {
+    const id = "f" + ++fieldSeq;
     const input = multiline
-      ? h("textarea", { placeholder: placeholder || " ", rows: 2, spellcheck: "false" })
-      : h("input", { type, placeholder: " ", spellcheck: "false", autocomplete: "off", class: mono ? "mono" : null });
+      ? h("textarea", { id, rows: 3, spellcheck: "false", placeholder })
+      : h("input", { id, type, spellcheck: "false", autocomplete: "off", class: mono ? "mono" : null, placeholder });
     input.value = value;
     const support = h("div", { class: "support" });
     const wrap = h("div", { class: `field${trailing ? " has-trailing" : ""}` },
-      h("div", { class: "field-box" }, input, h("label", { text: label }), trailing ? h("div", { class: "trailing" }, trailing) : null),
+      label ? h("label", { for: id, text: label }) : null,
+      h("div", { class: "box" }, input, trailing ? h("div", { class: "trailing" }, trailing) : null),
       support);
     const ref = {
       wrap, input,
@@ -504,6 +770,14 @@
     };
     ref.setError(null);
     input.addEventListener("input", () => onInput?.(input.value));
+    if (onEnter && !multiline) {
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onEnter();
+        }
+      });
+    }
     return ref;
   }
 
@@ -514,272 +788,838 @@
   }
 
   // ---------------------------------------------------------------------------------------------
-  // État global et navigation
+  // État global
   // ---------------------------------------------------------------------------------------------
   let state = null;
-  let current = null;
-  const appEl = document.getElementById("app");
+  let view = null; // contenu de l'onglet affiché
+  let selectedId = null; // PC affiché dans le panneau de détail
+  let wantedId = null; // PC à sélectionner dès qu'il apparaît (juste après son ajout)
+  let sideOpen = false; // panneau ouvert par-dessus (fenêtre étroite)
+  let busyCount = 0;
+  const stateListeners = new Set();
+  const narrow = window.matchMedia("(max-width: 1040px)");
 
-  function setScreen(screen) {
-    current?.dispose?.();
-    closeMenus();
-    appEl.replaceChildren(screen.el);
-    current = screen;
-    snackbarEl.classList.toggle("low", screen.name !== "list");
-  }
+  const TABS = [
+    ["overview", "topology", S.tab_overview],
+    ["devices", "list", S.tab_devices],
+    ["settings", "settings", S.tab_settings],
+  ];
+  let tab = (() => {
+    try {
+      const saved = localStorage.getItem("tab");
+      return TABS.some(([id]) => id === saved) ? saved : "overview";
+    } catch {
+      return "overview";
+    }
+  })();
 
+  const deviceById = (id) => state?.devices.find((d) => d.id === id);
   const errorMessage = (e) => fmt(S.message_error, e?.message || String(e));
 
-  // ---------------------------------------------------------------------------------------------
-  // Écran « liste des PC » (DevicesScreen)
-  // ---------------------------------------------------------------------------------------------
-  function showList() {
-    const bar = topBar(S.app_name, null, [
-      iconButton("refresh", S.action_refresh, () => api.call("refresh").catch(() => {})),
-      iconButton("settings", S.settings_title, showSettings),
-    ]);
-    const networkSlot = h("div");
-    const emptySlot = h("div");
-    const cardsSlot = h("div", { style: "display:flex;flex-direction:column;gap:12px" });
-    const content = h("main", { class: "content" }, h("div", { class: "column" }, networkSlot, emptySlot, cardsSlot));
-    const fab = h("button", { class: "fab", onClick: () => showEdit(null) }, icon("add"), S.action_add_device);
-    const el = h("div", { class: "screen" }, bar, content, fab);
-    watchScroll(content, bar);
-
-    const cards = new Map();
-    let networkSig = "";
-    let emptySig = null;
-
-    function render() {
-      const net = state.network;
-      const sig = JSON.stringify(net);
-      if (sig !== networkSig) {
-        networkSig = sig;
-        networkSlot.replaceChildren(networkBanner(net));
-      }
-      const empty = state.devices.length === 0;
-      if (empty !== emptySig) {
-        emptySig = empty;
-        emptySlot.replaceChildren(empty ? emptyState() : "");
-      }
-      const seen = new Set();
-      state.devices.forEach((d, i) => {
-        let card = cards.get(d.id);
-        if (!card) {
-          card = deviceCard();
-          cards.set(d.id, card);
-        }
-        card.update(d, i === 0, i === state.devices.length - 1);
-        seen.add(d.id);
-        if (cardsSlot.children[i] !== card.el) cardsSlot.insertBefore(card.el, cardsSlot.children[i] || null);
-      });
-      for (const [id, card] of cards) {
-        if (!seen.has(id)) {
-          card.el.remove();
-          cards.delete(id);
-        }
-      }
+  function setTab(id) {
+    if (tab === id) return;
+    tab = id;
+    try {
+      localStorage.setItem("tab", id);
+    } catch {
+      // Préférence non conservée : sans conséquence.
     }
-
+    closeMenus();
     render();
-    setScreen({
-      name: "list", el, onState: render,
-      onTick: () => cards.forEach((c) => c.tick()),
-      onRefreshKey: () => api.call("refresh").catch(() => {}),
-    });
   }
 
-  function networkBanner(net) {
-    if (!net.connected) {
-      return h("div", { class: "warning-card" }, icon("warning"),
-        h("div", {}, h("h2", { text: S.banner_no_lan_title }), h("p", { text: net.vpn ? S.banner_no_lan_vpn_text : S.banner_no_lan_text })));
+  function select(id, open = true) {
+    if (deviceById(id)) {
+      selectedId = id;
+      wantedId = null; // le choix de l'utilisateur l'emporte sur un ajout en attente
+    } else {
+      wantedId = id;
     }
-    const transport = net.transport === "ethernet" ? S.network_ethernet : S.network_wifi;
-    return h("div", { class: "network-line", text: [transport, net.address].filter(Boolean).join(" · ") });
+    if (open && narrow.matches) sideOpen = true;
+    render();
   }
 
-  function emptyState() {
-    return h("div", { class: "empty" }, icon("power"), h("h2", { text: S.empty_title }), h("p", { text: S.empty_text }),
-      button("filled", S.action_add_device, () => showEdit(null)));
+  function setBusy(on) {
+    busyCount = Math.max(0, busyCount + (on ? 1 : -1));
+    render();
   }
 
-  function deviceCard() {
-    let device = null;
-    let first = false;
-    let last = false;
-    let detailsSig = "";
-    let actionsSig = "";
-    const dot = h("div", { class: "status-dot", role: "img" });
-    const name = h("div", { class: "card-name" });
-    const statusEl = h("div", { class: "card-status" });
-    const more = iconButton("more", S.action_more, (e) => {
-      e.stopPropagation();
-      openDeviceMenu(more, device, first, last);
-    });
-    const details = h("div", { class: "card-details" });
-    const actions = h("div", { class: "card-actions" });
-    const el = h("div", {
-      class: "card", tabindex: "0", role: "button",
-      onClick: () => showEdit(device.id),
-      onKeydown: (e) => {
-        if (e.key === "Enter" && e.target === el) showEdit(device.id);
+  function refreshAll() {
+    refreshButton.classList.remove("turn");
+    void refreshButton.offsetWidth; // relance l'animation
+    refreshButton.classList.add("turn");
+    api.call("refresh").catch(() => {});
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Structure : barre de navigation, contenu, panneau de détail
+  // ---------------------------------------------------------------------------------------------
+  const appEl = document.getElementById("app");
+  const tabButtons = {};
+  const tabsEl = h("nav", { class: "tabs", role: "tablist" }, TABS.map(([id, iconName, label]) =>
+    (tabButtons[id] = h("button", { class: "tab", type: "button", role: "tab", title: label, onClick: () => setTab(id) },
+      icon(iconName), h("span", { class: "label", text: label })))));
+  const netDot = h("span", { class: "dot" });
+  const netText = h("span");
+  const netChip = h("div", { class: "chip net" }, netDot, netText);
+  const refreshButton = iconBtn("refresh", S.action_refresh, refreshAll);
+  const navEl = h("header", { class: "nav" },
+    h("div", { class: "brand" }, h("span", { class: "logo" }, icon("power")), S.app_name),
+    tabsEl,
+    h("div", { class: "right" }, netChip, refreshButton, btn("primary", S.action_add, () => openEditSheet(null), "plus")));
+  const busyBar = h("div", { class: "progress busy-bar hidden" });
+  const mainEl = h("main", { class: "main" });
+  const sideEl = h("aside", { class: "side" });
+  const bodyEl = h("div", { class: "body" }, busyBar, mainEl, sideEl);
+
+  // Fenêtre étroite : un clic à côté du panneau de détail le referme.
+  mainEl.addEventListener("mousedown", (e) => {
+    if (narrow.matches && sideOpen && !e.target.closest(".node, .row, .tr")) {
+      sideOpen = false;
+      render();
+    }
+  });
+  narrow.addEventListener("change", () => {
+    sideOpen = false;
+    render();
+  });
+
+  function render() {
+    if (!state) return;
+    const now = Date.now();
+    if (wantedId && deviceById(wantedId)) {
+      selectedId = wantedId;
+      wantedId = null;
+    }
+    if (!deviceById(selectedId)) {
+      selectedId = state.devices[0]?.id ?? null;
+      sideOpen = false;
+    }
+    updateNav();
+    busyBar.classList.toggle("hidden", busyCount === 0);
+    const empty = state.devices.length === 0;
+    const kind = tab === "settings" ? "settings" : empty ? "empty" : tab;
+    if (!view || view.kind !== kind) {
+      view?.dispose?.();
+      view = { overview: overviewView, devices: devicesView, settings: settingsView, empty: emptyView }[kind]();
+      view.kind = kind;
+      mainEl.replaceChildren(view.el);
+      mainEl.scrollTop = 0;
+    }
+    view.update(now);
+    side.update(now, kind !== "settings" && !empty);
+  }
+
+  function updateNav() {
+    for (const [id] of TABS) {
+      tabButtons[id].classList.toggle("on", tab === id);
+      tabButtons[id].setAttribute("aria-selected", String(tab === id));
+    }
+    const net = state.network;
+    if (net.connected) {
+      setClass(netChip, "chip net st-ONLINE");
+      setClass(netDot, "dot glow");
+      setText(netText, [networkLabel(net), net.address].filter(Boolean).join(" · "));
+    } else {
+      setClass(netChip, "chip net warn st-OFFLINE");
+      setClass(netDot, "dot");
+      setText(netText, net.vpn ? S.network_vpn + " · " + S.banner_no_lan_title : S.banner_no_lan_title);
+    }
+  }
+
+  /** Bandeau « pas de réseau local ». */
+  function networkWarning() {
+    const title = h("b", { text: S.banner_no_lan_title });
+    const text = h("span");
+    const el = h("div", { class: "warning hidden" }, icon("warning"), h("div", {}, title, text));
+    return {
+      el,
+      update() {
+        const net = state.network;
+        el.classList.toggle("hidden", net.connected);
+        setText(text, net.vpn ? S.banner_no_lan_vpn_text : S.banner_no_lan_text);
       },
-    }, h("div", { class: "card-head" }, dot, h("div", { class: "card-title" }, name, statusEl), more), details, actions);
-
-    function update(d, isFirst, isLast) {
-      device = d;
-      first = isFirst;
-      last = isLast;
-      el.className = "card state-" + d.status.state;
-      dot.classList.toggle("transition", isTransitional(d.status.state));
-      dot.setAttribute("aria-label", stateDescription(d.status.state));
-      dot.title = stateDescription(d.status.state);
-      name.textContent = d.name;
-      tick();
-      const s = d.status;
-      const dSig = JSON.stringify([d.host, d.mac, d.hasAgent, s.state, s.agent, s.agentError, s.notice]);
-      if (dSig !== detailsSig) {
-        detailsSig = dSig;
-        renderDetails();
-      }
-      const aSig = s.state + "|" + d.canShutdown;
-      if (aSig !== actionsSig) {
-        actionsSig = aSig;
-        renderActions();
-      }
-    }
-
-    function tick() {
-      if (device) statusEl.textContent = statusText(device.status, Date.now());
-    }
-
-    function renderDetails() {
-      const s = device.status;
-      const parts = [h("div", { text: [device.host, device.mac].filter(Boolean).join(" · ") })];
-      if (s.state === "ONLINE" && s.agent && !s.agentError) {
-        parts.push(h("div", { text: fmt(S.agent_info, s.agent.hostname, osLabel(s.agent.os), formatDuration(s.agent.uptime * 1000)) }));
-      }
-      if (device.hasAgent && s.agentError && s.state === "ONLINE") {
-        parts.push(h("div", { class: "error", text: fmt(S.agent_problem, agentErrorLabel(s.agentError)) }));
-      }
-      if (s.notice) {
-        const id = device.id;
-        parts.push(h("div", { class: "card-notice" },
-          h("span", { text: s.notice === "WAKE_TIMEOUT" ? S.notice_wake_timeout : S.notice_shutdown_timeout }),
-          button("text", S.ok, (e) => {
-            e.stopPropagation();
-            api.call("clearNotice", { id }).catch(() => {});
-          })));
-      }
-      details.replaceChildren(...parts);
-    }
-
-    function renderActions() {
-      const d = device;
-      const stop = (f) => (e) => {
-        e.stopPropagation();
-        f();
-      };
-      const parts = [];
-      switch (d.status.state) {
-        case "ONLINE":
-          if (d.canShutdown) parts.push(button("tonal", S.action_shutdown, stop(() => requestPower(device, "shutdown")), "power"));
-          break;
-        case "OFFLINE":
-        case "UNKNOWN":
-          parts.push(button("filled", S.action_wake, stop(() => wake(device)), "power"));
-          break;
-        case "WAKING":
-          parts.push(h("div", { class: "spinner" }), button("outlined", S.action_wake_again, stop(() => wake(device)), "refresh"));
-          break;
-        default:
-          parts.push(h("div", { class: "spinner" }));
-      }
-      actions.replaceChildren(...parts);
-    }
-
-    return { el, update, tick };
+    };
   }
 
-  function openDeviceMenu(anchor, device, isFirst, isLast) {
-    const items = [{ label: S.action_wake_menu, icon: "power", onClick: () => wake(device) }];
-    if (device.canShutdown) {
-      for (const action of ["shutdown", "reboot", "sleep"]) {
-        items.push({ label: actionLabel(action), onClick: () => requestPower(device, action) });
+  // ---------------------------------------------------------------------------------------------
+  // Onglet « Vue d'ensemble » : plan du réseau et liste compacte
+  // ---------------------------------------------------------------------------------------------
+  function overviewView() {
+    const warning = networkWarning();
+    const topo = topology();
+    const legendItem = (color, style, label) => h("span", { class: "legend" }, h("i", { style: `border-color:${color};border-top-style:${style}` }), label);
+    const topoCard = h("section", { class: "card" },
+      h("div", { class: "card-head" }, icon("topology", "small"), S.topology_title,
+        h("span", { class: "aside" }, legendItem("var(--on)", "solid", S.legend_on), legendItem("var(--tr)", "dashed", S.legend_busy), legendItem("var(--off)", "dotted", S.legend_off))),
+      topo.el);
+    const summary = h("span", { class: "aside" });
+    const rows = h("div", { class: "rows" });
+    const rowMap = new Map();
+    const listCard = h("section", { class: "card" }, h("div", { class: "card-head" }, icon("list", "small"), S.devices_title, summary), rows);
+    const el = h("div", { class: "main-inner" }, warning.el, topoCard, listCard);
+    return {
+      el,
+      update(now) {
+        warning.update();
+        topo.update(now);
+        setText(summary, fmt(S.devices_summary, state.devices.length, state.settings.pollIntervalSeconds));
+        syncList(rows, rowMap, state.devices, listRow, (row, d) => row.update(d, now));
+      },
+      dispose: () => topo.dispose(),
+    };
+  }
+
+  function listRow() {
+    let id = null;
+    const dot = h("span", { class: "dot" });
+    const name = h("b");
+    const host = h("span", { class: "mono" });
+    const info = h("span");
+    const el = h("div", { class: "row", tabindex: "0", role: "button", onClick: () => select(id), onKeydown: activate(() => select(id)) },
+      dot, name, host, info, icon("chevron", "small"));
+    return {
+      el,
+      update(d, now) {
+        id = d.id;
+        const st = d.status.state;
+        setClass(el, `row st-${st}${d.id === selectedId ? " sel" : ""}`);
+        setClass(dot, dotClass(st));
+        dot.title = stateName(st);
+        setText(name, d.name);
+        setText(host, d.host || "—");
+        const online = st === "ONLINE";
+        setClass(info, online ? "" : "state-text");
+        setText(info, online && d.status.latencyMs != null ? fmt(S.latency_ms, d.status.latencyMs) : shortState(d.status, now));
+      },
+    };
+  }
+
+  // Styles des liaisons du plan : pleine (allumé), tirets animés (en cours), pointillés (éteint).
+  const LINKS = {
+    ONLINE: { color: "var(--on)", width: 2.2, glow: true },
+    busy: { color: "var(--tr)", width: 1.8, dash: "6 5", glow: true, moving: true },
+    OFFLINE: { color: "var(--off)", width: 1.6, dash: "3 5", glow: true, opacity: 0.9 },
+    UNKNOWN: { color: "var(--unk)", width: 1.6, dash: "3 5", opacity: 0.6 },
+    lan: { color: "var(--blue)", width: 2.2 },
+    noLan: { color: "var(--off)", width: 1.6, dash: "3 5", opacity: 0.8 },
+  };
+
+  function svgPath() {
+    return document.createElementNS(SVG_NS, "path");
+  }
+
+  function styleLink(path, spec) {
+    path.setAttribute("class", spec.moving ? "link-busy" : "");
+    path.style.stroke = spec.color;
+    path.style.strokeWidth = String(spec.width);
+    path.style.strokeDasharray = spec.dash || "none";
+    path.style.opacity = String(spec.opacity ?? 1);
+    path.style.filter = spec.glow ? `drop-shadow(0 0 4px ${spec.color})` : "none";
+  }
+
+  function setD(path, d) {
+    if (path.getAttribute("d") !== d) path.setAttribute("d", d);
+  }
+
+  function setPos(el, x, y) {
+    el.style.left = Math.round(x) + "px";
+    el.style.top = Math.round(y) + "px";
+  }
+
+  /** Plan du réseau : « Ce PC » — « Réseau » — un nœud par PC, reliés selon leur état. */
+  function topology() {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("class", "links");
+    svg.setAttribute("aria-hidden", "true");
+    const lanLink = svgPath();
+    svg.append(lanLink);
+    const anchorAddress = h("small", { class: "mono" });
+    const anchor = h("div", { class: "anchor" },
+      h("span", { class: "ni" }, icon("monitor", "", 18)),
+      h("span", { class: "nt" }, h("b", { text: S.topology_this_pc }), anchorAddress));
+    const hubIcon = h("span", { class: "ni" });
+    const hubText = h("small");
+    const hub = h("div", { class: "anchor hub" }, hubIcon, h("span", { class: "nt" }, h("b", { text: S.topology_network }), hubText));
+    const el = h("div", { class: "topo" }, svg, anchor, hub);
+    const nodes = new Map();
+    let order = [];
+    let hubIconName = "";
+    let lanKind = "";
+    let orderSig = "";
+    const observer = new ResizeObserver(() => layout());
+    observer.observe(el);
+
+    function update(now) {
+      const net = state.network;
+      setText(anchorAddress, (net.address || "").split("/")[0] || "—");
+      const iconName = net.transport === "wifi" && net.connected ? "wifi" : "hub";
+      if (iconName !== hubIconName) {
+        hubIconName = iconName;
+        hubIcon.replaceChildren(icon(iconName, "", 18));
+      }
+      setText(hubText, networkLabel(net));
+      const kind = net.connected ? "lan" : "noLan";
+      if (kind !== lanKind) {
+        lanKind = kind;
+        styleLink(lanLink, LINKS[kind]);
+      }
+      order = state.devices.map((d) => d.id);
+      for (const d of state.devices) {
+        let node = nodes.get(d.id);
+        if (!node) {
+          node = topologyNode();
+          nodes.set(d.id, node);
+          el.append(node.el);
+          svg.append(node.path);
+        }
+        node.update(d, now);
+      }
+      for (const [id, node] of nodes) {
+        if (!order.includes(id)) {
+          node.el.remove();
+          node.path.remove();
+          nodes.delete(id);
+        }
+      }
+      if (order.join("|") !== orderSig) {
+        orderSig = order.join("|");
+        for (const id of order) el.append(nodes.get(id).el);
+      }
+      layout();
+    }
+
+    function layout() {
+      const W = el.clientWidth;
+      if (!W || !order.length) return;
+      const list = order.map((id) => nodes.get(id));
+      // Contenu centré et borné en largeur : liaisons lisibles même sur grand écran.
+      const CW = Math.min(W, 900);
+      const ox = (W - CW) / 2;
+      const nodeW = Math.round(Math.min(340, Math.max(220, CW * 0.42)));
+      for (const node of list) node.el.style.width = nodeW + "px";
+      const nodeH = list[0].el.offsetHeight || 50;
+      const gap = 12;
+      const pad = 14;
+      const colH = list.length * nodeH + (list.length - 1) * gap;
+      const aw = anchor.offsetWidth;
+      const ah = anchor.offsetHeight;
+      const hw = hub.offsetWidth;
+      const hh = hub.offsetHeight;
+      const H = Math.max(colH, ah, 110) + pad * 2;
+      el.style.height = H + "px";
+      const cy = Math.round(H / 2);
+      const nodeX = ox + CW - nodeW;
+      // Fenêtre étroite : « Ce PC » s'efface pour laisser la place aux liaisons.
+      const showAnchor = nodeX - ox - aw - hw >= 80;
+      const hubX = showAnchor ? ox + aw + Math.round((nodeX - ox - aw - hw) * 0.42) : ox + Math.round(Math.max(0, nodeX - ox - hw) * 0.25);
+      anchor.style.visibility = showAnchor ? "" : "hidden";
+      setPos(anchor, ox, cy - ah / 2);
+      setPos(hub, hubX, cy - hh / 2);
+      setD(lanLink, showAnchor ? `M${Math.round(ox + aw)} ${cy} L${hubX} ${cy}` : "");
+      const x1 = hubX + hw;
+      const dx = Math.max(24, (nodeX - x1) * 0.55);
+      const top0 = Math.round((H - colH) / 2);
+      list.forEach((node, i) => {
+        const y = top0 + i * (nodeH + gap);
+        setPos(node.el, nodeX, y);
+        const ny = Math.round(y + nodeH / 2);
+        setD(node.path, `M${x1} ${cy} C${Math.round(x1 + dx)} ${cy} ${Math.round(nodeX - dx)} ${ny} ${Math.round(nodeX)} ${ny}`);
+      });
+    }
+
+    return { el, update, dispose: () => observer.disconnect() };
+  }
+
+  function topologyNode() {
+    let id = null;
+    let linkKind = "";
+    const dot = h("span", { class: "dot" });
+    const name = h("b");
+    const stateText = h("span");
+    const ip = h("span", { class: "ip mono" });
+    const el = h("div", { class: "node", tabindex: "0", role: "button", onClick: () => select(id), onKeydown: activate(() => select(id)) },
+      h("span", { class: "ni" }, icon("monitor", "", 18)),
+      h("span", { class: "nt" }, name, h("small", {}, dot, stateText)),
+      ip);
+    const path = svgPath();
+    return {
+      el,
+      path,
+      update(d, now) {
+        id = d.id;
+        const st = d.status.state;
+        setClass(el, `node st-${st}${d.id === selectedId ? " sel" : ""}`);
+        setClass(dot, dotClass(st));
+        setText(name, d.name);
+        setText(stateText, shortState(d.status, now));
+        setText(ip, d.host || "—");
+        const kind = isTransitional(st) ? "busy" : st;
+        if (kind !== linkKind) {
+          linkKind = kind;
+          styleLink(path, LINKS[kind] || LINKS.UNKNOWN);
+        }
+      },
+    };
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Onglet « Appareils » : tableau
+  // ---------------------------------------------------------------------------------------------
+  function devicesView() {
+    const warning = networkWarning();
+    const summary = h("span", { class: "aside" });
+    const rows = h("div");
+    const rowMap = new Map();
+    const el = h("div", { class: "main-inner" }, warning.el,
+      h("section", { class: "card table" },
+        h("div", { class: "card-head" }, icon("list", "small"), S.devices_title, summary),
+        h("div", { class: "th", role: "row" },
+          h("span", { text: S.col_name }), h("span", { text: S.col_host }), h("span", { text: S.col_state }),
+          h("span", { class: "opt", text: S.col_mac }), h("span", { class: "opt opt2", text: S.col_system }),
+          h("span", { class: "opt opt2", text: S.col_latency }), h("span")),
+        rows));
+    return {
+      el,
+      update(now) {
+        warning.update();
+        setText(summary, fmt(S.devices_summary, state.devices.length, state.settings.pollIntervalSeconds));
+        syncList(rows, rowMap, state.devices, tableRow, (row, d) => row.update(d, now));
+      },
+    };
+  }
+
+  function tableRow() {
+    let id = null;
+    let actsSig = "";
+    const name = h("b");
+    const capability = h("small");
+    const host = h("span", { class: "cell txt mono" });
+    const dot = h("span", { class: "dot" });
+    const stateText = h("span");
+    const stateCell = h("span", { class: "cell state-text" }, dot, stateText);
+    const mac = h("span", { class: "cell txt opt mono" });
+    const system = h("span", { class: "cell txt opt opt2" });
+    const latency = h("span", { class: "cell txt opt opt2" });
+    const acts = h("span", { class: "cell actions" });
+    const more = iconBtn("more", S.action_more, own(() => openDeviceMenu(more, id)), "flat");
+    const el = h("div", { class: "tr", tabindex: "0", role: "row", onClick: () => select(id), onKeydown: activate(() => select(id)) },
+      h("span", { class: "cell" }, h("span", { class: "ni" }, icon("monitor", "", 18)), h("span", { class: "t" }, name, capability)),
+      host, stateCell, mac, system, latency, acts);
+    return {
+      el,
+      update(d, now) {
+        id = d.id;
+        const s = d.status;
+        const st = s.state;
+        const online = st === "ONLINE";
+        setClass(el, `tr st-${st}${d.id === selectedId ? " sel" : ""}`);
+        setText(name, d.name);
+        setText(capability, d.canShutdown ? S.capability_power : S.capability_wake);
+        setText(host, d.host || "—");
+        setClass(dot, dotClass(st));
+        setText(stateText, shortState(s, now));
+        setText(mac, d.mac || "—");
+        setText(system, online && s.agent ? [osLabel(s.agent.os), archLabel(s.agent.arch)].filter(Boolean).join(" · ") : "—");
+        setText(latency, online && s.latencyMs != null ? fmt(S.latency_ms, s.latencyMs) : "—");
+        const sig = st + "|" + d.canShutdown;
+        if (sig !== actsSig) {
+          actsSig = sig;
+          const parts = [];
+          if (online) {
+            if (d.canShutdown) parts.push(btn("sec", S.action_shutdown, own(() => requestPower(id, "shutdown")), "power"));
+          } else if (st === "OFFLINE" || st === "UNKNOWN") {
+            parts.push(btn("primary", S.action_wake, own(() => wake(id)), "power"));
+          } else {
+            parts.push(h("span", { class: "spin", title: stateName(st) }));
+          }
+          acts.replaceChildren(...parts, more);
+        }
+      },
+    };
+  }
+
+  function emptyView() {
+    const warning = networkWarning();
+    const el = h("div", { class: "main-inner narrow" }, warning.el,
+      h("div", { class: "empty" },
+        h("div", { class: "logo" }, icon("power", "", 30)),
+        h("h2", { text: S.empty_title }),
+        h("p", { text: S.empty_text }),
+        h("div", { class: "row-btns" },
+          btn("primary big", S.action_add_device, () => openEditSheet(null), "plus"),
+          btn("sec big", S.action_import_short, pickImportFile, "upload"))));
+    return { el, update: () => warning.update() };
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Panneau de détail du PC sélectionné
+  // ---------------------------------------------------------------------------------------------
+  const side = (() => {
+    let current = null;
+    let actsSig = "";
+    const more = iconBtn("more", S.action_more, own(() => openDeviceMenu(more, selectedId)), "flat");
+    const closeButton = iconBtn("close", S.close, () => {
+      sideOpen = false;
+      render();
+    }, "flat side-close");
+    const ring = h("div", { class: "ring" }, icon("monitor", "", 44));
+    const name = h("h2", { class: "selectable" });
+    const lineDot = h("span", { class: "dot" });
+    const lineText = h("span");
+    const hero = h("div", { class: "hero" }, ring, name, h("div", { class: "line" }, lineDot, lineText));
+    const noticeText = h("span");
+    const notice = h("div", { class: "notice hidden" }, icon("warning", "small"), noticeText,
+      btn("ghost", S.ok, () => api.call("clearNotice", { id: selectedId }).catch(() => {})));
+    const acts = h("div", { class: "acts" });
+    const hint = h("div", { class: "hint hidden", text: S.hint_no_agent });
+    const info = h("div", { class: "info selectable" });
+    const recent = sideHistory();
+    const inner = h("div", { class: "side-inner" }, h("div", { class: "side-top" }, more, closeButton), hero, notice, acts, hint, info, recent.el);
+    const placeholder = h("div", { class: "placeholder" }, h("span", { class: "ni" }, icon("monitor", "", 28)), h("span", { text: S.select_hint }));
+    sideEl.append(inner, placeholder);
+
+    function update(now, visible) {
+      sideEl.classList.toggle("hidden", !visible);
+      sideEl.classList.toggle("open", visible && sideOpen);
+      if (!visible) return;
+      const d = deviceById(selectedId);
+      inner.classList.toggle("hidden", !d);
+      placeholder.classList.toggle("hidden", !!d);
+      if (!d) return;
+      if (current !== d.id) {
+        current = d.id;
+        actsSig = "";
+        sideEl.scrollTop = 0;
+      }
+      const s = d.status;
+      const st = s.state;
+      setClass(inner, "side-inner st-" + st);
+      setText(name, d.name);
+      setClass(lineDot, dotClass(st));
+      setText(lineText, statusText(s, now));
+      ring.title = stateName(st);
+
+      notice.classList.toggle("hidden", !s.notice);
+      if (s.notice) setText(noticeText, s.notice === "WAKE_TIMEOUT" ? S.notice_wake_timeout : S.notice_shutdown_timeout);
+
+      const sig = [d.id, st, d.canShutdown].join("|");
+      if (sig !== actsSig) {
+        actsSig = sig;
+        renderActions(d);
+      }
+      hint.classList.toggle("hidden", !(st === "ONLINE" && !d.canShutdown));
+      renderInfo(d);
+      recent.update(d, now);
+    }
+
+    function renderActions(d) {
+      const id = d.id;
+      const st = d.status.state;
+      const edit = (cls) => btn("sec " + cls, S.action_edit, () => openEditSheet(id), "edit");
+      let parts;
+      if (st === "ONLINE") {
+        parts = d.canShutdown
+          ? [
+            btn("danger", S.action_shutdown, () => requestPower(id, "shutdown"), "power"),
+            btn("sec", S.action_reboot, () => requestPower(id, "reboot"), "restart"),
+            btn("sec", S.action_sleep_short, () => requestPower(id, "sleep"), "moon"),
+            edit(""),
+          ]
+          : [edit("wide")];
+      } else if (st === "WAKING") {
+        parts = [btn("sec", S.action_wake_again, () => wake(id), "refresh"), edit("")];
+      } else if (isTransitional(st)) {
+        parts = [edit("wide")];
+      } else {
+        parts = [btn("primary wide", S.action_wake, () => wake(id), "power"), edit("wide")];
+      }
+      acts.replaceChildren(...parts);
+    }
+
+    function renderInfo(d) {
+      const s = d.status;
+      const online = s.state === "ONLINE";
+      const rows = [
+        { key: "ip", label: S.detail_ip, text: d.host || S.detail_not_set, cls: d.host ? "mono" : "muted" },
+        { key: "mac", label: S.detail_mac, text: d.mac, cls: "mono" },
+      ];
+      if (online && s.agent) {
+        if (s.agent.hostname) rows.push({ key: "name", label: S.detail_hostname, text: s.agent.hostname });
+        rows.push({ key: "sys", label: S.detail_system, text: [osLabel(s.agent.os), archLabel(s.agent.arch)].filter(Boolean).join(" · ") });
+        rows.push({ key: "up", label: S.detail_uptime, text: formatLong(s.agent.uptime) });
+      }
+      if (online && s.latencyMs != null) {
+        const method = methodLabel(s.method);
+        rows.push({ key: "lat", label: S.detail_latency, text: fmt(S.latency_ms, s.latencyMs) + (method ? " · " + method : "") });
+      }
+      if (!d.hasAgent) rows.push({ key: "agent", label: S.detail_agent, text: S.agent_not_configured, cls: "muted" });
+      else if (online && s.agentError) rows.push({ key: "agent", label: S.detail_agent, text: agentErrorLabel(s.agentError), cls: "bad" });
+      else if (online && s.agent) rows.push({ key: "agent", label: S.detail_agent, text: fmt(S.agent_authenticated, versionLabel(s.agent.version)), cls: "ok", iconName: "shield" });
+      else rows.push({ key: "agent", label: S.detail_agent, text: S.agent_configured, cls: "muted" });
+
+      const keys = rows.map((r) => r.key).join("|");
+      if (info.dataset.keys !== keys) {
+        info.dataset.keys = keys;
+        info.replaceChildren(...rows.map((r) => h("div", { class: "kv" }, h("span", { text: r.label }), h("span"))));
+      }
+      rows.forEach((r, i) => {
+        const valueEl = info.children[i].lastChild;
+        const sig = [r.text, r.cls, r.iconName].join("|");
+        if (valueEl.dataset.sig === sig) return;
+        valueEl.dataset.sig = sig;
+        valueEl.replaceChildren(h("span", { class: r.cls || null }, r.iconName ? icon(r.iconName, "small") : null, r.text));
+      });
+    }
+
+    return { update };
+  })();
+
+  /** Historique discret du panneau de détail : derniers évènements du PC sélectionné. */
+  function sideHistory() {
+    let id = null;
+    let version = -1;
+    let seq = 0;
+    let data = null;
+    let renderedDay = 0;
+    const showAll = btn("ghost hidden", S.history_show_all, () => openHistorySheet(id));
+    const list = h("div", { class: "hist" });
+    const note = h("div", { class: "hist-note hidden" });
+    const el = h("section", { class: "side-hist" }, h("div", { class: "hist-head" }, S.history_title, showAll), list, note);
+
+    function update(d, now) {
+      if (d.id !== id) {
+        id = d.id;
+        data = null;
+        version = state.historyVersion;
+        list.replaceChildren();
+        note.classList.add("hidden");
+        showAll.classList.add("hidden");
+        load(true); // relit aussi le journal de l'agent (au plus toutes les 20 s)
+      } else if (state.historyVersion !== version) {
+        version = state.historyVersion;
+        load(false);
+      } else if (data && startOfDay(now) !== renderedDay) {
+        show(now); // « aujourd'hui » devient « hier » à minuit
       }
     }
-    items.push("divider", { label: S.action_edit, icon: "edit", onClick: () => showEdit(device.id) });
-    if (!isFirst) items.push({ label: S.action_move_up, icon: "up", onClick: () => move(device, -1) });
-    if (!isLast) items.push({ label: S.action_move_down, icon: "down", onClick: () => move(device, 1) });
-    items.push({ label: S.action_delete, icon: "delete", onClick: () => confirmDelete(device, false) });
+
+    async function load(refresh) {
+      const mine = ++seq;
+      try {
+        const r = await api.call("getHistory", { id, refresh });
+        if (mine !== seq) return;
+        data = r;
+        show(Date.now());
+      } catch (e) {
+        // Historique momentanément indisponible : l'affichage précédent reste.
+        console.warn("historique :", e);
+      }
+    }
+
+    function show(now) {
+      renderedDay = startOfDay(now);
+      const events = data.events.slice(0, SIDE_HISTORY_COUNT);
+      list.replaceChildren(...(events.length ? events.map((e) => eventRow(e, now)) : [h("div", { class: "hist-note", text: S.history_empty })]));
+      let text = "";
+      if (!data.hasAgent) text = S.history_note_no_agent;
+      else if (data.agent === "outdated") text = S.history_note_outdated;
+      note.textContent = text;
+      note.classList.toggle("hidden", !text);
+      showAll.classList.toggle("hidden", data.events.length === 0);
+    }
+
+    return { el, update };
+  }
+
+  /** Historique complet (30 jours), par jour, pour un PC ou pour tous. */
+  function openHistorySheet(deviceId) {
+    let filter = deviceById(deviceId) ? deviceId : "";
+    let data = null;
+    let version = -1;
+    let seq = 0;
+    let limit = HISTORY_PAGE;
+    let devicesSig = "";
+    const selectEl = h("select", { "aria-label": S.history_filter });
+    selectEl.addEventListener("change", () => {
+      filter = selectEl.value;
+      limit = HISTORY_PAGE;
+      load(true);
+    });
+    const note = h("div", { class: "hist-note hidden" });
+    const list = h("div", { class: "hist" });
+    const moreButton = btn("sec hist-more hidden", S.history_more, () => {
+      limit += HISTORY_PAGE;
+      show();
+    });
+    const onState = () => {
+      if (filter && !deviceById(filter)) filter = "";
+      fillSelect();
+      if (state.historyVersion !== version) load(false);
+    };
+    openSheet({
+      title: S.history_title,
+      subtitle: S.history_subtitle,
+      headExtra: [selectEl, iconBtn("refresh", S.history_refresh, () => load(true), "flat")],
+      body: [note, list, moreButton],
+      foot: h("div", { class: "hist-note grow", text: S.history_sources }),
+      onClose: () => stateListeners.delete(onState),
+    });
+    stateListeners.add(onState);
+    fillSelect();
+    load(true);
+
+    function fillSelect() {
+      const sig = state.devices.map((d) => d.id + "\u0000" + d.name).join("\u0001") + "\u0002" + filter;
+      if (sig === devicesSig) return;
+      devicesSig = sig;
+      selectEl.replaceChildren(h("option", { value: "", text: S.history_all_devices }),
+        ...state.devices.map((d) => h("option", { value: d.id, text: d.name })));
+      selectEl.value = filter;
+    }
+
+    async function load(refresh) {
+      version = state.historyVersion;
+      const mine = ++seq;
+      try {
+        const r = await api.call("getHistory", { id: filter, refresh });
+        if (mine !== seq) return;
+        data = r;
+        show();
+      } catch (e) {
+        snackbar(errorMessage(e));
+      }
+    }
+
+    function show() {
+      const now = Date.now();
+      let text = "";
+      if (filter && !data.hasAgent) text = S.history_note_no_agent;
+      else if (filter && data.agent === "outdated") text = S.history_note_outdated;
+      note.textContent = text;
+      note.classList.toggle("hidden", !text);
+      if (!data.events.length) {
+        list.replaceChildren(h("div", { class: "placeholder" }, h("span", { class: "ni" }, icon("history", "", 28)), h("span", { text: S.history_empty })));
+        moreButton.classList.add("hidden");
+        return;
+      }
+      const nodes = [];
+      let day = null;
+      for (const e of data.events.slice(0, limit)) {
+        const key = startOfDay(e.time);
+        if (key !== day) {
+          day = key;
+          nodes.push(h("div", { class: "day", text: dayLabel(e.time, now) }));
+        }
+        nodes.push(eventRow(e, now, { withName: !filter, clockOnly: true }));
+      }
+      list.replaceChildren(...nodes);
+      moreButton.classList.toggle("hidden", data.events.length <= limit);
+    }
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Actions sur les PC
+  // ---------------------------------------------------------------------------------------------
+  function openDeviceMenu(anchor, id) {
+    const d = deviceById(id);
+    if (!d) return;
+    const index = state.devices.indexOf(d);
+    const items = [{ label: S.action_wake_menu, icon: "power", onClick: () => wake(id) }];
+    if (d.canShutdown) {
+      items.push(
+        { label: S.action_shutdown, icon: "power", onClick: () => requestPower(id, "shutdown") },
+        { label: S.action_reboot, icon: "restart", onClick: () => requestPower(id, "reboot") },
+        { label: S.action_sleep, icon: "moon", onClick: () => requestPower(id, "sleep") });
+    }
+    items.push("sep",
+      { label: S.action_edit, icon: "edit", onClick: () => openEditSheet(id) },
+      { label: S.history_title, icon: "history", onClick: () => openHistorySheet(id) });
+    if (index > 0) items.push({ label: S.action_move_up, icon: "arrowUp", onClick: () => move(id, -1) });
+    if (index < state.devices.length - 1) items.push({ label: S.action_move_down, icon: "arrowDown", onClick: () => move(id, 1) });
+    items.push("sep", { label: S.action_delete, icon: "delete", danger: true, onClick: () => confirmDelete(id) });
     openMenu(anchor, items);
   }
 
-  async function wake(device) {
+  async function wake(id) {
+    const d = deviceById(id);
+    if (!d) return;
     try {
-      const r = await api.call("wake", { id: device.id });
-      snackbar(r.ok ? fmt(S.message_wake_sent, device.name) : fmt(S.message_wake_error, r.error || ""));
+      const r = await api.call("wake", { id });
+      snackbar(r.ok ? fmt(S.message_wake_sent, d.name) : fmt(S.message_wake_error, r.error || ""));
     } catch (e) {
       snackbar(fmt(S.message_wake_error, e.message));
     }
   }
 
-  function requestPower(device, action) {
-    if (!device.canShutdown) agentHelp(device);
-    else if (state.settings.confirmPowerActions) powerConfirm(device, action);
-    else power(device, action, false);
+  function requestPower(id, action) {
+    const d = deviceById(id);
+    if (!d) return;
+    if (!d.canShutdown) agentHelp(d);
+    else if (state.settings.confirmPowerActions) powerConfirm(d, action);
+    else power(d, action, false);
   }
 
-  async function power(device, action, force) {
+  async function power(d, action, force) {
     try {
-      const r = await api.call("power", { id: device.id, action, force });
-      snackbar(r.ok ? fmt(sentMessage(action), device.name) : fmt(S.message_agent_error, device.name, agentErrorLabel(r.code)));
+      const r = await api.call("power", { id: d.id, action, force });
+      snackbar(r.ok ? fmt(sentMessage(action), d.name) : fmt(S.message_agent_error, d.name, agentErrorLabel(r.code)));
     } catch (e) {
       snackbar(errorMessage(e));
     }
   }
 
-  async function move(device, offset) {
+  async function move(id, offset) {
     try {
-      await api.call("moveDevice", { id: device.id, offset });
+      await api.call("moveDevice", { id, offset });
     } catch (e) {
       snackbar(errorMessage(e));
     }
   }
 
-  function powerConfirm(device, action) {
+  function powerConfirm(d, action) {
     let force = false;
-    const body = [h("p", { style: "margin:0", text: S.confirm_power_text })];
+    const body = [h("p", { text: S.confirm_power_text })];
     if (action !== "sleep") {
       const box = h("input", { type: "checkbox" });
       box.addEventListener("change", () => (force = box.checked));
       body.push(h("label", { class: "check-row" }, box, S.confirm_power_force));
     }
-    const d = openDialog({
-      iconName: "power",
-      title: fmt(confirmTitle(action), device.name),
+    const dialog = openDialog({
+      iconName: action === "reboot" ? "restart" : action === "sleep" ? "moon" : "power",
+      title: fmt(confirmTitle(action), d.name),
       body,
       actions: [
-        { label: S.cancel, onClick: () => d.close() },
-        { label: actionLabel(action), onClick: () => { d.close(); power(device, action, force); } },
+        { label: S.cancel, onClick: () => dialog.close() },
+        {
+          label: actionLabel(action),
+          kind: action === "shutdown" ? "danger" : "primary",
+          onClick: () => {
+            dialog.close();
+            power(d, action, force);
+          },
+        },
       ],
     });
   }
 
-  function confirmDelete(device, fromEdit) {
-    const d = openDialog({
-      title: fmt(S.confirm_delete_title, device.name),
-      body: h("p", { style: "margin:0", text: S.confirm_delete_text }),
+  function confirmDelete(id, onDeleted) {
+    const d = deviceById(id);
+    if (!d) return;
+    const dialog = openDialog({
+      title: fmt(S.confirm_delete_title, d.name),
+      body: h("p", { text: S.confirm_delete_text }),
       actions: [
-        { label: S.cancel, onClick: () => d.close() },
+        { label: S.cancel, onClick: () => dialog.close() },
         {
           label: S.action_delete,
+          kind: "danger",
           onClick: async () => {
-            d.close();
+            dialog.close();
             try {
-              await api.call("deleteDevice", { id: device.id });
-              if (fromEdit) showList();
-              else snackbar(fmt(S.message_deleted, device.name));
+              await api.call("deleteDevice", { id });
+              onDeleted?.();
+              snackbar(fmt(S.message_deleted, d.name));
             } catch (e) {
               snackbar(errorMessage(e));
             }
@@ -789,21 +1629,22 @@
     });
   }
 
-  function agentHelp(device) {
-    const d = openDialog({
+  function agentHelp(d) {
+    const dialog = openDialog({
+      iconName: "shield",
       title: S.agent_help_title,
-      body: h("p", { style: "margin:0", text: fmt(S.agent_help_text, device.name) }),
+      body: h("p", { text: fmt(S.agent_help_text, d.name) }),
       actions: [
-        { label: S.cancel, onClick: () => d.close() },
-        { label: S.action_configure, onClick: () => { d.close(); showEdit(device.id); } },
+        { label: S.cancel, onClick: () => dialog.close() },
+        { label: S.action_configure, onClick: () => { dialog.close(); openEditSheet(d.id); } },
       ],
     });
   }
 
   // ---------------------------------------------------------------------------------------------
-  // Écran « ajouter / modifier un PC » (EditDeviceScreen)
+  // Fiche « ajouter / modifier un PC » (EditDeviceScreen)
   // ---------------------------------------------------------------------------------------------
-  async function showEdit(id) {
+  async function openEditSheet(id) {
     let data;
     try {
       data = await api.call("getDevice", { id: id || "" });
@@ -815,7 +1656,6 @@
     const deviceId = isNew ? "" : id;
     const form = data.form;
     let testing = false;
-    let testResult = null;
     let keyVisible = false;
     let showAdvanced = false;
 
@@ -825,32 +1665,22 @@
       clearErrors();
       setTestResult(null);
     };
-    const make = (key, label, helper, opts = {}) => (fields[key] = field({ label, helper, value: form[key], onInput: onChange(key), ...opts }));
-
-    const saveTop = button("text", S.save, save);
-    const bar = topBar(isNew ? S.edit_title_new : S.edit_title, showList, [
-      isNew ? null : iconButton("delete", S.action_delete, () => confirmDelete({ id: deviceId, name: form.name }, true)),
-      saveTop,
-    ]);
-
-    const pairingCard = h("section", { class: "pairing-card" },
-      h("h2", { text: S.pairing_title }),
-      h("p", { text: S.pairing_text }),
-      h("div", { class: "row" }, button("filled", S.action_paste_link, pasteLink, "paste")));
+    const make = (key, label, helper, opts = {}) =>
+      (fields[key] = field({ label, helper, value: form[key], onInput: onChange(key), onEnter: save, ...opts }));
 
     make("name", S.field_name, null);
     make("mac", S.field_mac, S.field_mac_help, { mono: true });
     make("host", S.field_host, S.field_host_help);
-    make("agentPort", S.field_agent_port, null);
-    const keyToggle = button("text", S.show, () => {
+    make("agentPort", S.field_agent_port, null, { mono: true });
+    const keyToggle = btn("ghost", S.show, () => {
       keyVisible = !keyVisible;
       fields.agentKey.input.type = keyVisible ? "text" : "password";
       keyToggle.textContent = keyVisible ? S.hide : S.show;
     });
     make("agentKey", S.field_agent_key, S.field_agent_key_help, { type: "password", mono: true, trailing: keyToggle });
-    make("broadcast", S.field_broadcast, S.field_broadcast_help);
-    make("wolPort", S.field_wol_port, S.field_wol_port_help);
-    make("probePorts", S.field_probe_ports, S.field_probe_ports_help);
+    make("broadcast", S.field_broadcast, S.field_broadcast_help, { mono: true });
+    make("wolPort", S.field_wol_port, S.field_wol_port_help, { mono: true });
+    make("probePorts", S.field_probe_ports, S.field_probe_ports_help, { mono: true });
     make("secureOn", S.field_secure_on, S.field_secure_on_help, { mono: true });
 
     const agentSwitch = switchInput(form.agentEnabled, (checked) => {
@@ -860,41 +1690,47 @@
       setTestResult(null);
     }, S.section_agent);
 
-    const testButton = button("outlined", S.action_test_agent, testAgent);
-    const testSpinner = h("div", { class: "spinner hidden" });
+    const testButton = btn("sec", S.action_test_agent, testAgent, "shield");
+    const testSpinner = h("span", { class: "spin hidden" });
     const testSlot = h("div");
-    const agentSection = h("div", { class: `column${form.agentEnabled ? "" : " hidden"}`, style: "padding:0;gap:12px" },
-      fields.agentPort.wrap, fields.agentKey.wrap, h("div", { class: "row" }, testButton, testSpinner), testSlot);
+    const agentSection = h("div", { class: `form-section${form.agentEnabled ? "" : " hidden"}` },
+      fields.agentPort.wrap, fields.agentKey.wrap, h("div", { class: "test-row" }, testButton, testSpinner), testSlot);
 
-    const advancedIcon = h("span");
-    const advancedButton = h("button", { class: "btn text expander", onClick: () => setAdvanced(!showAdvanced) }, S.section_advanced, advancedIcon);
-    const advancedSection = h("div", { class: "column hidden", style: "padding:0;gap:12px" },
+    const advancedIcon = h("span", { class: "chev-slot" });
+    const advancedButton = h("button", { class: "btn ghost expander", type: "button", onClick: () => setAdvanced(!showAdvanced) }, S.section_advanced, advancedIcon);
+    const advancedSection = h("div", { class: "form-section hidden" },
       fields.broadcast.wrap, fields.wolPort.wrap, fields.probePorts.wrap, fields.secureOn.wrap);
 
-    const content = h("main", { class: "content" }, h("div", { class: "column form" },
-      pairingCard,
-      h("h2", { class: "section-title", text: S.section_device }),
-      fields.name.wrap, fields.mac.wrap, fields.host.wrap,
-      h("div", { class: "divider" }),
-      h("div", { class: "row spread" },
-        h("div", { class: "grow" }, h("h2", { class: "section-title", text: S.section_agent }), h("div", { class: "small muted", text: S.section_agent_help })),
-        agentSwitch.el),
-      agentSection,
-      h("div", { class: "divider" }),
-      advancedButton,
-      advancedSection,
-      button("filled full", S.save, save),
-      h("div", { style: "height:24px" })));
-    const el = h("div", { class: "screen" }, bar, content);
-    watchScroll(content, bar);
+    const sheet = openSheet({
+      title: isNew ? S.edit_title_new : S.edit_title,
+      subtitle: isNew ? null : form.name,
+      closeOnScrim: false,
+      body: [
+        h("div", { class: "pairing" },
+          h("b", { text: S.pairing_title }),
+          h("p", { text: S.pairing_text }),
+          h("div", {}, btn("primary", S.action_paste_link, pasteLink, "paste"))),
+        h("div", { class: "form-section" }, h("div", { class: "form-title", text: S.section_device }), fields.name.wrap, fields.mac.wrap, fields.host.wrap),
+        h("div", { class: "form-section" },
+          h("div", { class: "toggle-row" }, h("div", { class: "texts" }, h("b", { text: S.section_agent }), h("span", { text: S.section_agent_help })), agentSwitch.el),
+          agentSection),
+        advancedButton,
+        advancedSection,
+      ],
+      foot: [
+        isNew ? null : btn("danger", S.action_delete, () => confirmDelete(deviceId, () => sheet.close()), "delete"),
+        h("div", { class: "grow" }),
+        btn("sec", S.cancel, () => sheet.close()),
+        btn("primary", S.save, save),
+      ],
+    });
     setAdvanced(false);
-    setScreen({ name: "edit", el });
     if (isNew) fields.name.input.focus();
 
     function setAdvanced(open) {
       showAdvanced = open;
       advancedSection.classList.toggle("hidden", !open);
-      advancedIcon.replaceChildren(icon(open ? "up" : "down"));
+      advancedIcon.replaceChildren(icon(open ? "up" : "down", "small"));
     }
 
     function clearErrors() {
@@ -902,7 +1738,6 @@
     }
 
     function setTestResult(result) {
-      testResult = result;
       if (!result) {
         testSlot.replaceChildren();
         return;
@@ -911,8 +1746,8 @@
       if (result.ok) text = fmt(S.test_ok, result.status.hostname, osLabel(result.status.os), result.status.version);
       else if (result.invalid) text = result.invalid;
       else text = agentErrorLabel(result.code);
-      testSlot.replaceChildren(h("div", { class: `result-card ${result.ok ? "ok" : "ko"}` },
-        icon(result.ok ? "check" : "warning"), h("span", { class: "selectable", text })));
+      testSlot.replaceChildren(h("div", { class: `result ${result.ok ? "ok" : "ko"}` },
+        icon(result.ok ? "check" : "warning", "small"), h("span", { class: "selectable", text })));
     }
 
     async function testAgent() {
@@ -941,7 +1776,8 @@
         return;
       }
       if (r.ok) {
-        showList();
+        sheet.close();
+        if (r.id) select(r.id, false);
         return;
       }
       const map = { NAME: "name", MAC: "mac", HOST: "host", AGENT_PORT: "agentPort", AGENT_KEY: "agentKey", BROADCAST: "broadcast", WOL_PORT: "wolPort", PROBE_PORTS: "probePorts", SECURE_ON: "secureOn" };
@@ -974,14 +1810,15 @@
     }
 
     function pasteDialog() {
-      const input = field({ label: "wolagent://pair?…", multiline: true, onInput: (v) => d.setActions(actions(v)) });
+      const input = field({ multiline: true, placeholder: "wolagent://pair?…", onInput: (v) => dialog.setActions(actions(v)) });
       const actions = (v) => [
-        { label: S.cancel, onClick: () => d.close() },
-        { label: S.ok, disabled: !v.trim(), onClick: () => { d.close(); applyPairing(input.input.value); } },
+        { label: S.cancel, onClick: () => dialog.close() },
+        { label: S.ok, disabled: !v.trim(), onClick: () => { dialog.close(); applyPairing(input.input.value); } },
       ];
-      const d = openDialog({
+      const dialog = openDialog({
+        iconName: "paste",
         title: S.paste_title,
-        body: [h("p", { style: "margin:0", text: S.paste_text }), input.wrap],
+        body: [h("p", { text: S.paste_text }), input.wrap],
         actions: actions(""),
       });
     }
@@ -1018,125 +1855,61 @@
   }
 
   // ---------------------------------------------------------------------------------------------
-  // Écran « réglages » (SettingsScreen)
+  // Onglet « Réglages » (SettingsScreen)
   // ---------------------------------------------------------------------------------------------
-  function showSettings() {
-    let busy = false;
-    const progress = h("div", { class: "progress hidden" });
-    const bar = topBar(S.settings_title, showList);
-
+  function settingsView() {
     const poll = sliderSetting(S.setting_poll_interval, 1, 30, 1, (v) => updateSettings({ pollIntervalSeconds: v }));
     const wakeTimeout = sliderSetting(S.setting_wake_timeout, 60, 600, 30, (v) => updateSettings({ wakeTimeoutSeconds: v }));
     const confirmSwitch = switchInput(state.settings.confirmPowerActions, (checked) => updateSettings({ confirmPowerActions: checked }), S.setting_confirm);
-
     const exportSupporting = h("div", { class: "supporting" });
-    const exportItem = listItem(S.action_export, exportSupporting, () => exportDialog());
-    const importItem = listItem(S.action_import, S.action_import_help, () => pickImportFile());
+    const exportItem = settingItem("download", S.action_export, exportSupporting, exportDialog);
+    const importItem = settingItem("upload", S.action_import, S.action_import_help, pickImportFile);
+    const clearItem = settingItem("delete", S.history_clear, S.history_clear_help, confirmClearHistory, { danger: true, chevron: false });
+    const section = (title, ...items) => [h("h2", { class: "section-title", text: title }), h("section", { class: "card" }, items)];
+    const el = h("div", { class: "main-inner narrow" },
+      section(S.section_monitoring, poll.el, wakeTimeout.el,
+        h("div", { class: "item" }, h("div", { class: "texts" }, h("div", { class: "headline", text: S.setting_confirm }), h("div", { class: "supporting", text: S.setting_confirm_help })), confirmSwitch.el)),
+      section(S.section_backup, exportItem, importItem),
+      section(S.section_history, settingItem("history", S.history_open, S.history_open_help, () => openHistorySheet("")), clearItem),
+      section(S.section_agent_download, settingItem("download", S.agent_download, S.agent_download_help, () => openUrl(RELEASES_URL))),
+      section(S.section_about,
+        settingItem("info", S.about_version, state.version),
+        settingItem("code", S.about_source, REPO_URL, () => openUrl(REPO_URL)),
+        settingItem("lock", S.about_security, S.about_security_text)));
+    return {
+      el,
+      update() {
+        const busy = busyCount > 0;
+        poll.set(state.settings.pollIntervalSeconds);
+        wakeTimeout.set(state.settings.wakeTimeoutSeconds);
+        confirmSwitch.input.checked = state.settings.confirmPowerActions;
+        setText(exportSupporting, fmt(S.action_export_help, state.devices.length));
+        exportItem.classList.toggle("disabled", busy || state.devices.length === 0);
+        importItem.classList.toggle("disabled", busy);
+      },
+    };
+  }
 
-    const content = h("main", { class: "content" }, h("div", { class: "column list-items" },
-      progress,
-      h("h2", { class: "header", text: S.section_monitoring }),
-      poll.el,
-      wakeTimeout.el,
-      h("div", { class: "list-item" }, h("div", { class: "texts" }, h("div", { class: "headline", text: S.setting_confirm }), h("div", { class: "supporting", text: S.setting_confirm_help })), confirmSwitch.el),
-      h("div", { class: "divider" }),
-      h("h2", { class: "header", text: S.section_backup }),
-      exportItem,
-      importItem,
-      h("div", { class: "divider" }),
-      h("h2", { class: "header", text: S.section_agent_download }),
-      listItem(S.agent_download, S.agent_download_help, () => openUrl(RELEASES_URL)),
-      h("div", { class: "divider" }),
-      h("h2", { class: "header", text: S.section_about }),
-      listItem(S.about_version, state.version),
-      listItem(S.about_source, REPO_URL, () => openUrl(REPO_URL)),
-      listItem(S.about_security, S.about_security_text)));
-    const el = h("div", { class: "screen" }, bar, content);
-    watchScroll(content, bar);
-
-    function render() {
-      poll.set(state.settings.pollIntervalSeconds);
-      wakeTimeout.set(state.settings.wakeTimeoutSeconds);
-      confirmSwitch.input.checked = state.settings.confirmPowerActions;
-      exportSupporting.textContent = fmt(S.action_export_help, state.devices.length);
-      exportItem.classList.toggle("disabled", busy || state.devices.length === 0);
-      importItem.classList.toggle("disabled", busy);
-      progress.classList.toggle("hidden", !busy);
-    }
-
-    function setBusy(value) {
-      busy = value;
-      render();
-    }
-
-    async function updateSettings(patch) {
-      try {
-        await api.call("updateSettings", patch);
-      } catch (e) {
-        snackbar(errorMessage(e));
-      }
-    }
-
-    function exportDialog() {
-      let withSecrets = state.hasSecrets;
-      let password = "";
-      let confirmation = "";
-      const passwordField = field({ label: S.field_password, helper: fmt(S.field_password_help, MIN_PASSWORD_LENGTH), type: "password", onInput: (v) => { password = v; refresh(); } });
-      const confirmField = field({ label: S.field_password_confirm, type: "password", onInput: (v) => { confirmation = v; refresh(); } });
-      const secretsBox = h("div", { class: "column", style: "padding:8px 0 0;gap:12px" }, passwordField.wrap, confirmField.wrap);
-      const radioWith = h("input", { type: "radio", name: "export-kind", checked: withSecrets });
-      const radioWithout = h("input", { type: "radio", name: "export-kind", checked: !withSecrets });
-      radioWith.addEventListener("change", () => { withSecrets = true; refresh(); });
-      radioWithout.addEventListener("change", () => { withSecrets = false; refresh(); });
-      const choice = (radio, title, subtitle) => h("label", { class: "choice" }, radio,
-        h("span", { class: "texts" }, h("span", { text: title }), h("span", { class: "subtitle", text: subtitle })));
-      const d = openDialog({
-        title: S.export_title,
-        body: [choice(radioWith, S.export_with_secrets, S.export_with_secrets_help), choice(radioWithout, S.export_without_secrets, S.export_without_secrets_help), secretsBox],
-      });
-      refresh();
-      [passwordField.input, confirmField.input].forEach((i) => i.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && valid()) submit();
-      }));
-
-      function valid() {
-        return !withSecrets || (password.length >= MIN_PASSWORD_LENGTH && password === confirmation);
-      }
-      function refresh() {
-        secretsBox.classList.toggle("hidden", !withSecrets);
-        passwordField.wrap.classList.toggle("error", password.length > 0 && password.length < MIN_PASSWORD_LENGTH);
-        confirmField.setError(confirmation.length > 0 && password !== confirmation ? " " : null);
-        d.setActions([
-          { label: S.cancel, onClick: () => d.close() },
-          { label: S.action_export_short, disabled: !valid(), onClick: submit },
-        ]);
-      }
-      async function submit() {
-        d.close();
-        setBusy(true);
-        try {
-          const r = await api.call("exportConfig", { withSecrets, password: withSecrets ? password : "" });
-          if (r.download) download(r.download.name, r.download.content);
-          if (r.ok) snackbar(fmt(S.message_export_done, r.count));
-        } catch (e) {
-          snackbar(errorMessage(e));
-        } finally {
-          password = confirmation = "";
-          setBusy(false);
-        }
-      }
-    }
-
-    render();
-    setScreen({ name: "settings", el, onState: render, setBusy });
+  function settingItem(iconName, headline, supporting, onClick, { danger = false, chevron = !!onClick } = {}) {
+    return h("div", {
+      class: `item${onClick ? " click" : ""}${danger ? " danger" : ""}`,
+      tabindex: onClick ? "0" : null,
+      role: onClick ? "button" : null,
+      onClick: onClick ? () => onClick() : null,
+      onKeydown: onClick ? activate(onClick) : null,
+    },
+    icon(iconName),
+    h("div", { class: "texts" }, h("div", { class: "headline", text: headline }),
+      supporting instanceof Node ? supporting : h("div", { class: "supporting selectable", text: supporting })),
+    chevron ? icon("chevron", "small chev") : null);
   }
 
   function sliderSetting(title, min, max, step, onCommit) {
-    const valueEl = h("span", { class: "value" });
+    const valueEl = h("span");
     const input = h("input", { type: "range", min, max, step, "aria-label": title });
     input.addEventListener("input", () => (valueEl.textContent = fmt(S.setting_seconds_value, input.value)));
     input.addEventListener("change", () => onCommit(Number(input.value)));
-    const el = h("div", { class: "slider-setting" }, h("div", { class: "row" }, h("span", { class: "headline", text: title }), valueEl), input);
+    const el = h("div", { class: "slider" }, h("div", { class: "top" }, h("span", { text: title }), valueEl), input);
     return {
       el,
       set(value) {
@@ -1148,11 +1921,87 @@
     };
   }
 
-  function listItem(headline, supporting, onClick) {
-    return h("div", { class: `list-item${onClick ? " clickable" : ""}`, tabindex: onClick ? "0" : null, role: onClick ? "button" : null, onClick,
-      onKeydown: onClick ? (e) => { if (e.key === "Enter") onClick(); } : null },
-    h("div", { class: "texts" }, h("div", { class: "headline", text: headline }),
-      supporting instanceof Node ? supporting : h("div", { class: "supporting selectable", text: supporting })));
+  async function updateSettings(patch) {
+    try {
+      await api.call("updateSettings", patch);
+    } catch (e) {
+      snackbar(errorMessage(e));
+    }
+  }
+
+  function confirmClearHistory() {
+    const dialog = openDialog({
+      iconName: "history",
+      title: S.history_clear_title,
+      body: h("p", { text: S.history_clear_text }),
+      actions: [
+        { label: S.cancel, onClick: () => dialog.close() },
+        {
+          label: S.history_clear_action,
+          kind: "danger",
+          onClick: async () => {
+            dialog.close();
+            try {
+              await api.call("clearHistory");
+              snackbar(S.message_history_cleared);
+            } catch (e) {
+              snackbar(errorMessage(e));
+            }
+          },
+        },
+      ],
+    });
+  }
+
+  function exportDialog() {
+    let withSecrets = state.hasSecrets;
+    let password = "";
+    let confirmation = "";
+    const passwordField = field({ label: S.field_password, helper: fmt(S.field_password_help, MIN_PASSWORD_LENGTH), type: "password", onInput: (v) => { password = v; refresh(); } });
+    const confirmField = field({ label: S.field_password_confirm, type: "password", onInput: (v) => { confirmation = v; refresh(); } });
+    const secretsBox = h("div", { class: "form-section" }, passwordField.wrap, confirmField.wrap);
+    const radioWith = h("input", { type: "radio", name: "export-kind", checked: withSecrets });
+    const radioWithout = h("input", { type: "radio", name: "export-kind", checked: !withSecrets });
+    radioWith.addEventListener("change", () => { withSecrets = true; refresh(); });
+    radioWithout.addEventListener("change", () => { withSecrets = false; refresh(); });
+    const choice = (radio, title, subtitle) => h("label", { class: "choice" }, radio,
+      h("span", { class: "texts" }, h("span", { text: title }), h("small", { text: subtitle })));
+    const dialog = openDialog({
+      iconName: "download",
+      title: S.export_title,
+      body: [choice(radioWith, S.export_with_secrets, S.export_with_secrets_help), choice(radioWithout, S.export_without_secrets, S.export_without_secrets_help), secretsBox],
+    });
+    refresh();
+    [passwordField.input, confirmField.input].forEach((i) => i.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && valid()) submit();
+    }));
+
+    function valid() {
+      return !withSecrets || (password.length >= MIN_PASSWORD_LENGTH && password === confirmation);
+    }
+    function refresh() {
+      secretsBox.classList.toggle("hidden", !withSecrets);
+      passwordField.wrap.classList.toggle("error", password.length > 0 && password.length < MIN_PASSWORD_LENGTH);
+      confirmField.wrap.classList.toggle("error", confirmation.length > 0 && password !== confirmation);
+      dialog.setActions([
+        { label: S.cancel, onClick: () => dialog.close() },
+        { label: S.action_export_short, disabled: !valid(), onClick: submit },
+      ]);
+    }
+    async function submit() {
+      dialog.close();
+      setBusy(true);
+      try {
+        const r = await api.call("exportConfig", { withSecrets, password: withSecrets ? password : "" });
+        if (r.download) download(r.download.name, r.download.content);
+        if (r.ok) snackbar(fmt(S.message_export_done, r.count));
+      } catch (e) {
+        snackbar(errorMessage(e));
+      } finally {
+        password = confirmation = "";
+        setBusy(false);
+      }
+    }
   }
 
   function openUrl(url) {
@@ -1182,8 +2031,6 @@
     importInput.click();
   }
 
-  const setBusy = (v) => current?.setBusy?.(v);
-
   async function importFromFile(file) {
     if (file.size > MAX_IMPORT_BYTES) {
       snackbar(fmt(S.message_error, S.import_too_big));
@@ -1211,12 +2058,12 @@
     pwd.input.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && pwd.input.value && !busy) submit();
     });
-    const d = openDialog({ title: S.import_password_title, body: pwd.wrap, onDismiss: cancelImport });
+    const dialog = openDialog({ iconName: "lock", title: S.import_password_title, body: pwd.wrap, onDismiss: cancelImport });
     refresh();
 
     function refresh() {
-      d.setActions([
-        { label: S.cancel, onClick: () => { d.close(); cancelImport(); } },
+      dialog.setActions([
+        { label: S.cancel, onClick: () => { dialog.close(); cancelImport(); } },
         { label: S.ok, disabled: !pwd.input.value || busy, onClick: submit },
       ]);
     }
@@ -1230,11 +2077,11 @@
           pwd.setError(S.import_wrong_password);
           pwd.input.select();
         } else {
-          d.close();
+          dialog.close();
           handleImportStep(r);
         }
       } catch (e) {
-        d.close();
+        dialog.close();
         snackbar(errorMessage(e));
       } finally {
         busy = false;
@@ -1245,20 +2092,21 @@
   }
 
   function importConfirmDialog(step) {
-    const body = [h("p", { style: "margin:0", text: S.import_confirm_text })];
-    if (step.missingKeys) body.push(h("p", { class: "error", style: "margin:0", text: S.import_missing_keys }));
-    const d = openDialog({
+    const body = [h("p", { text: S.import_confirm_text })];
+    if (step.missingKeys) body.push(h("p", { class: "error", text: S.import_missing_keys }));
+    const dialog = openDialog({
+      iconName: "upload",
       title: fmt(S.import_confirm_title, step.count),
       body,
       onDismiss: cancelImport,
       actions: [
-        { label: S.cancel, onClick: () => { d.close(); cancelImport(); } },
-        { label: S.import_replace, onClick: () => confirm(true) },
+        { label: S.cancel, onClick: () => { dialog.close(); cancelImport(); } },
+        { label: S.import_replace, kind: "danger", onClick: () => confirm(true) },
         { label: S.import_merge, onClick: () => confirm(false) },
       ],
     });
     async function confirm(replace) {
-      d.close();
+      dialog.close();
       setBusy(true);
       try {
         const r = await api.call("importConfirm", { replace });
@@ -1288,15 +2136,23 @@
   // Démarrage
   // ---------------------------------------------------------------------------------------------
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && closeTop()) {
-      e.preventDefault();
-      return;
+    if (e.key === "Escape") {
+      if (closeTop()) {
+        e.preventDefault();
+        return;
+      }
+      if (narrow.matches && sideOpen) {
+        sideOpen = false;
+        render();
+        e.preventDefault();
+        return;
+      }
     }
-    // Pas de rechargement ni d'impression de la page : F5 actualise l'état des PC.
+    // Pas de rechargement ni d'impression de la page : F5 / Ctrl+R actualisent l'état des PC.
     const key = e.key.toLowerCase();
     if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && (key === "r" || key === "p"))) {
       e.preventDefault();
-      if (e.key === "F5") current?.onRefreshKey?.();
+      if (key !== "p" && state) refreshAll();
     }
   });
   document.addEventListener("contextmenu", (e) => {
@@ -1306,9 +2162,12 @@
     api.call("setVisible", { visible: document.visibilityState === "visible" }).catch(() => {});
   });
 
+  let started = false;
   api.onState((s) => {
     state = s;
-    current?.onState?.();
+    if (!started) return;
+    render();
+    stateListeners.forEach((f) => f());
   });
 
   async function start() {
@@ -1318,13 +2177,25 @@
       appEl.replaceChildren(h("p", { style: "padding:24px", text: errorMessage(e) }));
       return;
     }
-    showList();
-    setInterval(() => current?.onTick?.(), 1000);
-    api.call("uiReady", { screen: current?.name, devices: state.devices.length, empty: !!document.querySelector(".empty") }).catch(() => {});
+    appEl.replaceChildren(navEl, bodyEl);
+    started = true;
+    render();
+    setInterval(render, 1000);
     if (state.startupMessage) {
       alertDialog(S.app_name, state.startupMessage);
       api.call("dismissStartupMessage").catch(() => {});
     }
+    // Signal pour l'autotest de démarrage (CI) : interface affichée, polices chargées.
+    await Promise.race([
+      new Promise((resolve) => requestAnimationFrame(resolve)).then(() => document.fonts.ready),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]);
+    api.call("uiReady", {
+      screen: view?.kind,
+      devices: state.devices.length,
+      empty: !!document.querySelector(".empty"),
+      fonts: document.fonts.check('600 14px "Inter"'),
+    }).catch(() => {});
   }
 
   start();

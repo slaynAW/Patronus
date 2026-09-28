@@ -45,6 +45,24 @@ func TestStatusAndPower(t *testing.T) {
 	}
 }
 
+func TestHistory(t *testing.T) {
+	s, settings := start(t, agenttest.Normal)
+	// Agent trop ancien : la commande est refusée.
+	if _, err := New().History(context.Background(), "127.0.0.1", settings); CodeOf(err) != Rejected {
+		t.Fatalf("agent ancien : %v", err)
+	}
+	// Journal volumineux (au-delà de la taille d'un message ordinaire).
+	var events []protocol.HistoryEvent
+	for i := range 1500 {
+		events = append(events, protocol.HistoryEvent{T: int64(1_790_000_000 + i*60), K: protocol.HistoryCommand, A: "sleep", C: "192.168.100.100"})
+	}
+	s.SetHistory(&protocol.History{From: 1_789_000_000, Events: events})
+	h, err := New().History(context.Background(), "127.0.0.1", settings)
+	if err != nil || h.From != 1_789_000_000 || len(h.Events) != 1500 || h.Events[1499].C != "192.168.100.100" {
+		t.Fatalf("journal : %d évènements, %v", len(h.Events), err)
+	}
+}
+
 func TestWrongKey(t *testing.T) {
 	s, settings := start(t, agenttest.Normal)
 	other, _ := protocol.NewKey()
@@ -121,6 +139,18 @@ func TestEndToEndWithRealAgent(t *testing.T) {
 	}
 	if _, err := New().Power(context.Background(), "127.0.0.1", settings, Shutdown, 0, false); err != nil {
 		t.Fatalf("extinction simulée : %v", err)
+	}
+	h, err := New().History(context.Background(), "127.0.0.1", settings)
+	if err != nil || len(h.Events) == 0 {
+		t.Fatalf("journal de l'agent réel : %+v %v", h, err)
+	}
+	var sawBoot, sawCmd bool
+	for _, e := range h.Events {
+		sawBoot = sawBoot || e.K == protocol.HistoryBoot
+		sawCmd = sawCmd || (e.K == protocol.HistoryCommand && e.A == "shutdown")
+	}
+	if !sawBoot || !sawCmd {
+		t.Errorf("démarrage ou commande absents du journal : %+v", h.Events)
 	}
 	other, _ := protocol.NewKey()
 	if _, err := New().Status(context.Background(), "127.0.0.1", model.AgentSettings{Port: port, Key: other}); CodeOf(err) != Unauthorized {

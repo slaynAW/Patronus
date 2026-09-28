@@ -15,6 +15,7 @@ import (
 
 	"github.com/slaynaw/wakeonlan/desktop/internal/agentclient"
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
+	"github.com/slaynaw/wakeonlan/desktop/internal/history"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 	"github.com/slaynaw/wakeonlan/desktop/internal/netstate"
 	"github.com/slaynaw/wakeonlan/desktop/internal/pairing"
@@ -50,6 +51,10 @@ type Options struct {
 	NetState func() (netstate.State, error)
 	// NetPoll est l'intervalle de vérification du réseau local.
 	NetPoll time.Duration
+	// History enregistre l'historique (nil : en mémoire seulement, pour les tests).
+	History *history.Store
+	// Now est l'horloge (remplaçable pour les tests).
+	Now func() time.Time
 }
 
 // Service est le cœur de l'application.
@@ -70,6 +75,17 @@ type Service struct {
 	startupMessage string
 	pendingImport  *importState
 	listener       func()
+
+	now func() time.Time
+	// Historique (verrou distinct : jamais pris en même temps que mu, toujours après statusMu).
+	histMu      sync.Mutex
+	histStore   *history.Store
+	hist        history.Data
+	histVersion int
+	agentFetch  map[string]*agentFetchState
+	// Dernier relevé d'états, pour détecter les allumages / extinctions.
+	statusMu     sync.Mutex
+	lastStatuses map[string]status.DeviceStatus
 }
 
 type importState struct {
@@ -89,6 +105,16 @@ func New(opts Options) *Service {
 		windowActive: true,
 		pageVisible:  true,
 		listener:     func() {},
+		now:          opts.Now,
+		histStore:    opts.History,
+		hist:         history.New(),
+		agentFetch:   map[string]*agentFetchState{},
+	}
+	if s.now == nil {
+		s.now = time.Now
+	}
+	if s.histStore != nil {
+		s.hist = s.histStore.Load()
 	}
 	if s.netState == nil {
 		s.netState = netstate.Current
@@ -100,7 +126,7 @@ func New(opts Options) *Service {
 	if prober == nil {
 		prober = status.NewHostProber()
 	}
-	s.monitor = status.NewMonitor(prober, nil, s.notify)
+	s.monitor = status.NewMonitor(prober, func() int64 { return s.now().UnixMilli() }, s.onStatusChange)
 	cfg, err := s.store.Load()
 	if err != nil {
 		s.startupMessage = "Erreur : " + err.Error()
@@ -185,6 +211,8 @@ type UIState struct {
 	Devices        []DeviceView      `json:"devices"`
 	HasSecrets     bool              `json:"hasSecrets"`
 	StartupMessage string            `json:"startupMessage,omitempty"`
+	// HistoryVersion change à chaque modification de l'historique (l'interface le relit alors).
+	HistoryVersion int `json:"historyVersion"`
 }
 
 // NetworkView décrit le réseau local.
@@ -209,9 +237,13 @@ type DeviceView struct {
 // State renvoie l'état courant.
 func (s *Service) State() UIState {
 	statuses := s.monitor.Statuses()
+	s.histMu.Lock()
+	historyVersion := s.histVersion
+	s.histMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	st := UIState{
+		HistoryVersion: historyVersion,
 		Version:        s.version,
 		Settings:       s.cfg.Settings,
 		Devices:        []DeviceView{},
@@ -256,6 +288,7 @@ func (s *Service) Call(method string, params json.RawMessage) (any, error) {
 		Replace    bool             `json:"replace"`
 		URL        string           `json:"url"`
 		Visible    bool             `json:"visible"`
+		Refresh    bool             `json:"refresh"`
 		Poll       *int             `json:"pollIntervalSeconds"`
 		WakeTO     *int             `json:"wakeTimeoutSeconds"`
 		Confirm    *bool            `json:"confirmPowerActions"`
@@ -283,6 +316,14 @@ func (s *Service) Call(method string, params json.RawMessage) (any, error) {
 		return nil, nil
 	case "refresh":
 		s.monitor.Refresh(p.ID)
+		return nil, nil
+	case "getHistory":
+		if p.Refresh {
+			s.refreshAgentHistories(p.ID, true)
+		}
+		return s.historyView(p.ID), nil
+	case "clearHistory":
+		s.clearHistory()
 		return nil, nil
 	case "clearNotice":
 		s.monitor.ClearNotice(p.ID)
@@ -363,6 +404,11 @@ func (s *Service) mutate(f func(model.AppConfig) model.AppConfig) error {
 	if err != nil {
 		return err
 	}
+	ids := map[string]bool{}
+	for _, d := range next.Devices {
+		ids[d.ID] = true
+	}
+	s.keepHistory(ids)
 	s.updateMonitor()
 	s.notify()
 	return nil
@@ -428,6 +474,8 @@ func (s *Service) wake(id string) (any, error) {
 		}
 		return map[string]any{"ok": false, "error": msg}, nil
 	}
+	// Demande enregistrée avant le changement d'état : l'allumage constaté ne peut pas la précéder.
+	s.record(history.Event{Device: id, Kind: history.WakeSent, Source: history.App})
 	s.monitor.OnWakeSent(id)
 	return map[string]any{"ok": true, "result": result}, nil
 }
@@ -446,6 +494,7 @@ func (s *Service) power(id string, action agentclient.Action, force bool) (any, 
 	if _, err := s.agent.Power(context.Background(), d.Host, *d.Agent, action, 0, force); err != nil {
 		return map[string]any{"ok": false, "code": agentclient.CodeOf(err)}, nil
 	}
+	s.record(history.Event{Device: id, Kind: requestKind(action), Source: history.App})
 	s.monitor.OnPowerActionSent(id, action)
 	return map[string]any{"ok": true}, nil
 }

@@ -2,10 +2,19 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+)
+
+// Causes d'arrêt transmises à la fonction du service (context.Cause).
+var (
+	// ErrStopRequested : service arrêté à la demande (mise à jour, désinstallation) : le PC ne s'arrête pas.
+	ErrStopRequested = errors.New("arrêt du service demandé")
+	// ErrSystemShutdown : le système s'arrête ou redémarre.
+	ErrSystemShutdown = errors.New("arrêt du système")
 )
 
 // Options d'installation.

@@ -29,7 +29,49 @@ const (
 	KeyBytes = 32
 	// MaxLineBytes borne la taille d'un message.
 	MaxLineBytes = 8 * 1024
+	// MaxHistoryBytes borne la taille de la réponse à la commande « history » (journal de 30 jours).
+	MaxHistoryBytes = 512 * 1024
 )
+
+// Commandes en lecture seule (toujours autorisées avec « status »).
+const (
+	CmdStatus  = "status"
+	CmdHistory = "history"
+)
+
+// Types d'évènements du journal de l'agent (commande « history »).
+const (
+	// HistoryBoot : démarrage du PC (heure réelle, calculée depuis l'uptime).
+	HistoryBoot = "boot"
+	// HistoryShutdown : arrêt propre du PC (service arrêté par le système).
+	HistoryShutdown = "shutdown"
+	// HistoryLost : arrêt non enregistré (coupure de courant, arrêt forcé) ; heure du dernier signe de vie.
+	HistoryLost = "lost"
+	// HistorySleep : mise en veille (ou arrêt avec « démarrage rapide » sous Windows).
+	HistorySleep = "sleep"
+	// HistoryResume : sortie de veille.
+	HistoryResume = "resume"
+	// HistoryCommand : commande d'alimentation reçue (A = action, C = adresse du client).
+	HistoryCommand = "cmd"
+)
+
+// HistoryEvent est un évènement du journal de l'agent.
+type HistoryEvent struct {
+	// T est l'heure de l'évènement (secondes Unix).
+	T int64  `json:"t"`
+	K string `json:"k"`
+	// A est l'action d'une commande (shutdown, reboot, sleep).
+	A string `json:"a,omitempty"`
+	// C est l'adresse IP du client à l'origine d'une commande.
+	C string `json:"c,omitempty"`
+}
+
+// History est le journal renvoyé par la commande « history ».
+type History struct {
+	// From est le début de la période couverte par le journal (secondes Unix).
+	From   int64          `json:"from"`
+	Events []HistoryEvent `json:"events"`
+}
 
 // Erreurs renvoyées (non signées) quand l'authentification est impossible.
 const (
@@ -75,6 +117,8 @@ type ResponseBody struct {
 	Arch     string `json:"arch"`
 	Version  string `json:"version"`
 	Uptime   int64  `json:"uptime"`
+	// History n'est renseigné que pour la commande « history ».
+	History *History `json:"history,omitempty"`
 }
 
 var b64 = base64.RawURLEncoding

@@ -19,7 +19,8 @@ func TestNewSaveLoad(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		// Les ACL Windows dépendent du compte de test : on ne teste ici que la sérialisation.
 		applyPermissions = func(string) error { return nil }
-		defer func() { applyPermissions = restrictPermissions }()
+		applyDirPermissions = func(string) error { return nil }
+		defer func() { applyPermissions, applyDirPermissions = restrictPermissions, restrictDirPermissions }()
 	}
 	if err := Save(path, c); err != nil {
 		t.Fatal(err)

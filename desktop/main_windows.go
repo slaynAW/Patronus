@@ -15,6 +15,7 @@ import (
 
 	"github.com/slaynaw/wakeonlan/desktop/internal/app"
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
+	"github.com/slaynaw/wakeonlan/desktop/internal/history"
 )
 
 const (
@@ -59,6 +60,8 @@ func main() {
 		webData = filepath.Join(local, "WakeOnLan", "WebView2")
 	}
 	width, height := initialWindowSize()
+	// Fond sombre dès la création de la vue (pas d'éclair blanc avant l'affichage de la page).
+	_ = os.Setenv("WEBVIEW2_DEFAULT_BACKGROUND_COLOR", "FF0C0E11")
 	w := webview2.NewWithOptions(webview2.WebViewOptions{
 		Debug:     os.Getenv("WOL_DEBUG") == "1",
 		DataPath:  webData,
@@ -77,11 +80,15 @@ func main() {
 	}
 	defer w.Destroy()
 	hwnd := windows.HWND(uintptr(w.Window()))
-	minW, minH := scaled(360), scaled(480)
+	minW, minH := scaled(720), scaled(520)
 	w.SetSize(minW, minH, webview2.HintMin)
 
 	platform := &winPlatform{w: w, hwnd: hwnd}
-	svc := app.New(app.Options{Version: version, Store: store, Platform: platform})
+	histStore, err := history.NewStore(dataDir)
+	if err != nil {
+		fatal("Impossible de créer le dossier de l'historique :\n" + err.Error())
+	}
+	svc := app.New(app.Options{Version: version, Store: store, Platform: platform, History: histStore})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go svc.Run(ctx)
@@ -136,26 +143,19 @@ func main() {
 		fatal(err.Error())
 	}
 
-	// Surveillance en pause quand la fenêtre est réduite (comme l'application Android en arrière-plan),
-	// et barre de titre accordée au thème clair / sombre de Windows.
-	dark := systemUsesDarkTheme()
-	setDarkTitleBar(hwnd, dark)
+	// Barre de titre sombre, assortie à l'interface ; surveillance en pause quand la fenêtre est
+	// réduite (comme l'application Android en arrière-plan).
+	setDarkTitleBar(hwnd)
 	go func() {
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
-		for tick := 0; ; tick++ {
+		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
 			}
 			svc.SetWindowActive(!isIconic(hwnd))
-			if tick%4 == 0 {
-				if now := systemUsesDarkTheme(); now != dark {
-					dark = now
-					w.Dispatch(func() { setDarkTitleBar(hwnd, now) })
-				}
-			}
 		}
 	}()
 
@@ -163,9 +163,10 @@ func main() {
 	w.Run()
 }
 
-// initialWindowSize renvoie une taille proche de celle d'un téléphone, bornée par l'écran.
+// initialWindowSize renvoie la taille de la fenêtre au lancement (plan du réseau et panneau de
+// détail côte à côte), bornée par l'écran.
 func initialWindowSize() (int, int) {
-	width, height := scaled(480), scaled(820)
+	width, height := scaled(1200), scaled(800)
 	if sw, sh := workArea(); sw > 0 && sh > 0 {
 		width = min(width, sw*9/10)
 		height = min(height, sh*9/10)

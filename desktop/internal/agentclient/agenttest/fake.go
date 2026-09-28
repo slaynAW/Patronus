@@ -30,6 +30,7 @@ type Server struct {
 	behavior Behavior
 	listener net.Listener
 	mu       sync.Mutex
+	history  *protocol.History
 	commands []string
 	wg       sync.WaitGroup
 }
@@ -48,6 +49,13 @@ func Start(key []byte, behavior Behavior) (*Server, error) {
 
 // Port renvoie le port d'écoute.
 func (s *Server) Port() int { return s.listener.Addr().(*net.TCPAddr).Port }
+
+// SetHistory définit le journal renvoyé par « history » (nil : agent ancien, commande inconnue).
+func (s *Server) SetHistory(h *protocol.History) {
+	s.mu.Lock()
+	s.history = h
+	s.mu.Unlock()
+}
 
 // Commands renvoie les commandes authentifiées reçues.
 func (s *Server) Commands() []string {
@@ -117,6 +125,16 @@ func (s *Server) handle(conn net.Conn) {
 
 	resp := protocol.ResponseBody{OK: true, Code: "ok", Message: "OK", Hostname: "PC-TEST", OS: "windows", Arch: "amd64",
 		Version: "1.0.0", Uptime: 3600}
+	if body.Cmd == protocol.CmdHistory {
+		s.mu.Lock()
+		h := s.history
+		s.mu.Unlock()
+		if h == nil {
+			resp = protocol.ResponseBody{OK: false, Code: "unsupported", Message: "commande inconnue : history"}
+		} else {
+			resp.History = h
+		}
+	}
 	if s.behavior == Reject {
 		resp = protocol.ResponseBody{OK: false, Code: "forbidden", Message: "commande désactivée"}
 	}
