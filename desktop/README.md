@@ -28,7 +28,8 @@ déjà présent dans Windows 11 et installé par les mises à jour de Windows 10
    signé par un éditeur payant) : *Informations complémentaires* → *Exécuter quand même*.
 4. Facultatif : clic droit sur le fichier → *Épingler à l'écran de démarrage* / *à la barre des tâches*.
 
-Mise à jour : remplacez simplement le fichier (la configuration est conservée à part).
+Mise à jour : à partir de la 1.2.0, l'application propose elle-même les nouvelles versions (*Réglages* → *Mises à
+jour*). Pour passer d'une version plus ancienne, remplacez simplement le fichier (la configuration est conservée à part).
 
 ## Ajouter les PC
 
