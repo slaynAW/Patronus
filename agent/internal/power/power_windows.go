@@ -19,7 +19,7 @@ func (systemController) Do(action Action, force bool) error {
 		}
 		// Arrêt COMPLET (pas l'arrêt « hybride » du démarrage rapide), ce qui fiabilise le
 		// Wake-on-LAN suivant. /d p:0:0 = arrêt planifié, raison « Autre ».
-		args := []string{flag, "/t", "0", "/d", "p:0:0", "/c", "Demandé depuis l'application Wake On LAN"}
+		args := []string{flag, "/t", "0", "/d", "p:0:0", "/c", "Demandé depuis l'application Patronus"}
 		if force {
 			args = append(args, "/f")
 		}

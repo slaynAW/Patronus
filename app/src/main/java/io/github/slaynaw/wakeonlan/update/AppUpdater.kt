@@ -57,7 +57,7 @@ data class UpdateUiState(
 class AppUpdater(context: Context, private val scope: CoroutineScope) {
     private val app = context.applicationContext
     private val prefs = app.getSharedPreferences("updates", Context.MODE_PRIVATE)
-    private val client: UpdateClient? = signingKey()?.let { UpdateClient(it, userAgent = "WakeOnLan-Android") }
+    private val client: UpdateClient? = signingKey()?.let { UpdateClient(it, userAgent = "Patronus-Android") }
     private val mutex = Mutex()
     private val _state = MutableStateFlow(
         UpdateUiState(
@@ -126,7 +126,7 @@ class AppUpdater(context: Context, private val scope: CoroutineScope) {
             try {
                 val dir = File(app.cacheDir, "updates").apply { mkdirs() }
                 dir.listFiles()?.forEach { it.delete() }
-                val apk = File(dir, "WakeOnLan-update.apk")
+                val apk = File(dir, "Patronus-update.apk")
                 updater.download(manifest, file, apk) { done, total ->
                     _state.update { it.copy(progress = done.toFloat() / total) }
                 }

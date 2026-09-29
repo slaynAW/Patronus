@@ -1,9 +1,10 @@
-<img src="branding/logo.svg" width="88" alt="Logo Wake On LAN">
+<img src="branding/logo.svg" width="88" alt="Logo Patronus">
 
-# Wake On LAN
+# Patronus
 
 Application Android **et Windows** pour **démarrer, surveiller et éteindre vos PC** sur le réseau local,
-depuis votre téléphone ou depuis un autre PC.
+depuis votre téléphone ou depuis un autre PC. Votre Patronus veille sur vos PC.
+Anciennement **Wake On LAN** (jusqu'à la version 1.5.0).
 
 - ⚡ **Démarrage** des PC par Wake-on-LAN (paquet magique), fiabilisé (envois répétés, bonne adresse de diffusion, bon réseau).
 - 🟢 **État en temps réel** de chaque PC : allumé / éteint / en cours de démarrage / en cours d'arrêt, avec latence et « vu il y a… ».
@@ -54,7 +55,7 @@ L'APK est produit automatiquement par GitHub à chaque modification du code.
 1. Sur le téléphone, ouvrez la page **[Releases](https://github.com/slaynAW/WakeOnLan/releases)** du dépôt.
    - `dev` : dernière version de développement ;
    - `vX.Y.Z` : versions officielles.
-2. Téléchargez **`WakeOnLan-….apk`**.
+2. Téléchargez **`Patronus-….apk`** (`WakeOnLan-….apk` jusqu'à la version 1.5.0).
 3. Ouvrez le fichier. Android demande d'**autoriser l'installation depuis le navigateur** : acceptez (une seule fois).
 4. Au premier lancement sous Android 17, acceptez l'autorisation **« Appareils à proximité / réseau local »** : sans elle, Android bloque tout accès au réseau local.
 
@@ -67,7 +68,7 @@ L'APK est produit automatiquement par GitHub à chaque modification du code.
 
 Pour démarrer et surveiller vos PC depuis un autre PC (Windows 10 / 11, x64 ou ARM).
 
-1. Dans les **[Releases](https://github.com/slaynAW/WakeOnLan/releases)**, téléchargez **`WakeOnLan-Windows-….-x64.exe`**
+1. Dans les **[Releases](https://github.com/slaynAW/WakeOnLan/releases)**, téléchargez **`Patronus-Windows-….-x64.exe`**
    (`-arm64.exe` pour un PC ARM).
 2. Double-cliquez dessus : aucune installation. Si SmartScreen s'affiche : *Informations complémentaires* → *Exécuter quand même*.
 3. Récupérez vos PC **depuis le téléphone** : sur le téléphone, *Réglages* → *Exporter la configuration* (complète, avec mot de passe),

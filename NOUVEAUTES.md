@@ -3,6 +3,11 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.5.1
+
+- **Wake On LAN devient Patronus** : votre Patronus veille sur vos PC. Nouveau nom dans les applications, sur le téléphone et sur le PC Windows ; vos PC, réglages, historique et partages sont conservés.
+- Sur Windows, l'exécutable s'appelle désormais `Patronus-Windows-….exe` pour les nouveaux téléchargements (le fichier déjà présent se met à jour sans changer de nom).
+
 ## 1.5.0
 
 - **Températures du processeur et de la carte graphique** de chaque PC allumé, sur sa fiche et dans les listes, en orange dès 80 °C et en rouge dès 90 °C (avec l'agent 1.5.0, qui se propose tout seul aux PC Windows).

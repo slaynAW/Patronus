@@ -22,7 +22,7 @@ du redémarrage, puis supprimée. Les données sont dans `%APPDATA%\WakeOnLan`, 
 
 **Android** : l'application télécharge et vérifie l'APK puis le confie à l'installateur d'Android.
 Hors Play Store, Android demande une confirmation : la première fois, il faut aussi autoriser
-*Wake On LAN* à installer des applications (*Paramètres → Installer des applis inconnues*). À partir
+*Patronus* à installer des applications (*Paramètres → Installer des applis inconnues*). À partir
 d'Android 12, une fois que l'application s'est mise à jour elle-même, les mises à jour suivantes
 peuvent se faire sans confirmation. Une mise à jour Android conserve toujours les données de
 l'application (même clé de signature, numéro de version plus grand).

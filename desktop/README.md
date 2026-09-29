@@ -1,4 +1,4 @@
-# Wake On LAN pour Windows
+# Patronus pour Windows
 
 Version Windows de l'application : **mêmes fonctions et même style** que l'application Android (thème sombre
 « topologie & panneau de détail »).
@@ -24,8 +24,8 @@ déjà présent dans Windows 11 et installé par les mises à jour de Windows 10
 ## Installation
 
 1. Dans les **[Releases](https://github.com/slaynAW/WakeOnLan/releases)**, téléchargez
-   `WakeOnLan-Windows-<version>-x64.exe` (ou `-arm64.exe` pour un PC ARM, ex. Snapdragon).
-2. Rangez-le où vous voulez (ex. `Documents\WakeOnLan.exe`) et double-cliquez dessus.
+   `Patronus-Windows-<version>-x64.exe` (ou `-arm64.exe` pour un PC ARM, ex. Snapdragon).
+2. Rangez-le où vous voulez (ex. `Documents\Patronus.exe`) et double-cliquez dessus.
 3. Au premier lancement, **SmartScreen** peut afficher « Windows a protégé votre ordinateur » (le programme n'est pas
    signé par un éditeur payant) : *Informations complémentaires* → *Exécuter quand même*.
 4. Facultatif : clic droit sur le fichier → *Épingler à l'écran de démarrage* / *à la barre des tâches*.
@@ -104,7 +104,7 @@ cd desktop
 go test ./...
 # Ressources (icône, manifeste) puis exécutable Windows sans console :
 go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --arch amd64,arm64
-GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-H windowsgui -s -w -X main.version=1.2.0" -o WakeOnLan.exe .
+GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-H windowsgui -s -w -X main.version=1.2.0" -o Patronus.exe .
 ```
 
 Mode développement (Linux / macOS) : `go run .` affiche une adresse `http://127.0.0.1:…/#token=…`

@@ -19,7 +19,7 @@ const (
 func DefaultBinary() string { return "/usr/local/bin/wol-agent" }
 
 const unitTemplate = `[Unit]
-Description=Wake On LAN - agent d'extinction à distance
+Description=Patronus - agent d'extinction à distance
 Documentation=https://github.com/slaynAW/WakeOnLan
 After=network-online.target
 Wants=network-online.target
@@ -83,6 +83,9 @@ func Uninstall() error {
 
 // Restart redémarre le service.
 func Restart() error { return run("systemctl", "restart", unitName) }
+
+// RefreshLabels : rien à renommer (pas de mise à jour automatique hors Windows).
+func RefreshLabels() {}
 
 // IsRunning indique si le service est démarré.
 func IsRunning() bool {

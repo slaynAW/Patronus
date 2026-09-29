@@ -679,7 +679,7 @@ func (s *Service) exportConfig(withSecrets bool, password string) (any, error) {
 	opts := config.ExportOptions{
 		Password:   password,
 		ExportedAt: now.UTC().Format("2006-01-02T15:04:05.000Z"),
-		App:        "WakeOnLan Windows " + s.version,
+		App:        "Patronus Windows " + s.version,
 	}
 	if password != "" {
 		// Sauvegarde complète : la clé de partage suit, pour changer d'appareil sans réinviter, et
@@ -702,7 +702,7 @@ func (s *Service) exportConfig(withSecrets bool, password string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	name := "wakeonlan-" + now.Format("2006-01-02") + ".json"
+	name := "patronus-" + now.Format("2006-01-02") + ".json"
 	path, err := s.platform.SaveFile(name, text)
 	if errors.Is(err, ErrCancelled) {
 		return map[string]any{"cancelled": true}, nil

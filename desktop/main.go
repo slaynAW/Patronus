@@ -1,4 +1,4 @@
-// Wake On LAN pour Windows : même interface et mêmes fonctions que l'application Android.
+// Patronus pour Windows : même interface et mêmes fonctions que l'application Android.
 //
 // Le moteur (réveil, état en temps réel, agent, sauvegardes) est en Go ; l'interface est une page
 // HTML affichée par Microsoft Edge WebView2 (intégré à Windows 10/11). Un seul fichier .exe.
@@ -35,7 +35,7 @@ func shareOptions(dataDir string) *app.ShareOptions {
 		log.Printf("partage désactivé : %v", err)
 		return nil
 	}
-	gh := share.NewGitHub(githubClientID, "WakeOnLan-Windows/"+version)
+	gh := share.NewGitHub(githubClientID, "Patronus-Windows/"+version)
 	if api := os.Getenv("WOL_GITHUB_API"); api != "" && version == "dev" {
 		gh.API, gh.Web = api, os.Getenv("WOL_GITHUB_WEB")
 		if gh.ClientID == "" {
@@ -96,7 +96,8 @@ func inlineFonts(css string) (string, error) {
 	return css, failed
 }
 
-// defaultDataDir renvoie le dossier de configuration (Windows : %APPDATA%\WakeOnLan), ou celui
+// defaultDataDir renvoie le dossier de configuration (Windows : %APPDATA%\WakeOnLan, nom d'origine conservé
+// pour retrouver les données après le passage à « Patronus »), ou celui
 // indiqué par la variable d'environnement WOL_DATA_DIR (tests, utilisation « portable »).
 func defaultDataDir() string {
 	if dir := os.Getenv("WOL_DATA_DIR"); dir != "" {

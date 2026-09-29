@@ -32,7 +32,7 @@ const (
 	shareTick         = 15 * time.Second
 	sharePublishRetry = 2 * time.Minute
 	shareTimeout      = 30 * time.Second
-	shareGistNote     = "# Wake On LAN – partage chiffré\n\nFichiers d'accès chiffrés de l'application Wake On LAN " +
+	shareGistNote     = "# Patronus – partage chiffré\n\nFichiers d'accès chiffrés de l'application Patronus " +
 		"(https://github.com/slaynAW/WakeOnLan). Chacun n'est lisible que par l'appareil auquel il est destiné.\n"
 )
 
@@ -413,7 +413,7 @@ func (s *Service) finishLogin(ctx context.Context, login *shareLogin, dc share.D
 	sh.mu.Unlock()
 	if gist == "" {
 		err = sh.gh.Retry(ctx, func() (err error) {
-			gist, err = sh.gh.CreateGist(ctx, token, "Wake On LAN – partage chiffré", map[string]string{"LISEZMOI.md": shareGistNote})
+			gist, err = sh.gh.CreateGist(ctx, token, "Patronus – partage chiffré", map[string]string{"LISEZMOI.md": shareGistNote})
 			return err
 		})
 		if err != nil {

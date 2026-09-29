@@ -135,7 +135,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("Wake On LAN %s (mode développement) : http://%s/#token=%s\n", version, l.Addr(), token)
+	fmt.Printf("Patronus %s (mode développement) : http://%s/#token=%s\n", version, l.Addr(), token)
 	server := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go func() {
 		<-ctx.Done()

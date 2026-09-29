@@ -107,10 +107,10 @@ object ExportCodec {
         val envelope = try {
             ConfigCodec.json.decodeFromString(ExportEnvelope.serializer(), text)
         } catch (e: Exception) {
-            throw ConfigException(ConfigException.Reason.NOT_A_BACKUP, "Ce fichier n'est pas une sauvegarde Wake On LAN", e)
+            throw ConfigException(ConfigException.Reason.NOT_A_BACKUP, "Ce fichier n'est pas une sauvegarde Patronus", e)
         }
         if (envelope.format != FORMAT) {
-            throw ConfigException(ConfigException.Reason.NOT_A_BACKUP, "Ce fichier n'est pas une sauvegarde Wake On LAN")
+            throw ConfigException(ConfigException.Reason.NOT_A_BACKUP, "Ce fichier n'est pas une sauvegarde Patronus")
         }
         if (envelope.version > VERSION) {
             throw ConfigException(

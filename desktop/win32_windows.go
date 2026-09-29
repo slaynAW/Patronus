@@ -211,7 +211,7 @@ type openFileName struct {
 func saveFileDialog(owner windows.HWND, suggestedName string) (string, error) {
 	file := make([]uint16, windows.MAX_LONG_PATH)
 	copy(file, windows.StringToUTF16(suggestedName))
-	filter := utf16List("Sauvegarde Wake On LAN (*.json)", "*.json", "Tous les fichiers", "*.*")
+	filter := utf16List("Sauvegarde Patronus (*.json)", "*.json", "Tous les fichiers", "*.*")
 	defExt, _ := windows.UTF16PtrFromString("json")
 	title, _ := windows.UTF16PtrFromString("Exporter la configuration")
 	var initialDir *uint16

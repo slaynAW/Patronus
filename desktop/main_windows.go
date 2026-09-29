@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	windowTitle = "Wake On LAN"
+	windowTitle = "Patronus"
 	// iconResourceID est l'identifiant de l'icône dans les ressources (winres/winres.json : « #1 »).
 	iconResourceID = 1
 	// webView2DownloadURL : programme d'installation officiel du composant WebView2 (Microsoft).
@@ -57,7 +57,7 @@ func updateOptions(exe string) *app.UpdateOptions {
 		log.Printf("mises à jour désactivées : %v", err)
 		return nil
 	}
-	src.UserAgent = "WakeOnLan-Windows"
+	src.UserAgent = "Patronus-Windows"
 	return &app.UpdateOptions{Source: src, Code: code, Platform: "windows-" + runtime.GOARCH, Exe: exe}
 }
 
@@ -234,7 +234,7 @@ func setupLog(dir string) {
 		return
 	}
 	log.SetOutput(f)
-	log.Printf("Wake On LAN %s démarré", version)
+	log.Printf("Patronus %s démarré", version)
 }
 
 func askInstallWebView2() {

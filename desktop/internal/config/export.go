@@ -147,7 +147,7 @@ func Inspect(data []byte) (Envelope, error) {
 		Encryption *EncryptionInfo `json:"encryption"`
 		Data       string          `json:"data"`
 	}
-	notBackup := fail(NotABackup, "Ce fichier n'est pas une sauvegarde Wake On LAN")
+	notBackup := fail(NotABackup, "Ce fichier n'est pas une sauvegarde Patronus")
 	if err := json.Unmarshal(data, &raw); err != nil || raw.Format == nil || raw.Version == nil || raw.ExportedAt == nil {
 		return Envelope{}, notBackup
 	}
