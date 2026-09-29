@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"testing"
 	"time"
@@ -117,6 +118,8 @@ func TestCrashCapture(t *testing.T) {
 	j, _ := Open(dir)
 	j.Now = fixedClock()
 	_ = os.WriteFile(filepath.Join(dir, crashFile), []byte("panic: boum\n\ngoroutine 1 [running]:\nmain.main()\n"), 0o600)
+	// Le moteur Go garde le fichier ouvert : il est relâché avant l'effacement du dossier (Windows).
+	t.Cleanup(func() { _ = debug.SetCrashOutput(nil, debug.CrashOptions{}) })
 	if err := j.CaptureCrashes(); err != nil {
 		t.Fatal(err)
 	}
