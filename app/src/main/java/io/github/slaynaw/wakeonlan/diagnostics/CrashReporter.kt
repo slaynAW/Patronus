@@ -17,6 +17,7 @@ object CrashReporter {
         val app = context.applicationContext
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            runCatching { DiagnosticLog.now(DiagnosticLog.Level.ERROR, "plantage", "exception non gérée (fil ${thread.name})", error) }
             runCatching { write(app, thread, error) }
             // Comportement normal d'Android ensuite (fermeture de l'application).
             previous?.uncaughtException(thread, error)
@@ -27,6 +28,7 @@ object CrashReporter {
     fun pending(context: Context): String? =
         runCatching { file(context).takeIf { it.exists() }?.readText() }.getOrNull()
 
+    /** Le rapport reste dans le journal de diagnostic ; seul l'avis au démarrage est retiré. */
     fun clear(context: Context) {
         runCatching { file(context).delete() }
     }

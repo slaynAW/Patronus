@@ -7,13 +7,13 @@ package main
 import (
 	"embed"
 	"encoding/base64"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/slaynaw/wakeonlan/desktop/internal/app"
+	"github.com/slaynaw/wakeonlan/desktop/internal/diag"
 	"github.com/slaynaw/wakeonlan/desktop/internal/share"
 )
 
@@ -32,7 +32,7 @@ var (
 func shareOptions(dataDir string) *app.ShareOptions {
 	store, err := share.NewStore(dataDir)
 	if err != nil {
-		log.Printf("partage désactivé : %v", err)
+		diag.Error("partage", "partage désactivé : %v", err)
 		return nil
 	}
 	gh := share.NewGitHub(githubClientID, "Patronus-Windows/"+version)

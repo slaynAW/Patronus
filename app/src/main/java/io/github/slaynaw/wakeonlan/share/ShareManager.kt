@@ -15,8 +15,10 @@ import io.github.slaynaw.wakeonlan.core.share.ShareOwner
 import io.github.slaynaw.wakeonlan.core.share.SharePerson
 import io.github.slaynaw.wakeonlan.core.share.ShareRequest
 import io.github.slaynaw.wakeonlan.core.share.ShareRight
+import io.github.slaynaw.wakeonlan.core.share.ShareSyncResult
 import io.github.slaynaw.wakeonlan.data.ConfigRepository
 import io.github.slaynaw.wakeonlan.data.ShareRepository
+import io.github.slaynaw.wakeonlan.diagnostics.DiagnosticLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -120,9 +122,16 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
                 .collect { (_, owner) -> if (owner?.isConnected == true) publish() }
         }
         while (true) {
-            val rt = runtime.value
-            if (rt.publishError != null && System.currentTimeMillis() - rt.publishFailedAt >= PUBLISH_RETRY_MS) publish()
-            syncDue()
+            try {
+                val rt = runtime.value
+                if (rt.publishError != null && System.currentTimeMillis() - rt.publishFailedAt >= PUBLISH_RETRY_MS) publish()
+                syncDue()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Jamais de fermeture de l'application pour une vérification de fond.
+                DiagnosticLog.e(AREA, "vérification périodique en échec", e)
+            }
             withTimeoutOrNull(TICK_MS) { wake.receive() }
         }
     }
@@ -143,7 +152,13 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
         val trimmed = name.trim()
         if (!ShareCrypto.isValidName(trimmed)) throw ShareException(ShareException.Reason.INVALID, "nom invalide (1 à ${ShareCrypto.MAX_NAME_LENGTH} caractères)")
         loginJob?.cancel()
-        val code = github.startLogin()
+        DiagnosticLog.i(AREA, "connexion GitHub : demande d'un code")
+        val code = try {
+            github.startLogin()
+        } catch (e: ShareException) {
+            DiagnosticLog.w(AREA, "connexion GitHub : code refusé (${e.reason})", e)
+            throw e
+        }
         runtime.update { it.copy(login = ShareLogin(code.userCode, code.verificationUri)) }
         loginJob = scope.launch { finishLogin(code, trimmed) }
         return code
@@ -160,6 +175,7 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
             // En arrière-plan (navigateur ouvert), le système peut couper l'accès à Internet de
             // l'application : les étapes sont retentées tant que l'échec est passager.
             val token = github.waitLogin(code, loginWake)
+            DiagnosticLog.i(AREA, "connexion GitHub : code validé")
             val user = retrying { github.user(token) }
             val existing = repo.current().owner
             if (existing != null && existing.gist.isNotEmpty() && existing.user.isNotEmpty() && !existing.user.equals(user, ignoreCase = true)) {
@@ -174,12 +190,17 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
                 val owner = st.owner ?: withKey()
                 st.copy(owner = owner.copy(name = name, token = token, user = user, gist = gist))
             }
+            DiagnosticLog.i(AREA, "connexion GitHub réussie : compte @$user, gist ${gist.take(8)}…, partage existant : ${existing != null}")
             runtime.update { it.copy(login = null, publishError = null) }
             publish()
         } catch (e: CancellationException) {
             throw e
         } catch (e: ShareException) {
+            DiagnosticLog.w(AREA, "connexion GitHub en échec (${e.reason})", e)
             runtime.update { rt -> rt.copy(login = rt.login?.copy(error = e.message)) }
+        } catch (e: Exception) {
+            DiagnosticLog.e(AREA, "connexion GitHub : erreur imprévue", e)
+            runtime.update { rt -> rt.copy(login = rt.login?.copy(error = "erreur imprévue (${e.javaClass.simpleName}) : voir le rapport de diagnostic")) }
         }
     }
 
@@ -218,7 +239,9 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
         if (request.owner != ShareCrypto.keyId(owner.publicKey)) {
             throw ShareException(ShareException.Reason.INVALID, "cette demande répond à l'invitation d'une autre personne")
         }
-        return ShareRequestInfo(request, ShareCrypto.verificationCode(owner.publicKey, request.device), owner.person(request.device)?.rights)
+        val known = owner.person(request.device)
+        DiagnosticLog.i(AREA, "demande lue : « ${request.name} » (${DiagnosticLog.keyId(request.device)}), ${if (known != null) "personne déjà autorisée" else "nouvelle personne"}")
+        return ShareRequestInfo(request, ShareCrypto.verificationCode(owner.publicKey, request.device), known?.rights)
     }
 
     /** Autorise une personne (ou modifie ses droits) puis publie. */
@@ -228,17 +251,31 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
             val d = devices[id] ?: return@mapNotNull null
             id to if (right == ShareRight.FULL && !(d.canShutdown && d.agent?.hasKey == true)) ShareRight.WAKE else right
         }.toMap()
+        val summary = granted.entries.joinToString(", ") { (id, right) -> "${devices[id]?.name} = ${right.name.lowercase()}" }
+        DiagnosticLog.i(AREA, "autorisation de « $name » (${DiagnosticLog.keyId(device)}) : ${granted.size} PC retenus sur ${rights.size} ($summary)")
         if (granted.isEmpty()) throw ShareException(ShareException.Reason.INVALID, "choisissez au moins un PC à partager")
-        if (!ShareCrypto.isValidPublicKey(device) || !ShareCrypto.isValidName(name)) throw ShareException(ShareException.Reason.INVALID, "demande invalide")
-        repo.update { st ->
-            val owner = st.owner ?: throw ShareException(ShareException.Reason.UNAUTHORIZED, "le partage n'est pas activé")
-            st.copy(owner = owner.grant(SharePerson(name, device, System.currentTimeMillis(), granted)))
+        if (!ShareCrypto.isValidPublicKey(device) || !ShareCrypto.isValidName(name)) {
+            DiagnosticLog.w(AREA, "autorisation refusée : demande invalide (clé valide : ${ShareCrypto.isValidPublicKey(device)}, nom valide : ${ShareCrypto.isValidName(name)})")
+            throw ShareException(ShareException.Reason.INVALID, "demande invalide")
         }
+        try {
+            repo.update { st ->
+                val owner = st.owner ?: throw ShareException(ShareException.Reason.UNAUTHORIZED, "le partage n'est pas activé")
+                st.copy(owner = owner.grant(SharePerson(name, device, System.currentTimeMillis(), granted)))
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DiagnosticLog.e(AREA, "autorisation non enregistrée", e)
+            throw e
+        }
+        DiagnosticLog.i(AREA, "autorisation enregistrée ; publication lancée")
         scope.launch { publish() }
     }
 
     /** Retire l'accès d'une personne (son fichier est supprimé à la publication). */
     suspend fun revoke(device: String) {
+        DiagnosticLog.i(AREA, "retrait de l'accès de ${DiagnosticLog.keyId(device)}")
         repo.update { st -> st.copy(owner = st.owner?.withdraw(device)) }
         scope.launch { publish() }
     }
@@ -246,6 +283,7 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
     /** Arrête de partager : le Gist est supprimé, la clé oubliée. */
     suspend fun stop() {
         val owner = repo.current().owner ?: return
+        DiagnosticLog.i(AREA, "arrêt du partage (${owner.people.size} personne(s), connecté : ${owner.isConnected})")
         if (owner.isConnected) {
             try {
                 github.deleteGist(owner.token, owner.gist)
@@ -261,17 +299,34 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
     suspend fun publish() = publishMutex.withLock {
         val owner = repo.current().owner?.takeIf { it.isConnected } ?: return@withLock
         val devices = config.current().devices
-        val publication = withContext(Dispatchers.Default) { owner.prepare(devices, System.currentTimeMillis()) }
+        val publication = try {
+            withContext(Dispatchers.Default) { owner.prepare(devices, System.currentTimeMillis()) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DiagnosticLog.e(AREA, "publication : préparation des fichiers impossible (${owner.people.size} personne(s), ${devices.size} PC)", e)
+            runtime.update {
+                it.copy(publishError = "erreur imprévue (${e.javaClass.simpleName}) : voir le rapport de diagnostic", publishFailedAt = System.currentTimeMillis())
+            }
+            return@withLock
+        }
         if (publication.isEmpty) {
             runtime.update { it.copy(publishError = null) }
             return@withLock
         }
         runtime.update { it.copy(publishing = true) }
+        val deletions = publication.files.count { it.value == null }
+        DiagnosticLog.i(AREA, "publication : ${publication.files.size - deletions} fichier(s) d'accès à écrire, $deletions à supprimer, révision ${publication.revision}")
         try {
             github.updateGist(owner.token, owner.gist, publication.files)
             repo.update { st -> st.owner?.takeIf { it.key == owner.key }?.let { st.copy(owner = it.commit(publication)) } ?: st }
             runtime.update { it.copy(publishing = false, publishError = null) }
+            DiagnosticLog.i(AREA, "publication réussie")
+        } catch (e: CancellationException) {
+            runtime.update { it.copy(publishing = false) }
+            throw e
         } catch (e: ShareException) {
+            DiagnosticLog.w(AREA, "publication en échec (${e.reason})", e)
             if (e.reason == ShareException.Reason.UNAUTHORIZED) {
                 // Jeton expiré ou révoqué : l'interface propose de se reconnecter (même compte, même Gist).
                 repo.update { st -> st.owner?.takeIf { it.key == owner.key }?.let { st.copy(owner = it.copy(token = "")) } ?: st }
@@ -282,6 +337,15 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
                 e.message
             }
             runtime.update { it.copy(publishing = false, publishError = message, publishFailedAt = System.currentTimeMillis()) }
+        } catch (e: Exception) {
+            DiagnosticLog.e(AREA, "publication : erreur imprévue", e)
+            runtime.update {
+                it.copy(
+                    publishing = false,
+                    publishError = "erreur imprévue (${e.javaClass.simpleName}) : voir le rapport de diagnostic",
+                    publishFailedAt = System.currentTimeMillis(),
+                )
+            }
         }
     }
 
@@ -299,6 +363,7 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
             adopted = st.owner == null
             if (adopted) st.copy(owner = owner) else st
         }
+        DiagnosticLog.i(AREA, "partage de la sauvegarde ${if (adopted) "repris" else "ignoré (partage déjà actif)"} : ${owner.people.size} personne(s)")
         return adopted
     }
 
@@ -339,6 +404,7 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
         }
         lastSync.remove(invite.owner)
         wake.trySend(Unit)
+        DiagnosticLog.i(AREA, "demande d'accès enregistrée auprès de « ${invite.name} » (${DiagnosticLog.keyId(invite.owner)}, @${invite.user})")
         return requestView(invite.owner) ?: throw ShareException(ShareException.Reason.INVALID, "demande introuvable")
     }
 
@@ -353,6 +419,7 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
 
     /** Supprime un partage reçu (ou une demande) du téléphone. */
     suspend fun leave(owner: String) {
+        DiagnosticLog.i(AREA, "partage reçu supprimé : ${DiagnosticLog.keyId(owner)}")
         repo.update { st -> st.copy(received = st.received.filterNot { it.owner == owner }) }
         lastSync.remove(owner)
         runtime.update { it.copy(syncErrors = it.syncErrors - owner) }
@@ -394,14 +461,19 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
             etag = snap.etag
         } catch (e: ShareException) {
             if (e.reason != ShareException.Reason.NOT_FOUND) {
+                DiagnosticLog.w(AREA, "partage reçu de ${DiagnosticLog.keyId(owner)} : lecture impossible (${e.reason})", e)
                 runtime.update { it.copy(syncErrors = it.syncErrors + (owner to e.message.orEmpty())) }
                 return@withLock
             }
+            DiagnosticLog.w(AREA, "partage reçu de ${DiagnosticLog.keyId(owner)} : espace de partage introuvable")
             // Gist supprimé (fichiers vides) : même effet qu'un accès retiré.
             etag = ""
         }
         try {
-            val (next, _) = withContext(Dispatchers.Default) { access.apply(files, key, now) }
+            val (next, result) = withContext(Dispatchers.Default) { access.apply(files, key, now) }
+            if (result != ShareSyncResult.UNCHANGED) {
+                DiagnosticLog.i(AREA, "partage reçu de ${DiagnosticLog.keyId(owner)} : $result (${next.devices.size} PC, révision ${next.revision})")
+            }
             store(owner) {
                 it.copy(
                     active = next.active, removed = next.removed, revision = next.revision, devices = next.devices,
@@ -411,8 +483,15 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
             runtime.update { it.copy(syncErrors = it.syncErrors - owner) }
         } catch (e: ShareException) {
             // Fichier refusé (signature, version plus ancienne…) : pas relu tant qu'il n'a pas changé.
+            DiagnosticLog.w(AREA, "partage reçu de ${DiagnosticLog.keyId(owner)} : fichier refusé (${e.reason})", e)
             store(owner) { it.copy(etag = etag, synced = now) }
             runtime.update { it.copy(syncErrors = it.syncErrors + (owner to e.message.orEmpty())) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DiagnosticLog.e(AREA, "partage reçu de ${DiagnosticLog.keyId(owner)} : erreur imprévue", e)
+            store(owner) { it.copy(etag = etag, synced = now) }
+            runtime.update { it.copy(syncErrors = it.syncErrors + (owner to "erreur imprévue (${e.javaClass.simpleName})")) }
         }
     }
 
@@ -422,6 +501,7 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
     }
 
     private companion object {
+        const val AREA = "partage"
         const val TICK_MS = 15_000L
         // GitHub limite la lecture sans compte à 60 requêtes par heure et par adresse IP.
         const val SYNC_PENDING_MS = 45_000L

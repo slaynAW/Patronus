@@ -1,7 +1,6 @@
 package io.github.slaynaw.wakeonlan.data
 
 import android.content.Context
-import android.util.Log
 import androidx.datastore.core.CorruptionException
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.DataStoreFactory
@@ -12,6 +11,8 @@ import io.github.slaynaw.wakeonlan.core.config.ConfigException
 import io.github.slaynaw.wakeonlan.core.model.AppConfig
 import io.github.slaynaw.wakeonlan.core.model.AppSettings
 import io.github.slaynaw.wakeonlan.core.model.Device
+import io.github.slaynaw.wakeonlan.diagnostics.DataKind
+import io.github.slaynaw.wakeonlan.diagnostics.DataNotices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,16 +29,19 @@ import java.security.GeneralSecurityException
  */
 class ConfigRepository(context: Context) {
 
+    private val file = File(context.applicationContext.filesDir, "datastore/config.bin")
+
     private val store: DataStore<AppConfig> = DataStoreFactory.create(
         serializer = EncryptedConfigSerializer(KeystoreCipher()),
         corruptionHandler = ReplaceFileCorruptionHandler { e ->
-            // Clé Keystore perdue ou fichier abîmé : on repart d'une configuration vide
-            // plutôt que de bloquer l'application. L'export sert de sauvegarde.
-            Log.e(TAG, "Configuration illisible, réinitialisation", e)
+            // Clé Keystore perdue ou fichier abîmé : on repart d'une configuration vide plutôt que de
+            // bloquer l'application, mais le fichier est gardé de côté et l'utilisateur prévenu
+            // (sa dernière sauvegarde complète permet de tout récupérer).
+            DataNotices.unreadable(DataKind.CONFIG, file, e)
             AppConfig()
         },
         scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
-        produceFile = { File(context.applicationContext.filesDir, "datastore/config.bin") },
+        produceFile = { file },
     )
 
     val config: Flow<AppConfig> = store.data
@@ -61,10 +65,6 @@ class ConfigRepository(context: Context) {
 
     /** Ajoute les terminaux importés ; ceux qui existent déjà (même identifiant) sont mis à jour. */
     suspend fun mergeWith(imported: AppConfig) = update { it.mergeDevicesFrom(imported) }
-
-    private companion object {
-        const val TAG = "ConfigRepository"
-    }
 }
 
 private class EncryptedConfigSerializer(private val cipher: KeystoreCipher) : Serializer<AppConfig> {
@@ -79,6 +79,9 @@ private class EncryptedConfigSerializer(private val cipher: KeystoreCipher) : Se
             throw CorruptionException("Déchiffrement impossible", e)
         } catch (e: ConfigException) {
             throw CorruptionException("Configuration invalide", e)
+        } catch (e: RuntimeException) {
+            // Keystore défaillant (ProviderException…) : fichier mis de côté, utilisateur prévenu.
+            throw CorruptionException("Déchiffrement impossible (Keystore)", e)
         }
     }
 

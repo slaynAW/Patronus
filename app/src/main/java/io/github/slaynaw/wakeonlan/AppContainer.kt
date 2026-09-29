@@ -12,10 +12,12 @@ import io.github.slaynaw.wakeonlan.core.status.UnknownReason
 import io.github.slaynaw.wakeonlan.core.wol.WakeOnLanSender
 import io.github.slaynaw.wakeonlan.data.ConfigRepository
 import io.github.slaynaw.wakeonlan.data.HistoryRepository
+import io.github.slaynaw.wakeonlan.diagnostics.DiagnosticLog
 import io.github.slaynaw.wakeonlan.network.LanNetworkMonitor
 import io.github.slaynaw.wakeonlan.network.LocalNetworkAccess
 import io.github.slaynaw.wakeonlan.share.ShareManager
 import io.github.slaynaw.wakeonlan.update.AppUpdater
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,8 +32,16 @@ import kotlinx.coroutines.flow.combine
  * simple). Une seule instance, créée par [WolApplication].
  */
 class AppContainer(private val context: Context) {
-    /** Tâches de fond de l'application (enregistrement de l'historique, lecture du journal des agents). */
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    /**
+     * Tâches de fond de l'application (enregistrement de l'historique, lecture du journal des agents,
+     * publication du partage). Une erreur imprévue y est notée au journal de diagnostic au lieu de
+     * fermer l'application.
+     */
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, e ->
+            DiagnosticLog.e("tâche", "erreur imprévue dans une tâche de fond", e)
+        },
+    )
 
     val network = LanNetworkMonitor(context)
     val repository = ConfigRepository(context)

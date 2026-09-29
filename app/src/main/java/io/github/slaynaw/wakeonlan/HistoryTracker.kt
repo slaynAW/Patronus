@@ -14,6 +14,7 @@ import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.status.DeviceStatus
 import io.github.slaynaw.wakeonlan.core.status.PowerState
 import io.github.slaynaw.wakeonlan.data.HistoryRepository
+import io.github.slaynaw.wakeonlan.diagnostics.DiagnosticLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
@@ -95,7 +96,18 @@ class HistoryTracker(
         val events = HistoryRecorder.transitions(before, current, now)
         if (events.isNotEmpty()) history.update { data -> events.fold(data) { acc, e -> acc.add(e, now) } }
         for ((id, status) in current) {
-            if (status.state == PowerState.ONLINE && before[id]?.state != PowerState.ONLINE) refreshAgent(id, force = false)
+            val old = before[id]
+            if (old?.state != status.state || old?.agentError != status.agentError) {
+                DiagnosticLog.i(
+                    "état",
+                    "« ${devices[id]?.name ?: id} » : ${old?.state ?: "-"} → ${status.state}" +
+                        (status.method?.let { " (via $it" + (status.latencyMs?.let { ms -> ", $ms ms" } ?: "") + ")" } ?: "") +
+                        (status.agentError?.let { " ; agent : $it" } ?: "") +
+                        (status.unknownReason?.let { " ; raison : $it" } ?: "") +
+                        (status.notice?.let { " ; avis : $it" } ?: ""),
+                )
+            }
+            if (status.state == PowerState.ONLINE && old?.state != PowerState.ONLINE) refreshAgent(id, force = false)
         }
     }
 
@@ -136,7 +148,13 @@ class HistoryTracker(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: RuntimeException) {
+                DiagnosticLog.w("journal-agent", "« ${device.name} » : réponse inattendue", e)
                 null // réponse inattendue : traitée comme un agent injoignable
+            }
+            if (result is AgentResult.Failure) {
+                DiagnosticLog.w("journal-agent", "« ${device.name} » (${device.host}:${agent.port}) : ${result.error}${result.detail?.let { " — $it" }.orEmpty()}")
+            } else if (result == null) {
+                DiagnosticLog.w("journal-agent", "« ${device.name} » (${device.host}:${agent.port}) : pas de réponse")
             }
             val journal = when {
                 result is AgentResult.Success -> {
@@ -165,6 +183,7 @@ class HistoryTracker(
         } catch (e: CancellationException) {
             throw e
         } catch (e: RuntimeException) {
+            DiagnosticLog.w("journal-agent", "« ${device.name} » : envoi des démarrages impossible", e)
             null
         }
         when {

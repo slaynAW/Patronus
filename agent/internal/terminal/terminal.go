@@ -5,6 +5,9 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strings"
+
+	"golang.org/x/term"
 )
 
 // Pause attend que l'utilisateur appuie sur Entrée (fenêtre ouverte par double-clic sous Windows).
@@ -23,3 +26,23 @@ func Confirm(question string) bool {
 	}
 	return true
 }
+
+// ReadPassword demande un mot de passe sans l'afficher (saisie ordinaire si l'entrée n'est pas une
+// console : redirection, tests).
+func ReadPassword(prompt string) (string, error) {
+	fmt.Print(prompt)
+	fd := int(os.Stdin.Fd())
+	if term.IsTerminal(fd) {
+		b, err := term.ReadPassword(fd)
+		fmt.Println()
+		return string(b), err
+	}
+	line, err := stdin.ReadString('\n')
+	if err != nil && line == "" {
+		return "", err
+	}
+	return strings.TrimRight(line, "\r\n"), nil
+}
+
+// stdin est partagé : deux lectures successives ne perdent pas de ligne dans un tampon.
+var stdin = bufio.NewReader(os.Stdin)

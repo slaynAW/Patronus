@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/update"
+	"github.com/slaynaw/wakeonlan/desktop/internal/diag"
 )
 
 // UpdateOptions active les mises à jour intégrées (nil : désactivées, par exemple pour une version
@@ -156,14 +156,17 @@ func (s *Service) checkUpdate(ctx context.Context) error {
 		u.found, u.view.Available = nil, nil
 	case err != nil:
 		u.view.Error = "Recherche impossible : " + err.Error()
+		diag.Warn(areaUpdate, "recherche impossible : %v", err)
 	default:
 		published = true
 		file, ok := m.File(u.opts.Platform)
 		if m.Code > u.opts.Code && ok {
 			u.found = &m
 			u.view.Available = &UpdateInfo{Version: m.Version, Date: m.Date, Notes: m.Notes, Size: file.Size}
+			diag.Info(areaUpdate, "nouvelle version %s (build %d) proposée", m.Version, m.Code)
 		} else {
 			u.found, u.view.Available = nil, nil
+			diag.Info(areaUpdate, "à jour (dernière version publiée %s, build %d)", m.Version, m.Code)
 		}
 	}
 	if err == nil {
@@ -196,6 +199,7 @@ func (s *Service) installUpdate() error {
 	u.view.Stage, u.view.Progress, u.view.Error = "downloading", 0, ""
 	u.mu.Unlock()
 	s.notify()
+	diag.Info(areaUpdate, "installation de la version %s : téléchargement (%d octets)", m.Version, file.Size)
 
 	go func() {
 		err := s.downloadAndApply(m, file)
@@ -207,7 +211,7 @@ func (s *Service) installUpdate() error {
 		u.mu.Unlock()
 		s.notify()
 		if err != nil {
-			log.Printf("mise à jour : %v", err)
+			diag.Error(areaUpdate, "installation de la version %s impossible : %v", m.Version, err)
 		}
 	}()
 	return nil

@@ -58,13 +58,12 @@ import io.github.slaynaw.wakeonlan.BuildConfig
 import io.github.slaynaw.wakeonlan.R
 import io.github.slaynaw.wakeonlan.appContainer
 import io.github.slaynaw.wakeonlan.core.config.ExportCodec
+import io.github.slaynaw.wakeonlan.core.diagnostics.DiagnosticCodec
 import io.github.slaynaw.wakeonlan.core.model.AppSettings
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.share.ShareException
 import io.github.slaynaw.wakeonlan.core.share.ShareLinks
 import io.github.slaynaw.wakeonlan.share.ShareUiState
-import io.github.slaynaw.wakeonlan.ui.common.rememberNow
-import kotlinx.coroutines.flow.map
 import io.github.slaynaw.wakeonlan.ui.common.ButtonKind
 import io.github.slaynaw.wakeonlan.ui.common.RowDivider
 import io.github.slaynaw.wakeonlan.ui.common.SectionLabel
@@ -72,9 +71,11 @@ import io.github.slaynaw.wakeonlan.ui.common.WolButton
 import io.github.slaynaw.wakeonlan.ui.common.WolCard
 import io.github.slaynaw.wakeonlan.ui.common.WolIcons
 import io.github.slaynaw.wakeonlan.ui.common.formatDuration
+import io.github.slaynaw.wakeonlan.ui.common.rememberNow
 import io.github.slaynaw.wakeonlan.ui.overview.ScreenHeader
 import io.github.slaynaw.wakeonlan.ui.theme.WolPalette
 import io.github.slaynaw.wakeonlan.update.UpdateUiState
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -106,6 +107,9 @@ fun SettingsTab(
     val sharingImported by vm.sharingImported.collectAsStateWithLifecycle()
 
     var showExportDialog by remember { mutableStateOf(false) }
+    var showDiagnosticDialog by remember { mutableStateOf(false) }
+    // Mot de passe du rapport de diagnostic, le temps de choisir le fichier de destination.
+    var pendingDiagnosticPassword by remember { mutableStateOf<CharArray?>(null) }
     var showClearHistory by remember { mutableStateOf(false) }
     // Mot de passe choisi, conservé le temps que l'utilisateur choisisse le fichier de destination.
     var pendingExportPassword by remember { mutableStateOf<CharArray?>(null) }
@@ -114,6 +118,11 @@ fun SettingsTab(
         val password = pendingExportPassword
         pendingExportPassword = null
         if (uri != null) vm.export(context.contentResolver, uri, password) else password?.fill(' ')
+    }
+    val diagnosticLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        val password = pendingDiagnosticPassword
+        pendingDiagnosticPassword = null
+        if (uri != null && password != null) vm.exportDiagnostic(context, uri, password) else password?.fill(' ')
     }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) vm.startImport(context.contentResolver, uri)
@@ -158,6 +167,7 @@ fun SettingsTab(
         version = BuildConfig.VERSION_NAME,
         onUpdateSettings = { vm.updateSettings(it) },
         onExport = { showExportDialog = true },
+        onExportDiagnostic = { showDiagnosticDialog = true },
         onImport = { importLauncher.launch(arrayOf("application/json", "text/*", "application/octet-stream")) },
         onOpenHistory = onOpenHistory,
         onClearHistory = { showClearHistory = true },
@@ -211,6 +221,17 @@ fun SettingsTab(
                 exportLauncher.launch("patronus-${LocalDate.now()}.json")
             },
             onDismiss = { showExportDialog = false },
+        )
+    }
+
+    if (showDiagnosticDialog) {
+        DiagnosticDialog(
+            onConfirm = { password ->
+                showDiagnosticDialog = false
+                pendingDiagnosticPassword = password
+                diagnosticLauncher.launch("patronus-diagnostic-${LocalDate.now()}.diag")
+            },
+            onDismiss = { showDiagnosticDialog = false },
         )
     }
 
@@ -290,6 +311,7 @@ fun SettingsContent(
     ownDevices: List<Device> = emptyList(),
     now: Long = System.currentTimeMillis(),
     onShareDialog: (ShareDialog) -> Unit = {},
+    onExportDiagnostic: () -> Unit = {},
 ) {
     Column(
         Modifier
@@ -431,6 +453,17 @@ fun SettingsContent(
                     )
                 }
             }
+        }
+
+        SectionLabel(stringResource(R.string.section_diagnostic), Modifier.padding(top = 6.dp))
+        WolCard {
+            SettingItem(
+                icon = WolIcons.Upload,
+                title = stringResource(R.string.diagnostic_export),
+                text = stringResource(R.string.diagnostic_export_help),
+                enabled = !busy,
+                onClick = onExportDiagnostic,
+            )
         }
 
         SectionLabel(stringResource(R.string.section_about), Modifier.padding(top = 6.dp))
@@ -577,6 +610,50 @@ private fun ExportDialog(hasSecrets: Boolean, onConfirm: (CharArray?) -> Unit, o
                 onClick = { onConfirm(if (withSecrets) password.toCharArray() else null) },
                 enabled = valid,
             ) { Text(stringResource(R.string.action_export_short)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+/** Mot de passe du rapport de diagnostic (à transmettre séparément du fichier). */
+@Composable
+private fun DiagnosticDialog(onConfirm: (CharArray) -> Unit, onDismiss: () -> Unit) {
+    var password by remember { mutableStateOf("") }
+    var confirmation by remember { mutableStateOf("") }
+    val tooShort = password.length < DiagnosticCodec.MIN_PASSWORD_LENGTH
+    val mismatch = password != confirmation
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(WolIcons.Lock, contentDescription = null, tint = WolPalette.Blue) },
+        title = { Text(stringResource(R.string.diagnostic_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.diagnostic_text), style = MaterialTheme.typography.bodyMedium)
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text(stringResource(R.string.field_password)) },
+                    singleLine = true,
+                    isError = password.isNotEmpty() && tooShort,
+                    supportingText = { Text(stringResource(R.string.field_password_help, DiagnosticCodec.MIN_PASSWORD_LENGTH)) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+                OutlinedTextField(
+                    value = confirmation,
+                    onValueChange = { confirmation = it },
+                    label = { Text(stringResource(R.string.field_password_confirm)) },
+                    singleLine = true,
+                    isError = confirmation.isNotEmpty() && mismatch,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(password.toCharArray()) }, enabled = !tooShort && !mismatch) {
+                Text(stringResource(R.string.diagnostic_save))
+            }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )

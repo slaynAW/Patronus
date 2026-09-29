@@ -7,12 +7,12 @@ import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.os.Build
-import android.util.Log
 import androidx.core.content.edit
 import io.github.slaynaw.wakeonlan.BuildConfig
 import io.github.slaynaw.wakeonlan.core.update.UpdateClient
 import io.github.slaynaw.wakeonlan.core.update.UpdateException
 import io.github.slaynaw.wakeonlan.core.update.UpdateManifest
+import io.github.slaynaw.wakeonlan.diagnostics.DiagnosticLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,6 +86,7 @@ class AppUpdater(context: Context, private val scope: CoroutineScope) {
             val newer = manifest.takeIf { it.code > BuildConfig.VERSION_CODE && it.file(PLATFORM) != null }
             val now = System.currentTimeMillis()
             prefs.edit { putLong(KEY_LAST_CHECK, now) }
+            DiagnosticLog.i(AREA, "recherche : dernière version ${manifest.version} (code ${manifest.code}), ${if (newer != null) "proposée" else "rien de plus récent"}")
             _state.update { it.copy(checking = false, lastCheck = now, available = newer, postponed = isPostponed(newer)) }
         } catch (e: UpdateException) {
             if (e.reason == UpdateException.Reason.NOT_PUBLISHED) {
@@ -93,7 +94,7 @@ class AppUpdater(context: Context, private val scope: CoroutineScope) {
                 prefs.edit { putLong(KEY_LAST_CHECK, now) }
                 _state.update { it.copy(checking = false, lastCheck = now, available = null) }
             } else {
-                Log.w(TAG, "Recherche de mise à jour impossible", e)
+                DiagnosticLog.w(AREA, "recherche impossible (${e.reason})", e)
                 _state.update { it.copy(checking = false, error = e.message) }
             }
         }
@@ -122,6 +123,7 @@ class AppUpdater(context: Context, private val scope: CoroutineScope) {
         val file = manifest.file(PLATFORM) ?: return
         if (_state.value.stage != UpdateStage.IDLE) return
         _state.update { it.copy(stage = UpdateStage.DOWNLOADING, progress = 0f, error = null) }
+        DiagnosticLog.i(AREA, "installation de la version ${manifest.version} : téléchargement (${file.size} octets)")
         scope.launch {
             try {
                 val dir = File(app.cacheDir, "updates").apply { mkdirs() }
@@ -132,12 +134,16 @@ class AppUpdater(context: Context, private val scope: CoroutineScope) {
                 }
                 checkArchive(apk, manifest)
                 _state.update { it.copy(stage = UpdateStage.INSTALLING, progress = 1f) }
+                DiagnosticLog.i(AREA, "fichier vérifié ; confié à l'installateur d'Android")
                 withContext(Dispatchers.IO) { commit(apk) }
             } catch (e: IOException) {
+                DiagnosticLog.w(AREA, "installation impossible", e)
                 fail(e.message)
             } catch (e: SecurityException) {
+                DiagnosticLog.w(AREA, "installation impossible", e)
                 fail(e.message)
             } catch (e: IllegalStateException) {
+                DiagnosticLog.w(AREA, "installation impossible", e)
                 fail(e.message)
             }
         }
@@ -147,7 +153,7 @@ class AppUpdater(context: Context, private val scope: CoroutineScope) {
     fun onInstallFailed(message: String?) = fail(message ?: "installation annulée")
 
     private fun fail(message: String?) {
-        Log.w(TAG, "Mise à jour impossible : $message")
+        DiagnosticLog.w(AREA, "mise à jour impossible : $message")
         _state.update { it.copy(stage = UpdateStage.IDLE, progress = 0f, error = message) }
     }
 
@@ -221,7 +227,7 @@ class AppUpdater(context: Context, private val scope: CoroutineScope) {
     }
 
     private companion object {
-        const val TAG = "AppUpdater"
+        const val AREA = "mise-à-jour"
         const val PLATFORM = "android"
         const val KEY_AUTO = "auto"
         const val KEY_LAST_CHECK = "lastCheck"

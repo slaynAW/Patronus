@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/slaynaw/wakeonlan/desktop/internal/diag"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 	"github.com/slaynaw/wakeonlan/desktop/internal/share"
 )
@@ -71,6 +72,7 @@ func newSharer(opts *ShareOptions) *sharer {
 	st, err := opts.Store.Load()
 	if err != nil {
 		sh.loadErr = err.Error()
+		diag.Error(areaData, "partage : %v", err)
 	}
 	sh.state = st
 	return sh
@@ -223,7 +225,19 @@ func (s *Service) publishShares(ctx context.Context) error {
 	devices := slices.Clone(s.cfg.Devices)
 	s.mu.Unlock()
 	pub, err := owner.Prepare(devices, s.now(), false)
-	if err == nil && !pub.Empty() {
+	if err != nil {
+		diag.Error(areaShare, "publication : préparation impossible : %v", err)
+	} else if !pub.Empty() {
+		written, removed := 0, 0
+		for _, content := range pub.Files {
+			if content == nil {
+				removed++
+			} else {
+				written++
+			}
+		}
+		diag.Info(areaShare, "publication de la révision %d : %d fichier(s) d'accès à écrire, %d à supprimer (%d personne(s))",
+			pub.Revision, written, removed, len(owner.People))
 		ctx, cancel := context.WithTimeout(ctx, shareTimeout)
 		err = sh.gh.UpdateGist(ctx, owner.Token, owner.Gist, pub.Files)
 		cancel()
@@ -236,11 +250,18 @@ func (s *Service) publishShares(ctx context.Context) error {
 		if o := sh.state.Owner; o != nil && o.Key == owner.Key && !pub.Empty() {
 			o.Commit(pub)
 			err = sh.saveLocked()
+			if err != nil {
+				diag.Error(areaShare, "publication réussie mais état non enregistré : %v", err)
+			} else {
+				diag.Info(areaShare, "publication réussie (révision %d)", pub.Revision)
+			}
 		}
 	case errors.Is(err, share.ErrNotFound):
+		diag.Warn(areaShare, "publication : Gist introuvable (%v)", err)
 		sh.publishErr = "Espace de partage introuvable sur GitHub (Gist supprimé ?) : arrêtez puis réactivez le partage."
 	case errors.Is(err, share.ErrUnauthorized):
 		// Jeton expiré ou révoqué : l'interface propose de se reconnecter (même compte, même Gist).
+		diag.Warn(areaShare, "publication : accès GitHub refusé, jeton oublié (%v)", err)
 		sh.publishErr = err.Error()
 		sh.dirty = true
 		if o := sh.state.Owner; o != nil && o.Key == owner.Key {
@@ -248,6 +269,7 @@ func (s *Service) publishShares(ctx context.Context) error {
 			_ = sh.saveLocked()
 		}
 	default:
+		diag.Warn(areaShare, "publication impossible, nouvel essai dans %s : %v", sharePublishRetry, err)
 		sh.publishErr = err.Error()
 		sh.dirty = true
 	}
@@ -273,6 +295,7 @@ func (s *Service) syncAccess(ctx context.Context, owner string) {
 
 	devicePriv, err := share.ParseDevicePrivate(deviceKey)
 	if err != nil {
+		diag.Error(areaShare, "clé de réception de cet appareil illisible : %v", err)
 		return
 	}
 	ctx, cancel := context.WithTimeout(ctx, shareTimeout)
@@ -293,6 +316,13 @@ func (s *Service) syncAccess(ctx context.Context, owner string) {
 			func() (string, error) { return deviceKey, nil }, s.now())
 	}
 
+	switch {
+	case err != nil:
+		diag.Warn(areaShare, "partage reçu de %s : %s (%v)", keyRef(owner), shareErrorText(err), err)
+	case result != share.Unchanged:
+		diag.Info(areaShare, "partage reçu de %s : %v (%d PC, révision %d, actif %t, retiré %t)",
+			keyRef(owner), result, len(access.Devices), access.Revision, access.Active, access.Removed)
+	}
 	sh.mu.Lock()
 	if err != nil {
 		sh.syncErr[owner] = shareErrorText(err)
@@ -304,7 +334,9 @@ func (s *Service) syncAccess(ctx context.Context, owner string) {
 		cur := &sh.state.Received[j]
 		cur.Active, cur.Removed, cur.Revision, cur.Devices = access.Active, access.Removed, access.Revision, access.Devices
 		cur.OwnerName, cur.Synced, cur.ETag = access.OwnerName, access.Synced, access.ETag
-		_ = sh.saveLocked()
+		if err := sh.saveLocked(); err != nil {
+			diag.Error(areaShare, "partage reçu de %s : état non enregistré : %v", keyRef(owner), err)
+		}
 	}
 	sh.mu.Unlock()
 	if result != share.Unchanged {
@@ -362,6 +394,7 @@ func (s *Service) shareLogin(name string) (any, error) {
 		cancel()
 		return nil, err
 	}
+	diag.Info(areaShare, "connexion GitHub : code affiché, en attente de validation")
 	login := &shareLogin{code: dc.UserCode, uri: dc.VerificationURI, cancel: cancel}
 	sh.mu.Lock()
 	sh.login = login
@@ -375,6 +408,7 @@ func (s *Service) finishLogin(ctx context.Context, login *shareLogin, dc share.D
 	sh := s.sharing
 	defer login.cancel()
 	fail := func(err error) {
+		diag.Warn(areaShare, "connexion GitHub : %v", err)
 		sh.mu.Lock()
 		if sh.login == login {
 			login.err = err.Error()
@@ -436,14 +470,18 @@ func (s *Service) finishLogin(ctx context.Context, login *shareLogin, dc share.D
 		sh.state.Owner = &share.Owner{Key: share.EncodePrivate(share.OwnerPrivateBytes(key)), People: []share.Person{}}
 	}
 	o = sh.state.Owner
+	created := o.User == ""
 	o.Name, o.Token, o.User, o.Gist = name, token, user, gist
 	sh.login, sh.dirty, sh.publishErr = nil, true, ""
 	err = sh.saveLocked()
+	people := len(o.People)
 	sh.mu.Unlock()
 	if err != nil {
 		fail(err)
 		return
 	}
+	diag.Info(areaShare, "connexion GitHub réussie : compte @%s, gist %s, %s (%d personne(s))", user, shortID(gist),
+		pick(created, "nouveau partage", "partage existant repris"), people)
 	sh.poke()
 	s.notify()
 }
@@ -530,6 +568,7 @@ func (s *Service) shareReadRequest(text string) (any, error) {
 	}
 	req, err := share.ParseRequest(text)
 	if err != nil {
+		diag.Warn(areaShare, "demande d'accès illisible : %v", err)
 		return map[string]any{"ok": false, "error": "Ce n'est pas une demande d'accès valide."}, nil
 	}
 	sh.mu.Lock()
@@ -545,8 +584,10 @@ func (s *Service) shareReadRequest(text string) (any, error) {
 		return nil, err
 	}
 	if req.Owner != share.KeyID(pub) {
+		diag.Warn(areaShare, "demande de « %s » %s destinée à une autre invitation", req.Name, keyRef(req.Device))
 		return map[string]any{"ok": false, "error": "Cette demande répond à l'invitation d'une autre personne."}, nil
 	}
+	diag.Info(areaShare, "demande lue : « %s » %s, %s", req.Name, keyRef(req.Device), pick(existing != nil, "personne déjà autorisée", "nouvelle personne"))
 	return map[string]any{
 		"ok": true, "name": req.Name, "device": req.Device,
 		"code":    share.VerificationCode(pub, req.Device),
@@ -580,6 +621,12 @@ func (s *Service) shareGrant(device, name string, rights map[string]string) (any
 	if len(granted) == 0 {
 		return nil, errors.New("Choisissez au moins un PC à partager")
 	}
+	summary := make([]string, 0, len(granted))
+	for id, r := range granted {
+		summary = append(summary, fmt.Sprintf("[%s] %s", shortID(id), r))
+	}
+	slices.Sort(summary)
+	diag.Info(areaShare, "autorisation de « %s » %s : %d PC retenus sur %d demandés (%s)", name, keyRef(device), len(granted), len(rights), strings.Join(summary, ", "))
 	sh.mu.Lock()
 	o := sh.state.Owner
 	if o == nil {
@@ -637,6 +684,7 @@ func (s *Service) shareStop() error {
 			return fmt.Errorf("Impossible de supprimer l'espace de partage : %w", err)
 		}
 	}
+	diag.Info(areaShare, "partage arrêté : Gist supprimé, clé oubliée (%d personne(s))", len(o.People))
 	sh.mu.Lock()
 	sh.state.Owner = nil
 	sh.publishErr = ""
@@ -659,6 +707,7 @@ func (s *Service) shareReadInvite(text string) (any, error) {
 	}
 	inv, err := share.ParseInvite(text)
 	if err != nil {
+		diag.Warn(areaShare, "invitation illisible : %v", err)
 		return map[string]any{"ok": false, "error": "Ce n'est pas une invitation valide."}, nil
 	}
 	sh.mu.Lock()
@@ -712,6 +761,7 @@ func (s *Service) shareRequest(text, myName string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	diag.Info(areaShare, "demande d'accès enregistrée auprès de « %s » %s (@%s)", inv.Name, keyRef(inv.Owner), inv.User)
 	sh.poke()
 	s.notify()
 	return s.shareRequestView(inv.Owner)
@@ -816,10 +866,12 @@ func (s *Service) shareImport(e share.ExportedOwner) bool {
 	}
 	sh.state.Owner = owner
 	sh.dirty = true
-	if sh.saveLocked() != nil {
+	if err := sh.saveLocked(); err != nil {
+		diag.Error(areaShare, "clé de partage de la sauvegarde non enregistrée : %v", err)
 		sh.state.Owner = nil
 		return false
 	}
+	diag.Info(areaShare, "clé de partage reprise de la sauvegarde : « %s », %d personne(s), reconnexion GitHub à faire", owner.Name, len(owner.People))
 	return true
 }
 

@@ -5,6 +5,10 @@ compilé par la CI. **Ajoutez une section (numéro supérieur) à chaque modific
 numéro que les agents installés comparent au leur pour proposer la mise à jour. Le texte de la section est
 affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
+## 1.5.3
+
+- **Rapport de diagnostic** : `wol-agent diagnostic` crée un rapport chiffré par un mot de passe (état du service, configuration sans la clé, journal des démarrages et arrêts, journal technique), à transmettre pour analyser un problème.
+
 ## 1.5.2
 
 - Mises à jour recherchées à la nouvelle adresse du projet, [slaynAW/Patronus](https://github.com/slaynAW/Patronus).

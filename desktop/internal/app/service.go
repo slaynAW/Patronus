@@ -10,12 +10,15 @@ import (
 	"fmt"
 	"net/netip"
 	"path/filepath"
+	"runtime/debug"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/slaynaw/wakeonlan/desktop/internal/agentclient"
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
+	"github.com/slaynaw/wakeonlan/desktop/internal/diag"
 	"github.com/slaynaw/wakeonlan/desktop/internal/history"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 	"github.com/slaynaw/wakeonlan/desktop/internal/netstate"
@@ -55,7 +58,9 @@ type Platform interface {
 
 // Options configure le service.
 type Options struct {
-	Version  string
+	Version string
+	// System décrit le système (version de Windows), pour le rapport de diagnostic.
+	System   string
 	Store    *config.Store
 	Platform Platform
 	// Prober et NetState sont remplaçables pour les tests.
@@ -78,6 +83,7 @@ type Options struct {
 // Service est le cœur de l'application.
 type Service struct {
 	version  string
+	system   string
 	store    *config.Store
 	platform Platform
 	netState func() (netstate.State, error)
@@ -109,6 +115,8 @@ type Service struct {
 	agents  *agentDownloads
 	// Partage des PC (verrou propre, jamais pris en tenant mu) ; nil si désactivé.
 	sharing *sharer
+	// Erreurs de l'interface notées dans le journal (nombre limité).
+	clientLog clientLogLimit
 }
 
 type importState struct {
@@ -124,6 +132,7 @@ type importState struct {
 func New(opts Options) *Service {
 	s := &Service{
 		version:      opts.Version,
+		system:       opts.System,
 		store:        opts.Store,
 		platform:     opts.Platform,
 		netState:     opts.NetState,
@@ -144,7 +153,10 @@ func New(opts Options) *Service {
 	s.agents = newAgentDownloads(opts.Agent)
 	s.sharing = newSharer(opts.Share)
 	if s.histStore != nil {
-		s.hist = s.histStore.Load()
+		var err error
+		if s.hist, err = s.histStore.Load(); err != nil {
+			diag.Error(areaData, "historique : %v", err)
+		}
 	}
 	if s.netState == nil {
 		s.netState = netstate.Current
@@ -159,8 +171,10 @@ func New(opts Options) *Service {
 	s.monitor = status.NewMonitor(prober, func() int64 { return s.now().UnixMilli() }, s.onStatusChange)
 	cfg, err := s.store.Load()
 	if err != nil {
+		diag.Error(areaData, "configuration : %v", err)
 		s.startupMessage = "Erreur : " + err.Error()
 	}
+	diag.Info(areaApp, "%d PC configurés, partage %s", len(cfg.Devices), s.sharing.summary())
 	s.cfg = cfg
 	s.network, _ = s.netState()
 	return s
@@ -202,6 +216,7 @@ func (s *Service) Run(ctx context.Context) {
 			s.network = state
 			s.mu.Unlock()
 			if changed {
+				diag.Info(areaNetwork, "réseau local : %s", describeNetwork(state))
 				s.updateMonitor()
 				s.monitor.Refresh("")
 				s.notify()
@@ -340,41 +355,71 @@ func (s *Service) State() UIState {
 
 // --- Appels depuis l'interface ---
 
-// Call exécute une méthode de l'interface ; params est un objet JSON.
-func (s *Service) Call(method string, params json.RawMessage) (any, error) {
+// callParams regroupe les paramètres des appels de l'interface.
+type callParams struct {
+	ID         string            `json:"id"`
+	Offset     int               `json:"offset"`
+	Action     string            `json:"action"`
+	Force      bool              `json:"force"`
+	Form       model.DeviceForm  `json:"form"`
+	Host       string            `json:"host"`
+	Port       string            `json:"port"`
+	Key        string            `json:"key"`
+	Text       string            `json:"text"`
+	Password   string            `json:"password"`
+	Replace    bool              `json:"replace"`
+	URL        string            `json:"url"`
+	Visible    bool              `json:"visible"`
+	Refresh    bool              `json:"refresh"`
+	Poll       *int              `json:"pollIntervalSeconds"`
+	WakeTO     *int              `json:"wakeTimeoutSeconds"`
+	Confirm    *bool             `json:"confirmPowerActions"`
+	WithSecret bool              `json:"withSecrets"`
+	Enabled    bool              `json:"enabled"`
+	Name       string            `json:"name"`
+	Device     string            `json:"device"`
+	Owner      string            `json:"owner"`
+	Rights     map[string]string `json:"rights"`
+	Platform   string            `json:"platform"`
+	Install    bool              `json:"install"`
+	Level      string            `json:"level"`
+}
+
+// Call exécute une méthode de l'interface ; params est un objet JSON. Chaque action et chaque erreur
+// sont notées dans le journal de diagnostic (sans aucun secret). Une erreur imprévue (panique) est
+// rattrapée : l'interface reçoit un message et l'application reste ouverte.
+func (s *Service) Call(method string, params json.RawMessage) (result any, err error) {
 	if len(params) == 0 || string(params) == "null" {
 		params = json.RawMessage("{}")
 	}
-	var p struct {
-		ID         string            `json:"id"`
-		Offset     int               `json:"offset"`
-		Action     string            `json:"action"`
-		Force      bool              `json:"force"`
-		Form       model.DeviceForm  `json:"form"`
-		Host       string            `json:"host"`
-		Port       string            `json:"port"`
-		Key        string            `json:"key"`
-		Text       string            `json:"text"`
-		Password   string            `json:"password"`
-		Replace    bool              `json:"replace"`
-		URL        string            `json:"url"`
-		Visible    bool              `json:"visible"`
-		Refresh    bool              `json:"refresh"`
-		Poll       *int              `json:"pollIntervalSeconds"`
-		WakeTO     *int              `json:"wakeTimeoutSeconds"`
-		Confirm    *bool             `json:"confirmPowerActions"`
-		WithSecret bool              `json:"withSecrets"`
-		Enabled    bool              `json:"enabled"`
-		Name       string            `json:"name"`
-		Device     string            `json:"device"`
-		Owner      string            `json:"owner"`
-		Rights     map[string]string `json:"rights"`
-		Platform   string            `json:"platform"`
-		Install    bool              `json:"install"`
-	}
+	var p callParams
 	if err := json.Unmarshal(params, &p); err != nil {
+		diag.Warn(areaUI, "« %s » : paramètres invalides : %v", method, err)
 		return nil, fmt.Errorf("paramètres invalides : %w", err)
 	}
+	started := time.Now()
+	defer func() {
+		if r := recover(); r != nil {
+			diag.Error(areaUI, "« %s »%s : erreur imprévue : %v\n%s", method, p.brief(method), r, debug.Stack())
+			if !s.locksFree() {
+				// Un verrou est resté pris : l'application se figerait. Mieux vaut s'arrêter (le
+				// plantage est noté et signalé au prochain lancement).
+				panic(r)
+			}
+			result, err = nil, fmt.Errorf("Erreur imprévue (%v) : détails dans Réglages → Diagnostic", r)
+			return
+		}
+		switch {
+		case err != nil && !errors.Is(err, ErrCancelled):
+			diag.Warn(areaUI, "« %s »%s : %v", method, s.callLabel(method, p), err)
+		case err == nil && !quietCalls[method]:
+			diag.Info(areaUI, "« %s »%s (%d ms)", method, s.callLabel(method, p), time.Since(started).Milliseconds())
+		}
+	}()
+	return s.dispatch(method, p)
+}
+
+func (s *Service) dispatch(method string, p callParams) (any, error) {
 	switch method {
 	case "getState":
 		return s.State(), nil
@@ -515,6 +560,11 @@ func (s *Service) Call(method string, params json.RawMessage) (any, error) {
 	case "shareSync":
 		s.shareSyncNow()
 		return nil, nil
+	case "exportDiagnostic":
+		return s.exportDiagnostic(p.Password)
+	case "logClient":
+		s.logClient(p.Level, p.Text)
+		return nil, nil
 	case "openUrl":
 		if p.URL == GitHubDeviceURL {
 			return nil, s.platform.OpenURL(p.URL)
@@ -602,11 +652,18 @@ func (s *Service) saveDevice(id string, form model.DeviceForm) (any, error) {
 	}
 	d, errs := form.Build(id)
 	if errs != nil {
+		fields := make([]string, 0, len(errs))
+		for f := range errs {
+			fields = append(fields, string(f))
+		}
+		slices.Sort(fields)
+		diag.Info(areaActions, "PC non enregistré, champs refusés : %s", strings.Join(fields, ", "))
 		return map[string]any{"ok": false, "errors": errs}, nil
 	}
 	if err := s.mutate(func(c model.AppConfig) model.AppConfig { return c.Upsert(d) }); err != nil {
 		return nil, err
 	}
+	diag.Info(areaActions, "PC « %s » [%s] %s", d.Name, shortID(d.ID), pick(id == "", "ajouté", "modifié"))
 	return map[string]any{"ok": true, "id": d.ID}, nil
 }
 
@@ -641,8 +698,11 @@ func (s *Service) wake(id string) (any, error) {
 		if len(result.Errors) > 0 {
 			msg = result.Errors[0]
 		}
+		diag.Warn(areaActions, "réveil de « %s » : échec (%s) ; erreurs : %s", d.Name, msg, strings.Join(result.Errors, " ; "))
 		return map[string]any{"ok": false, "error": msg}, nil
 	}
+	diag.Info(areaActions, "réveil de « %s » : %d paquet(s) vers %s, port %d%s", d.Name, result.PacketsSent,
+		strings.Join(result.Destinations, ", "), d.WolPort, joinErrors(result.Errors))
 	// Demande enregistrée avant le changement d'état : l'allumage constaté ne peut pas la précéder.
 	s.record(history.Event{Device: id, Kind: history.WakeSent, Source: history.App})
 	s.monitor.OnWakeSent(id)
@@ -658,11 +718,14 @@ func (s *Service) power(id string, action agentclient.Action, force bool) (any, 
 		return nil, errors.New("action inconnue")
 	}
 	if d.Agent == nil || !d.Agent.HasKey() || !d.HasHost() {
+		diag.Warn(areaActions, "%s de « %s » : agent non configuré", action, d.Name)
 		return map[string]any{"ok": false, "code": agentclient.NoKey}, nil
 	}
 	if _, err := s.agent.Power(context.Background(), d.Host, *d.Agent, action, 0, force); err != nil {
+		diag.Warn(areaActions, "%s de « %s » (%s:%d) : %s (%v)", action, d.Name, d.Host, d.Agent.Port, agentclient.CodeOf(err), err)
 		return map[string]any{"ok": false, "code": agentclient.CodeOf(err)}, nil
 	}
+	diag.Info(areaActions, "%s de « %s » accepté par l'agent%s", action, d.Name, pick(force, " (forcé)", ""))
 	s.record(history.Event{Device: id, Kind: requestKind(action), Source: history.App})
 	s.monitor.OnPowerActionSent(id, action)
 	return map[string]any{"ok": true}, nil
@@ -677,8 +740,10 @@ func (s *Service) testAgent(host, portText, key string) any {
 	}
 	st, err := s.agent.Status(context.Background(), host, model.AgentSettings{Port: port, Key: strings.TrimSpace(key)})
 	if err != nil {
+		diag.Warn(areaActions, "test de l'agent %s:%d : %s (%v)", host, port, agentclient.CodeOf(err), err)
 		return map[string]any{"ok": false, "code": agentclient.CodeOf(err)}
 	}
+	diag.Info(areaActions, "test de l'agent %s:%d : réussi (agent %s, %s/%s, %s)", host, port, st.Version, st.OS, st.Arch, st.Hostname)
 	return map[string]any{"ok": true, "status": st}
 }
 
@@ -720,6 +785,8 @@ func (s *Service) exportConfig(withSecrets bool, password string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	diag.Info(areaBackup, "sauvegarde %s : %d PC, clé de partage %s", pick(password != "", "complète (chiffrée)", "sans secret"),
+		len(cfg.Devices), pick(opts.Extra["sharing"] != nil, "incluse", "non incluse"))
 	name := "patronus-" + now.Format("2006-01-02") + ".json"
 	path, err := s.platform.SaveFile(name, text)
 	if errors.Is(err, ErrCancelled) {
@@ -766,6 +833,7 @@ func (s *Service) importPassword(password string) (any, error) {
 	cfg, extra, err := config.ImportWithExtra(pending.text, password)
 	var cfgErr *config.Error
 	if errors.As(err, &cfgErr) && cfgErr.Reason == config.WrongPassword {
+		diag.Info(areaBackup, "import : mot de passe incorrect")
 		return map[string]any{"step": "password", "wrongPassword": true}, nil
 	}
 	if err != nil {
@@ -829,11 +897,17 @@ func (s *Service) importConfirm(replace bool) (any, error) {
 		return nil, err
 	}
 	result := map[string]any{"ok": true, "count": len(imported.Devices)}
-	if pending.sharing != nil && s.shareImport(*pending.sharing) {
-		result["sharing"] = true
+	if pending.sharing != nil {
+		if s.shareImport(*pending.sharing) {
+			result["sharing"] = true
+		} else {
+			diag.Info(areaBackup, "import : clé de partage de la sauvegarde non reprise (partage déjà actif ou indisponible)")
+		}
 	}
 	if pending.history != nil {
 		s.mergeHistory(*pending.history)
 	}
+	diag.Info(areaBackup, "import %s : %d PC, clé de partage %s, historique %s", pick(replace, "en remplacement", "en ajout"),
+		len(imported.Devices), pick(result["sharing"] == true, "reprise", "non"), pick(pending.history != nil, "ajouté", "non"))
 	return result, nil
 }

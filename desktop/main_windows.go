@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	webview2 "github.com/jchv/go-webview2"
@@ -19,6 +20,7 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/update"
 	"github.com/slaynaw/wakeonlan/desktop/internal/app"
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
+	"github.com/slaynaw/wakeonlan/desktop/internal/diag"
 	"github.com/slaynaw/wakeonlan/desktop/internal/history"
 )
 
@@ -54,7 +56,7 @@ func updateOptions(exe string) *app.UpdateOptions {
 	}
 	src, err := update.Official()
 	if err != nil {
-		log.Printf("mises à jour désactivées : %v", err)
+		diag.Warn("mise-à-jour", "mises à jour désactivées : %v", err)
 		return nil
 	}
 	src.UserAgent = "Patronus-Windows"
@@ -70,7 +72,7 @@ func agentOptions() *app.AgentOptions {
 	}
 	src, err := update.Official()
 	if err != nil {
-		log.Printf("téléchargement de l'agent désactivé : %v", err)
+		diag.Warn("agent", "téléchargement de l'agent désactivé : %v", err)
 		return nil
 	}
 	local, err := os.UserCacheDir()
@@ -141,6 +143,7 @@ func main() {
 		},
 	})
 	if w == nil {
+		diag.Error("appli", "WebView2 indisponible : affichage impossible")
 		askInstallWebView2()
 		return
 	}
@@ -155,7 +158,7 @@ func main() {
 		fatal("Impossible de créer le dossier de l'historique :\n" + err.Error())
 	}
 	svc := app.New(app.Options{
-		Version: version, Store: store, Platform: platform, History: histStore,
+		Version: version, System: systemInfo(), Store: store, Platform: platform, History: histStore,
 		Updates: updateOptions(exe), Share: shareOptions(dataDir), Agent: agentOptions(),
 	})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -243,18 +246,36 @@ func initialWindowSize() (int, int) {
 	return width, height
 }
 
+// setupLog ouvre le journal de diagnostic chiffré (dossier « diagnostics » des données, voir
+// docs/DIAGNOSTIC.md), y verse les messages du paquet log de Go, le rapport d'un éventuel arrêt
+// brutal du lancement précédent et l'ancien journal en clair (versions 1.5.3 et antérieures).
 func setupLog(dir string) {
-	path := filepath.Join(dir, "wakeonlan.log")
-	if info, err := os.Stat(path); err == nil && info.Size() > 1<<20 {
-		_ = os.Remove(path)
-	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	log.SetFlags(0)
+	j, err := diag.Open(filepath.Join(dir, "diagnostics"))
 	if err != nil {
 		log.SetOutput(io.Discard)
 		return
 	}
-	log.SetOutput(f)
-	log.Printf("Patronus %s démarré", version)
+	diag.SetDefault(j)
+	log.SetOutput(diag.Writer(diag.LevelInfo, "go"))
+	diag.Info("appli", "démarrage : Patronus %s (build %s), %s, %s/%s", version, buildCode, systemInfo(), runtime.GOOS, runtime.GOARCH)
+	if err := j.CaptureCrashes(); err != nil {
+		diag.Warn("appli", "arrêts brutaux non capturés : %v", err)
+	}
+	old := filepath.Join(dir, "wakeonlan.log")
+	if data, err := os.ReadFile(old); err == nil {
+		if len(data) > 12_000 {
+			data = data[len(data)-12_000:]
+		}
+		diag.Info("appli", "ancien journal en clair repris puis effacé (fin) :\n%s", strings.ToValidUTF8(string(data), ""))
+		_ = os.Remove(old)
+	}
+}
+
+// systemInfo décrit la version de Windows (rapport de diagnostic).
+func systemInfo() string {
+	v := windows.RtlGetVersion()
+	return fmt.Sprintf("Windows %d.%d (build %d)", v.MajorVersion, v.MinorVersion, v.BuildNumber)
 }
 
 func askInstallWebView2() {
@@ -270,7 +291,7 @@ func askInstallWebView2() {
 }
 
 func fatal(message string) {
-	log.Print(message)
+	diag.Error("appli", "arrêt : %s", message)
 	if selfTestPath != "" {
 		selfTestDone(false, message)
 	}
@@ -282,7 +303,7 @@ func fatal(message string) {
 func selfTestDone(ok bool, detail any) {
 	data, _ := json.Marshal(map[string]any{"ok": ok, "version": version, "detail": detail})
 	_ = os.WriteFile(selfTestPath, data, 0o600)
-	log.Printf("autotest : %s", data)
+	diag.Info("appli", "autotest : %s", data)
 	if ok {
 		os.Exit(0)
 	}

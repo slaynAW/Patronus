@@ -54,6 +54,8 @@ import io.github.slaynaw.wakeonlan.appContainer
 import io.github.slaynaw.wakeonlan.core.agent.PowerAction
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.diagnostics.CrashReporter
+import io.github.slaynaw.wakeonlan.diagnostics.DataKind
+import io.github.slaynaw.wakeonlan.diagnostics.DataNotices
 import io.github.slaynaw.wakeonlan.network.LocalNetworkAccess
 import io.github.slaynaw.wakeonlan.ui.common.DeviceDialogs
 import io.github.slaynaw.wakeonlan.ui.common.WolIcons
@@ -90,6 +92,7 @@ fun MainScreen(
     val dialogs = rememberDeviceDialogState()
     var tab by rememberSaveable { mutableStateOf(MainTab.OVERVIEW) }
     var crashReport by remember { mutableStateOf(CrashReporter.pending(context)) }
+    val dataNotices by DataNotices.notices.collectAsStateWithLifecycle()
     var permissionDenied by rememberSaveable { mutableStateOf(false) }
     var permissionAsked by rememberSaveable { mutableStateOf(false) }
     val update by container.updater.state.collectAsStateWithLifecycle()
@@ -244,6 +247,32 @@ fun MainScreen(
                     crashReport = null
                 }) { Text(stringResource(R.string.crash_ignore)) }
             },
+        )
+    }
+
+    // Données illisibles au démarrage : mises de côté (jamais écrasées) et signalées.
+    if (crashReport == null && dataNotices.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = DataNotices::dismiss,
+            icon = { Icon(WolIcons.Warning, contentDescription = null, tint = WolPalette.DangerText) },
+            title = { Text(stringResource(R.string.data_notice_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    dataNotices.forEach { kind ->
+                        Text(
+                            stringResource(
+                                when (kind) {
+                                    DataKind.CONFIG -> R.string.data_notice_config
+                                    DataKind.SHARE -> R.string.data_notice_share
+                                    DataKind.HISTORY -> R.string.data_notice_history
+                                },
+                            ),
+                        )
+                    }
+                    Text(stringResource(R.string.data_notice_help), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
+                }
+            },
+            confirmButton = { TextButton(onClick = DataNotices::dismiss) { Text(stringResource(R.string.ok)) } },
         )
     }
 }

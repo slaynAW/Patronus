@@ -43,6 +43,8 @@ Commandes :
   pair         Réaffiche le QR code / lien d'appairage.  Options : --ip, --png fichier.png, --invert
   rotate-key   Génère une nouvelle clé (l'ancienne ne fonctionne plus : ré-appairez le téléphone).
   status       Affiche l'état du service et la configuration.
+  diagnostic   Crée un rapport de diagnostic chiffré par un mot de passe (état, journal), à transmettre
+               pour analyser un problème. Options : --out fichier.diag
   update       Recherche une nouvelle version de l'agent et l'installe (Windows ; clé conservée).
                Options : --check (vérifier seulement), --yes (sans confirmation),
                --auto on|off (recherche quotidienne, installée après accord de l'utilisateur connecté)
@@ -77,6 +79,8 @@ func main() {
 		err = cmdRotateKey(args[1:])
 	case "status":
 		err = cmdStatus(args[1:])
+	case "diagnostic":
+		err = cmdDiagnostic(args[1:])
 	case "uninstall":
 		err = cmdUninstall(args[1:])
 	case "update":

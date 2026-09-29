@@ -205,6 +205,7 @@ Détails : **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** et **[docs/PROTOCOLE
 | Force brute sur la clé | Blocage de 5 min après 5 échecs ; clé de 256 bits (irréaliste à deviner). |
 | Accès depuis Internet | L'agent n'accepte que les adresses privées ; pare-feu Windows limité au sous-réseau local. |
 | Fuite d'une sauvegarde | Export complet chiffré par mot de passe (PBKDF2 600 000 itérations + AES-256-GCM) ; export « sans clés » sinon. |
+| Fuite d'un rapport de diagnostic | Journal chiffré sur l'appareil ; rapport exporté seulement à la demande, chiffré par mot de passe, sans aucune clé ni jeton ([docs/DIAGNOSTIC.md](docs/DIAGNOSTIC.md)). |
 | Partage des PC | Accès chiffré pour la clé d'un seul appareil (ECDH P-256 + AES-256-GCM) et signé par la personne qui partage (ECDSA P-256) ; code de vérification ; aucun accès aux dépôts GitHub ([docs/PARTAGE.md](docs/PARTAGE.md)). |
 | APK modifié | Signature de l'APK avec une clé privée stockée uniquement dans les secrets GitHub ; somme de contrôle de Gradle vérifiée. |
 
@@ -258,3 +259,5 @@ tuile de réglages rapides, raccourcis, notifications, verrouillage biométrique
 | Mise à jour de l'APK refusée | Signature différente : voir [docs/SIGNATURE.md](docs/SIGNATURE.md). |
 | Windows : « composant WebView2 introuvable » | Rare (Windows 10 non à jour) : acceptez l'ouverture de la page Microsoft et installez le composant. |
 | Windows : un PC reste « État inconnu · pas de réseau local » | Ce PC n'a ni carte Ethernet ni Wi-Fi connectée (les cartes de machines virtuelles sont ignorées). |
+| « Données illisibles » au démarrage, partage ou liste des PC vides | Le fichier a été mis de côté (jamais effacé) : importez votre dernière sauvegarde complète (*Réglages* → *Importer*), puis reconnectez-vous à GitHub avec le même compte pour le partage. |
+| Plantage ou comportement anormal | *Réglages* → *Diagnostic* → *Exporter le rapport de diagnostic* (et `wol-agent diagnostic` sur le PC concerné) : transmettez le fichier et, séparément, son mot de passe. Voir [docs/DIAGNOSTIC.md](docs/DIAGNOSTIC.md). |

@@ -3,6 +3,12 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.5.4
+
+- **Rapport de diagnostic** : *Réglages* → *Diagnostic* → *Exporter le rapport de diagnostic*. Chaque application tient désormais un journal détaillé de ses actions et de ses erreurs, chiffré sur l'appareil ; le rapport exporté est protégé par un mot de passe que vous choisissez, pour l'envoyer en toute sécurité lors d'un problème.
+- **Données protégées** : si la liste des PC, le partage ou l'historique ne peuvent plus être relus (clé de chiffrement perdue, fichier abîmé), le fichier est mis de côté au lieu d'être effacé et l'application vous prévient, avec la marche à suivre pour tout récupérer.
+- Le partage est plus robuste : une erreur imprévue pendant la publication ou la vérification des accès est signalée au lieu de fermer l'application.
+
 ## 1.5.3
 
 - **Agent téléchargeable depuis l'application Windows** : *Réglages* → *Télécharger l'agent*. Installez-le sur cet ordinateur en un clic (invite administrateur), ou enregistrez-le pour un autre PC (x64 ou ARM64). L'application vérifie la signature du projet et l'empreinte du fichier.

@@ -1,7 +1,6 @@
 package io.github.slaynaw.wakeonlan.data
 
 import android.content.Context
-import android.util.Log
 import androidx.datastore.core.CorruptionException
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.DataStoreFactory
@@ -9,6 +8,8 @@ import androidx.datastore.core.Serializer
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import io.github.slaynaw.wakeonlan.core.config.ConfigCodec
 import io.github.slaynaw.wakeonlan.core.share.ShareState
+import io.github.slaynaw.wakeonlan.diagnostics.DataKind
+import io.github.slaynaw.wakeonlan.diagnostics.DataNotices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -26,14 +27,17 @@ import java.security.GeneralSecurityException
  */
 class ShareRepository(context: Context) {
 
+    private val file = File(context.applicationContext.filesDir, "datastore/share.bin")
+
     private val store: DataStore<ShareState> = DataStoreFactory.create(
         serializer = EncryptedShareSerializer(KeystoreCipher(alias = "wakeonlan-share-v1", aad = "wakeonlan/share")),
         corruptionHandler = ReplaceFileCorruptionHandler { e ->
-            Log.e(TAG, "Partage illisible, réinitialisation", e)
+            // Fichier gardé de côté et utilisateur prévenu (une sauvegarde complète contient le partage).
+            DataNotices.unreadable(DataKind.SHARE, file, e)
             ShareState()
         },
         scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
-        produceFile = { File(context.applicationContext.filesDir, "datastore/share.bin") },
+        produceFile = { file },
     )
 
     val data: Flow<ShareState> = store.data
@@ -41,10 +45,6 @@ class ShareRepository(context: Context) {
     suspend fun current(): ShareState = store.data.first()
 
     suspend fun update(transform: (ShareState) -> ShareState): ShareState = store.updateData(transform)
-
-    private companion object {
-        const val TAG = "ShareRepository"
-    }
 }
 
 private class EncryptedShareSerializer(private val cipher: KeystoreCipher) : Serializer<ShareState> {
@@ -61,6 +61,10 @@ private class EncryptedShareSerializer(private val cipher: KeystoreCipher) : Ser
             throw CorruptionException("État du partage invalide", e)
         } catch (e: IllegalArgumentException) {
             throw CorruptionException("État du partage invalide", e)
+        } catch (e: RuntimeException) {
+            // Keystore défaillant (ProviderException…) : sans cela, l'état ne serait jamais chargé et le
+            // partage paraîtrait vide sans explication. Le fichier est mis de côté et l'utilisateur prévenu.
+            throw CorruptionException("Déchiffrement impossible (Keystore)", e)
         }
     }
 

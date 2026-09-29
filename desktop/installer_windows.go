@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"runtime"
 	"syscall"
@@ -15,6 +14,7 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/slaynaw/wakeonlan/desktop/internal/app"
+	"github.com/slaynaw/wakeonlan/desktop/internal/diag"
 )
 
 var (
@@ -61,12 +61,17 @@ func (p *winPlatform) RunInstaller(path, want string) error {
 		f.Close()
 		return err
 	}
+	diag.Info("agent", "installation lancée (invite administrateur acceptée)")
 	go func() {
 		_, _ = windows.WaitForSingleObject(process, windows.INFINITE)
+		var code uint32
+		if windows.GetExitCodeProcess(process, &code) == nil {
+			diag.Info("agent", "installation terminée (code de sortie %d)", code)
+		}
 		_ = windows.CloseHandle(process)
 		f.Close()
 		if err := os.Remove(path); err != nil {
-			log.Printf("agent : fichier d'installation non effacé : %v", err)
+			diag.Warn("agent", "fichier d'installation non effacé : %v", err)
 		}
 	}()
 	return nil

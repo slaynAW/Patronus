@@ -1,6 +1,7 @@
 package io.github.slaynaw.wakeonlan.ui.settings
 
 import android.content.ContentResolver
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,11 +11,15 @@ import io.github.slaynaw.wakeonlan.R
 import io.github.slaynaw.wakeonlan.core.config.ConfigCodec
 import io.github.slaynaw.wakeonlan.core.config.ConfigException
 import io.github.slaynaw.wakeonlan.core.config.ExportCodec
+import io.github.slaynaw.wakeonlan.core.diagnostics.DiagnosticCodec
 import io.github.slaynaw.wakeonlan.core.history.HistoryData
 import io.github.slaynaw.wakeonlan.core.model.AppConfig
 import io.github.slaynaw.wakeonlan.core.model.AppSettings
 import io.github.slaynaw.wakeonlan.core.share.ExportedShareOwner
+import io.github.slaynaw.wakeonlan.diagnostics.DiagnosticLog
+import io.github.slaynaw.wakeonlan.diagnostics.DiagnosticReport
 import io.github.slaynaw.wakeonlan.ui.devices.UiMessage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -92,13 +97,37 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         val text = withContext(Dispatchers.Default) {
             ExportCodec.export(config, password, Instant.now().toString(), "Patronus ${BuildConfig.VERSION_NAME}", extra = extra)
         }
+        val complete = password != null
         password?.fill(' ')
         withContext(Dispatchers.IO) {
             (resolver.openOutputStream(uri, "wt") ?: throw IOException("Fichier inaccessible")).use {
                 it.write(text.toByteArray(Charsets.UTF_8))
             }
         }
+        DiagnosticLog.i("sauvegarde", "export ${if (complete) "complet (chiffré, partage : ${extra.containsKey("sharing")})" else "sans secrets"} : ${config.devices.size} PC")
         _messages.send(UiMessage(R.string.message_export_done, listOf(config.devices.size)))
+    }
+
+    /**
+     * Écrit le rapport de diagnostic chiffré par [password] (format « patronus-diagnostic/1 ») : à
+     * transmettre avec le mot de passe, par un autre canal, pour analyse.
+     */
+    fun exportDiagnostic(context: Context, uri: Uri, password: CharArray) = work {
+        try {
+            DiagnosticLog.i("diagnostic", "export du rapport")
+            val report = DiagnosticReport.build(context, container)
+            val sealed = withContext(Dispatchers.Default) {
+                DiagnosticCodec.seal(report, password, DiagnosticReport.app(), Instant.now().toString())
+            }
+            withContext(Dispatchers.IO) {
+                (context.contentResolver.openOutputStream(uri, "wt") ?: throw IOException("Fichier inaccessible")).use {
+                    it.write(sealed.toByteArray(Charsets.UTF_8))
+                }
+            }
+            _messages.send(UiMessage(R.string.message_diagnostic_done))
+        } finally {
+            password.fill(' ')
+        }
     }
 
     fun startImport(resolver: ContentResolver, uri: Uri) = work {
@@ -109,6 +138,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                 String(bytes, Charsets.UTF_8)
             }
         }
+        DiagnosticLog.i("sauvegarde", "import : fichier de ${text.length} caractères, chiffré : ${runCatching { ExportCodec.isEncrypted(text) }.getOrNull()}")
         _importStep.value = if (ExportCodec.isEncrypted(text)) {
             ImportStep.NeedPassword(text)
         } else {
@@ -128,6 +158,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                 _importStep.value = ImportStep.Confirm(config, sharing, history)
             } catch (e: ConfigException) {
                 if (e.reason != ConfigException.Reason.WRONG_PASSWORD) throw e
+                DiagnosticLog.i("sauvegarde", "import : mot de passe incorrect")
                 _importStep.value = step.copy(wrongPassword = true)
             } finally {
                 password.fill(' ')
@@ -139,6 +170,11 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         val step = _importStep.value as? ImportStep.Confirm ?: return
         _importStep.value = null
         work {
+            DiagnosticLog.i(
+                "sauvegarde",
+                "import confirmé (${if (replace) "remplacement" else "ajout"}) : ${step.config.devices.size} PC, " +
+                    "partage : ${step.sharing?.let { "${it.people.size} personne(s)" } ?: "non"}, historique : ${step.history?.events?.size ?: 0} évènement(s)",
+            )
             if (replace) container.repository.replaceWith(step.config) else container.repository.mergeWith(step.config)
             // Historique de la sauvegarde ajouté à celui du téléphone (les PC absents sont écartés ensuite).
             step.history?.let { imported ->
@@ -168,12 +204,21 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         try {
             block()
         } catch (e: ConfigException) {
+            DiagnosticLog.w("réglages", "opération refusée (${e.reason})", e)
             _importStep.value = null
             _messages.send(UiMessage(R.string.message_error, listOf(e.message.orEmpty())))
         } catch (e: IOException) {
+            DiagnosticLog.w("réglages", "opération impossible", e)
             _messages.send(UiMessage(R.string.message_error, listOf(e.message.orEmpty())))
         } catch (e: IllegalArgumentException) {
+            DiagnosticLog.w("réglages", "opération refusée", e)
             _messages.send(UiMessage(R.string.message_error, listOf(e.message.orEmpty())))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Jamais de fermeture de l'application : l'erreur est notée et affichée.
+            DiagnosticLog.e("réglages", "erreur imprévue", e)
+            _messages.send(UiMessage(R.string.message_error, listOf(e.javaClass.simpleName + (e.message?.let { " : $it" } ?: ""))))
         } finally {
             _busy.value = false
         }

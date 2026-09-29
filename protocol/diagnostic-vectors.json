@@ -1,0 +1,6 @@
+{
+  "description": "Rapport de diagnostic de référence (format patronus-diagnostic/1, docs/DIAGNOSTIC.md), produit indépendamment (Node.js) et ouvert par les tests Go (agent/diagnostic) et Kotlin (core).",
+  "password": "Mot de passe très sûr ✓",
+  "report": "=== Patronus — rapport de diagnostic ===\nApplication : Patronus Android 9.9.9\n\n2026-09-29T17:00:00.000Z E partage : échec de la publication\n  à io.github.slaynaw.Exemple\n",
+  "file": "{\n  \"format\": \"patronus-diagnostic\",\n  \"version\": 1,\n  \"app\": \"Patronus Android 9.9.9\",\n  \"createdAt\": \"2026-09-29T17:00:00Z\",\n  \"encryption\": {\n    \"kdf\": \"PBKDF2WithHmacSHA256\",\n    \"iterations\": 100000,\n    \"salt\": \"AAECAwQFBgcICQoLDA0ODw==\",\n    \"cipher\": \"AES-256-GCM\",\n    \"iv\": \"oKGio6Slpqeoqaqr\"\n  },\n  \"data\": \"648FU0r6C0zPPe/4YAd+iM5sYqETZlxuLus5gyxvJav4oo9AEP9Xogwn3KyhhLOj+ZudetzHT00aCkGns3QUCV6oOZ0uwVgZSeJsRqoyOZ7liUUaJ8CoMGxtiLm+5qlLSeV/pxJ6WePBylws3AnkROI/VVRYkp82iuF03eiF6364H9VPz6+Zah5jMM8mwBRRHRVe+T5PqLH494eRxDDK6BB9MKUfNwUKJrnMAxXhPeTkwEgkXKyb/OSLptYcAg==\"\n}"
+}
