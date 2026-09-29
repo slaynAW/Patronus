@@ -31,6 +31,7 @@ type Server struct {
 	listener net.Listener
 	mu       sync.Mutex
 	history  *protocol.History
+	temps    *protocol.Temperatures
 	commands []string
 	requests []protocol.RequestBody
 	wg       sync.WaitGroup
@@ -55,6 +56,13 @@ func (s *Server) Port() int { return s.listener.Addr().(*net.TCPAddr).Port }
 func (s *Server) SetHistory(h *protocol.History) {
 	s.mu.Lock()
 	s.history = h
+	s.mu.Unlock()
+}
+
+// SetTemperatures définit les températures jointes à « status » (nil : agent antérieur à 1.5.0).
+func (s *Server) SetTemperatures(t *protocol.Temperatures) {
+	s.mu.Lock()
+	s.temps = t
 	s.mu.Unlock()
 }
 
@@ -134,6 +142,11 @@ func (s *Server) handle(conn net.Conn) {
 
 	resp := protocol.ResponseBody{OK: true, Code: "ok", Message: "OK", Hostname: "PC-TEST", OS: "windows", Arch: "amd64",
 		Version: "1.0.0", Uptime: 3600}
+	if body.Cmd == protocol.CmdStatus {
+		s.mu.Lock()
+		resp.Temperatures = s.temps
+		s.mu.Unlock()
+	}
 	if body.Cmd == protocol.CmdHistory || body.Cmd == protocol.CmdWakes {
 		s.mu.Lock()
 		if s.history != nil && body.Cmd == protocol.CmdWakes {

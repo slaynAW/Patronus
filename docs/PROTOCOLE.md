@@ -65,6 +65,7 @@ et comparées en temps constant.
 | `message` | texte lisible |
 | `hostname`, `os`, `arch`, `version` | informations sur le PC et l'agent (`os` = `windows`, `linux`, `darwin`) |
 | `uptime` | secondes depuis le démarrage du système |
+| `temperatures` | réponse à `status`, agent 1.5.0 ou plus, absent si aucun capteur n'est lisible : `cpu` et `gpu` en °C (arrondis au dixième, absents si illisibles), `gpuName` (nom de la carte), `cpuHint` = `lhm` quand la température du processeur manque parce que LibreHardwareMonitor ne tourne pas (Windows) |
 | `history` | réponse à `history` uniquement (voir ci-dessous) |
 
 ### Journal du PC (`history`)

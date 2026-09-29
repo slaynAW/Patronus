@@ -48,12 +48,15 @@ import io.github.slaynaw.wakeonlan.ui.common.WolButton
 import io.github.slaynaw.wakeonlan.ui.common.WolCard
 import io.github.slaynaw.wakeonlan.ui.common.WolIcons
 import io.github.slaynaw.wakeonlan.ui.common.formatLongDuration
+import io.github.slaynaw.wakeonlan.ui.common.hottest
 import io.github.slaynaw.wakeonlan.ui.common.icon
 import io.github.slaynaw.wakeonlan.ui.common.label
 import io.github.slaynaw.wakeonlan.ui.common.rememberNow
 import io.github.slaynaw.wakeonlan.ui.common.statusText
 import io.github.slaynaw.wakeonlan.ui.common.statusTextColor
+import io.github.slaynaw.wakeonlan.ui.common.summary
 import io.github.slaynaw.wakeonlan.ui.common.systemLabel
+import io.github.slaynaw.wakeonlan.ui.common.temperatureColor
 import io.github.slaynaw.wakeonlan.ui.overview.EmptyState
 import io.github.slaynaw.wakeonlan.ui.overview.NetworkStatus
 import io.github.slaynaw.wakeonlan.ui.overview.ScreenHeader
@@ -199,6 +202,14 @@ private fun DeviceCard(
                     color = WolPalette.Text2,
                     modifier = Modifier.padding(top = 2.dp),
                 )
+                agent.temperatures?.takeIf { it.cpu != null || it.gpu != null }?.let { temps ->
+                    val color = temperatureColor(temps.hottest(), WolPalette.Text2)
+                    Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(WolIcons.Thermometer, contentDescription = null, tint = color, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text(temps.summary(), style = MaterialTheme.typography.bodySmall, color = color)
+                    }
+                }
             }
             val agentError = status.agentError
             if (device.agent != null && agentError != null && status.state == PowerState.ONLINE) {

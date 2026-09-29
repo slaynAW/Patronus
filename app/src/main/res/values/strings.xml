@@ -72,6 +72,8 @@
     <string name="duration_days_hours">%1$d j %2$d h</string>
 
     <string name="agent_info">%1$s · %2$s · allumé depuis %3$s</string>
+    <string name="temperature_cpu_short">CPU %1$s</string>
+    <string name="temperature_gpu_short">GPU %1$s</string>
     <string name="agent_authenticated">Authentifié · %1$s</string>
     <string name="agent_not_configured">Non installé</string>
     <string name="agent_configured">Configuré</string>
@@ -125,6 +127,9 @@
     <string name="detail_hostname">Nom du PC</string>
     <string name="detail_system">Système</string>
     <string name="detail_uptime">Allumé depuis</string>
+    <string name="detail_temp_cpu">Température CPU</string>
+    <string name="detail_temp_gpu">Température GPU</string>
+    <string name="temperature_cpu_lhm">LibreHardwareMonitor requis</string>
     <string name="latency_title">Latence</string>
     <string name="latency_live">En direct</string>
     <string name="latency_via_agent">via l’agent</string>

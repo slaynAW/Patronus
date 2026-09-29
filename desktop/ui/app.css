@@ -239,6 +239,9 @@ svg.icon.small { width: 16px; height: 16px; }
 .cell .t b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cell .t small { display: block; color: var(--text-3); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cell.txt { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cell .temps { display: block; color: var(--text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+.temp-warm, .cell .temps.temp-warm { color: var(--tr); font-weight: 600; }
+.temp-hot, .cell .temps.temp-hot { color: var(--danger-text); font-weight: 600; }
 .cell.actions { justify-content: flex-end; gap: 6px; }
 .state-text { color: var(--state); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cell.state-text span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/internal/netinfo"
 	"github.com/slaynaw/wakeonlan/agent/internal/pairing"
 	"github.com/slaynaw/wakeonlan/agent/internal/power"
+	"github.com/slaynaw/wakeonlan/agent/internal/sensors"
 	"github.com/slaynaw/wakeonlan/agent/internal/server"
 	"github.com/slaynaw/wakeonlan/agent/internal/service"
 	"github.com/slaynaw/wakeonlan/agent/internal/sysinfo"
@@ -122,6 +124,7 @@ func cmdRun(args []string) error {
 		if err != nil {
 			return err
 		}
+		srv.SetTemperatures(sensors.NewCache(sensors.Read).Get)
 		journal := startHistory(*cfgPath, logger)
 		if journal != nil {
 			srv.SetHistory(journal)
@@ -291,6 +294,9 @@ func cmdStatus(args []string) error {
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
 		fmt.Println("                (", err, ")")
+	}
+	fmt.Printf("Températures  : %s\n", describeTemperatures(sensors.Read()))
+	if err != nil {
 		return nil
 	}
 	fmt.Printf("Nom           : %s\nPort          : %d\nCommandes     : %v\nRéseaux       : %v\n", cfg.Name, cfg.Port, cfg.Commands, cfg.Allow)
@@ -332,6 +338,26 @@ func describeEvent(e protocol.HistoryEvent) string {
 		return "démarrage demandé par " + eventClient(e)
 	}
 	return e.K
+}
+
+func describeTemperatures(t protocol.Temperatures) string {
+	var parts []string
+	if t.CPU != nil {
+		parts = append(parts, fmt.Sprintf("processeur %.0f °C", *t.CPU))
+	} else if t.CPUHint == protocol.CPUHintLHM {
+		parts = append(parts, "processeur : lancez LibreHardwareMonitor (en administrateur)")
+	}
+	if t.GPU != nil {
+		gpu := fmt.Sprintf("carte graphique %.0f °C", *t.GPU)
+		if t.GPUName != "" {
+			gpu += " (" + t.GPUName + ")"
+		}
+		parts = append(parts, gpu)
+	}
+	if len(parts) == 0 {
+		return "non disponibles sur ce PC"
+	}
+	return strings.Join(parts, " · ")
 }
 
 func eventClient(e protocol.HistoryEvent) string {

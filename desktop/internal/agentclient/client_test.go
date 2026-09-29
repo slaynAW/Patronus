@@ -45,6 +45,27 @@ func TestStatusAndPower(t *testing.T) {
 	}
 }
 
+func TestStatusTemperatures(t *testing.T) {
+	s, settings := start(t, agenttest.Normal)
+	st, err := New().Status(context.Background(), "127.0.0.1", settings)
+	if err != nil || st.Temperatures != nil {
+		t.Fatalf("agent sans températures : %+v %v", st.Temperatures, err)
+	}
+	cpu, gpu := 54.5, 61.0
+	want := &protocol.Temperatures{CPU: &cpu, GPU: &gpu, GPUName: "NVIDIA GeForce RTX 4070"}
+	s.SetTemperatures(want)
+	st, err = New().Status(context.Background(), "127.0.0.1", settings)
+	if err != nil || !reflect.DeepEqual(st.Temperatures, want) {
+		t.Fatalf("températures : %+v %v", st.Temperatures, err)
+	}
+	// Processeur illisible : l'indication accompagne la seule carte graphique.
+	s.SetTemperatures(&protocol.Temperatures{GPU: &gpu, CPUHint: protocol.CPUHintLHM})
+	st, err = New().Status(context.Background(), "127.0.0.1", settings)
+	if err != nil || st.Temperatures.CPU != nil || st.Temperatures.CPUHint != protocol.CPUHintLHM {
+		t.Fatalf("indication : %+v %v", st.Temperatures, err)
+	}
+}
+
 func TestHistory(t *testing.T) {
 	s, settings := start(t, agenttest.Normal)
 	// Agent trop ancien : la commande est refusée.

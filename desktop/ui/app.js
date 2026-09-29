@@ -115,6 +115,12 @@
     detail_hostname: "Nom du PC",
     detail_system: "Système",
     detail_uptime: "Allumé depuis",
+    detail_temp_cpu: "Température CPU",
+    detail_temp_gpu: "Température GPU",
+    temperature_cpu_lhm: "LibreHardwareMonitor requis",
+    temperature_cpu_lhm_help: "Pour la température du processeur, lancez LibreHardwareMonitor en administrateur sur ce PC.",
+    temperature_cpu_short: "CPU %1$s",
+    temperature_gpu_short: "GPU %1$s",
     latency_title: "Latence",
     latency_live: "En direct",
     latency_via_agent: "via l’agent",
@@ -411,6 +417,7 @@
     lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
     clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
     bolt: '<path d="M13 2.5 4.5 13.5H12l-1 8 8.5-11H12z"/>',
+    thermometer: '<path d="M14 14.8V4.5a2 2 0 0 0-4 0v10.3a4 4 0 1 0 4 0z"/><path d="M12 9.5v7.5"/>',
     send: '<path d="M21 3 10.5 13.5"/><path d="M21 3l-6.5 18-4-7.5L3 9.5z"/>',
     share: '<circle cx="18" cy="5.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="18.5" r="2.5"/><path d="M8.2 10.8l7.6-4.1M8.2 13.2l7.6 4.1"/>',
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.2a6.5 6.5 0 0 1 3 5.8"/>',
@@ -615,6 +622,20 @@
 
   const osLabel = (os) => ({ windows: "Windows", linux: "Linux", darwin: "macOS" })[os] || os || "";
   const archLabel = (arch) => ({ amd64: "x64", "386": "x86", arm64: "ARM64", arm: "ARM" })[arch] || arch || "";
+
+  // Températures envoyées par l'agent (1.5.0 ou plus) : « 54 °C », orange dès 80 °C, rouge dès 90 °C.
+  const TEMP_WARM = 80;
+  const TEMP_HOT = 90;
+  const celsius = (value) => `${Math.round(value)}\u00a0°C`;
+  const tempClass = (value) => (value >= TEMP_HOT ? "temp-hot" : value >= TEMP_WARM ? "temp-warm" : null);
+  /** « CPU 54 °C · GPU 61 °C » et la classe de la plus élevée ; texte vide sans température connue. */
+  function temperatureSummary(t) {
+    const parts = [];
+    if (t?.cpu != null) parts.push(fmt(S.temperature_cpu_short, celsius(t.cpu)));
+    if (t?.gpu != null) parts.push(fmt(S.temperature_gpu_short, celsius(t.gpu)));
+    const values = [t?.cpu, t?.gpu].filter((v) => v != null);
+    return { text: parts.join(" · "), cls: values.length ? tempClass(Math.max(...values)) : null };
+  }
   const versionLabel = (v) => (/^\d/.test(v || "") ? "v" + v : v || "");
   const agentErrorLabel = (code) => S["agent_error_" + code] || S.agent_error_PROTOCOL;
   const actionLabel = (a) => ({ shutdown: S.action_shutdown, reboot: S.action_reboot, sleep: S.action_sleep })[a];
@@ -1347,7 +1368,8 @@
     const host = h("span", { class: "cell txt mono" });
     const dot = h("span", { class: "dot" });
     const stateText = h("span");
-    const stateCell = h("span", { class: "cell state-text" }, dot, stateText);
+    const temps = h("small", { class: "temps hidden" });
+    const stateCell = h("span", { class: "cell state-text" }, dot, h("span", { class: "t" }, stateText, temps));
     const mac = h("span", { class: "cell txt opt mono" });
     const system = h("span", { class: "cell txt opt opt2" });
     const latency = latencyCell("cell lat-cell opt");
@@ -1369,6 +1391,9 @@
         setText(host, d.host || "—");
         setClass(dot, dotClass(st));
         setText(stateText, shortState(s, now));
+        const t = temperatureSummary(online && s.agent ? s.agent.temperatures : null);
+        setText(temps, t.text);
+        setClass(temps, `temps${t.cls ? " " + t.cls : ""}${t.text ? "" : " hidden"}`);
         setText(mac, d.mac || "—");
         setText(system, online && s.agent ? [osLabel(s.agent.os), archLabel(s.agent.arch)].filter(Boolean).join(" · ") : "—");
         latency.update(d, "—");
@@ -1901,6 +1926,10 @@
         if (s.agent.hostname) rows.push({ key: "name", label: S.detail_hostname, text: s.agent.hostname });
         rows.push({ key: "sys", label: S.detail_system, text: [osLabel(s.agent.os), archLabel(s.agent.arch)].filter(Boolean).join(" · ") });
         rows.push({ key: "up", label: S.detail_uptime, text: formatLong(s.agent.uptime) });
+        const t = s.agent.temperatures;
+        if (t?.cpu != null) rows.push({ key: "cpu", label: S.detail_temp_cpu, text: celsius(t.cpu), cls: tempClass(t.cpu) });
+        else if (t?.cpuHint === "lhm") rows.push({ key: "cpu", label: S.detail_temp_cpu, text: S.temperature_cpu_lhm, cls: "muted", title: S.temperature_cpu_lhm_help });
+        if (t?.gpu != null) rows.push({ key: "gpu", label: S.detail_temp_gpu, text: celsius(t.gpu), cls: tempClass(t.gpu), title: t.gpuName });
       }
       if (d.shared) rows.push({ key: "shared", label: S.detail_shared, text: d.shared.ownerName, cls: "shared-by", iconName: "share" });
       if (!d.hasAgent) {
@@ -1917,10 +1946,10 @@
       }
       rows.forEach((r, i) => {
         const valueEl = info.children[i].lastChild;
-        const sig = [r.text, r.cls, r.iconName].join("|");
+        const sig = [r.text, r.cls, r.iconName, r.title].join("|");
         if (valueEl.dataset.sig === sig) return;
         valueEl.dataset.sig = sig;
-        valueEl.replaceChildren(h("span", { class: r.cls || null }, r.iconName ? icon(r.iconName, "small") : null, r.text));
+        valueEl.replaceChildren(h("span", { class: r.cls || null, title: r.title || null }, r.iconName ? icon(r.iconName, "small") : null, r.text));
       });
     }
 

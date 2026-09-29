@@ -5,6 +5,11 @@ compilé par la CI. **Ajoutez une section (numéro supérieur) à chaque modific
 numéro que les agents installés comparent au leur pour proposer la mise à jour. Le texte de la section est
 affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
+## 1.5.0
+
+- **Températures** du processeur et de la carte graphique, affichées par les applications (1.5.0). Carte NVIDIA lue directement par son pilote ; processeur lu grâce à **LibreHardwareMonitor**, à lancer en administrateur sur le PC (option « Run On Windows Startup »).
+- `wol-agent status` affiche les températures lues.
+
 ## 1.4.0
 
 - **Mises à jour guidées** (Windows) : l'agent recherche chaque jour une nouvelle version et la propose à l'utilisateur connecté ; elle s'installe après son accord, sans changer la clé ni l'appairage.

@@ -13,6 +13,7 @@ import androidx.compose.ui.res.stringResource
 import io.github.slaynaw.wakeonlan.R
 import io.github.slaynaw.wakeonlan.core.agent.AgentError
 import io.github.slaynaw.wakeonlan.core.agent.AgentStatus
+import io.github.slaynaw.wakeonlan.core.agent.AgentTemperatures
 import io.github.slaynaw.wakeonlan.core.agent.PowerAction
 import io.github.slaynaw.wakeonlan.core.history.HistoryKind
 import io.github.slaynaw.wakeonlan.core.status.DeviceStatus
@@ -25,6 +26,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.roundToInt
 
 @StringRes
 fun AgentError.label(): Int = when (this) {
@@ -105,6 +107,27 @@ fun AgentStatus.systemLabel(): String = listOf(osLabel(), archLabel()).filter { 
 
 /** Version de l'agent : « v1.2.0 », mais « dev » tel quel. */
 fun AgentStatus.versionLabel(): String = if (version.firstOrNull()?.isDigit() == true) "v$version" else version
+
+/** « 54 °C » : arrondi au degré, espace insécable. */
+fun formatCelsius(celsius: Double): String = "${celsius.roundToInt()}\u00A0°C"
+
+/** Couleur d'une température : [normal], chaude (orange), très chaude (rouge). */
+fun temperatureColor(celsius: Double?, normal: Color = WolPalette.Text): Color = when {
+    celsius == null -> normal
+    celsius >= AgentTemperatures.HOT -> WolPalette.DangerText
+    celsius >= AgentTemperatures.WARM -> WolPalette.Busy
+    else -> normal
+}
+
+/** « CPU 54 °C · GPU 61 °C » ; vide si aucune température n'est connue. */
+@Composable
+fun AgentTemperatures.summary(): String = listOfNotNull(
+    cpu?.let { stringResource(R.string.temperature_cpu_short, formatCelsius(it)) },
+    gpu?.let { stringResource(R.string.temperature_gpu_short, formatCelsius(it)) },
+).joinToString(" · ")
+
+/** Température la plus élevée (couleur d'un résumé). */
+fun AgentTemperatures.hottest(): Double? = listOfNotNull(cpu, gpu).maxOrNull()
 
 /** Durée courte et lisible : « 12 s », « 5 min », « 3 h », « 2 j ». */
 @Composable

@@ -3,6 +3,11 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.5.0
+
+- **Températures du processeur et de la carte graphique** de chaque PC allumé, sur sa fiche et dans les listes, en orange dès 80 °C et en rouge dès 90 °C (avec l'agent 1.5.0, qui se propose tout seul aux PC Windows).
+- Sous Windows, la température du processeur demande **LibreHardwareMonitor** lancé en administrateur sur le PC ; la carte graphique NVIDIA est lue sans rien installer.
+
 ## 1.4.1
 
 - **Nouveau logo** : un commutateur relié à vos PC, dont un qui s'allume. Sur Android, l'icône suit aussi le thème du téléphone (icônes à thème).

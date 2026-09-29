@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.slaynaw.wakeonlan.R
 import io.github.slaynaw.wakeonlan.appContainer
+import io.github.slaynaw.wakeonlan.core.agent.AgentTemperatures
 import io.github.slaynaw.wakeonlan.core.agent.PowerAction
 import io.github.slaynaw.wakeonlan.core.status.PowerState
 import io.github.slaynaw.wakeonlan.core.status.StatusNotice
@@ -56,6 +57,7 @@ import io.github.slaynaw.wakeonlan.ui.common.StatusDot
 import io.github.slaynaw.wakeonlan.ui.common.WolButton
 import io.github.slaynaw.wakeonlan.ui.common.WolCard
 import io.github.slaynaw.wakeonlan.ui.common.WolIcons
+import io.github.slaynaw.wakeonlan.ui.common.formatCelsius
 import io.github.slaynaw.wakeonlan.ui.common.formatLongDuration
 import io.github.slaynaw.wakeonlan.ui.common.label
 import io.github.slaynaw.wakeonlan.ui.common.rememberDeviceDialogState
@@ -64,6 +66,7 @@ import io.github.slaynaw.wakeonlan.ui.common.statusColor
 import io.github.slaynaw.wakeonlan.ui.common.statusText
 import io.github.slaynaw.wakeonlan.ui.common.statusTextColor
 import io.github.slaynaw.wakeonlan.ui.common.systemLabel
+import io.github.slaynaw.wakeonlan.ui.common.temperatureColor
 import io.github.slaynaw.wakeonlan.ui.common.versionLabel
 import io.github.slaynaw.wakeonlan.ui.devices.DeviceItem
 import io.github.slaynaw.wakeonlan.ui.devices.DeviceMenu
@@ -315,6 +318,23 @@ private fun InfoCard(item: DeviceItem) {
             KeyValueRow(stringResource(R.string.detail_system), agent.systemLabel())
             RowDivider()
             KeyValueRow(stringResource(R.string.detail_uptime), formatLongDuration(agent.uptimeSeconds))
+            agent.temperatures?.let { temps ->
+                val cpu = temps.cpu
+                when {
+                    cpu != null -> {
+                        RowDivider()
+                        KeyValueRow(stringResource(R.string.detail_temp_cpu), formatCelsius(cpu), valueColor = temperatureColor(cpu))
+                    }
+                    temps.cpuHint == AgentTemperatures.CPU_HINT_LHM -> {
+                        RowDivider()
+                        KeyValueRow(stringResource(R.string.detail_temp_cpu), stringResource(R.string.temperature_cpu_lhm), valueColor = WolPalette.Text2)
+                    }
+                }
+                temps.gpu?.let { gpu ->
+                    RowDivider()
+                    KeyValueRow(stringResource(R.string.detail_temp_gpu), formatCelsius(gpu), valueColor = temperatureColor(gpu))
+                }
+            }
         }
         item.sharedBy?.let { owner ->
             RowDivider()

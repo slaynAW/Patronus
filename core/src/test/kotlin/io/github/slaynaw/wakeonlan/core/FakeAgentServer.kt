@@ -2,6 +2,7 @@ package io.github.slaynaw.wakeonlan.core
 
 import io.github.slaynaw.wakeonlan.core.agent.AgentHistory
 import io.github.slaynaw.wakeonlan.core.agent.AgentProtocol
+import io.github.slaynaw.wakeonlan.core.agent.AgentTemperatures
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -32,6 +33,10 @@ class FakeAgentServer(
     /** Journal renvoyé par la commande `history` ; `null` : agent trop ancien (commande refusée). */
     @Volatile
     var history: AgentHistory? = null
+
+    /** Températures jointes à `status` ; `null` : agent antérieur à 1.5.0. */
+    @Volatile
+    var temperatures: AgentTemperatures? = null
 
     init {
         thread(isDaemon = true) {
@@ -82,6 +87,7 @@ class FakeAgentServer(
             put("version", "1.0.0")
             put("uptime", 3600)
             if (ok && cmd == "history") put("history", Json.encodeToJsonElement(journal))
+            temperatures?.let { if (ok && cmd == "status") put("temperatures", Json.encodeToJsonElement(it)) }
         }.toString()
         var mac = AgentProtocol.responseMac(key, nonce, cnonce, responseBody)
         if (behavior == Behavior.BAD_RESPONSE_MAC) mac = AgentProtocol.responseMac(ByteArray(32), nonce, cnonce, responseBody)
