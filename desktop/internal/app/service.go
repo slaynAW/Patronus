@@ -47,6 +47,10 @@ type Platform interface {
 	WriteClipboard(text string) error
 	// Relaunch démarre la nouvelle version de l'application (déjà installée) puis ferme celle-ci.
 	Relaunch() error
+	// RunInstaller lance l'installation de l'agent téléchargé dans path (invite administrateur),
+	// après avoir revérifié son empreinte SHA-256 (hexadécimal) sur le fichier verrouillé contre
+	// toute modification. Renvoie ErrCancelled si l'utilisateur refuse l'invite.
+	RunInstaller(path, sha256 string) error
 }
 
 // Options configure le service.
@@ -67,6 +71,8 @@ type Options struct {
 	Updates *UpdateOptions
 	// Share active le partage des PC entre personnes (nil : désactivé).
 	Share *ShareOptions
+	// Agent active le téléchargement de l'agent depuis l'application (nil : indisponible).
+	Agent *AgentOptions
 }
 
 // Service est le cœur de l'application.
@@ -98,8 +104,9 @@ type Service struct {
 	// Dernier relevé d'états, pour détecter les allumages / extinctions.
 	statusMu     sync.Mutex
 	lastStatuses map[string]status.DeviceStatus
-	// Mises à jour intégrées (verrou propre).
+	// Mises à jour intégrées et téléchargement de l'agent (verrous propres).
 	updates *updater
+	agents  *agentDownloads
 	// Partage des PC (verrou propre, jamais pris en tenant mu) ; nil si désactivé.
 	sharing *sharer
 }
@@ -134,6 +141,7 @@ func New(opts Options) *Service {
 		s.now = time.Now
 	}
 	s.updates = newUpdater(opts.Updates, filepath.Dir(opts.Store.Path()), s.now)
+	s.agents = newAgentDownloads(opts.Agent)
 	s.sharing = newSharer(opts.Share)
 	if s.histStore != nil {
 		s.hist = s.histStore.Load()
@@ -243,6 +251,8 @@ type UIState struct {
 	Update UpdateView `json:"update"`
 	// Share : partage des PC entre personnes.
 	Share ShareView `json:"share"`
+	// Agent : téléchargement de l'agent (dernière version connue, téléchargement en cours).
+	Agent AgentView `json:"agent"`
 }
 
 // NetworkView décrit le réseau local.
@@ -282,6 +292,7 @@ const latencyView = 75 * time.Second
 func (s *Service) State() UIState {
 	statuses := s.monitor.Statuses()
 	updateView := s.updates.snapshot()
+	agentView := s.agents.snapshot()
 	shareView := s.shareView()
 	shared := s.sharedDevices()
 	s.histMu.Lock()
@@ -291,6 +302,7 @@ func (s *Service) State() UIState {
 	defer s.mu.Unlock()
 	st := UIState{
 		Update:         updateView,
+		Agent:          agentView,
 		Share:          shareView,
 		HistoryVersion: historyVersion,
 		Version:        s.version,
@@ -357,6 +369,8 @@ func (s *Service) Call(method string, params json.RawMessage) (any, error) {
 		Device     string            `json:"device"`
 		Owner      string            `json:"owner"`
 		Rights     map[string]string `json:"rights"`
+		Platform   string            `json:"platform"`
+		Install    bool              `json:"install"`
 	}
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("paramètres invalides : %w", err)
@@ -392,6 +406,10 @@ func (s *Service) Call(method string, params json.RawMessage) (any, error) {
 	case "setAutoUpdate":
 		s.setAutoUpdate(p.Enabled)
 		return nil, nil
+	case "agentInfo":
+		return s.agentInfo(context.Background())
+	case "agentDownload":
+		return s.agentDownload(context.Background(), p.Platform, p.Install)
 	case "setLive":
 		// PC affiché en détail (vide : aucun) : sondé chaque seconde pour le tracé de latence.
 		s.monitor.SetLive(p.ID)

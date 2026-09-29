@@ -101,6 +101,13 @@ Il rend aussi l'indicateur d'état **plus fiable** (il répond même quand le pa
 Les binaires sont publiés avec l'APK dans les **[Releases](https://github.com/slaynAW/Patronus/releases)**.
 
 **Windows** (10 / 11)
+
+*Depuis l'application Windows* (le plus simple) : *Réglages* → **Télécharger l'agent** → **Installer sur cet
+ordinateur**, ou **Enregistrer…** pour un autre PC (x64 ou ARM64) puis lancer le fichier sur ce PC. L'application
+vérifie la signature du projet et l'empreinte du fichier. La fiche d'un PC signale aussi quand son agent a une version
+de retard.
+
+*Sinon, à la main :*
 1. Téléchargez `wol-agent-windows-amd64.exe` (ou `arm64` pour les PC ARM).
 2. Double-cliquez dessus. Si SmartScreen s'affiche : *Informations complémentaires* → *Exécuter quand même*.
 3. Acceptez l'invite administrateur : l'agent s'installe comme **service Windows** (démarrage automatique, relance en cas de problème) et ouvre le port 9770 **uniquement pour le réseau local** dans le pare-feu.

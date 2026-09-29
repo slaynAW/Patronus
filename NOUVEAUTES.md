@@ -3,6 +3,11 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.5.3
+
+- **Agent téléchargeable depuis l'application Windows** : *Réglages* → *Télécharger l'agent*. Installez-le sur cet ordinateur en un clic (invite administrateur), ou enregistrez-le pour un autre PC (x64 ou ARM64). L'application vérifie la signature du projet et l'empreinte du fichier.
+- La fiche d'un PC signale quand son agent a une version de retard (par exemple pour obtenir les températures), avec un lien pour télécharger la nouvelle.
+
 ## 1.5.2
 
 - **Le projet a déménagé** : il s'appelle désormais [slaynAW/Patronus](https://github.com/slaynAW/Patronus) sur GitHub. Liens et recherche de mises à jour pointent vers la nouvelle adresse (l'ancienne redirige vers la nouvelle).

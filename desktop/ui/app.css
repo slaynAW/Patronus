@@ -479,6 +479,12 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); width: 
 .upd-bar i { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--blue); transition: width 0.2s; }
 .upd-status { font-size: 13px; color: var(--text-2); }
 .upd-status.bad { color: var(--danger-text); }
+.agent-dl { display: flex; flex-direction: column; gap: 12px; }
+.agent-arch { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--text-2); }
+.agent-arch select { height: 34px; background: var(--bg); border: 1px solid var(--line-2); border-radius: 8px; padding: 0 8px; color: var(--text); }
+.linkish { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; background: none; border: 0; padding: 0; color: var(--blue); font-weight: 600; cursor: pointer; text-align: left; }
+.linkish:hover { text-decoration: underline; }
+.linkish:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
 .item .supporting.accent { color: var(--blue); font-weight: 600; }
 .tab.badge { position: relative; }
 .tab.badge::after { content: ""; position: absolute; top: 12px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 2px var(--bg); }

@@ -61,6 +61,26 @@ func updateOptions(exe string) *app.UpdateOptions {
 	return &app.UpdateOptions{Source: src, Code: code, Platform: "windows-" + runtime.GOARCH, Exe: exe}
 }
 
+// agentOptions active le téléchargement de l'agent depuis l'application : dernière version publiée,
+// vérifiée avec le manifeste signé (certificat intégré). Fichiers de travail dans
+// %LOCALAPPDATA%\WakeOnLan\Agent, dossier propre à l'utilisateur, vidé au démarrage.
+func agentOptions() *app.AgentOptions {
+	if selfTestPath != "" {
+		return nil
+	}
+	src, err := update.Official()
+	if err != nil {
+		log.Printf("téléchargement de l'agent désactivé : %v", err)
+		return nil
+	}
+	local, err := os.UserCacheDir()
+	if err != nil {
+		return nil
+	}
+	src.UserAgent = "Patronus-Windows"
+	return &app.AgentOptions{Source: src, Platform: "windows-" + runtime.GOARCH, Dir: filepath.Join(local, "WakeOnLan", "Agent")}
+}
+
 // selfTestPath (variable WOL_SELFTEST) active l'autotest de démarrage utilisé par la CI : la fenêtre
 // s'ouvre, l'interface se charge, puis le résultat est écrit dans ce fichier et l'application se ferme.
 var selfTestPath = os.Getenv("WOL_SELFTEST")
@@ -136,7 +156,7 @@ func main() {
 	}
 	svc := app.New(app.Options{
 		Version: version, Store: store, Platform: platform, History: histStore,
-		Updates: updateOptions(exe), Share: shareOptions(dataDir),
+		Updates: updateOptions(exe), Share: shareOptions(dataDir), Agent: agentOptions(),
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

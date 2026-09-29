@@ -24,6 +24,9 @@ import (
 
 type fakePlatform struct {
 	saved      []byte
+	savedName  string
+	installer  []string // chemin et empreinte passés à RunInstaller
+	installed  []byte   // contenu du fichier au moment du lancement
 	cancel     bool
 	opened     []string
 	clipboard  string
@@ -35,11 +38,11 @@ func (f *fakePlatform) WriteClipboard(text string) error {
 	return nil
 }
 
-func (f *fakePlatform) SaveFile(_ string, content []byte) (string, error) {
+func (f *fakePlatform) SaveFile(name string, content []byte) (string, error) {
 	if f.cancel {
 		return "", ErrCancelled
 	}
-	f.saved = content
+	f.saved, f.savedName = content, name
 	return `C:\sauvegarde.json`, nil
 }
 
@@ -49,6 +52,15 @@ func (f *fakePlatform) OpenURL(url string) error {
 }
 
 func (f *fakePlatform) ReadClipboard() (string, error) { return f.clipboard, nil }
+
+func (f *fakePlatform) RunInstaller(path, sha256 string) error {
+	if f.cancel {
+		return ErrCancelled
+	}
+	f.installer = []string{path, sha256}
+	f.installed, _ = os.ReadFile(path)
+	return nil
+}
 
 func (f *fakePlatform) Relaunch() error {
 	f.relaunched.Add(1)

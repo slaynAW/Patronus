@@ -33,6 +33,7 @@
 | Réseau | Vos PC, et GitHub (HTTPS) pour la recherche de mises à jour (désactivable) et le partage (si utilisé). Aucun port en écoute. |
 | Partage | Clés de partage et jeton GitHub (droit « gist » seulement) chiffrés par DPAPI (`share.dat`) ; PC reçus validés comme un import, non modifiables ni exportables. |
 | Mises à jour | Manifeste signé avec la clé de signature de l'APK (certificat intégré à l'exécutable), fichier vérifié (taille + SHA-256) avant de remplacer l'exécutable ; rien n'est installé sans clic. |
+| Téléchargement de l'agent | Même vérification que les mises à jour (manifeste signé, taille, SHA-256), uniquement à la demande. Pour l'installer sur cet ordinateur, le fichier (dans `%LOCALAPPDATA%\WakeOnLan\Agent`, vidé au démarrage) est verrouillé contre toute modification, son empreinte revérifiée sur le fichier verrouillé, puis l'installation est lancée avec l'invite administrateur ; le verrou tient jusqu'à la fin de l'installation, puis le fichier est effacé. |
 | Interface | Page intégrée à l'exécutable, sans contenu distant ; seules les adresses du dépôt peuvent être ouvertes dans le navigateur (liste blanche). Le presse-papiers n'est lu que pour un lien `wolagent://`. |
 | Clés | Jamais envoyées à la liste des PC affichée ; seulement au formulaire de modification. |
 | Exécutable | Compilé par la CI (`-trimpath`, sans CGO), somme SHA-256 publiée. Non signé par un éditeur (avertissement SmartScreen au premier lancement). |

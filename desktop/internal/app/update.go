@@ -147,6 +147,7 @@ func (s *Service) checkUpdate(ctx context.Context) error {
 	s.notify()
 
 	m, err := u.opts.Source.Latest(ctx)
+	published := false
 	u.mu.Lock()
 	u.view.Checking = false
 	switch {
@@ -156,6 +157,7 @@ func (s *Service) checkUpdate(ctx context.Context) error {
 	case err != nil:
 		u.view.Error = "Recherche impossible : " + err.Error()
 	default:
+		published = true
 		file, ok := m.File(u.opts.Platform)
 		if m.Code > u.opts.Code && ok {
 			u.found = &m
@@ -169,6 +171,9 @@ func (s *Service) checkUpdate(ctx context.Context) error {
 		u.savePrefs()
 	}
 	u.mu.Unlock()
+	if published {
+		s.noteAgentRelease(m) // hors du verrou : notify relit tout l'état
+	}
 	s.notify()
 	return err
 }
