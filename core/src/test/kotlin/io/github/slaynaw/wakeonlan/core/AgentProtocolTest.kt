@@ -7,6 +7,7 @@ import io.github.slaynaw.wakeonlan.core.agent.AgentHistoryEvent
 import io.github.slaynaw.wakeonlan.core.agent.AgentKey
 import io.github.slaynaw.wakeonlan.core.agent.AgentProtocol
 import io.github.slaynaw.wakeonlan.core.agent.AgentResult
+import io.github.slaynaw.wakeonlan.core.agent.AgentTemperatures
 import io.github.slaynaw.wakeonlan.core.agent.PowerAction
 import io.github.slaynaw.wakeonlan.core.model.AgentSettings
 import kotlinx.coroutines.runBlocking
@@ -73,6 +74,26 @@ class AgentProtocolTest {
             val power = AgentClient().power("127.0.0.1", settings, PowerAction.SHUTDOWN)
             assertTrue(power is AgentResult.Success, "$power")
             assertEquals(listOf("status", "shutdown"), server.commands)
+        }
+    }
+
+    @Test
+    fun `temperatures du PC`() = runBlocking {
+        FakeAgentServer(keyBytes).use { server ->
+            val settings = AgentSettings(port = server.port, key = key)
+            // Agent antérieur à 1.5.0 : pas de températures.
+            val old = AgentClient().status("127.0.0.1", settings)
+            assertEquals(null, (old as AgentResult.Success).value.temperatures)
+
+            server.temperatures = AgentTemperatures(cpu = 54.5, gpu = 61.0, gpuName = "NVIDIA GeForce RTX 4070")
+            val status = AgentClient().status("127.0.0.1", settings)
+            assertEquals(server.temperatures, (status as AgentResult.Success).value.temperatures)
+
+            // Processeur illisible sous Windows : LibreHardwareMonitor à lancer.
+            server.temperatures = AgentTemperatures(gpu = 61.0, cpuHint = AgentTemperatures.CPU_HINT_LHM)
+            val hint = (AgentClient().status("127.0.0.1", settings) as AgentResult.Success).value.temperatures
+            assertEquals(null, hint?.cpu)
+            assertEquals(AgentTemperatures.CPU_HINT_LHM, hint?.cpuHint)
         }
     }
 

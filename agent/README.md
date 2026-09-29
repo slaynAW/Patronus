@@ -122,6 +122,29 @@ mis à jour chaque minute). Les applications relisent ce journal dès que le PC 
 > version, la configuration et la clé sont conservées. Avec un agent plus ancien, les applications n'affichent que les
 > changements qu'elles constatent elles-mêmes, pendant qu'elles sont ouvertes.
 
+## Températures
+
+Depuis la version 1.5.0, la réponse à `status` contient la température du **processeur** et de la **carte graphique**
+(la plus chaude s'il y en a plusieurs), affichées par les applications. Les capteurs ne sont lus que lorsqu'une
+application le demande, au plus toutes les 5 secondes, en arrière-plan (la réponse n'attend jamais les capteurs).
+
+| Système | Carte graphique | Processeur |
+|---|---|---|
+| Windows | NVIDIA : NVML, fourni par le pilote (`nvml.dll`) | **[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)**, lu par WMI (`root\LibreHardwareMonitor`) ou, à défaut, par son serveur web local (`http://127.0.0.1:8085/data.json`) ; AMD / Intel : aussi via LibreHardwareMonitor |
+| Linux | `nvidia-smi` (pilote NVIDIA), capteurs du noyau (`amdgpu`, `nouveau`, `radeon`) | capteurs du noyau (`/sys/class/hwmon` : `coretemp`, `k10temp`, `zenpower`) |
+| macOS | — | — |
+
+Windows ne donne pas accès aux sondes du processeur sans pilote : l'agent n'en installe **aucun** et s'appuie sur
+LibreHardwareMonitor s'il tourne. Pour l'installer :
+
+1. Téléchargez la dernière version sur sa page GitHub et décompressez-la (par exemple dans `C:\Program Files\LibreHardwareMonitor`).
+2. Lancez `LibreHardwareMonitor.exe` **en administrateur** (clic droit → *Exécuter en tant qu'administrateur*).
+3. Dans *Options*, cochez **Start Minimized**, **Minimize To Tray** et **Run On Windows Startup** : il démarre avec
+   Windows, discrètement, et l'agent retrouve la température du processeur à chaque démarrage.
+
+`wol-agent status` affiche les températures lues (ou ce qu'il manque). Sans LibreHardwareMonitor, les applications
+indiquent « LibreHardwareMonitor requis » à la place de la température du processeur.
+
 ## Compilation
 
 ```bash

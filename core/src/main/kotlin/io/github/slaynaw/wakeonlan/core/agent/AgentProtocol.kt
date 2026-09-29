@@ -76,7 +76,29 @@ data class AgentStatus(
     val arch: String = "",
     val version: String = "",
     @SerialName("uptime") val uptimeSeconds: Long = 0,
+    /** Températures du PC (agent 1.5.0 ou plus ; `null` : aucun capteur lisible). */
+    val temperatures: AgentTemperatures? = null,
 )
+
+/**
+ * Températures du PC en °C ; un capteur illisible est `null`. [cpuHint] explique l'absence de la
+ * température du processeur : [CPU_HINT_LHM] = LibreHardwareMonitor ne tourne pas (Windows).
+ */
+@Serializable
+data class AgentTemperatures(
+    val cpu: Double? = null,
+    val gpu: Double? = null,
+    val gpuName: String = "",
+    val cpuHint: String = "",
+) {
+    companion object {
+        const val CPU_HINT_LHM = "lhm"
+
+        /** Seuils d'affichage : chaud, puis très chaud. */
+        const val WARM = 80.0
+        const val HOT = 90.0
+    }
+}
 
 /**
  * Journal du PC renvoyé par la commande `history` : 30 jours au plus, heures en secondes (Unix).
@@ -128,6 +150,7 @@ internal data class ResponseBody(
     val version: String = "",
     val uptime: Long = 0,
     val history: AgentHistory? = null,
+    val temperatures: AgentTemperatures? = null,
 ) {
-    fun toStatus() = AgentStatus(hostname, os, arch, version, uptime)
+    fun toStatus() = AgentStatus(hostname, os, arch, version, uptime, temperatures)
 }

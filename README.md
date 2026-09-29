@@ -10,6 +10,8 @@ depuis votre téléphone ou depuis un autre PC.
 - 📈 **Latence en direct façon électrocardiogramme** : sur la fiche d'un PC, la valeur actuelle et le tracé de la dernière
   minute (une mesure par seconde), avec min / moyenne / max et sondes restées sans réponse ; mini-tracés dans les listes.
 - ⏻ **Extinction, redémarrage et mise en veille à distance** grâce à un petit agent à installer sur les PC (Windows, Linux, macOS).
+- 🌡️ **Températures du processeur et de la carte graphique** de chaque PC allumé (agent 1.5.0), en orange dès 80 °C
+  et en rouge dès 90 °C.
 - 🕘 **Historique discret** des démarrages et extinctions sur 30 jours (complet grâce au journal de l'agent, même quand
   l'application était fermée).
 - 🌙 **Style sombre et moderne**, identique sur Android et Windows : synthèse en anneau, plan du réseau, fiche de chaque PC.
@@ -119,6 +121,11 @@ sudo ./wol-agent-darwin-arm64 install
 Sous Windows, l'agent (1.4.0 ou plus) propose lui-même ses nouvelles versions à l'utilisateur du PC et s'installe
 après son accord, sans changer la clé.
 
+**Températures (facultatif)** : l'agent 1.5.0 transmet la température de la carte graphique NVIDIA (lue par son
+pilote) et celle du processeur. Sous Windows, cette dernière demande **[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)**
+lancé **en administrateur** sur le PC (dans ses *Options* : *Start Minimized*, *Minimize To Tray* et *Run On Windows
+Startup* pour qu'il tourne en permanence). Sous Linux, rien à installer (capteurs du noyau, `nvidia-smi`).
+
 Commandes utiles : `wol-agent pair` (réafficher le QR code), `wol-agent status`, `wol-agent rotate-key` (changer la clé),
 `wol-agent update` (mettre à jour), `wol-agent uninstall`. Détails : **[agent/README.md](agent/README.md)**.
 
@@ -132,7 +139,7 @@ Commandes utiles : `wol-agent pair` (réafficher le QR code), `wol-agent status`
   option « Forcer la fermeture des applications »).
 - **Fiche d'un PC** : état, actions, **latence en direct** (valeur et tracé défilant de la dernière minute : le PC affiché
   est vérifié chaque seconde ; les traits rouges marquent les sondes sans réponse), adresse IP / MAC, système,
-  « allumé depuis », agent, et un **historique discret**
+  « allumé depuis », **températures** du processeur et de la carte graphique, agent, et un **historique discret**
   des derniers évènements (*Tout afficher* : 30 jours, groupés par jour). « ≈ » signale une heure constatée par
   l'application (à quelques secondes près) plutôt que relevée par l'agent ; « arrêt inattendu » : coupure de courant,
   arrêt forcé ou plantage. Avec l'agent 1.4.0, l'historique est **commun** au téléphone et au PC Windows : chaque demande
@@ -238,6 +245,8 @@ tuile de réglages rapides, raccourcis, notifications, verrouillage biométrique
 | « agent arrêté sur le PC » | Le PC répond mais le service ne tourne pas : `wol-agent status`, ou relancez l'installation. |
 | « clé refusée par l'agent » | La clé a changé (`rotate-key`) : ré-appairez avec `wol-agent pair`. |
 | Historique : « Mettez à jour l'agent de ce PC… » | L'agent est antérieur à la version 1.2 : relancez l'installation avec la nouvelle version (configuration et clé conservées). |
+| Température CPU : « LibreHardwareMonitor requis » | Lancez LibreHardwareMonitor **en administrateur** sur ce PC (et cochez *Run On Windows Startup*). La carte graphique NVIDIA est lue sans lui. |
+| Pas de ligne « Température » | L'agent du PC est antérieur à la version 1.5.0 (il se met à jour après accord de l'utilisateur du PC, ou `wol-agent update`). |
 | Mise à jour de l'APK refusée | Signature différente : voir [docs/SIGNATURE.md](docs/SIGNATURE.md). |
 | Windows : « composant WebView2 introuvable » | Rare (Windows 10 non à jour) : acceptez l'ouverture de la page Microsoft et installez le composant. |
 | Windows : un PC reste « État inconnu · pas de réseau local » | Ce PC n'a ni carte Ethernet ni Wi-Fi connectée (les cartes de machines virtuelles sont ignorées). |

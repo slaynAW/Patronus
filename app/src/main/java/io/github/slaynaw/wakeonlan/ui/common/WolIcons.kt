@@ -215,6 +215,12 @@ object WolIcons {
         "M13 2.5 4.5 13.5H12l-1 8 8.5-11H12z",
         )
     }
+    val Thermometer: ImageVector by lazy {
+        icon(
+        "M14 14.8V4.5a2 2 0 0 0-4 0v10.3a4 4 0 1 0 4 0z",
+        "M12 9.5v7.5",
+        )
+    }
     val Send: ImageVector by lazy {
         icon(
         "M21 3 10.5 13.5",

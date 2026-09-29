@@ -291,10 +291,12 @@ func cmdStatus(args []string) error {
 	cfgPath := fs.String("config", config.DefaultPath(), "fichier de configuration")
 	_ = fs.Parse(args)
 	fmt.Printf("wol-agent %s\nService       : %s\nConfiguration : %s\n", version, service.Status(), *cfgPath)
-	fmt.Printf("Températures  : %s\n", describeTemperatures(sensors.Read()))
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
 		fmt.Println("                (", err, ")")
+	}
+	fmt.Printf("Températures  : %s\n", describeTemperatures(sensors.Read()))
+	if err != nil {
 		return nil
 	}
 	fmt.Printf("Nom           : %s\nPort          : %d\nCommandes     : %v\nRéseaux       : %v\n", cfg.Name, cfg.Port, cfg.Commands, cfg.Allow)

@@ -96,6 +96,8 @@ type Status struct {
 	Arch     string `json:"arch"`
 	Version  string `json:"version"`
 	Uptime   int64  `json:"uptime"`
+	// Temperatures : températures du PC (agent 1.5.0 ou plus), nil si aucun capteur n'est lisible.
+	Temperatures *protocol.Temperatures `json:"temperatures,omitempty"`
 }
 
 // Client dialogue avec les agents.
@@ -119,7 +121,8 @@ func (c *Client) Status(ctx context.Context, host string, agent model.AgentSetti
 	if err != nil {
 		return Status{}, err
 	}
-	return Status{Hostname: body.Hostname, OS: body.OS, Arch: body.Arch, Version: body.Version, Uptime: body.Uptime}, nil
+	return Status{Hostname: body.Hostname, OS: body.OS, Arch: body.Arch, Version: body.Version, Uptime: body.Uptime,
+		Temperatures: body.Temperatures}, nil
 }
 
 // Power demande une action d'alimentation. L'agent répond AVANT d'exécuter l'action.
@@ -180,6 +183,8 @@ type responseBody struct {
 	Version  string            `json:"version"`
 	Uptime   int64             `json:"uptime"`
 	History  *protocol.History `json:"history"`
+	// Temperatures : réponse à « status » d'un agent 1.5.0 ou plus.
+	Temperatures *protocol.Temperatures `json:"temperatures"`
 }
 
 func (c *Client) exchange(ctx context.Context, host string, agent model.AgentSettings, request protocol.RequestBody, maxResponse int) (*responseBody, error) {
