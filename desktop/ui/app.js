@@ -436,6 +436,35 @@
     return svg;
   }
 
+  // Logo « Topologie » (source : branding/logo.svg ; variante simplifiée pour les petites tailles).
+  const LOGO = `<rect x="0.75" y="0.75" width="118.5" height="118.5" rx="26.5" fill="#12161B" stroke="#262B33" stroke-width="1.5"/>
+<path d="M60 76 L28 42 M60 76 L60 34" fill="none" stroke="#3A4250" stroke-width="4" stroke-linecap="round"/>
+<path d="M60 76 L92 42" fill="none" stroke="#4A94FF" stroke-width="4" stroke-linecap="round"/>
+<circle cx="28" cy="42" r="8" fill="#12161B" stroke="#6B7380" stroke-width="4"/>
+<circle cx="60" cy="34" r="8" fill="#12161B" stroke="#6B7380" stroke-width="4"/>
+<circle cx="92" cy="42" r="15" fill="#4A94FF" fill-opacity="0.22"/>
+<circle cx="92" cy="42" r="9" fill="#4A94FF"/>
+<rect x="42" y="70" width="36" height="20" rx="6" fill="#E7E9EC"/>
+<circle cx="52" cy="80" r="2.5" fill="#2FD27A"/>`;
+  const LOGO_SMALL = `<rect x="0.75" y="0.75" width="118.5" height="118.5" rx="26.5" fill="#12161B" stroke="#262B33" stroke-width="1.5"/>
+<path d="M60 76 L28 42 M60 76 L60 34" fill="none" stroke="#4A5260" stroke-width="7" stroke-linecap="round"/>
+<path d="M60 76 L92 42" fill="none" stroke="#4A94FF" stroke-width="7" stroke-linecap="round"/>
+<circle cx="28" cy="42" r="9" fill="#6B7380"/>
+<circle cx="60" cy="34" r="9" fill="#6B7380"/>
+<circle cx="92" cy="42" r="12" fill="#4A94FF"/>
+<rect x="40" y="68" width="40" height="24" rx="7" fill="#E7E9EC"/>`;
+
+  function logo(size) {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 120 120");
+    svg.setAttribute("width", String(size));
+    svg.setAttribute("height", String(size));
+    svg.setAttribute("class", "logo");
+    svg.setAttribute("aria-hidden", "true");
+    svg.innerHTML = size <= 32 ? LOGO_SMALL : LOGO; // dessins fixes ci-dessus, jamais de données
+    return svg;
+  }
+
   // ---------------------------------------------------------------------------------------------
   // Construction du DOM
   // ---------------------------------------------------------------------------------------------
@@ -979,7 +1008,7 @@
   const netChip = h("div", { class: "chip net" }, netDot, netText);
   const refreshButton = iconBtn("refresh", S.action_refresh, refreshAll);
   const navEl = h("header", { class: "nav" },
-    h("div", { class: "brand" }, h("span", { class: "logo" }, icon("power")), S.app_name),
+    h("div", { class: "brand" }, logo(30), S.app_name),
     tabsEl,
     h("div", { class: "right" }, netChip, refreshButton, btn("primary", S.action_add, () => openEditSheet(null), "plus")));
   const busyBar = h("div", { class: "progress busy-bar hidden" });
@@ -1364,7 +1393,7 @@
     const warning = networkWarning();
     const el = h("div", { class: "main-inner narrow" }, warning.el,
       h("div", { class: "empty" },
-        h("div", { class: "logo" }, icon("power", "", 30)),
+        logo(72),
         h("h2", { text: S.empty_title }),
         h("p", { text: S.empty_text }),
         h("div", { class: "row-btns" },

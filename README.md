@@ -1,3 +1,5 @@
+<img src="branding/logo.svg" width="88" alt="Logo Wake On LAN">
+
 # Wake On LAN
 
 Application Android **et Windows** pour **démarrer, surveiller et éteindre vos PC** sur le réseau local,

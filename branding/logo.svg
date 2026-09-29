@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+  <title>Wake On LAN</title>
+  <!-- Topologie : un commutateur relié à trois PC, dont un qui s'allume. -->
+  <rect x="0.75" y="0.75" width="118.5" height="118.5" rx="26.5" fill="#12161B" stroke="#262B33" stroke-width="1.5"/>
+  <path d="M60 76 L28 42 M60 76 L60 34" fill="none" stroke="#3A4250" stroke-width="4" stroke-linecap="round"/>
+  <path d="M60 76 L92 42" fill="none" stroke="#4A94FF" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="28" cy="42" r="8" fill="#12161B" stroke="#6B7380" stroke-width="4"/>
+  <circle cx="60" cy="34" r="8" fill="#12161B" stroke="#6B7380" stroke-width="4"/>
+  <circle cx="92" cy="42" r="15" fill="#4A94FF" fill-opacity="0.22"/>
+  <circle cx="92" cy="42" r="9" fill="#4A94FF"/>
+  <rect x="42" y="70" width="36" height="20" rx="6" fill="#E7E9EC"/>
+  <circle cx="52" cy="80" r="2.5" fill="#2FD27A"/>
+</svg>

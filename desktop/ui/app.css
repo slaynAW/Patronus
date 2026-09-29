@@ -55,8 +55,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 svg.icon { width: 20px; height: 20px; flex: none; display: block; }
 svg.icon.small { width: 16px; height: 16px; }
 .icon-btn svg.icon, .tab svg.icon { width: 18px; height: 18px; }
-.logo svg.icon { width: 17px; height: 17px; stroke-width: 2.2; }
-.empty .logo svg.icon { width: 30px; height: 30px; }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #2a3038; border-radius: 5px; border: 2px solid var(--bg); }
@@ -77,12 +75,7 @@ svg.icon.small { width: 16px; height: 16px; }
   border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; white-space: nowrap; }
-.logo {
-  width: 30px; height: 30px; border-radius: 8px;
-  background: linear-gradient(135deg, #4a94ff, #1f5fd6);
-  color: #fff; display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 14px rgba(74, 148, 255, 0.35);
-}
+.logo { display: block; flex: none; }
 .tabs { display: flex; gap: 22px; height: 100%; }
 .tab {
   height: 100%;
@@ -345,7 +338,7 @@ canvas.spark { display: block; width: 64px; height: 22px; flex: none; }
 /* ---------- Vide / réglages ---------- */
 
 .empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 70px 24px; gap: 10px; }
-.empty .logo { width: 64px; height: 64px; border-radius: 18px; margin-bottom: 8px; }
+.empty .logo { margin-bottom: 8px; }
 .empty h2 { margin: 0; font-size: 22px; font-weight: 700; }
 .empty p { margin: 0 0 12px; color: var(--text-2); max-width: 460px; }
 .empty .row-btns { display: flex; gap: 10px; }

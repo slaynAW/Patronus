@@ -3,6 +3,10 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.4.1
+
+- **Nouveau logo** : un commutateur relié à vos PC, dont un qui s'allume. Sur Android, l'icône suit aussi le thème du téléphone (icônes à thème).
+
 ## 1.4.0
 
 - **Agent Windows à jour tout seul** : l'agent des PC (1.4.0) propose ses nouvelles versions à l'utilisateur du PC et s'installe après son accord, sans changer sa clé ni l'appairage. À installer une fois à la main depuis cette version.
