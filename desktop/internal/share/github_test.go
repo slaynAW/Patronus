@@ -261,7 +261,8 @@ func TestGitHubLoginSurvivesNetworkLoss(t *testing.T) {
 	defer srv.Close()
 	gh := &GitHub{API: srv.URL, Web: srv.URL, ClientID: "c", Client: srv.Client(), PollUnit: time.Millisecond}
 	ctx := context.Background()
-	token, err := gh.WaitLogin(ctx, DeviceCode{DeviceCode: "d", Interval: 1, ExpiresIn: 60})
+	// Code valable 60 s (unité de 1 ms) : largement de quoi passer les coupures, même sur une machine chargée.
+	token, err := gh.WaitLogin(ctx, DeviceCode{DeviceCode: "d", Interval: 1, ExpiresIn: 60_000})
 	if err != nil || token != "jeton" || polls != 6 {
 		t.Fatalf("attente : %q, %v après %d interrogations", token, err, polls)
 	}

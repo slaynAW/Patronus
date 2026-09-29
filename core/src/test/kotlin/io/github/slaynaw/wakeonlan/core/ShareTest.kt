@@ -313,7 +313,8 @@ class ShareTest {
         try {
             val base = "http://127.0.0.1:${server.address.port}"
             val gh = ShareGitHub("client", api = base, web = base, pollUnitMillis = 1)
-            val code = GitHubDeviceCode(deviceCode = "d", userCode = "ABCD-1234", expiresIn = 60, interval = 1)
+            // Code valable 60 s (unité de 1 ms) : largement de quoi passer les coupures, même sur une machine chargée.
+            val code = GitHubDeviceCode(deviceCode = "d", userCode = "ABCD-1234", expiresIn = 60_000, interval = 1)
             runBlocking {
                 assertEquals("tok", gh.waitLogin(code))
                 assertTrue(polls >= 5)
