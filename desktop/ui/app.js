@@ -263,7 +263,27 @@
     history_clear_action: "Effacer",
     section_agent_download: "Agent pour PC",
     agent_download: "Télécharger l’agent",
-    agent_download_help: "Windows, Linux et macOS. Nécessaire uniquement pour éteindre à distance et pour l’historique complet.",
+    agent_download_help: "Installez-le sur cet ordinateur ou enregistrez-le pour un autre PC. Nécessaire pour éteindre à distance, l’historique complet et les températures.",
+    agent_dl_title: "Agent Patronus",
+    agent_dl_loading: "Recherche de la dernière version…",
+    agent_dl_meta: "Version %1$s · %2$s Mo",
+    agent_dl_verified: "Vérifié par l’application (signature du projet, empreinte SHA-256). Installé par-dessus un agent existant, il garde sa clé : pas besoin de ré-appairer.",
+    agent_dl_arch: "Processeur du PC à équiper",
+    agent_dl_arch_amd64: "x64 (Intel, AMD)",
+    agent_dl_arch_arm64: "ARM64 (Snapdragon…)",
+    agent_dl_this_pc: "%1$s · cet ordinateur",
+    agent_dl_other_os: "Linux ou macOS : page des versions",
+    agent_dl_install: "Installer sur cet ordinateur",
+    agent_dl_save: "Enregistrer…",
+    agent_dl_close: "Fermer",
+    agent_dl_retry: "Réessayer",
+    agent_dl_downloading: "Téléchargement et vérification… %1$d %",
+    agent_dl_started_title: "Installation lancée",
+    agent_dl_started_text: "Acceptez l’invite administrateur. La fenêtre de l’agent affiche ensuite un QR code et un lien d’appairage : pour piloter cet ordinateur depuis Patronus, ajoutez-le avec « Ajouter un PC » puis « Coller le lien ». Un agent déjà installé est simplement mis à jour.",
+    agent_dl_saved_title: "Agent enregistré",
+    agent_dl_saved_text: "Enregistré dans %1$s. Copiez ce fichier sur le PC à équiper, double-cliquez dessus et acceptez l’invite administrateur.",
+    detail_agent_update: "Mise à jour de l’agent",
+    agent_update_available: "%1$s disponible",
     section_about: "À propos",
     about_version: "Version",
     about_source: "Code source",
@@ -637,6 +657,15 @@
     return { text: parts.join(" · "), cls: values.length ? tempClass(Math.max(...values)) : null };
   }
   const versionLabel = (v) => (/^\d/.test(v || "") ? "v" + v : v || "");
+  /** Compare deux versions « X.Y.Z » (suffixe « -dev.N » ignoré) ; null si l'une n'est pas numérotée. */
+  function compareVersions(a, b) {
+    const parse = (v) => (/^(\d+)\.(\d+)\.(\d+)/.exec(v || "") || []).slice(1).map(Number);
+    const x = parse(a);
+    const y = parse(b);
+    if (x.length !== 3 || y.length !== 3) return null;
+    for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i];
+    return 0;
+  }
   const agentErrorLabel = (code) => S["agent_error_" + code] || S.agent_error_PROTOCOL;
   const actionLabel = (a) => ({ shutdown: S.action_shutdown, reboot: S.action_reboot, sleep: S.action_sleep })[a];
   const confirmTitle = (a) => ({ shutdown: S.confirm_shutdown_title, reboot: S.confirm_reboot_title, sleep: S.confirm_sleep_title })[a];
@@ -1074,6 +1103,7 @@
     view.update(now);
     side.update(now, kind !== "settings" && !empty);
     updates.render();
+    agentDownload.render();
   }
 
   function updateNav() {
@@ -1936,7 +1966,14 @@
         if (!d.shared) rows.push({ key: "agent", label: S.detail_agent, text: S.agent_not_configured, cls: "muted" });
       }
       else if (online && s.agentError) rows.push({ key: "agent", label: S.detail_agent, text: agentErrorLabel(s.agentError), cls: "bad" });
-      else if (online && s.agent) rows.push({ key: "agent", label: S.detail_agent, text: fmt(S.agent_authenticated, versionLabel(s.agent.version)), cls: "ok", iconName: "shield" });
+      else if (online && s.agent) {
+        rows.push({ key: "agent", label: S.detail_agent, text: fmt(S.agent_authenticated, versionLabel(s.agent.version)), cls: "ok", iconName: "shield" });
+        const latest = state.agent?.latest;
+        if (latest && compareVersions(s.agent.version, latest) < 0) {
+          rows.push({ key: "agentUpdate", label: S.detail_agent_update, text: fmt(S.agent_update_available, versionLabel(latest)),
+            iconName: "download", onClick: state.agent.enabled ? () => agentDownload.open() : () => openUrl(RELEASES_URL) });
+        }
+      }
       else rows.push({ key: "agent", label: S.detail_agent, text: S.agent_configured, cls: "muted" });
 
       const keys = rows.map((r) => r.key).join("|");
@@ -1946,10 +1983,13 @@
       }
       rows.forEach((r, i) => {
         const valueEl = info.children[i].lastChild;
-        const sig = [r.text, r.cls, r.iconName, r.title].join("|");
+        const sig = [r.text, r.cls, r.iconName, r.title, !!r.onClick].join("|");
         if (valueEl.dataset.sig === sig) return;
         valueEl.dataset.sig = sig;
-        valueEl.replaceChildren(h("span", { class: r.cls || null, title: r.title || null }, r.iconName ? icon(r.iconName, "small") : null, r.text));
+        const content = [r.iconName ? icon(r.iconName, "small") : null, r.text];
+        valueEl.replaceChildren(r.onClick
+          ? h("button", { type: "button", class: "linkish", title: r.title || null, onClick: r.onClick }, content)
+          : h("span", { class: r.cls || null, title: r.title || null }, content));
       });
     }
 
@@ -2223,8 +2263,9 @@
       body: h("p", { text: fmt(S.agent_help_text, d.name) }),
       actions: [
         { label: S.cancel, onClick: () => dialog.close() },
+        state.agent?.enabled ? { label: S.agent_download, kind: "sec", onClick: () => { dialog.close(); agentDownload.open(); } } : null,
         { label: S.action_configure, onClick: () => { dialog.close(); openEditSheet(d.id); } },
-      ],
+      ].filter(Boolean),
     });
   }
 
@@ -2563,7 +2604,114 @@
       open();
     }
 
-    return { open, checkNow, render };
+    return { open, checkNow, render, notesView };
+  })();
+
+  // ---------------------------------------------------------------------------------------------
+  // Agent : dernière version publiée, vérifiée par le moteur, installée sur ce PC ou enregistrée
+  // ---------------------------------------------------------------------------------------------
+  const agentDownload = (() => {
+    let current = null;
+
+    function open() {
+      if (current) return;
+      const PLATFORMS = ["windows-amd64", "windows-arm64"];
+      const archName = (p) => (p === "windows-arm64" ? S.agent_dl_arch_arm64 : S.agent_dl_arch_amd64);
+      let info = null;
+      let error = "";
+      let loading = true;
+      let target = "";
+      const meta = h("p", { class: "upd-meta" });
+      const notes = h("div");
+      const selectEl = h("select", { "aria-label": S.agent_dl_arch });
+      selectEl.addEventListener("change", () => { target = selectEl.value; refresh(); });
+      const archRow = h("div", { class: "agent-arch" }, h("span", { text: S.agent_dl_arch }), selectEl);
+      const verified = h("p", { class: "upd-keep" }, icon("shield", "small"), S.agent_dl_verified);
+      const otherOs = h("button", { type: "button", class: "linkish", onClick: () => openUrl(RELEASES_URL) }, S.agent_dl_other_os);
+      const bar = h("i");
+      const progress = h("div", { class: "upd-bar hidden" }, bar);
+      const status = h("p", { class: "upd-status" });
+      const details = h("div", { class: "agent-dl hidden" }, meta, notes, archRow, verified, otherOs);
+      const handle = openDialog({
+        iconName: "download",
+        title: S.agent_dl_title,
+        body: [details, progress, status],
+        // Échap ou clic à côté : le dialogue est déjà fermé (un téléchargement en cours se termine).
+        onDismiss: () => { current = null; },
+      });
+      current = { refresh };
+      refresh();
+      load();
+
+      async function load() {
+        loading = true;
+        error = "";
+        refresh();
+        try {
+          info = await api.call("agentInfo");
+          target = target || info.platform;
+          selectEl.replaceChildren(...PLATFORMS.filter((p) => info.sizes[p]).map((p) =>
+            h("option", { value: p, text: p === info.platform ? fmt(S.agent_dl_this_pc, archName(p)) : archName(p) })));
+          selectEl.value = target;
+          notes.replaceChildren(updates.notesView(info.notes));
+        } catch (e) {
+          error = errorMessage(e);
+        }
+        loading = false;
+        refresh();
+      }
+
+      function refresh() {
+        const busy = !!state.agent?.busy;
+        const pct = Math.round((state.agent?.progress || 0) * 100);
+        details.classList.toggle("hidden", !info);
+        if (info) {
+          const size = info.sizes[target] || 0;
+          meta.textContent = fmt(S.agent_dl_meta, info.version, (size / 1048576).toFixed(1).replace(".", ","));
+        }
+        progress.classList.toggle("hidden", !busy);
+        bar.style.width = pct + "%";
+        const text = loading ? S.agent_dl_loading : busy ? fmt(S.agent_dl_downloading, pct) : error;
+        status.textContent = text;
+        status.classList.toggle("hidden", !text);
+        status.classList.toggle("bad", !loading && !busy && !!error);
+        selectEl.disabled = busy;
+        const actions = [{ label: S.agent_dl_close, disabled: busy, onClick: close }];
+        if (!info && !loading) actions.push({ label: S.agent_dl_retry, onClick: load });
+        if (info) {
+          actions.push({ label: S.agent_dl_save, kind: "sec", disabled: busy, onClick: () => run(false) });
+          actions.push({ label: S.agent_dl_install, disabled: busy || target !== info.platform, onClick: () => run(true) });
+        }
+        handle.setActions(actions);
+      }
+
+      async function run(install) {
+        error = "";
+        refresh();
+        try {
+          const r = await api.call("agentDownload", { platform: install ? info.platform : target, install });
+          if (r?.cancelled) return refresh();
+          close();
+          if (install) alertDialog(S.agent_dl_started_title, S.agent_dl_started_text);
+          else alertDialog(S.agent_dl_saved_title, fmt(S.agent_dl_saved_text, r.path));
+        } catch (e) {
+          error = errorMessage(e);
+          refresh();
+        }
+      }
+
+      function close() {
+        handle.close();
+        current = null;
+      }
+    }
+
+    /** Après chaque changement d'état : avancement du téléchargement. */
+    function render() {
+      current?.refresh();
+    }
+
+    return { open, render };
   })();
 
   // ---------------------------------------------------------------------------------------------
@@ -3023,7 +3171,8 @@
       shareSections.els,
       section(S.section_backup, exportItem, importItem),
       section(S.section_history, settingItem("history", S.history_open, S.history_open_help, () => openHistorySheet("")), clearItem),
-      section(S.section_agent_download, settingItem("download", S.agent_download, S.agent_download_help, () => openUrl(RELEASES_URL))),
+      section(S.section_agent_download, settingItem("download", S.agent_download, S.agent_download_help,
+        () => (state.agent?.enabled ? agentDownload.open() : openUrl(RELEASES_URL)))),
       section(S.section_updates, updateItem, autoUpdateItem),
       section(S.section_about,
         settingItem("info", S.about_version, state.version),

@@ -13,6 +13,9 @@ Version Windows de l'application : **mêmes fonctions et même style** que l'app
 - 🔄 Mises à jour intégrées : nouvelle version proposée avec ses nouveautés, installée en un clic (l'application se
   remplace puis redémarre ; configuration et historique conservés). Voir [docs/MISES-A-JOUR.md](../docs/MISES-A-JOUR.md).
 - ⏻ Éteindre, redémarrer, mettre en veille (avec l'[agent](../agent/README.md) installé sur les PC).
+- 📦 Agent téléchargeable depuis l'application (*Réglages* → *Télécharger l'agent*) : installé sur cet ordinateur en un
+  clic (invite administrateur), ou enregistré pour un autre PC (x64 ou ARM64). La fiche d'un PC signale un agent en
+  retard sur la dernière version publiée.
 - 🕘 Historique discret des démarrages et extinctions sur 30 jours (complet avec l'agent 1.2 ou plus, même quand
   l'application était fermée).
 - 💾 Export / import **compatibles avec le téléphone** : une sauvegarde du téléphone s'importe sur le PC, et inversement.

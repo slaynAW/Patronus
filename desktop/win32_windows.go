@@ -214,9 +214,17 @@ func saveFileDialog(owner windows.HWND, suggestedName string) (string, error) {
 	filter := utf16List("Sauvegarde Patronus (*.json)", "*.json", "Tous les fichiers", "*.*")
 	defExt, _ := windows.UTF16PtrFromString("json")
 	title, _ := windows.UTF16PtrFromString("Exporter la configuration")
+	folder := "Documents"
+	if strings.EqualFold(filepath.Ext(suggestedName), ".exe") {
+		// Agent à copier sur un autre PC.
+		filter = utf16List("Programme (*.exe)", "*.exe", "Tous les fichiers", "*.*")
+		defExt, _ = windows.UTF16PtrFromString("exe")
+		title, _ = windows.UTF16PtrFromString("Enregistrer l'agent Patronus")
+		folder = "Downloads"
+	}
 	var initialDir *uint16
 	if home, err := os.UserHomeDir(); err == nil {
-		initialDir, _ = windows.UTF16PtrFromString(filepath.Join(home, "Documents"))
+		initialDir, _ = windows.UTF16PtrFromString(filepath.Join(home, folder))
 	}
 	ofn := openFileName{
 		owner:       uintptr(owner),
