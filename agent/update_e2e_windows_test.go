@@ -27,6 +27,7 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/internal/service"
 	"github.com/slaynaw/wakeonlan/agent/internal/terminal"
 	"github.com/slaynaw/wakeonlan/agent/update"
+	"golang.org/x/sys/windows/svc/mgr"
 )
 
 // TestUpdateEndToEnd (CI Windows, droits administrateur) : un agent 1.0.0 est installé comme service,
@@ -98,6 +99,32 @@ func TestUpdateEndToEnd(t *testing.T) {
 		t.Fatalf("agent installé : %q, %v (installation : %v)\n%s", v, probeErr, err, out)
 	}
 
+	// Installation antérieure au passage à « Patronus » : la mise à jour doit renommer le service.
+	serviceLabel := func(set string) string {
+		m, err := mgr.Connect()
+		if err != nil {
+			return ""
+		}
+		defer m.Disconnect()
+		s, err := m.OpenService("WolAgent")
+		if err != nil {
+			return ""
+		}
+		defer s.Close()
+		cfg, err := s.Config()
+		if err != nil {
+			return ""
+		}
+		if set != "" {
+			cfg.DisplayName = set
+			if err := s.UpdateConfig(cfg); err != nil {
+				t.Fatalf("nom du service : %v", err)
+			}
+		}
+		return cfg.DisplayName
+	}
+	serviceLabel("Wake On LAN - Agent")
+
 	// Le service vérifie 2 s après son démarrage (mode test), installe puis redémarre.
 	deadline := time.Now().Add(3 * time.Minute)
 	for {
@@ -116,6 +143,12 @@ func TestUpdateEndToEnd(t *testing.T) {
 	logData, _ := os.ReadFile(filepath.Join(config.Dir(), "agent.log"))
 	if !strings.Contains(string(logData), "agent 9.9.9 installé") {
 		t.Errorf("journal sans la fin de la mise à jour :\n%s", logData)
+	}
+	for i := 0; serviceLabel("") != "Patronus - Agent"; i++ {
+		if i == 30 {
+			t.Fatalf("service non renommé après la mise à jour : %q", serviceLabel(""))
+		}
+		time.Sleep(time.Second)
 	}
 	// La nouvelle version, à jour, ne se propose pas elle-même.
 	out, err = exec.Command(installed, "update", "--check").CombinedOutput()

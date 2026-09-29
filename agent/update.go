@@ -93,10 +93,11 @@ func cmdUpdateFinish() error {
 		return err
 	}
 	update.CleanupOld(exe)
-	// Nom affiché (service, pare-feu) des installations antérieures au passage à « Patronus ».
-	service.RefreshLabels()
 	logger.Printf("mise à jour : agent %s installé", version)
 	selfupdate.Notify(fmt.Sprintf("L'agent Patronus a été mis à jour (version %s).", version), false)
+	// Nom affiché (service, pare-feu) des installations antérieures au passage à « Patronus » ; en
+	// dernier : la mise à jour est terminée et notée au journal, quoi qu'il arrive ici.
+	service.RefreshLabels()
 	return nil
 }
 
