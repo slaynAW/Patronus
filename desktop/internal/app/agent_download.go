@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/update"
+	"github.com/slaynaw/wakeonlan/desktop/internal/diag"
 )
 
 // Téléchargement de l'agent depuis l'application : la dernière version publiée est vérifiée avec le
@@ -170,8 +171,10 @@ func (s *Service) agentDownload(ctx context.Context, platform string, install bo
 		}
 	})
 	if err != nil {
+		diag.Warn(areaAgent, "téléchargement de l'agent %s (%s) impossible : %v", m.Agent.Version, platform, err)
 		return nil, errors.New("Téléchargement impossible : " + err.Error())
 	}
+	diag.Info(areaAgent, "agent %s (%s) téléchargé et vérifié, %s", m.Agent.Version, platform, pick(install, "installation", "enregistrement"))
 
 	if install {
 		// La plateforme revérifie l'empreinte sur le fichier verrouillé avant de le lancer, puis

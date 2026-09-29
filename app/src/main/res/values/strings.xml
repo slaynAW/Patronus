@@ -195,6 +195,18 @@
     <string name="crash_text">Un rapport technique a été enregistré sur ce téléphone (rien n’est envoyé automatiquement). Partagez-le pour aider à corriger le problème.</string>
     <string name="crash_share">Partager le rapport</string>
     <string name="crash_ignore">Ignorer</string>
+    <string name="section_diagnostic">Diagnostic</string>
+    <string name="diagnostic_export">Exporter le rapport de diagnostic</string>
+    <string name="diagnostic_export_help">Journal détaillé et chiffré des actions et des erreurs, à transmettre pour analyser un problème. Protégé par un mot de passe.</string>
+    <string name="diagnostic_title">Rapport de diagnostic</string>
+    <string name="diagnostic_text">Le rapport contient l’état de l’application, vos PC (noms, adresses), le partage et le journal des dernières actions, sans aucune clé ni jeton. Il est chiffré par ce mot de passe : transmettez le fichier et, séparément, le mot de passe.</string>
+    <string name="diagnostic_save">Enregistrer</string>
+    <string name="message_diagnostic_done">Rapport de diagnostic enregistré</string>
+    <string name="data_notice_title">Données illisibles</string>
+    <string name="data_notice_config">La liste des PC n’a pas pu être relue : elle a été mise de côté et l’application repart d’une liste vide.</string>
+    <string name="data_notice_share">Le partage n’a pas pu être relu : il a été mis de côté et « Partager mes PC » repart de zéro.</string>
+    <string name="data_notice_history">L’historique n’a pas pu être relu : il repart de zéro.</string>
+    <string name="data_notice_help">Importez votre dernière sauvegarde complète (Réglages → Importer) pour tout retrouver. Pour l’analyse : Réglages → Diagnostic → Exporter le rapport.</string>
     <string name="crash_subject">Rapport de plantage Patronus</string>
 
     <!-- Édition -->

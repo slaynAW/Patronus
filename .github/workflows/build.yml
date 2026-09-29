@@ -226,8 +226,13 @@ jobs:
           $p = Start-Process -FilePath $exe.FullName -PassThru
           if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "L'application n'a pas terminé son autotest en 2 minutes." }
           if (Test-Path $result) { Get-Content $result } else { throw "Aucun résultat d'autotest." }
-          Get-Content (Join-Path $env:WOL_DATA_DIR "wakeonlan.log") -ErrorAction SilentlyContinue
           if ((Get-Content $result -Raw) -notmatch '"ok":true') { throw "Échec de l'autotest de démarrage." }
+          # Journal de diagnostic : créé (clé protégée par DPAPI) et jamais écrit en clair.
+          $journal = Join-Path $env:WOL_DATA_DIR "diagnostics\journal-0.log"
+          if (-not (Test-Path (Join-Path $env:WOL_DATA_DIR "diagnostics\journal.key"))) { throw "Clé du journal de diagnostic absente." }
+          if (-not (Test-Path $journal)) { throw "Journal de diagnostic absent." }
+          if ((Get-Content $journal -Raw -Encoding utf8) -match "démarrage|Patronus") { throw "Journal de diagnostic écrit en clair." }
+          Write-Host "Journal de diagnostic : $((Get-Content $journal).Count) évènement(s) chiffré(s)"
 
   android:
     name: Application Android

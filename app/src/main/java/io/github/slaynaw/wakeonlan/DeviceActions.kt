@@ -14,6 +14,7 @@ import io.github.slaynaw.wakeonlan.core.wol.BroadcastAddresses
 import io.github.slaynaw.wakeonlan.core.wol.MagicPacket
 import io.github.slaynaw.wakeonlan.core.wol.WakeOnLanSender
 import io.github.slaynaw.wakeonlan.core.wol.WakeResult
+import io.github.slaynaw.wakeonlan.diagnostics.DiagnosticLog
 import io.github.slaynaw.wakeonlan.network.LanNetworkMonitor
 import java.net.Inet4Address
 import java.net.InetAddress
@@ -34,6 +35,12 @@ class DeviceActions(
         val targets = BroadcastAddresses.targets(forced, network.state.value.addresses)
         val password = device.secureOnPassword?.let(DeviceValidator::secureOnBytes)
         val result = sender.send(MagicPacket.build(device.mac, password), targets, listOf(device.wolPort))
+        val summary = "« ${device.name} » (${device.mac}) : ${result.packetsSent} paquet(s) vers ${result.destinations.joinToString { "${it.hostString}:${it.port}" }}"
+        if (result.success) {
+            DiagnosticLog.i("action", "réveil envoyé à $summary" + if (result.errors.isEmpty()) "" else " ; erreurs : ${result.errors}")
+        } else {
+            DiagnosticLog.w("action", "réveil impossible pour $summary ; erreurs : ${result.errors}")
+        }
         if (result.success) {
             history.record(device.id, HistoryKind.WAKE_SENT)
             monitor.onWakeSent(device.id)
@@ -45,6 +52,10 @@ class DeviceActions(
         val agent = device.agent?.takeIf { it.hasKey && device.hasHost }
             ?: return AgentResult.Failure(AgentError.NO_KEY)
         val result = agentClient.power(device.host, agent, action, force = force)
+        when (result) {
+            is AgentResult.Success -> DiagnosticLog.i("action", "$action${if (force) " (forcé)" else ""} accepté par « ${device.name} » (${device.host}:${agent.port})")
+            is AgentResult.Failure -> DiagnosticLog.w("action", "$action refusé ou impossible pour « ${device.name} » (${device.host}:${agent.port}) : ${result.error}${result.detail?.let { " — $it" }.orEmpty()}")
+        }
         if (result is AgentResult.Success) {
             history.record(
                 device.id,
@@ -60,5 +71,10 @@ class DeviceActions(
     }
 
     suspend fun testAgent(host: String, agent: AgentSettings): AgentResult<AgentStatus> =
-        agentClient.status(host, agent)
+        agentClient.status(host, agent).also { r ->
+            when (r) {
+                is AgentResult.Success -> DiagnosticLog.i("action", "test de l'agent $host:${agent.port} : réussi (version ${r.value.version}, ${r.value.os})")
+                is AgentResult.Failure -> DiagnosticLog.w("action", "test de l'agent $host:${agent.port} : ${r.error}${r.detail?.let { " — $it" }.orEmpty()}")
+            }
+        }
 }

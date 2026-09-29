@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/slaynaw/wakeonlan/agent/protocol"
@@ -183,8 +184,8 @@ func TestStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d := s.Load(); len(d.Events) != 0 || d.Coverage == nil {
-		t.Fatalf("historique initial : %+v", d)
+	if d, err := s.Load(); err != nil || len(d.Events) != 0 || d.Coverage == nil {
+		t.Fatalf("historique initial : %+v %v", d, err)
 	}
 	now := int64(1_790_600_000_000)
 	d := New().Add(Event{Device: "a", Time: now, Kind: WakeSent, Source: App}, now)
@@ -192,13 +193,21 @@ func TestStore(t *testing.T) {
 	if err := s.Save(d); err != nil {
 		t.Fatal(err)
 	}
-	if back := s.Load(); !reflect.DeepEqual(back, d) {
-		t.Fatalf("relecture :\n%+v\n%+v", back, d)
+	if back, err := s.Load(); err != nil || !reflect.DeepEqual(back, d) {
+		t.Fatalf("relecture :\n%+v\n%+v\n%v", back, d, err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, fileName), []byte("abîmé"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if back := s.Load(); len(back.Events) != 0 {
-		t.Fatal("fichier abîmé non ignoré")
+	back, err := s.Load()
+	if len(back.Events) != 0 || err == nil || !strings.Contains(err.Error(), "mis de côté") {
+		t.Fatalf("fichier abîmé non ignoré : %v", err)
+	}
+	// Mis de côté, jamais supprimé ; le lancement suivant repart d'un historique vide sans erreur.
+	if kept, _ := filepath.Glob(filepath.Join(dir, fileName+".illisible-*")); len(kept) != 1 {
+		t.Errorf("copie du fichier abîmé : %v", kept)
+	}
+	if _, err := s.Load(); err != nil {
+		t.Errorf("après mise de côté : %v", err)
 	}
 }

@@ -17,12 +17,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/slaynaw/wakeonlan/desktop/internal/app"
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
+	"github.com/slaynaw/wakeonlan/desktop/internal/diag"
 	"github.com/slaynaw/wakeonlan/desktop/internal/history"
 )
 
@@ -59,6 +61,12 @@ func main() {
 	store, err := config.NewStore(*dataDir)
 	if err != nil {
 		log.Fatal(err)
+	}
+	// Journal de diagnostic, recopié en clair sur la sortie d'erreur (mode développement).
+	if j, err := diag.Open(filepath.Join(*dataDir, "diagnostics")); err == nil {
+		j.Mirror = os.Stderr
+		diag.SetDefault(j)
+		_ = j.CaptureCrashes()
 	}
 	histStore, err := history.NewStore(*dataDir)
 	if err != nil {

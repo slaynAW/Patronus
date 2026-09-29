@@ -342,7 +342,7 @@ func TestHistoryRecordingAndAgentJournal(t *testing.T) {
 		t.Fatalf("démarrage signalé : %+v", reported)
 	}
 	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-		if slices.ContainsFunc(histStore.Load().Events, func(e history.Event) bool { return e.Kind == history.WakeSent && e.Source == history.Agent }) {
+		if h, _ := histStore.Load(); slices.ContainsFunc(h.Events, func(e history.Event) bool { return e.Kind == history.WakeSent && e.Source == history.Agent }) {
 			break
 		}
 	}
@@ -368,7 +368,7 @@ func TestHistoryRecordingAndAgentJournal(t *testing.T) {
 	}
 
 	// Historique enregistré sur le disque, puis supprimé avec le PC.
-	if len(histStore.Load().Events) == 0 {
+	if h, _ := histStore.Load(); len(h.Events) == 0 {
 		t.Error("historique non enregistré")
 	}
 	call(t, s, "deleteDevice", map[string]any{"id": id})

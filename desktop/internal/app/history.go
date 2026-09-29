@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/slaynaw/wakeonlan/desktop/internal/agentclient"
+	"github.com/slaynaw/wakeonlan/desktop/internal/diag"
 	"github.com/slaynaw/wakeonlan/desktop/internal/history"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 	"github.com/slaynaw/wakeonlan/desktop/internal/status"
@@ -52,6 +54,7 @@ func (s *Service) onStatusChange() {
 	prev := s.lastStatuses
 	s.lastStatuses = statuses
 	if prev != nil {
+		s.logTransitions(prev, statuses)
 		if events := history.Transitions(prev, statuses, s.now().UnixMilli()); len(events) > 0 {
 			s.recordAll(events)
 		}
@@ -63,6 +66,41 @@ func (s *Service) onStatusChange() {
 	}
 	s.statusMu.Unlock()
 	s.notify()
+}
+
+// logTransitions note dans le journal les changements d'état des PC (et de l'erreur de leur agent).
+func (s *Service) logTransitions(prev, next map[string]status.DeviceStatus) {
+	for id, st := range next {
+		old, known := prev[id]
+		if known && old.State == st.State && old.AgentError == st.AgentError && old.Notice == st.Notice {
+			continue
+		}
+		name := "[" + shortID(id) + "]"
+		if d, ok := s.device(id); ok {
+			name = "« " + d.Name + " »"
+		}
+		from := "-"
+		if known {
+			from = string(old.State)
+		}
+		detail := ""
+		if st.Method != "" {
+			detail += ", via " + string(st.Method)
+		}
+		if st.LatencyMs != nil {
+			detail += fmt.Sprintf(" (%d ms)", *st.LatencyMs)
+		}
+		if st.AgentError != "" {
+			detail += ", agent : " + string(st.AgentError)
+		}
+		if st.UnknownReason != "" {
+			detail += ", raison : " + string(st.UnknownReason)
+		}
+		if st.Notice != "" {
+			detail += ", avis : " + string(st.Notice)
+		}
+		diag.Info(areaStatus, "%s : %s → %s%s", name, from, st.State, detail)
+	}
 }
 
 func requestKind(action agentclient.Action) history.Kind {
@@ -95,7 +133,10 @@ func (s *Service) recordAll(events []history.Event) {
 
 func (s *Service) saveHistoryLocked() {
 	if s.histStore != nil {
-		_ = s.histStore.Save(s.hist) // simple journal : une écriture manquée n'est pas bloquante
+		// Simple journal : une écriture manquée n'est pas bloquante.
+		if err := s.histStore.Save(s.hist); err != nil {
+			diag.Warn(areaHistory, "historique non enregistré : %v", err)
+		}
 	}
 }
 
@@ -193,8 +234,10 @@ func (s *Service) refreshAgentHistory(id string, force bool) {
 			}
 		case agentclient.CodeOf(err) == agentclient.Rejected:
 			st.status = AgentHistoryOutdated
+			diag.Info(areaHistory, "journal de l'agent de « %s » : agent trop ancien", d.Name)
 		case err != nil:
 			st.status = AgentHistoryUnreachable
+			diag.Info(areaHistory, "journal de l'agent de « %s » illisible : %s (%v)", d.Name, agentclient.CodeOf(err), err)
 		}
 		s.histVersion++
 		s.histMu.Unlock()
@@ -224,6 +267,8 @@ func (s *Service) reportWakes(id string, st *agentFetchState, host string, setti
 		s.histVersion++
 	case agentclient.CodeOf(err) == agentclient.Rejected:
 		st.wakesUnsupported = true
+	case err != nil:
+		diag.Info(areaHistory, "démarrages non signalés à l'agent de [%s] : %s (%v)", shortID(id), agentclient.CodeOf(err), err)
 	}
 	s.histMu.Unlock()
 	s.notify()

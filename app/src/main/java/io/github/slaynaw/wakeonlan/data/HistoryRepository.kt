@@ -1,8 +1,10 @@
 package io.github.slaynaw.wakeonlan.data
 
 import android.content.Context
-import android.util.Log
 import io.github.slaynaw.wakeonlan.core.history.HistoryData
+import io.github.slaynaw.wakeonlan.diagnostics.DataKind
+import io.github.slaynaw.wakeonlan.diagnostics.DataNotices
+import io.github.slaynaw.wakeonlan.diagnostics.DiagnosticLog
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,16 +60,19 @@ class HistoryRepository(context: Context, scope: CoroutineScope) {
         return try {
             HistoryData.decode(String(cipher.decrypt(file.readBytes()), Charsets.UTF_8)) ?: HistoryData.EMPTY
         } catch (e: GeneralSecurityException) {
-            Log.w(TAG, "Historique illisible, réinitialisation", e)
-            HistoryData.EMPTY
+            unreadable(e)
         } catch (e: IOException) {
-            Log.w(TAG, "Historique illisible, réinitialisation", e)
-            HistoryData.EMPTY
+            unreadable(e)
         } catch (e: RuntimeException) {
             // Keystore défaillant sur certains appareils (ProviderException…) : l'historique repart de zéro.
-            Log.w(TAG, "Historique illisible, réinitialisation", e)
-            HistoryData.EMPTY
+            unreadable(e)
         }
+    }
+
+    /** Historique illisible : copie gardée de côté et incident noté, puis historique vide. */
+    private fun unreadable(e: Throwable): HistoryData {
+        DataNotices.unreadable(DataKind.HISTORY, file, e, notify = false)
+        return HistoryData.EMPTY
     }
 
     private fun save(data: HistoryData) {
@@ -78,15 +83,11 @@ class HistoryRepository(context: Context, scope: CoroutineScope) {
             temp.writeBytes(cipher.encrypt(HistoryData.encode(data).toByteArray(Charsets.UTF_8)))
             if (!temp.renameTo(file)) throw IOException("Écriture de l'historique impossible")
         } catch (e: GeneralSecurityException) {
-            Log.w(TAG, "Historique non enregistré", e)
+            DiagnosticLog.w("historique", "non enregistré", e)
         } catch (e: IOException) {
-            Log.w(TAG, "Historique non enregistré", e)
+            DiagnosticLog.w("historique", "non enregistré", e)
         } catch (e: RuntimeException) {
-            Log.w(TAG, "Historique non enregistré", e)
+            DiagnosticLog.w("historique", "non enregistré", e)
         }
-    }
-
-    private companion object {
-        const val TAG = "HistoryRepository"
     }
 }

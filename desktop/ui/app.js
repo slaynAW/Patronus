@@ -284,6 +284,15 @@
     agent_dl_saved_text: "Enregistré dans %1$s. Copiez ce fichier sur le PC à équiper, double-cliquez dessus et acceptez l’invite administrateur.",
     detail_agent_update: "Mise à jour de l’agent",
     agent_update_available: "%1$s disponible",
+    section_diagnostic: "Diagnostic",
+    diagnostic_export: "Exporter le rapport de diagnostic",
+    diagnostic_export_help: "Journal détaillé et chiffré des actions et des erreurs, à transmettre pour analyser un problème. Protégé par un mot de passe.",
+    diagnostic_title: "Rapport de diagnostic",
+    diagnostic_text: "Le rapport contient l’état de l’application, vos PC (noms, adresses), le partage et le journal des dernières actions, sans aucune clé ni jeton. Il est chiffré par ce mot de passe : transmettez le fichier et, séparément, le mot de passe.",
+    diagnostic_save: "Enregistrer",
+    message_diagnostic_done: "Rapport de diagnostic enregistré",
+    share_load_error_title: "Partage illisible au démarrage",
+    share_load_error: "%1$s. Importez votre dernière sauvegarde complète (Réglages → Importer) pour retrouver votre clé de partage, puis reconnectez-vous à GitHub.",
     section_about: "À propos",
     about_version: "Version",
     about_source: "Code source",
@@ -614,6 +623,24 @@
       onState: (f) => listeners.add(f),
     };
   })();
+
+  // Erreurs de la page : notées dans le journal de diagnostic chiffré du moteur (nombre limité).
+  window.addEventListener("error", (e) => {
+    const where = e.filename ? ` (${e.filename.slice(0, 80)}:${e.lineno}:${e.colno})` : ` (ligne ${e.lineno}:${e.colno})`;
+    logClient("error", `${e.message}${where}\n${e.error?.stack || ""}`);
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const r = e.reason;
+    logClient("error", "promesse rejetée : " + (r instanceof Error ? `${r.message}\n${r.stack || ""}` : String(r)));
+  });
+
+  function logClient(level, text) {
+    try {
+      api.call("logClient", { level, text: String(text).slice(0, 8000) }).catch(() => {});
+    } catch {
+      // Moteur indisponible : rien à faire.
+    }
+  }
 
   // ---------------------------------------------------------------------------------------------
   // Petits utilitaires d'affichage (Texts.kt)
@@ -3076,19 +3103,28 @@
 
     // --- Sections des réglages ---
 
+    /** Partage illisible au démarrage (mis de côté par le moteur) : signalé en tête de section. */
+    function loadErrorItems(sh) {
+      if (!sh.error) return [];
+      const item = settingItem("warning", S.share_load_error_title, fmt(S.share_load_error, sh.error));
+      item.querySelector(".supporting").classList.add("bad");
+      return [item];
+    }
+
     function ownerItems(sh) {
       const o = sh.owner;
       if (!o) {
-        return [settingItem("share", S.share_start, sh.canLogin ? S.share_start_help : S.share_unavailable, sh.canLogin ? setupDialog : null)];
+        return [...loadErrorItems(sh),
+          settingItem("share", S.share_start, sh.canLogin ? S.share_start_help : S.share_unavailable, sh.canLogin ? setupDialog : null)];
       }
       if (!o.connected) {
-        return [
+        return [...loadErrorItems(sh),
           settingItem("cloud", S.share_reconnect, o.error || S.share_reconnect_help, sh.canLogin ? () => startLogin(o.name) : null),
           settingItem("delete", S.share_stop, S.share_stop_help, stopDialog, { danger: true, chevron: false }),
         ];
       }
       const names = new Map(ownDevices().map((d) => [d.id, d.name]));
-      const items = [
+      const items = [...loadErrorItems(sh),
         settingItem("share", S.share_invite, S.share_invite_help, inviteDialog),
         settingItem("paste", S.share_add_request, S.share_add_request_help, requestPasteDialog),
       ];
@@ -3174,6 +3210,7 @@
       section(S.section_agent_download, settingItem("download", S.agent_download, S.agent_download_help,
         () => (state.agent?.enabled ? agentDownload.open() : openUrl(RELEASES_URL)))),
       section(S.section_updates, updateItem, autoUpdateItem),
+      section(S.section_diagnostic, settingItem("upload", S.diagnostic_export, S.diagnostic_export_help, diagnosticDialog)),
       section(S.section_about,
         settingItem("info", S.about_version, state.version),
         settingItem("code", S.about_source, REPO_URL, () => openUrl(REPO_URL)),
@@ -3310,6 +3347,49 @@
         const r = await api.call("exportConfig", { withSecrets, password: withSecrets ? password : "" });
         if (r.download) download(r.download.name, r.download.content);
         if (r.ok) snackbar(fmt(S.message_export_done, r.count));
+      } catch (e) {
+        snackbar(errorMessage(e));
+      } finally {
+        password = confirmation = "";
+        setBusy(false);
+      }
+    }
+  }
+
+  /** Rapport de diagnostic : chiffré par un mot de passe choisi ici, puis enregistré. */
+  function diagnosticDialog() {
+    let password = "";
+    let confirmation = "";
+    const passwordField = field({ label: S.field_password, helper: fmt(S.field_password_help, MIN_PASSWORD_LENGTH), type: "password", onInput: (v) => { password = v; refresh(); } });
+    const confirmField = field({ label: S.field_password_confirm, type: "password", onInput: (v) => { confirmation = v; refresh(); } });
+    const dialog = openDialog({
+      iconName: "upload",
+      title: S.diagnostic_title,
+      body: [h("p", { text: S.diagnostic_text }), h("div", { class: "form-section" }, passwordField.wrap, confirmField.wrap)],
+    });
+    refresh();
+    [passwordField.input, confirmField.input].forEach((i) => i.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && valid()) submit();
+    }));
+
+    function valid() {
+      return [...password].length >= MIN_PASSWORD_LENGTH && password === confirmation;
+    }
+    function refresh() {
+      passwordField.wrap.classList.toggle("error", password.length > 0 && [...password].length < MIN_PASSWORD_LENGTH);
+      confirmField.wrap.classList.toggle("error", confirmation.length > 0 && password !== confirmation);
+      dialog.setActions([
+        { label: S.cancel, onClick: () => dialog.close() },
+        { label: S.diagnostic_save, disabled: !valid(), onClick: submit },
+      ]);
+    }
+    async function submit() {
+      dialog.close();
+      setBusy(true);
+      try {
+        const r = await api.call("exportDiagnostic", { password });
+        if (r.download) download(r.download.name, r.download.content);
+        if (r.ok) snackbar(S.message_diagnostic_done);
       } catch (e) {
         snackbar(errorMessage(e));
       } finally {

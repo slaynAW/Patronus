@@ -18,7 +18,8 @@
 | Chiffrement au repos | Toute la configuration (PC, clés d'agent) est chiffrée en AES-256-GCM avec une clé générée dans le **Keystore Android** (TEE / Titan M2 sur Pixel). La clé n'est pas extractible, même par root. L'historique (30 jours) est chiffré de la même façon, avec une clé distincte. |
 | Pas de sauvegarde cloud | `allowBackup=false` et règles d'extraction excluant tout : les secrets ne partent pas dans Google Drive. L'export chiffré sert de sauvegarde. |
 | Captures d'écran | Bloquées pendant l'affichage en clair d'une clé d'agent (`FLAG_SECURE`). |
-| Journaux | Les objets contenant des secrets masquent ceux-ci dans `toString()` (testé). |
+| Journaux | Les objets contenant des secrets masquent ceux-ci dans `toString()` (testé). Journal de diagnostic chiffré (AES-256-GCM, clé de données protégée par le Keystore), sans aucun secret ; il ne quitte le téléphone que dans un rapport exporté par l'utilisateur et chiffré par son mot de passe ([DIAGNOSTIC.md](DIAGNOSTIC.md)). |
+| Données illisibles | Configuration, partage ou historique illisibles (clé Keystore perdue, fichier abîmé) : fichier mis de côté, jamais écrasé, et incident signalé à l'utilisateur. |
 | Réseau | Trafic HTTP en clair interdit (`network_security_config`) ; sockets attachées au Wi-Fi/Ethernet. |
 | Import | Tout fichier importé est validé champ par champ (MAC, IP, ports, tailles) ; taille maximale 1 Mio. |
 | Partage | Clés de partage générées sur le téléphone et chiffrées avec l'état du partage par le Keystore ; jeton GitHub limité aux Gists, jamais exporté ; PC reçus validés comme un import, non modifiables ni exportables, clé d'agent jamais affichée. |
@@ -36,6 +37,7 @@
 | Téléchargement de l'agent | Même vérification que les mises à jour (manifeste signé, taille, SHA-256), uniquement à la demande. Pour l'installer sur cet ordinateur, le fichier (dans `%LOCALAPPDATA%\WakeOnLan\Agent`, vidé au démarrage) est verrouillé contre toute modification, son empreinte revérifiée sur le fichier verrouillé, puis l'installation est lancée avec l'invite administrateur ; le verrou tient jusqu'à la fin de l'installation, puis le fichier est effacé. |
 | Interface | Page intégrée à l'exécutable, sans contenu distant ; seules les adresses du dépôt peuvent être ouvertes dans le navigateur (liste blanche). Le presse-papiers n'est lu que pour un lien `wolagent://`. |
 | Clés | Jamais envoyées à la liste des PC affichée ; seulement au formulaire de modification. |
+| Journal de diagnostic | `diagnostics\` : chaque évènement chiffré en AES-256-GCM, clé de données protégée par DPAPI ; aucun secret (paramètres des actions filtrés : ni mot de passe, ni clé, ni texte collé). Rapport exporté uniquement à la demande, chiffré par mot de passe ([DIAGNOSTIC.md](DIAGNOSTIC.md)). Un arrêt brutal du moteur est d'abord écrit en clair par Go dans `diagnostics\plantage.txt` (traces d'exécution), puis versé dans le journal chiffré au lancement suivant. |
 | Exécutable | Compilé par la CI (`-trimpath`, sans CGO), somme SHA-256 publiée. Non signé par un éditeur (avertissement SmartScreen au premier lancement). |
 
 ## Export / import
@@ -46,6 +48,9 @@
   fichier chiffré.
 - **Sans les clés** : fichier lisible, clés d'agent et mots de passe SecureOn retirés.
 - Format identique sur Android et Windows (vérifié par des sauvegardes de référence produites indépendamment).
+- **Rapport de diagnostic** : même chiffrement (PBKDF2-HMAC-SHA256 600 000 itérations + AES-256-GCM), format
+  `patronus-diagnostic/1` commun aux applications et à l'agent ; jamais de clé, de jeton ni de mot de passe dedans
+  ([DIAGNOSTIC.md](DIAGNOSTIC.md)).
 
 ## Agent
 

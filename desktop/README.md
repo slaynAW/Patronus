@@ -51,7 +51,7 @@ jour*). Pour passer d'une version plus ancienne, remplacez simplement le fichier
 | Configuration (PC, clés des agents, réglages) | `%APPDATA%\WakeOnLan\config.dat`, chiffrée avec **DPAPI** (liée à votre session Windows : illisible depuis un autre compte ou un autre PC). |
 | Historique (30 jours) | `%APPDATA%\WakeOnLan\history.dat`, chiffré avec DPAPI. *Réglages* → *Effacer l'historique* le vide (le journal tenu par l'agent de chaque PC est conservé). |
 | Partage (clés, jeton GitHub, accès reçus) | `%APPDATA%\WakeOnLan\share.dat`, chiffré avec DPAPI. |
-| Journal technique | `%APPDATA%\WakeOnLan\wakeonlan.log` |
+| Journal de diagnostic | `%APPDATA%\WakeOnLan\diagnostics\`, chiffré (clé protégée par DPAPI). *Réglages* → *Diagnostic* exporte un rapport chiffré par mot de passe ([docs/DIAGNOSTIC.md](../docs/DIAGNOSTIC.md)). |
 | Cache d'affichage WebView2 | `%LOCALAPPDATA%\WakeOnLan\WebView2` |
 
 Pour changer de PC, utilisez l'**export chiffré** (le fichier `config.dat` n'est pas transférable, par sécurité).
