@@ -366,7 +366,7 @@
     import_sharing_done: "Votre partage a été repris. Reconnectez-vous à GitHub (Réglages → Partager mes PC) avec le même compte pour que les accès continuent.",
   };
 
-  const REPO_URL = "https://github.com/slaynAW/WakeOnLan";
+  const REPO_URL = "https://github.com/slaynAW/Patronus";
   const GITHUB_DEVICE_URL = "https://github.com/login/device";
   const RELEASES_URL = REPO_URL + "/releases";
   const MIN_PASSWORD_LENGTH = 8;

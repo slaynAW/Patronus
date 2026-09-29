@@ -432,6 +432,6 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
         const val LOGIN_ATTEMPTS = 5
         const val LOGIN_RETRY_MS = 5_000L
         const val GIST_NOTE = "# Patronus – partage chiffré\n\nFichiers d'accès chiffrés de l'application Patronus " +
-            "(https://github.com/slaynAW/WakeOnLan). Chacun n'est lisible que par l'appareil auquel il est destiné.\n"
+            "(https://github.com/slaynAW/Patronus). Chacun n'est lisible que par l'appareil auquel il est destiné.\n"
     }
 }

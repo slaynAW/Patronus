@@ -3,6 +3,10 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.5.2
+
+- **Le projet a déménagé** : il s'appelle désormais [slaynAW/Patronus](https://github.com/slaynAW/Patronus) sur GitHub. Liens et recherche de mises à jour pointent vers la nouvelle adresse (l'ancienne redirige vers la nouvelle).
+
 ## 1.5.1
 
 - **Wake On LAN devient Patronus** : votre Patronus veille sur vos PC. Nouveau nom dans les applications, sur le téléphone et sur le PC Windows ; vos PC, réglages, historique et partages sont conservés.

@@ -5,6 +5,10 @@ compilé par la CI. **Ajoutez une section (numéro supérieur) à chaque modific
 numéro que les agents installés comparent au leur pour proposer la mise à jour. Le texte de la section est
 affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
+## 1.5.2
+
+- Mises à jour recherchées à la nouvelle adresse du projet, [slaynAW/Patronus](https://github.com/slaynAW/Patronus).
+
 ## 1.5.1
 
 - **Nouveau nom : Patronus**. Le service et la règle de pare-feu s'appellent désormais « Patronus - Agent » ; rien ne change dans le fonctionnement, la clé ni l'appairage. La commande reste `wol-agent`.
