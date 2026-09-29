@@ -42,6 +42,7 @@ type Server struct {
 	slots    chan struct{}
 	info     func() sysinfo.Info
 	history  *history.Log
+	temps    func() *protocol.Temperatures
 	now      func() time.Time
 
 	mu      sync.Mutex
@@ -74,6 +75,10 @@ func New(cfg *config.Config, controller power.Controller, version string, logger
 
 // SetHistory branche le journal du PC (commande « history » et enregistrement des commandes reçues).
 func (s *Server) SetHistory(l *history.Log) { s.history = l }
+
+// SetTemperatures branche la lecture des températures, jointes aux réponses à « status » (elle doit
+// répondre tout de suite : voir sensors.Cache).
+func (s *Server) SetTemperatures(read func() *protocol.Temperatures) { s.temps = read }
 
 // ListenAndServe écoute sur le port configuré jusqu'à l'annulation de ctx.
 func (s *Server) ListenAndServe(ctx context.Context) error {
@@ -240,6 +245,9 @@ func (s *Server) execute(rawBody, ip string) protocol.ResponseBody {
 	}
 	if body.Cmd == "status" {
 		resp.OK, resp.Code = true, "ok"
+		if s.temps != nil {
+			resp.Temperatures = s.temps()
+		}
 		return resp
 	}
 	action, ok := power.Parse(body.Cmd)

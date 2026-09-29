@@ -134,7 +134,23 @@ type ResponseBody struct {
 	Uptime   int64  `json:"uptime"`
 	// History n'est renseigné que pour la commande « history ».
 	History *History `json:"history,omitempty"`
+	// Temperatures n'est renseigné que pour la commande « status » (agent 1.5.0 ou plus).
+	Temperatures *Temperatures `json:"temperatures,omitempty"`
 }
+
+// Temperatures donne les températures du PC en °C ; un capteur illisible est absent.
+type Temperatures struct {
+	CPU *float64 `json:"cpu,omitempty"`
+	GPU *float64 `json:"gpu,omitempty"`
+	// GPUName est le nom de la carte graphique (« NVIDIA GeForce RTX 4070 »).
+	GPUName string `json:"gpuName,omitempty"`
+	// CPUHint explique l'absence de la température du processeur : CPUHintLHM sous Windows.
+	CPUHint string `json:"cpuHint,omitempty"`
+}
+
+// CPUHintLHM : sous Windows, la température du processeur est lue dans LibreHardwareMonitor, qui ne
+// tourne pas sur ce PC.
+const CPUHintLHM = "lhm"
 
 var b64 = base64.RawURLEncoding
 

@@ -309,3 +309,23 @@ func TestCleanName(t *testing.T) {
 		}
 	}
 }
+
+func TestStatusTemperatures(t *testing.T) {
+	cpu, gpu := 61.5, 47.0
+	cfg, _, addr := startServer(t, nil, func(s *Server) {
+		s.SetTemperatures(func() *protocol.Temperatures {
+			return &protocol.Temperatures{CPU: &cpu, GPU: &gpu, GPUName: "NVIDIA GeForce RTX 4070"}
+		})
+	})
+	body := decodeBody(t, first(exchange(t, addr, cfg.Key, `{"cmd":"status"}`)))
+	temp := body.Temperatures
+	if !body.OK || temp == nil || *temp.CPU != 61.5 || *temp.GPU != 47 || temp.GPUName != "NVIDIA GeForce RTX 4070" {
+		t.Fatalf("températures : %+v", temp)
+	}
+	// Seulement avec « status » ; aucune lecture disponible : champ absent.
+	cfg, _, addr = startServer(t, nil, func(s *Server) { s.SetTemperatures(func() *protocol.Temperatures { return nil }) })
+	resp, _ := exchange(t, addr, cfg.Key, `{"cmd":"status"}`)
+	if strings.Contains(resp.Body, "temperatures") {
+		t.Errorf("champ vide envoyé : %s", resp.Body)
+	}
+}
