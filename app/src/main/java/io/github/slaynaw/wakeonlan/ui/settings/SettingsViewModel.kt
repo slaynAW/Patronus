@@ -90,7 +90,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             put("history", ConfigCodec.json.parseToJsonElement(HistoryData.encode(history)))
         }
         val text = withContext(Dispatchers.Default) {
-            ExportCodec.export(config, password, Instant.now().toString(), "WakeOnLan ${BuildConfig.VERSION_NAME}", extra = extra)
+            ExportCodec.export(config, password, Instant.now().toString(), "Patronus ${BuildConfig.VERSION_NAME}", extra = extra)
         }
         password?.fill(' ')
         withContext(Dispatchers.IO) {

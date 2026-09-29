@@ -17,7 +17,7 @@
           "name": "WakeOnLan.Desktop",
           "version": ""
         },
-        "description": "Wake On LAN",
+        "description": "Patronus",
         "minimum-os": "win10",
         "execution-level": "as invoker",
         "ui-access": false,
@@ -46,14 +46,14 @@
           "040C": {
             "Comments": "Démarrer, éteindre et surveiller ses PC sur le réseau local",
             "CompanyName": "",
-            "FileDescription": "Wake On LAN",
+            "FileDescription": "Patronus",
             "FileVersion": "",
-            "InternalName": "WakeOnLan",
+            "InternalName": "Patronus",
             "LegalCopyright": "",
             "LegalTrademarks": "",
-            "OriginalFilename": "WakeOnLan.exe",
+            "OriginalFilename": "Patronus.exe",
             "PrivateBuild": "",
-            "ProductName": "Wake On LAN",
+            "ProductName": "Patronus",
             "ProductVersion": "",
             "SpecialBuild": ""
           }

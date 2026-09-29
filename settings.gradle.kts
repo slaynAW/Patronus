@@ -27,7 +27,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "WakeOnLan"
+rootProject.name = "Patronus"
 
 include(":core")
 include(":app")

@@ -71,7 +71,7 @@ data class ShareRequestView(val owner: String, val ownerName: String, val link: 
  */
 class ShareManager(context: Context, private val scope: CoroutineScope, private val config: ConfigRepository) {
     private val repo = ShareRepository(context)
-    private val github = ShareGitHub(BuildConfig.GITHUB_CLIENT_ID, "WakeOnLan-Android/${BuildConfig.VERSION_NAME}")
+    private val github = ShareGitHub(BuildConfig.GITHUB_CLIENT_ID, "Patronus-Android/${BuildConfig.VERSION_NAME}")
 
     private data class Runtime(
         val login: ShareLogin? = null,
@@ -169,7 +169,7 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
                 )
             }
             val gist = existing?.gist?.takeIf { it.isNotEmpty() }
-                ?: retrying { github.createGist(token, "Wake On LAN – partage chiffré", mapOf("LISEZMOI.md" to GIST_NOTE)) }
+                ?: retrying { github.createGist(token, "Patronus – partage chiffré", mapOf("LISEZMOI.md" to GIST_NOTE)) }
             repo.update { st ->
                 val owner = st.owner ?: withKey()
                 st.copy(owner = owner.copy(name = name, token = token, user = user, gist = gist))
@@ -431,7 +431,7 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
         const val PUBLISH_RETRY_MS = 2 * 60_000L
         const val LOGIN_ATTEMPTS = 5
         const val LOGIN_RETRY_MS = 5_000L
-        const val GIST_NOTE = "# Wake On LAN – partage chiffré\n\nFichiers d'accès chiffrés de l'application Wake On LAN " +
+        const val GIST_NOTE = "# Patronus – partage chiffré\n\nFichiers d'accès chiffrés de l'application Patronus " +
             "(https://github.com/slaynAW/WakeOnLan). Chacun n'est lisible que par l'appareil auquel il est destiné.\n"
     }
 }

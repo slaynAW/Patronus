@@ -47,7 +47,7 @@ data class GistSnapshot(val notModified: Boolean, val etag: String, val files: M
  */
 class ShareGitHub(
     val clientId: String,
-    private val userAgent: String = "WakeOnLan",
+    private val userAgent: String = "Patronus",
     private val api: String = "https://api.github.com",
     private val web: String = "https://github.com",
     /** Unité des délais de la connexion (1 s ; raccourcie dans les tests). */

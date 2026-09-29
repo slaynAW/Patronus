@@ -32,7 +32,7 @@ jobs:
           mkdir -p out
           keytool -genkeypair -keystore out/wakeonlan-release.p12 -storetype PKCS12 \
             -storepass "$password" -keypass "$password" -alias wakeonlan \
-            -keyalg RSA -keysize 4096 -validity 10950 -dname "CN=Wake On LAN" 2>/dev/null
+            -keyalg RSA -keysize 4096 -validity 10950 -dname "CN=Patronus" 2>/dev/null
           base64 -w0 out/wakeonlan-release.p12 > out/WOL_KEYSTORE_BASE64.txt
           printf '%s' "$password" > out/WOL_KEYSTORE_PASSWORD.txt
           cat > out/LISEZMOI.txt <<'TXT'

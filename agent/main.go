@@ -1,5 +1,5 @@
 // Commande wol-agent : agent installé sur les PC pour les éteindre / redémarrer / mettre en veille
-// depuis l'application Android « Wake On LAN ». Voir agent/README.md.
+// depuis les applications « Patronus ». Voir agent/README.md.
 package main
 
 import (
@@ -33,7 +33,7 @@ import (
 // version est injectée à la compilation (-ldflags "-X main.version=1.0.0").
 var version = "dev"
 
-const usageText = `wol-agent %s — agent Wake On LAN (extinction à distance depuis le téléphone)
+const usageText = `wol-agent %s — agent Patronus (extinction à distance depuis le téléphone ou un PC)
 
 Utilisation : wol-agent <commande> [options]
 

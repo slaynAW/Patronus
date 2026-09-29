@@ -89,12 +89,14 @@ func cmdUpdateFinish() error {
 	exe := service.DefaultBinary()
 	if err := selfupdate.Finish(exe, service.Restart, serviceHealthy); err != nil {
 		logger.Printf("mise à jour : %v", err)
-		selfupdate.Notify("La mise à jour de l'agent Wake On LAN a échoué : "+err.Error()+".", true)
+		selfupdate.Notify("La mise à jour de l'agent Patronus a échoué : "+err.Error()+".", true)
 		return err
 	}
 	update.CleanupOld(exe)
+	// Nom affiché (service, pare-feu) des installations antérieures au passage à « Patronus ».
+	service.RefreshLabels()
 	logger.Printf("mise à jour : agent %s installé", version)
-	selfupdate.Notify(fmt.Sprintf("L'agent Wake On LAN a été mis à jour (version %s).", version), false)
+	selfupdate.Notify(fmt.Sprintf("L'agent Patronus a été mis à jour (version %s).", version), false)
 	return nil
 }
 

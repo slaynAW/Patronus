@@ -205,7 +205,7 @@ fun ShareDialogHost(
     fun fail(e: Throwable) = onDialog(ShareDialog.Error(e.message.orEmpty().replaceFirstChar { it.uppercase() }))
     fun toast(id: Int, vararg args: Any) = scope.launch { snackbar.showSnackbar(resources.getString(id, *args)) }
     fun copy(text: String) {
-        context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Wake On LAN", text))
+        context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Patronus", text))
         toast(R.string.share_copied)
     }
     fun readRequest(text: String) {

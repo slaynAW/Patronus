@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name">Wake On LAN</string>
+    <string name="app_name">Patronus</string>
 
     <!-- Commun -->
     <string name="ok">OK</string>
@@ -119,7 +119,7 @@
     <string name="confirm_delete_title">Supprimer « %1$s » ?</string>
     <string name="confirm_delete_text">Le PC sera retiré de la liste. L’agent éventuellement installé dessus n’est pas désinstallé.</string>
     <string name="agent_help_title">Agent nécessaire</string>
-    <string name="agent_help_text">Pour éteindre « %1$s » à distance, installez l’agent Wake On LAN sur ce PC puis appairez-le (QR code) dans sa fiche.</string>
+    <string name="agent_help_text">Pour éteindre « %1$s » à distance, installez l’agent Patronus sur ce PC puis appairez-le (QR code) dans sa fiche.</string>
 
     <!-- Fiche d'un PC -->
     <string name="detail_ip">Adresse IP</string>
@@ -195,7 +195,7 @@
     <string name="crash_text">Un rapport technique a été enregistré sur ce téléphone (rien n’est envoyé automatiquement). Partagez-le pour aider à corriger le problème.</string>
     <string name="crash_share">Partager le rapport</string>
     <string name="crash_ignore">Ignorer</string>
-    <string name="crash_subject">Rapport de plantage Wake On LAN</string>
+    <string name="crash_subject">Rapport de plantage Patronus</string>
 
     <!-- Édition -->
     <string name="edit_title_new">Ajouter un PC</string>
@@ -320,7 +320,7 @@
     <string name="share_publishing">Publication en cours…</string>
     <string name="share_invite">Inviter une personne</string>
     <string name="share_invite_help">QR code à scanner, ou lien à lui envoyer (aucun secret dedans).</string>
-    <string name="share_invite_text">Sur son téléphone ou son PC : Wake On LAN → Réglages → « Demander un accès », puis scanner ce QR code ou ouvrir ce lien. Elle vous renverra ensuite sa demande.</string>
+    <string name="share_invite_text">Sur son téléphone ou son PC : Patronus → Réglages → « Demander un accès », puis scanner ce QR code ou ouvrir ce lien. Elle vous renverra ensuite sa demande.</string>
     <string name="share_send_link">Envoyer le lien</string>
     <string name="share_copy_link">Copier le lien</string>
     <string name="share_add_request">Ajouter une demande d’accès</string>

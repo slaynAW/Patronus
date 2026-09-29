@@ -18,7 +18,7 @@ seul « PC streaming », en **démarrage seulement**. Les applications Android e
    `github.com/login/device`, où il suffit de le coller puis de valider. Revenez ensuite dans l'application : la
    connexion se termine seule (même si le téléphone a coupé Internet à l'application pendant ce temps).
    L'application ne reçoit que le droit de gérer des **Gists** (petits fichiers) : aucun accès à vos dépôts.
-3. Un Gist **secret** « Wake On LAN – partage chiffré » est créé : c'est là que seront déposés les fichiers d'accès.
+3. Un Gist **secret** « Patronus – partage chiffré » est créé (« Wake On LAN – partage chiffré » s'il date d'avant la version 1.5.1) : c'est là que seront déposés les fichiers d'accès.
 
 ### Donner un accès (exemple : Léa et le PC streaming)
 
@@ -134,7 +134,7 @@ identifiant (*Client ID*) est public ; aucun secret n'est nécessaire (flux « a
 1. Sur GitHub : *Settings* → *Developer settings* → *OAuth Apps* → **New OAuth App**
    (<https://github.com/settings/applications/new>).
 2. Renseignez :
-   - *Application name* : `Wake On LAN`
+   - *Application name* : `Patronus`
    - *Homepage URL* et *Authorization callback URL* : `https://github.com/slaynAW/WakeOnLan` (l'adresse de retour
      n'est pas utilisée, mais GitHub l'exige)
    - cochez **Enable Device Flow**

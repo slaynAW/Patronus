@@ -33,9 +33,9 @@ describe() { # plateforme nom
     '{platform: $p, name: $n, size: $s, sha256: $h}'
 }
 files=$({
-  describe android "WakeOnLan-${VERSION}.apk"
-  describe windows-amd64 "WakeOnLan-Windows-${VERSION}-x64.exe"
-  describe windows-arm64 "WakeOnLan-Windows-${VERSION}-arm64.exe"
+  describe android "Patronus-${VERSION}.apk"
+  describe windows-amd64 "Patronus-Windows-${VERSION}-x64.exe"
+  describe windows-arm64 "Patronus-Windows-${VERSION}-arm64.exe"
 } | jq -s '.')
 
 agent=null

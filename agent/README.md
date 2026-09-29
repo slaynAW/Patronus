@@ -23,7 +23,7 @@ Téléchargement : section **Releases** du dépôt (`wol-agent-<système>-<archi
 ```
 - copie dans `C:\Program Files\WolAgent\`, configuration dans `C:\ProgramData\WolAgent\config.json` ;
 - service **WolAgent** (démarrage automatique, relance en cas d'erreur), journal dans `C:\ProgramData\WolAgent\agent.log` ;
-- règle de pare-feu « Wake On LAN - Agent » : port 9770, **sous-réseau local**, profils privé et domaine.
+- règle de pare-feu « Patronus - Agent » : port 9770, **sous-réseau local**, profils privé et domaine.
 
 **Linux** (systemd) / **macOS** (launchd) :
 ```bash
@@ -43,7 +43,7 @@ sudo ./wol-agent-linux-amd64 install
 
 1. Une fois par jour (et quelques minutes après le démarrage), le service regarde si une nouvelle version de l'agent
    est publiée.
-2. Si oui, une fenêtre s'affiche sur la session ouverte : « Une nouvelle version de l'agent Wake On LAN est
+2. Si oui, une fenêtre s'affiche sur la session ouverte : « Une nouvelle version de l'agent Patronus est
    disponible : 1.4.0 → 1.5.0 », avec ses nouveautés. **Oui** l'installe ; **Non** (ou pas de réponse) la repropose le
    lendemain. Si personne n'est connecté, la question attend l'ouverture d'une session.
 3. L'agent télécharge la nouvelle version, la vérifie, la met à la place de l'ancienne puis redémarre en quelques
@@ -96,7 +96,7 @@ afin que le QR code contienne la bonne adresse MAC.
 - `commands` : retirez par exemple `"shutdown"` pour n'autoriser que la veille. La lecture du journal (`history`) est
   autorisée dès que `status` l'est.
 - Après modification : redémarrez le service (`wol-agent install` le fait, ou `systemctl restart wol-agent`,
-  ou *Services* → *Wake On LAN - Agent* → *Redémarrer* sous Windows).
+  ou *Services* → *Patronus - Agent* → *Redémarrer* sous Windows).
 
 ## Comportement des actions
 

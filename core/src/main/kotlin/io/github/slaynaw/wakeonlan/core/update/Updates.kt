@@ -140,7 +140,7 @@ object Updates {
 class UpdateClient(
     private val key: PublicKey,
     private val base: String = Updates.DEFAULT_BASE,
-    private val userAgent: String = "WakeOnLan",
+    private val userAgent: String = "Patronus",
 ) {
     /** Manifeste de la dernière version officielle, authentifié et contrôlé. */
     suspend fun latest(): UpdateManifest = withContext(Dispatchers.IO) {

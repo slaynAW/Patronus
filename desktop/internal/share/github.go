@@ -331,7 +331,7 @@ func (g *GitHub) raw(ctx context.Context, raw string) (string, error) {
 
 func (g *GitHub) userAgent() string {
 	if g.UserAgent == "" {
-		return "WakeOnLan"
+		return "Patronus"
 	}
 	return g.UserAgent
 }

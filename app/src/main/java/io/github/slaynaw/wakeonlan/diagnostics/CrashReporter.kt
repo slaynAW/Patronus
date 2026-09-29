@@ -33,7 +33,7 @@ object CrashReporter {
 
     private fun write(context: Context, thread: Thread, error: Throwable) {
         val report = buildString {
-            appendLine("Wake On LAN ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+            appendLine("Patronus ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
             appendLine("Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) - ${Build.MANUFACTURER} ${Build.MODEL}")
             appendLine("Date : ${Instant.now()}")
             appendLine("Thread : ${thread.name}")

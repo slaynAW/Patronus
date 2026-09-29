@@ -43,7 +43,7 @@ const (
 	// AskTimeout : sans réponse, la fenêtre se ferme et la question sera reposée le lendemain.
 	AskTimeout = 12 * time.Hour
 	// Title est le titre des fenêtres affichées à l'utilisateur.
-	Title = "Wake On LAN – agent"
+	Title = "Patronus – agent"
 
 	nextName = "wol-agent-update.exe"
 )
@@ -127,7 +127,7 @@ func ProbeVersion(ctx context.Context, exe string) (string, error) {
 // Message est le texte de la fenêtre qui propose la mise à jour.
 func Message(current string, o Offer) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Une nouvelle version de l'agent Wake On LAN est disponible : %s → %s.\n", current, o.Version)
+	fmt.Fprintf(&b, "Une nouvelle version de l'agent Patronus est disponible : %s → %s.\n", current, o.Version)
 	if notes := plainNotes(o.Notes); notes != "" {
 		b.WriteString("\n" + notes + "\n")
 	}

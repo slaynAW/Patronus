@@ -33,7 +33,7 @@ Avec un JDK installé (ou celui d'Android Studio) :
 
 ```bash
 keytool -genkeypair -keystore wakeonlan-release.p12 -storetype PKCS12 -alias wakeonlan \
-        -keyalg RSA -keysize 4096 -validity 10950 -dname "CN=Wake On LAN"
+        -keyalg RSA -keysize 4096 -validity 10950 -dname "CN=Patronus"
 # Linux / macOS
 base64 -w0 wakeonlan-release.p12 > WOL_KEYSTORE_BASE64.txt
 # Windows (PowerShell)

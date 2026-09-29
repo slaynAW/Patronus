@@ -241,7 +241,7 @@ type Source struct {
 	Base   string
 	Key    *rsa.PublicKey
 	Client *http.Client
-	// UserAgent identifie le programme auprès du serveur (« WakeOnLan » par défaut).
+	// UserAgent identifie le programme auprès du serveur (« Patronus » par défaut).
 	UserAgent string
 }
 
@@ -264,7 +264,7 @@ func Official() (Source, error) {
 
 func (s Source) userAgent() string {
 	if s.UserAgent == "" {
-		return "WakeOnLan"
+		return "Patronus"
 	}
 	return s.UserAgent
 }

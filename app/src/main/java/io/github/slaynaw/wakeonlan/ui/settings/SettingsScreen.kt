@@ -208,7 +208,7 @@ fun SettingsTab(
             onConfirm = { password ->
                 showExportDialog = false
                 pendingExportPassword = password
-                exportLauncher.launch("wakeonlan-${LocalDate.now()}.json")
+                exportLauncher.launch("patronus-${LocalDate.now()}.json")
             },
             onDismiss = { showExportDialog = false },
         )

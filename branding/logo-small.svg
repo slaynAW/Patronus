@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
-  <title>Wake On LAN</title>
+  <title>Patronus</title>
   <!-- Variante pour 32 px et moins : traits épais, sans halo ni voyant. -->
   <rect x="0.75" y="0.75" width="118.5" height="118.5" rx="26.5" fill="#12161B" stroke="#262B33" stroke-width="1.5"/>
   <path d="M60 76 L28 42 M60 76 L60 34" fill="none" stroke="#4A5260" stroke-width="7" stroke-linecap="round"/>

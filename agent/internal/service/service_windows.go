@@ -19,9 +19,11 @@ import (
 
 const (
 	name         = "WolAgent"
-	displayName  = "Wake On LAN - Agent"
-	description  = "Permet d'éteindre, redémarrer ou mettre en veille ce PC depuis l'application Wake On LAN (réseau local, commandes authentifiées)."
-	firewallRule = "Wake On LAN - Agent"
+	displayName  = "Patronus - Agent"
+	description  = "Permet d'éteindre, redémarrer ou mettre en veille ce PC depuis l'application Patronus (réseau local, commandes authentifiées)."
+	firewallRule = "Patronus - Agent"
+	// legacyFirewallRule : nom de la règle créée avant le passage à « Patronus » (agent 1.5.0 ou antérieur).
+	legacyFirewallRule = "Wake On LAN - Agent"
 )
 
 // DefaultBinary est l'emplacement d'installation de l'exécutable.
@@ -104,7 +106,26 @@ func Uninstall() error {
 		s.Close()
 	}
 	_ = netsh("delete", "rule", "name="+firewallRule)
+	_ = netsh("delete", "rule", "name="+legacyFirewallRule)
 	return nil
+}
+
+// RefreshLabels renomme le service et la règle de pare-feu d'une installation antérieure au passage
+// à « Patronus » (appelé après une mise à jour automatique, qui ne réinstalle pas le service). Sans effet
+// sur le fonctionnement ; les erreurs sont ignorées.
+func RefreshLabels() {
+	if m, err := mgr.Connect(); err == nil {
+		if s, err := m.OpenService(name); err == nil {
+			if cfg, err := s.Config(); err == nil && (cfg.DisplayName != displayName || cfg.Description != description) {
+				cfg.DisplayName = displayName
+				cfg.Description = description
+				_ = s.UpdateConfig(cfg)
+			}
+			s.Close()
+		}
+		m.Disconnect()
+	}
+	_ = netsh("set", "rule", "name="+legacyFirewallRule, "new", "name="+firewallRule)
 }
 
 // Restart redémarre le service (après un changement de clé).
@@ -225,6 +246,7 @@ func stop(s *mgr.Service) {
 
 func openFirewall(opts Options) error {
 	_ = netsh("delete", "rule", "name="+firewallRule)
+	_ = netsh("delete", "rule", "name="+legacyFirewallRule)
 	profiles := "private,domain"
 	if opts.FirewallPublic {
 		profiles = "any"

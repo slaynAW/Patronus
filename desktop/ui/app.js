@@ -1,4 +1,4 @@
-// Wake On LAN — interface Windows, thème sombre « topologie & panneau de détail ».
+// Patronus — interface Windows, thème sombre « topologie & panneau de détail ».
 // Mêmes fonctions et mêmes textes que l'application Android ; toute la logique (réseau, états,
 // chiffrement, historique) est dans le moteur Go, appelé par api.call().
 "use strict";
@@ -8,7 +8,7 @@
   // Textes : ceux de l'application Android (res/values/strings.xml), adaptés au PC si nécessaire.
   // ---------------------------------------------------------------------------------------------
   const S = {
-    app_name: "Wake On LAN",
+    app_name: "Patronus",
     ok: "OK",
     cancel: "Annuler",
     close: "Fermer",
@@ -185,7 +185,7 @@
     confirm_delete_title: "Supprimer « %1$s » ?",
     confirm_delete_text: "Le PC sera retiré de la liste. L’agent éventuellement installé dessus n’est pas désinstallé.",
     agent_help_title: "Agent nécessaire",
-    agent_help_text: "Pour éteindre « %1$s » à distance, installez l’agent Wake On LAN sur ce PC puis appairez-le (lien d’appairage) dans sa fiche.",
+    agent_help_text: "Pour éteindre « %1$s » à distance, installez l’agent Patronus sur ce PC puis appairez-le (lien d’appairage) dans sa fiche.",
 
     message_wake_sent: "Paquet magique envoyé à « %1$s »",
     message_wake_error: "Échec de l’envoi : %1$s",
@@ -312,7 +312,7 @@
     share_publishing: "Publication en cours…",
     share_invite: "Inviter une personne",
     share_invite_help: "QR code ou lien à lui envoyer (aucun secret dedans).",
-    share_invite_text: "Sur son téléphone ou son PC : Wake On LAN → Réglages → « Demander un accès », puis scanner ce QR code ou coller ce lien. Elle vous renverra ensuite sa demande.",
+    share_invite_text: "Sur son téléphone ou son PC : Patronus → Réglages → « Demander un accès », puis scanner ce QR code ou coller ce lien. Elle vous renverra ensuite sa demande.",
     share_copy_link: "Copier le lien",
     share_add_request: "Ajouter une demande d’accès",
     share_add_request_help: "Collez le lien de demande reçu de la personne.",
