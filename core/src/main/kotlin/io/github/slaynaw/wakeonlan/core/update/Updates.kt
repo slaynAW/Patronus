@@ -70,7 +70,7 @@ class UpdateException(val reason: Reason, message: String, cause: Throwable? = n
  */
 object Updates {
     /** Versions publiées (GitHub Releases du dépôt public). */
-    const val DEFAULT_BASE = "https://github.com/slaynAW/WakeOnLan/releases"
+    const val DEFAULT_BASE = "https://github.com/slaynAW/Patronus/releases"
     const val MANIFEST_NAME = "update.json"
     const val FORMAT = 1
     const val MAX_FILE_SIZE = 100L shl 20

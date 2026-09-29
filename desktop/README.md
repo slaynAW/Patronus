@@ -23,7 +23,7 @@ déjà présent dans Windows 11 et installé par les mises à jour de Windows 10
 
 ## Installation
 
-1. Dans les **[Releases](https://github.com/slaynAW/WakeOnLan/releases)**, téléchargez
+1. Dans les **[Releases](https://github.com/slaynAW/Patronus/releases)**, téléchargez
    `Patronus-Windows-<version>-x64.exe` (ou `-arm64.exe` pour un PC ARM, ex. Snapdragon).
 2. Rangez-le où vous voulez (ex. `Documents\Patronus.exe`) et double-cliquez dessus.
 3. Au premier lancement, **SmartScreen** peut afficher « Windows a protégé votre ordinateur » (le programme n'est pas

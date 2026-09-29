@@ -27,7 +27,7 @@ import (
 
 // URLs ouvrables depuis l'interface (liste blanche : l'interface ne peut pas ouvrir n'importe quoi).
 const (
-	RepoURL     = "https://github.com/slaynAW/WakeOnLan"
+	RepoURL     = "https://github.com/slaynAW/Patronus"
 	ReleasesURL = RepoURL + "/releases"
 	// GitHubDeviceURL est la page où saisir le code de connexion GitHub (partage).
 	GitHubDeviceURL = "https://github.com/login/device"

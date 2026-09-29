@@ -20,7 +20,7 @@ func DefaultBinary() string { return "/usr/local/bin/wol-agent" }
 
 const unitTemplate = `[Unit]
 Description=Patronus - agent d'extinction à distance
-Documentation=https://github.com/slaynAW/WakeOnLan
+Documentation=https://github.com/slaynAW/Patronus
 After=network-online.target
 Wants=network-online.target
 

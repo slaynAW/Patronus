@@ -78,7 +78,7 @@ import io.github.slaynaw.wakeonlan.update.UpdateUiState
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-private const val REPO_URL = "https://github.com/slaynAW/WakeOnLan"
+private const val REPO_URL = "https://github.com/slaynAW/Patronus"
 private const val RELEASES_URL = "$REPO_URL/releases"
 
 /** Onglet « Réglages » : surveillance, sauvegarde, historique, agent, à propos. */

@@ -37,7 +37,7 @@ import (
 
 const (
 	// DefaultBase est l'adresse des versions publiées (GitHub Releases du dépôt public).
-	DefaultBase = "https://github.com/slaynAW/WakeOnLan/releases"
+	DefaultBase = "https://github.com/slaynAW/Patronus/releases"
 	// ManifestName est le nom du manifeste joint à chaque version.
 	ManifestName = "update.json"
 	// Format est la version du format de manifeste comprise par l'application.

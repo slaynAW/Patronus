@@ -37,7 +37,7 @@ l'application (même clé de signature, numéro de version plus grand).
    (ou pousser un tag `vX.Y.Z`).
 3. La CI publie la Release avec l'APK, l'application Windows, les agents et le manifeste
    **`update.json`** (+ `update.json.sig`). Les applications le trouvent à l'adresse
-   `https://github.com/slaynAW/WakeOnLan/releases/latest/download/update.json`.
+   `https://github.com/slaynAW/Patronus/releases/latest/download/update.json`.
 
 Seules les versions officielles sont proposées (la pré-version `dev` est ignorée). Le numéro comparé
 est le code de build (numéro d'exécution de la CI), qui augmente à chaque build.

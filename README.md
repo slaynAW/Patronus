@@ -52,7 +52,7 @@ Conçue pour Android 8 à Android 17 (testée pour le Pixel 8a, prête pour les 
 
 L'APK est produit automatiquement par GitHub à chaque modification du code.
 
-1. Sur le téléphone, ouvrez la page **[Releases](https://github.com/slaynAW/WakeOnLan/releases)** du dépôt.
+1. Sur le téléphone, ouvrez la page **[Releases](https://github.com/slaynAW/Patronus/releases)** du dépôt.
    - `dev` : dernière version de développement ;
    - `vX.Y.Z` : versions officielles.
 2. Téléchargez **`Patronus-….apk`** (`WakeOnLan-….apk` jusqu'à la version 1.5.0).
@@ -68,7 +68,7 @@ L'APK est produit automatiquement par GitHub à chaque modification du code.
 
 Pour démarrer et surveiller vos PC depuis un autre PC (Windows 10 / 11, x64 ou ARM).
 
-1. Dans les **[Releases](https://github.com/slaynAW/WakeOnLan/releases)**, téléchargez **`Patronus-Windows-….-x64.exe`**
+1. Dans les **[Releases](https://github.com/slaynAW/Patronus/releases)**, téléchargez **`Patronus-Windows-….-x64.exe`**
    (`-arm64.exe` pour un PC ARM).
 2. Double-cliquez dessus : aucune installation. Si SmartScreen s'affiche : *Informations complémentaires* → *Exécuter quand même*.
 3. Récupérez vos PC **depuis le téléphone** : sur le téléphone, *Réglages* → *Exporter la configuration* (complète, avec mot de passe),
@@ -98,7 +98,7 @@ Guide détaillé : **[docs/CONFIGURER-LES-PC.md](docs/CONFIGURER-LES-PC.md)**.
 L'agent est **facultatif** : il n'est nécessaire que pour éteindre / redémarrer / mettre en veille à distance.
 Il rend aussi l'indicateur d'état **plus fiable** (il répond même quand le pare-feu bloque le ping).
 
-Les binaires sont publiés avec l'APK dans les **[Releases](https://github.com/slaynAW/WakeOnLan/releases)**.
+Les binaires sont publiés avec l'APK dans les **[Releases](https://github.com/slaynAW/Patronus/releases)**.
 
 **Windows** (10 / 11)
 1. Téléchargez `wol-agent-windows-amd64.exe` (ou `arm64` pour les PC ARM).

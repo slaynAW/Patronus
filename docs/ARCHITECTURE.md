@@ -3,7 +3,7 @@
 ## Vue d'ensemble
 
 ```
-WakeOnLan/
+Patronus/
 ├── core/        Kotlin pur (JVM) — toute la logique métier, testée sans Android
 │   ├── model/      Device, AppConfig, MacAddress, validation
 │   ├── wol/        paquet magique, adresses de diffusion, envoi UDP

@@ -135,7 +135,7 @@ identifiant (*Client ID*) est public ; aucun secret n'est nécessaire (flux « a
    (<https://github.com/settings/applications/new>).
 2. Renseignez :
    - *Application name* : `Patronus`
-   - *Homepage URL* et *Authorization callback URL* : `https://github.com/slaynAW/WakeOnLan` (l'adresse de retour
+   - *Homepage URL* et *Authorization callback URL* : `https://github.com/slaynAW/Patronus` (l'adresse de retour
      n'est pas utilisée, mais GitHub l'exige)
    - cochez **Enable Device Flow**
 3. **Register application**, puis copiez le *Client ID* (ne générez pas de *client secret* : il est inutile).

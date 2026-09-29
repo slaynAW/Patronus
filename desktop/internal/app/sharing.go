@@ -33,7 +33,7 @@ const (
 	sharePublishRetry = 2 * time.Minute
 	shareTimeout      = 30 * time.Second
 	shareGistNote     = "# Patronus – partage chiffré\n\nFichiers d'accès chiffrés de l'application Patronus " +
-		"(https://github.com/slaynAW/WakeOnLan). Chacun n'est lisible que par l'appareil auquel il est destiné.\n"
+		"(https://github.com/slaynAW/Patronus). Chacun n'est lisible que par l'appareil auquel il est destiné.\n"
 )
 
 type shareLogin struct {
