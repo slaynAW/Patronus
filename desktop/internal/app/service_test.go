@@ -30,6 +30,7 @@ type fakePlatform struct {
 	cancel     bool
 	opened     []string
 	clipboard  string
+	folder     string
 	relaunched atomic.Int32
 }
 
@@ -52,6 +53,13 @@ func (f *fakePlatform) OpenURL(url string) error {
 }
 
 func (f *fakePlatform) ReadClipboard() (string, error) { return f.clipboard, nil }
+
+func (f *fakePlatform) PickFolder(string) (string, error) {
+	if f.cancel || f.folder == "" {
+		return "", ErrCancelled
+	}
+	return f.folder, nil
+}
 
 func (f *fakePlatform) RunInstaller(path, sha256 string) error {
 	if f.cancel {

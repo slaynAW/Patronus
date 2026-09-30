@@ -222,6 +222,9 @@ fun DeviceDetailContent(
                 Text(stringResource(R.string.hint_shared, sharedBy), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
             } else if (item.status.state == PowerState.ONLINE && !item.device.canShutdown) {
                 Text(stringResource(R.string.hint_no_agent), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
+            } else if (item.status.state == PowerState.OFFLINE && item.device.agent?.hasKey == true) {
+                // Allumé mais sans réponse : le plus souvent un réseau « Public » sous Windows.
+                Text(stringResource(R.string.hint_offline_agent), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
             }
             if (item.device.hasHost) LatencyCard(item, now)
             InfoCard(item)

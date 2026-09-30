@@ -156,6 +156,7 @@ func cmdRun(args []string) error {
 	asService := func(ctx context.Context) error {
 		if !*dryRun {
 			startAutoUpdate(ctx, *cfgPath, logger)
+			startNetworkAlert(ctx, *cfgPath, logger)
 		}
 		return runServer(ctx)
 	}
@@ -243,7 +244,13 @@ func cmdInstall(args []string) error {
 	}
 	fmt.Printf("✔ Agent installé (%s) et démarré sur le port TCP %d.\n", opts.Binary, cfg.Port)
 	fmt.Printf("  Configuration : %s\n\n", cfgPath)
-	return showPairing(cfg, *ip, "", false)
+	if err := showPairing(cfg, *ip, "", false); err != nil {
+		return err
+	}
+	if !*noFirewall {
+		warnBlockedNetwork(true)
+	}
+	return nil
 }
 
 func cmdPair(args []string) error {
@@ -264,7 +271,11 @@ func cmdPair(args []string) error {
 		}
 		return err
 	}
-	return showPairing(cfg, *ip, *pngPath, *invert)
+	if err := showPairing(cfg, *ip, *pngPath, *invert); err != nil {
+		return err
+	}
+	warnBlockedNetwork(false)
+	return nil
 }
 
 func cmdRotateKey(args []string) error {
@@ -313,6 +324,10 @@ func cmdStatus(args []string) error {
 	}
 	if iface, err := netinfo.Detect(""); err == nil {
 		fmt.Printf("Carte réseau  : %s — IP %s — MAC %s\n", iface.Name, iface.IP, iface.MAC)
+	}
+	if runtime.GOOS == "windows" {
+		fmt.Printf("Réseaux       : %s\n", describeNetworks())
+		warnBlockedNetwork(false)
 	}
 	if journal, err := history.Open(historyPath(*cfgPath), time.Now); err == nil {
 		h := journal.Snapshot()

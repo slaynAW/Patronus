@@ -12,6 +12,7 @@
     ok: "OK",
     cancel: "Annuler",
     close: "Fermer",
+    later: "Plus tard",
     save: "Enregistrer",
     show: "Afficher",
     hide: "Masquer",
@@ -144,6 +145,8 @@
     agent_not_configured: "Non installé",
     agent_configured: "Configuré",
     hint_no_agent: "Pour éteindre, redémarrer ou mettre ce PC en veille d’ici, installez l’agent sur ce PC puis appairez-le (Modifier).",
+    hint_offline_agent: "Allumé mais affiché éteint ? Sur ce PC, le réseau est peut-être classé « Public » dans Windows : le pare-feu bloque alors l’agent. Paramètres Windows → Réseau et Internet → ce réseau → Type de profil réseau : Privé (l’agent 1.6.0 le propose de lui-même). Vérifiez aussi que les deux appareils sont sur le même réseau.",
+    hint_unreachable: "S’il est allumé : sur ce PC, le réseau est peut-être classé « Public » dans Windows (le pare-feu bloque alors l’agent), ou les deux appareils ne sont pas sur le même réseau.",
     select_hint: "Sélectionnez un PC pour afficher son état et ses actions.",
 
     history_title: "Historique",
@@ -237,6 +240,46 @@
     setting_confirm: "Confirmer avant d’éteindre",
     setting_confirm_help: "Demande une confirmation avant d’éteindre, redémarrer ou mettre en veille",
     section_backup: "Sauvegarde",
+    section_backup_auto: "Sauvegarde automatique",
+    backup_unavailable: "Indisponible dans cette version.",
+    backup_enable: "Activer la sauvegarde automatique",
+    backup_enable_help: "Sauvegarde complète chiffrée (PC, clés, partage, historique) après chaque changement et chaque jour, sur GitHub et/ou dans un dossier.",
+    backup_enable_title: "Sauvegarde automatique",
+    backup_enable_text: "Choisissez le mot de passe des sauvegardes. Il chiffre chaque sauvegarde et sera demandé pour la restaurer : notez-le en lieu sûr (gestionnaire de mots de passe). Sans lui, les sauvegardes sont illisibles.",
+    backup_enable_ok: "Activer",
+    backup_choose_title: "Où sauvegarder ?",
+    backup_choose_text: "Sur GitHub, les sauvegardes sont dans un Gist secret de votre compte : elles vous suivent sur tous vos appareils. Dans un dossier, choisissez de préférence un dossier synchronisé (Google Drive, OneDrive…). Les deux sont possibles.",
+    backup_github: "Sur GitHub",
+    backup_github_off: "Non connecté : cliquez pour vous connecter (Gist secret de votre compte)",
+    backup_folder: "Dans un dossier",
+    backup_folder_off: "Aucun : cliquez pour en choisir un (par exemple un dossier synchronisé Google Drive ou OneDrive)",
+    backup_last: "dernière sauvegarde il y a %1$s",
+    backup_never: "pas encore sauvegardé",
+    backup_now: "Sauvegarder maintenant",
+    backup_now_help: "Sauvegarde automatique après chaque changement et chaque jour ; 7 versions gardées.",
+    backup_running: "Sauvegarde en cours…",
+    backup_paused: "En pause (%1$s) : vérifiez vos PC, puis cliquez ici pour sauvegarder.",
+    backup_done: "Sauvegarde terminée",
+    backup_disable: "Désactiver la sauvegarde automatique",
+    backup_disable_help: "Les sauvegardes déjà faites sont conservées.",
+    backup_disable_text: "Plus aucune sauvegarde ne sera faite et le mot de passe des sauvegardes sera oublié par ce PC. Les sauvegardes existantes restent (GitHub et dossier).",
+    backup_disable_ok: "Désactiver",
+    backup_restore: "Restaurer depuis GitHub",
+    backup_restore_help: "Retrouver vos PC, clés, partage et historique à partir d’une sauvegarde automatique.",
+    backup_restore_title: "Restaurer une sauvegarde",
+    backup_restore_text: "Sauvegardes du compte %1$s, de la plus récente à la plus ancienne. Le mot de passe des sauvegardes vous sera demandé.",
+    backup_restore_empty: "Aucune sauvegarde sur ce compte GitHub pour le moment.",
+    backup_restore_mine: "ce PC",
+    backup_login_done: "GitHub connecté : les sauvegardes y seront enregistrées.",
+    backup_login_reused: "Compte GitHub @%1$s du partage utilisé pour les sauvegardes.",
+    backup_github_title: "Sauvegardes sur GitHub",
+    backup_github_text: "Compte %1$s. Les sauvegardes sont dans un Gist secret de ce compte, chiffrées par votre mot de passe.",
+    backup_disconnect: "Déconnecter",
+    backup_reconnect: "Reconnecter",
+    backup_folder_title: "Dossier des sauvegardes",
+    backup_folder_change: "Changer de dossier",
+    backup_folder_remove: "Ne plus y sauvegarder",
+    backup_folder_done: "Dossier choisi : sauvegarde en cours",
     export_title: "Exporter la configuration",
     export_with_secrets: "Complète, protégée par mot de passe",
     export_with_secrets_help: "Inclut les clés des agents, votre clé de partage et l’historique. Fichier chiffré (AES-256).",
@@ -1937,8 +1980,10 @@
         actsSig = sig;
         renderActions(d);
       }
-      setText(hint, d.shared ? fmt(S.hint_shared, d.shared.ownerName) : S.hint_no_agent);
-      hint.classList.toggle("hidden", !d.shared && !(st === "ONLINE" && !d.canShutdown));
+      // Agent configuré mais aucune réponse : le plus souvent un réseau « Public » sous Windows.
+      const offlineAgent = !d.shared && st === "OFFLINE" && d.hasAgent;
+      setText(hint, d.shared ? fmt(S.hint_shared, d.shared.ownerName) : offlineAgent ? S.hint_offline_agent : S.hint_no_agent);
+      hint.classList.toggle("hidden", !d.shared && !offlineAgent && !(st === "ONLINE" && !d.canShutdown));
       latency.el.classList.toggle("hidden", !d.host);
       if (d.host) latency.update(d, now);
       renderInfo(d);
@@ -2401,8 +2446,9 @@
       if (result.ok) text = fmt(S.test_ok, result.status.hostname, osLabel(result.status.os), result.status.version);
       else if (result.invalid) text = result.invalid;
       else text = agentErrorLabel(result.code);
+      const detail = result.code === "UNREACHABLE" ? h("small", { class: "result-help", text: S.hint_unreachable }) : null;
       testSlot.replaceChildren(h("div", { class: `result ${result.ok ? "ok" : "ko"}` },
-        icon(result.ok ? "check" : "warning", "small"), h("span", { class: "selectable", text })));
+        icon(result.ok ? "check" : "warning", "small"), h("span", { class: "selectable" }, h("span", { text }), detail)));
     }
 
     async function testAgent() {
@@ -3181,7 +3227,305 @@
       };
     }
 
-    return { sections };
+    return { sections, copy, codeView };
+  })();
+
+  // ---------------------------------------------------------------------------------------------
+  // Sauvegardes automatiques (GitHub et dossier) et restauration depuis GitHub
+  // ---------------------------------------------------------------------------------------------
+  const backups = (() => {
+    function lastText(target) {
+      if (target.error) return target.error;
+      return target.last ? fmt(S.backup_last, formatDuration(Math.max(0, Date.now() - target.last))) : S.backup_never;
+    }
+
+    function items(b) {
+      if (!b.available) return [settingItem("cloud", S.section_backup_auto, S.backup_unavailable)];
+      const restore = settingItem("download", S.backup_restore, S.backup_restore_help, restoreDialog);
+      if (!b.enabled) {
+        return [settingItem("shield", S.backup_enable, S.backup_enable_help, enableDialog), restore];
+      }
+      const github = settingItem("cloud", S.backup_github,
+        b.github ? `${b.github.label} · ${lastText(b.github)}` : S.backup_github_off,
+        b.github ? githubDialog : connect);
+      if (b.github?.error) github.querySelector(".supporting").classList.add("bad");
+      const folder = settingItem("history", S.backup_folder,
+        b.folder ? `${b.folder.label} · ${lastText(b.folder)}` : S.backup_folder_off,
+        b.folder ? folderDialog : pickFolder);
+      if (b.folder?.error) folder.querySelector(".supporting").classList.add("bad");
+      const now = settingItem("upload", S.backup_now,
+        b.running ? S.backup_running : b.paused ? fmt(S.backup_paused, b.paused) : S.backup_now_help,
+        b.running ? null : backupNow);
+      if (b.paused) now.querySelector(".supporting").classList.add("bad");
+      return [github, folder, now, restore,
+        settingItem("delete", S.backup_disable, S.backup_disable_help, disableDialog, { danger: true, chevron: false })];
+    }
+
+    /** Section des réglages, reconstruite quand l'état change (et chaque minute pour les durées). */
+    function section() {
+      const card = h("section", { class: "card" });
+      let sig = "";
+      let minute = -1;
+      return {
+        els: [h("h2", { class: "section-title", text: S.section_backup_auto }), card],
+        update() {
+          const b = state.backup || {};
+          const now = Date.now();
+          const next = JSON.stringify(b);
+          if (next === sig && Math.floor(now / 60000) === minute) return;
+          sig = next;
+          minute = Math.floor(now / 60000);
+          card.replaceChildren(...items(b));
+        },
+      };
+    }
+
+    function enableDialog() {
+      let password = "";
+      let confirmation = "";
+      const passwordField = field({ label: S.field_password, helper: fmt(S.field_password_help, MIN_PASSWORD_LENGTH), type: "password", onInput: (v) => { password = v; refresh(); } });
+      const confirmField = field({ label: S.field_password_confirm, type: "password", onInput: (v) => { confirmation = v; refresh(); } });
+      const dialog = openDialog({
+        iconName: "shield",
+        title: S.backup_enable_title,
+        body: [h("p", { text: S.backup_enable_text }), h("div", { class: "form-section" }, passwordField.wrap, confirmField.wrap)],
+      });
+      refresh();
+      [passwordField.input, confirmField.input].forEach((i) => i.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && valid()) submit();
+      }));
+      function valid() {
+        return [...password].length >= MIN_PASSWORD_LENGTH && password === confirmation;
+      }
+      function refresh() {
+        passwordField.wrap.classList.toggle("error", password.length > 0 && [...password].length < MIN_PASSWORD_LENGTH);
+        confirmField.wrap.classList.toggle("error", confirmation.length > 0 && password !== confirmation);
+        dialog.setActions([
+          { label: S.cancel, onClick: () => dialog.close() },
+          { label: S.backup_enable_ok, disabled: !valid(), onClick: submit },
+        ]);
+      }
+      async function submit() {
+        dialog.close();
+        try {
+          await api.call("backupEnable", { password });
+          // Première destination proposée tout de suite.
+          if (!state.backup?.github && !state.backup?.folder) chooseTargetDialog();
+        } catch (e) {
+          snackbar(errorMessage(e));
+        } finally {
+          password = confirmation = "";
+        }
+      }
+    }
+
+    function chooseTargetDialog() {
+      const dialog = openDialog({
+        iconName: "cloud",
+        title: S.backup_choose_title,
+        body: [h("p", { text: S.backup_choose_text })],
+        actions: [
+          { label: S.later, kind: "sec", onClick: () => dialog.close() },
+          { label: S.backup_folder, kind: "sec", onClick: () => { dialog.close(); pickFolder(); } },
+          { label: S.backup_github, onClick: () => { dialog.close(); connect(); } },
+        ],
+      });
+    }
+
+    /** Connexion GitHub des sauvegardes (compte du partage s'il est connecté, sinon par code). */
+    async function connect(then) {
+      let r;
+      try {
+        r = await api.call("backupConnect");
+      } catch (e) {
+        alertDialog(S.share_login_title, errorMessage(e));
+        return;
+      }
+      if (r.connected) {
+        snackbar(fmt(S.backup_login_reused, r.user));
+        if (then) then();
+        return;
+      }
+      const status = h("p", { class: "muted", text: S.share_login_waiting });
+      const openGitHub = async () => {
+        await sharing.copy(r.code);
+        openUrl(GITHUB_DEVICE_URL);
+      };
+      const onState = () => {
+        const b = state.backup || {};
+        if (b.login?.error) {
+          status.className = "bad";
+          setText(status, b.login.error);
+        } else if (!b.login && b.github) {
+          close();
+          snackbar(S.backup_login_done);
+          if (then) then();
+        }
+      };
+      const close = () => {
+        stateListeners.delete(onState);
+        dialog.close();
+      };
+      const dialog = openDialog({
+        iconName: "cloud",
+        title: S.share_login_title,
+        body: [h("p", { text: S.share_login_text }), sharing.codeView(r.code), status],
+        actions: [
+          { label: S.cancel, onClick: () => { api.call("backupCancelLogin").catch(() => {}); close(); } },
+          { label: S.share_login_copy, kind: "sec", onClick: () => sharing.copy(r.code) },
+          { label: S.share_login_open, onClick: openGitHub },
+        ],
+        onDismiss: () => {
+          stateListeners.delete(onState);
+          api.call("backupCancelLogin").catch(() => {});
+        },
+      });
+      stateListeners.add(onState);
+      openGitHub();
+    }
+
+    function githubDialog() {
+      const b = state.backup;
+      const dialog = openDialog({
+        iconName: "cloud",
+        title: S.backup_github_title,
+        body: [h("p", { text: fmt(S.backup_github_text, b.github.label) }), b.github.error ? h("p", { class: "bad", text: b.github.error }) : null],
+        actions: [
+          { label: S.backup_disconnect, kind: "sec", onClick: async () => {
+            dialog.close();
+            try {
+              await api.call("backupDisconnect");
+            } catch (e) {
+              snackbar(errorMessage(e));
+            }
+          } },
+          { label: S.backup_reconnect, kind: "sec", onClick: () => { dialog.close(); connect(); } },
+          { label: S.close, onClick: () => dialog.close() },
+        ],
+      });
+    }
+
+    async function pickFolder() {
+      try {
+        const r = await api.call("backupFolder");
+        if (r.path) snackbar(S.backup_folder_done);
+      } catch (e) {
+        snackbar(errorMessage(e));
+      }
+    }
+
+    function folderDialog() {
+      const b = state.backup;
+      const dialog = openDialog({
+        iconName: "history",
+        title: S.backup_folder_title,
+        body: [h("p", { class: "mono selectable", text: b.folder.label }), b.folder.error ? h("p", { class: "bad", text: b.folder.error }) : null],
+        actions: [
+          { label: S.backup_folder_remove, kind: "sec", onClick: async () => {
+            dialog.close();
+            try {
+              await api.call("backupRemoveFolder");
+            } catch (e) {
+              snackbar(errorMessage(e));
+            }
+          } },
+          { label: S.backup_folder_change, kind: "sec", onClick: () => { dialog.close(); pickFolder(); } },
+          { label: S.close, onClick: () => dialog.close() },
+        ],
+      });
+    }
+
+    async function backupNow() {
+      try {
+        const r = await api.call("backupNow");
+        if (r.errors?.length) alertDialog(S.backup_now, r.errors.join("\n"));
+        else snackbar(S.backup_done);
+      } catch (e) {
+        alertDialog(S.backup_now, errorMessage(e));
+      }
+    }
+
+    function disableDialog() {
+      const dialog = openDialog({
+        iconName: "delete",
+        title: S.backup_disable,
+        body: [h("p", { text: S.backup_disable_text })],
+        actions: [
+          { label: S.cancel, onClick: () => dialog.close() },
+          { label: S.backup_disable_ok, kind: "danger", onClick: async () => {
+            dialog.close();
+            try {
+              await api.call("backupDisable");
+            } catch (e) {
+              snackbar(errorMessage(e));
+            }
+          } },
+        ],
+      });
+    }
+
+    /** Liste des sauvegardes du compte GitHub ; une fois choisie, l'import habituel prend le relais. */
+    async function restoreDialog() {
+      if (!state.backup?.github) {
+        connect(restoreDialog);
+        return;
+      }
+      setBusy(true);
+      let r;
+      try {
+        r = await api.call("backupList");
+      } catch (e) {
+        alertDialog(S.backup_restore_title, errorMessage(e));
+        return;
+      } finally {
+        setBusy(false);
+      }
+      if (!r.connected) {
+        connect(restoreDialog);
+        return;
+      }
+      const rows = (r.entries || []).map((e) => h("button", {
+        class: "restore-row", type: "button",
+        onClick: () => { dialog.close(); restore(e.name); },
+      },
+      icon("history", "small"),
+      h("span", { class: "texts" },
+        h("span", { class: "headline", text: `${formatDay(e.date)} · ${deviceLabel(e.device)}` }),
+        h("small", { text: `${Math.max(1, Math.round(e.size / 1024))} Ko${e.mine ? " · " + S.backup_restore_mine : ""}` }))));
+      const dialog = openDialog({
+        iconName: "download",
+        title: S.backup_restore_title,
+        body: rows.length
+          ? [h("p", { text: fmt(S.backup_restore_text, "@" + r.user) }), h("div", { class: "restore-list" }, rows)]
+          : [h("p", { text: S.backup_restore_empty })],
+        actions: [{ label: S.close, onClick: () => dialog.close() }],
+      });
+    }
+
+    async function restore(name) {
+      setBusy(true);
+      try {
+        handleImportStep(await api.call("backupRestore", { name }));
+      } catch (e) {
+        snackbar(errorMessage(e));
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    /** « windows-bureau-3fa2 » → « windows · bureau ». */
+    function deviceLabel(device) {
+      const parts = device.split("-");
+      if (parts.length > 2 && /^[0-9a-f]{4}$/.test(parts[parts.length - 1])) parts.pop();
+      return `${parts[0]} · ${parts.slice(1).join(" ")}`;
+    }
+
+    function formatDay(date) {
+      const [y, m, d] = date.split("-").map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
+    }
+
+    return { section };
   })();
 
   function settingsView() {
@@ -3201,11 +3545,13 @@
       autoUpdate.el);
     const section = (title, ...items) => [h("h2", { class: "section-title", text: title }), h("section", { class: "card" }, items)];
     const shareSections = sharing.sections();
+    const backupSection = backups.section();
     const el = h("div", { class: "main-inner narrow" },
       section(S.section_monitoring, poll.el, wakeTimeout.el,
         h("div", { class: "item" }, h("div", { class: "texts" }, h("div", { class: "headline", text: S.setting_confirm }), h("div", { class: "supporting", text: S.setting_confirm_help })), confirmSwitch.el)),
       shareSections.els,
       section(S.section_backup, exportItem, importItem),
+      backupSection.els,
       section(S.section_history, settingItem("history", S.history_open, S.history_open_help, () => openHistorySheet("")), clearItem),
       section(S.section_agent_download, settingItem("download", S.agent_download, S.agent_download_help,
         () => (state.agent?.enabled ? agentDownload.open() : openUrl(RELEASES_URL)))),
@@ -3238,6 +3584,7 @@
         autoUpdateItem.classList.toggle("hidden", !u.enabled);
         if (document.activeElement !== autoUpdate.input) autoUpdate.input.checked = !!u.auto;
         shareSections.update();
+        backupSection.update();
       },
     };
   }

@@ -294,7 +294,7 @@ func (g *GitHub) FetchGist(ctx context.Context, id, etag string) (Snapshot, erro
 			if f.Size > MaxFileSize {
 				continue
 			}
-			if content, err = g.raw(ctx, f.RawURL); err != nil {
+			if content, err = g.raw(ctx, f.RawURL, MaxFileSize); err != nil {
 				return Snapshot{}, err
 			}
 		}
@@ -303,8 +303,8 @@ func (g *GitHub) FetchGist(ctx context.Context, id, etag string) (Snapshot, erro
 	return snap, nil
 }
 
-// raw télécharge un fichier tronqué par l'API (seulement depuis le domaine des Gists).
-func (g *GitHub) raw(ctx context.Context, raw string) (string, error) {
+// raw télécharge un fichier tronqué par l'API (seulement depuis le domaine des Gists), limit octets au plus.
+func (g *GitHub) raw(ctx context.Context, raw string, limit int) (string, error) {
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme != "https" || u.Host != "gist.githubusercontent.com" {
 		return "", errors.New("adresse de fichier inattendue")
@@ -322,7 +322,7 @@ func (g *GitHub) raw(ctx context.Context, raw string) (string, error) {
 	if resp.StatusCode != http.StatusOK {
 		return "", statusError(resp.StatusCode)
 	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxFileSize+1))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, int64(limit)+1))
 	if err != nil {
 		return "", networkError(err)
 	}
@@ -365,6 +365,11 @@ func (g *GitHub) form(ctx context.Context, endpoint string, values url.Values, o
 
 // api appelle l'API REST ; body est encodé en JSON, la réponse décodée dans out (si non nil).
 func (g *GitHub) api(ctx context.Context, method, path, token, etag string, body, out any) (*http.Response, error) {
+	return g.apiLimit(ctx, method, path, token, etag, body, out, maxResponse)
+}
+
+// apiLimit : comme api, avec une réponse de limit octets au plus.
+func (g *GitHub) apiLimit(ctx context.Context, method, path, token, etag string, body, out any, limit int) (*http.Response, error) {
 	var reader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -394,7 +399,7 @@ func (g *GitHub) api(ctx context.Context, method, path, token, etag string, body
 		return nil, networkError(err)
 	}
 	defer resp.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxResponse))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, int64(limit)))
 	if err != nil {
 		return nil, networkError(err)
 	}

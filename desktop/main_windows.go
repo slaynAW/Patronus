@@ -159,7 +159,7 @@ func main() {
 	}
 	svc := app.New(app.Options{
 		Version: version, System: systemInfo(), Store: store, Platform: platform, History: histStore,
-		Updates: updateOptions(exe), Share: shareOptions(dataDir), Agent: agentOptions(),
+		Updates: updateOptions(exe), Share: shareOptions(dataDir), Agent: agentOptions(), Backup: backupOptions(dataDir),
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

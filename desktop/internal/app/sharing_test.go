@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -24,12 +25,14 @@ import (
 type gistServer struct {
 	mu    sync.Mutex
 	files map[string]map[string]string
-	seq   int
+	// descriptions : description de chaque Gist (listes du compte, sauvegardes).
+	descriptions map[string]string
+	seq          int
 }
 
 func newGistServer(t *testing.T) (*gistServer, *httptest.Server) {
 	t.Helper()
-	g := &gistServer{files: map[string]map[string]string{}}
+	g := &gistServer{files: map[string]map[string]string{}, descriptions: map[string]string{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /login/device/code", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, `{"device_code":"d","user_code":"WXYZ-1234","verification_uri":"https://github.com/login/device","expires_in":600,"interval":1}`)
@@ -40,13 +43,22 @@ func newGistServer(t *testing.T) (*gistServer, *httptest.Server) {
 	mux.HandleFunc("GET /user", func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, `{"login":"hugo"}`) })
 	mux.HandleFunc("POST /gists", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
-			Files map[string]struct {
+			Description string `json:"description"`
+			Public      bool   `json:"public"`
+			Files       map[string]struct {
 				Content string `json:"content"`
 			} `json:"files"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		g.mu.Lock()
+		if body.Public {
+			t.Error("Gist public créé")
+		}
 		id := "abcdefabcdefabcdefabcdefabcdef12"
+		if len(g.files) > 0 {
+			id = fmt.Sprintf("%032x", len(g.files)+1)
+		}
+		g.descriptions[id] = body.Description
 		g.files[id] = map[string]string{}
 		for name, f := range body.Files {
 			g.files[id][name] = f.Content
@@ -86,6 +98,19 @@ func newGistServer(t *testing.T) (*gistServer, *httptest.Server) {
 		g.mu.Unlock()
 		w.WriteHeader(http.StatusNoContent)
 	})
+	mux.HandleFunc("GET /gists", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer tok" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		list := []map[string]string{}
+		for id := range g.files {
+			list = append(list, map[string]string{"id": id, "description": g.descriptions[id]})
+		}
+		_ = json.NewEncoder(w).Encode(list)
+	})
 	mux.HandleFunc("GET /gists/{id}", func(w http.ResponseWriter, r *http.Request) {
 		g.mu.Lock()
 		defer g.mu.Unlock()
@@ -96,7 +121,7 @@ func newGistServer(t *testing.T) (*gistServer, *httptest.Server) {
 		}
 		out := map[string]any{}
 		for name, c := range files {
-			out[name] = map[string]any{"content": c}
+			out[name] = map[string]any{"content": c, "size": len(c)}
 		}
 		w.Header().Set("ETag", `"`+strings.Repeat("x", g.seq)+`"`)
 		if r.Header.Get("If-None-Match") == w.Header().Get("ETag") {

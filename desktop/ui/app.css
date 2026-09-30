@@ -417,6 +417,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); width: 
 .expander { align-self: flex-start; padding: 0 4px; }
 .test-row { display: flex; align-items: center; gap: 12px; }
 .result svg.icon { flex: none; }
+.result .result-help { display: block; margin-top: 4px; opacity: .85; font-size: 12px; line-height: 1.4; }
 
 /* ---------- Panneaux (édition, historique), dialogues, menus ---------- */
 
@@ -491,6 +492,13 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); width: 
 .choice { display: flex; align-items: center; gap: 12px; padding: 8px 0; cursor: pointer; color: var(--text); }
 .choice .texts { display: flex; flex-direction: column; }
 .choice small { color: var(--text-2); font-size: 12px; }
+.restore-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; margin-top: 10px; }
+.restore-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.restore-row:hover, .restore-row:focus-visible { background: var(--surface-3); border-color: var(--line-2); outline: none; }
+.restore-row .texts { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.restore-row .headline { font-size: 13px; }
+.restore-row small { color: var(--text-2); font-size: 12px; }
 .check-row { display: flex; align-items: center; gap: 10px; color: var(--text); cursor: pointer; }
 
 .menu { position: fixed; min-width: 210px; padding: 6px; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px; box-shadow: var(--shadow); z-index: 40; animation: fade 0.1s ease-out; }

@@ -65,6 +65,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.slaynaw.wakeonlan.R
 import io.github.slaynaw.wakeonlan.appContainer
+import io.github.slaynaw.wakeonlan.core.agent.AgentError
 import io.github.slaynaw.wakeonlan.core.model.DeviceField
 import io.github.slaynaw.wakeonlan.ui.common.BusySpinner
 import io.github.slaynaw.wakeonlan.ui.common.ButtonKind
@@ -400,19 +401,24 @@ private fun TestResultCard(result: AgentTestResult) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(if (success) WolIcons.Check else WolIcons.Warning, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(12.dp))
-            Text(
-                when (result) {
-                    is AgentTestResult.Success -> stringResource(
-                        R.string.test_ok,
-                        result.status.hostname,
-                        result.status.osLabel(),
-                        result.status.version,
-                    )
-                    is AgentTestResult.Failure -> stringResource(result.error.label())
-                    is AgentTestResult.Invalid -> result.message
-                },
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    when (result) {
+                        is AgentTestResult.Success -> stringResource(
+                            R.string.test_ok,
+                            result.status.hostname,
+                            result.status.osLabel(),
+                            result.status.version,
+                        )
+                        is AgentTestResult.Failure -> stringResource(result.error.label())
+                        is AgentTestResult.Invalid -> result.message
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (result is AgentTestResult.Failure && result.error == AgentError.UNREACHABLE) {
+                    Text(stringResource(R.string.hint_unreachable), style = MaterialTheme.typography.bodySmall)
+                }
+            }
         }
     }
 }

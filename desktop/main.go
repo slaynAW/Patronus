@@ -11,8 +11,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/slaynaw/wakeonlan/desktop/internal/app"
+	"github.com/slaynaw/wakeonlan/desktop/internal/backup"
 	"github.com/slaynaw/wakeonlan/desktop/internal/diag"
 	"github.com/slaynaw/wakeonlan/desktop/internal/share"
 )
@@ -27,14 +29,9 @@ var (
 	githubClientID = ""
 )
 
-// shareOptions active le partage des PC. En mode développement uniquement, WOL_GITHUB_API et
-// WOL_GITHUB_WEB remplacent GitHub par un serveur de test.
-func shareOptions(dataDir string) *app.ShareOptions {
-	store, err := share.NewStore(dataDir)
-	if err != nil {
-		diag.Error("partage", "partage désactivé : %v", err)
-		return nil
-	}
+// githubClient renvoie le client GitHub (partage et sauvegardes). En mode développement uniquement,
+// WOL_GITHUB_API et WOL_GITHUB_WEB remplacent GitHub par un serveur de test.
+var githubClient = sync.OnceValue(func() *share.GitHub {
 	gh := share.NewGitHub(githubClientID, "Patronus-Windows/"+version)
 	if api := os.Getenv("WOL_GITHUB_API"); api != "" && version == "dev" {
 		gh.API, gh.Web = api, os.Getenv("WOL_GITHUB_WEB")
@@ -42,7 +39,28 @@ func shareOptions(dataDir string) *app.ShareOptions {
 			gh.ClientID = "dev"
 		}
 	}
-	return &app.ShareOptions{Store: store, GitHub: gh}
+	return gh
+})
+
+// shareOptions active le partage des PC.
+func shareOptions(dataDir string) *app.ShareOptions {
+	store, err := share.NewStore(dataDir)
+	if err != nil {
+		diag.Error("partage", "partage désactivé : %v", err)
+		return nil
+	}
+	return &app.ShareOptions{Store: store, GitHub: githubClient()}
+}
+
+// backupOptions active les sauvegardes automatiques (fichiers nommés d'après ce PC).
+func backupOptions(dataDir string) *app.BackupOptions {
+	store, err := backup.NewStore(dataDir)
+	if err != nil {
+		diag.Error("sauvegarde", "sauvegardes désactivées : %v", err)
+		return nil
+	}
+	name, _ := os.Hostname()
+	return &app.BackupOptions{Store: store, GitHub: githubClient(), Kind: "windows", Name: name}
 }
 
 //go:embed ui

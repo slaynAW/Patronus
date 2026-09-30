@@ -206,6 +206,9 @@ func (s *Service) locksFree() bool {
 	if s.sharing != nil {
 		locks = append(locks, &s.sharing.mu)
 	}
+	if s.backups != nil {
+		locks = append(locks, &s.backups.mu)
+	}
 	deadline := time.Now().Add(2 * time.Second)
 	for _, l := range locks {
 		for !l.TryLock() {
@@ -336,6 +339,9 @@ func (s *Service) diagnosticReport(now time.Time) string {
 
 	section("Partage")
 	s.describeSharing(line, cfg)
+
+	section("Sauvegardes automatiques")
+	s.describeBackups(line)
 
 	section("Mises à jour")
 	u := s.updates.snapshot()

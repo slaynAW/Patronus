@@ -85,6 +85,8 @@
     <string name="agent_error_no_key">aucune clé configurée</string>
     <string name="agent_error_unknown_host">nom d’hôte introuvable</string>
     <string name="agent_error_unreachable">PC injoignable</string>
+    <string name="hint_unreachable">S’il est allumé : sur le PC, le réseau est peut-être classé « Public » dans Windows (le pare-feu bloque alors l’agent), ou le téléphone n’est pas sur le même réseau.</string>
+    <string name="hint_offline_agent">Allumé mais affiché éteint ? Sur le PC, le réseau est peut-être classé « Public » dans Windows : le pare-feu bloque alors l’agent. Paramètres Windows → Réseau et Internet → ce réseau → Type de profil réseau : Privé (l’agent 1.6.0 le propose de lui-même). Vérifiez aussi que le téléphone est sur le même réseau.</string>
     <string name="agent_error_refused">agent arrêté sur le PC</string>
     <string name="agent_error_unauthorized">clé refusée par l’agent</string>
     <string name="agent_error_rate_limited">trop de tentatives, réessayez dans quelques minutes</string>
