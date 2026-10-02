@@ -82,7 +82,8 @@ data class AgentStatus(
 
 /**
  * Températures du PC en °C ; un capteur illisible est `null`. [cpuHint] explique l'absence de la
- * température du processeur : [CPU_HINT_LHM] = LibreHardwareMonitor ne tourne pas (Windows).
+ * température du processeur : [CPU_HINT_LHM] = LibreHardwareMonitor ne la fournit pas (Windows), et
+ * [lhm] précise pourquoi (agent 1.6.0 ou plus ; vide avec un agent plus ancien).
  */
 @Serializable
 data class AgentTemperatures(
@@ -90,9 +91,22 @@ data class AgentTemperatures(
     val gpu: Double? = null,
     val gpuName: String = "",
     val cpuHint: String = "",
+    val lhm: String = "",
 ) {
     companion object {
         const val CPU_HINT_LHM = "lhm"
+
+        /** LibreHardwareMonitor ne tourne pas. */
+        const val LHM_NOT_RUNNING = "not-running"
+
+        /** Il tourne, mais son serveur web (Options → Remote Web Server → Run) est désactivé. */
+        const val LHM_WEB_OFF = "web-off"
+
+        /** Son serveur web demande un mot de passe. */
+        const val LHM_AUTH = "auth"
+
+        /** Il répond sans température du processeur (pilote PawnIO absent…). */
+        const val LHM_NO_SENSOR = "no-sensor"
 
         /** Seuils d'affichage : chaud, puis très chaud. */
         const val WARM = 80.0

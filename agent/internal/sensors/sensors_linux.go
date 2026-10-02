@@ -67,3 +67,5 @@ func nvidiaSMI() (*float64, string) {
 	}
 	return parseNvidiaSMI(string(out))
 }
+
+func details() []string { return nil }

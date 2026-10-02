@@ -311,6 +311,9 @@ func cmdStatus(args []string) error {
 		fmt.Println("                (", err, ")")
 	}
 	fmt.Printf("Températures  : %s\n", describeTemperatures(sensors.Read()))
+	for _, line := range sensors.Details() {
+		fmt.Println("                " + line)
+	}
 	if err != nil {
 		return nil
 	}
@@ -364,7 +367,7 @@ func describeTemperatures(t protocol.Temperatures) string {
 	if t.CPU != nil {
 		parts = append(parts, fmt.Sprintf("processeur %.0f °C", *t.CPU))
 	} else if t.CPUHint == protocol.CPUHintLHM {
-		parts = append(parts, "processeur : lancez LibreHardwareMonitor (en administrateur)")
+		parts = append(parts, "processeur : "+lhmAdvice(t.LHM))
 	}
 	if t.GPU != nil {
 		gpu := fmt.Sprintf("carte graphique %.0f °C", *t.GPU)
@@ -377,6 +380,20 @@ func describeTemperatures(t protocol.Temperatures) string {
 		return "non disponibles sur ce PC"
 	}
 	return strings.Join(parts, " · ")
+}
+
+// lhmAdvice dit quoi faire pour que l'agent lise la température du processeur dans
+// LibreHardwareMonitor.
+func lhmAdvice(state string) string {
+	switch state {
+	case protocol.LHMWebOff:
+		return "LibreHardwareMonitor tourne, mais son serveur web est désactivé : Options → Remote Web Server → Run"
+	case protocol.LHMAuth:
+		return "le serveur web de LibreHardwareMonitor demande un mot de passe : désactivez-le (Options → Remote Web Server → Authentication)"
+	case protocol.LHMNoSensor:
+		return "LibreHardwareMonitor ne la lit pas : installez son pilote PawnIO (proposé au démarrage de LHM 0.9.5 ou plus), ou mettez LHM à jour"
+	}
+	return "lancez LibreHardwareMonitor en administrateur, avec Options → Remote Web Server → Run"
 }
 
 func eventClient(e protocol.HistoryEvent) string {

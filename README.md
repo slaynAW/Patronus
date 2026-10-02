@@ -133,10 +133,12 @@ sudo ./wol-agent-darwin-arm64 install
 Sous Windows, l'agent (1.4.0 ou plus) propose lui-même ses nouvelles versions à l'utilisateur du PC et s'installe
 après son accord, sans changer la clé.
 
-**Températures (facultatif)** : l'agent 1.5.0 transmet la température de la carte graphique NVIDIA (lue par son
-pilote) et celle du processeur. Sous Windows, cette dernière demande **[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)**
-lancé **en administrateur** sur le PC (dans ses *Options* : *Start Minimized*, *Minimize To Tray* et *Run On Windows
-Startup* pour qu'il tourne en permanence). Sous Linux, rien à installer (capteurs du noyau, `nvidia-smi`).
+**Températures (facultatif)** : l'agent transmet la température de la carte graphique et celle du processeur. Sous
+Windows, la carte graphique est lue sans rien installer (NVIDIA, AMD, Intel Arc : agent 1.6.0 ; NVIDIA seulement
+avant) ; le processeur demande **[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)**
+lancé **en administrateur** sur le PC, avec son **serveur web activé** (*Options* → *Remote Web Server* → *Run*,
+indispensable depuis sa version 0.9.5) ; dans ses *Options*, cochez aussi *Start Minimized*, *Minimize To Tray* et
+*Run On Windows Startup* pour qu'il tourne en permanence. Sous Linux, rien à installer (capteurs du noyau, `nvidia-smi`).
 
 Commandes utiles : `wol-agent pair` (réafficher le QR code), `wol-agent status`, `wol-agent rotate-key` (changer la clé),
 `wol-agent update` (mettre à jour), `wol-agent uninstall`. Détails : **[agent/README.md](agent/README.md)**.
@@ -260,7 +262,10 @@ tuile de réglages rapides, raccourcis, notifications, verrouillage biométrique
 | « agent arrêté sur le PC » | Le PC répond mais le service ne tourne pas : `wol-agent status`, ou relancez l'installation. |
 | « clé refusée par l'agent » | La clé a changé (`rotate-key`) : ré-appairez avec `wol-agent pair`. |
 | Historique : « Mettez à jour l'agent de ce PC… » | L'agent est antérieur à la version 1.2 : relancez l'installation avec la nouvelle version (configuration et clé conservées). |
-| Température CPU : « LibreHardwareMonitor requis » | Lancez LibreHardwareMonitor **en administrateur** sur ce PC (et cochez *Run On Windows Startup*). La carte graphique NVIDIA est lue sans lui. |
+| Température CPU : « LibreHardwareMonitor requis » | Lancez LibreHardwareMonitor **en administrateur** sur ce PC, activez *Options* → *Remote Web Server* → *Run* et cochez *Run On Windows Startup*. |
+| Température CPU : « Serveur web LHM à activer » | LibreHardwareMonitor tourne mais, depuis sa version 0.9.5, l'agent ne peut le lire que par son serveur web : *Options* → *Remote Web Server* → *Run* (inutile d'ouvrir le port 8085 dans le pare-feu). |
+| Température CPU : « Mot de passe LHM à retirer » / « Non lue par LHM » | Désactivez *Options* → *Remote Web Server* → *Authentication* / acceptez l'installation du pilote **PawnIO** au démarrage de LibreHardwareMonitor (ou mettez-le à jour). `wol-agent status` sur le PC détaille ce qu'il trouve. |
+| Pas de température GPU | Avec l'agent 1.6.0, toute carte graphique dédiée est lue (pilote récent requis) ; les puces graphiques intégrées ne donnent généralement pas leur température (LibreHardwareMonitor 0.9.6 lit celle des puces Intel s'il tourne). |
 | Pas de ligne « Température » | L'agent du PC est antérieur à la version 1.5.0 (il se met à jour après accord de l'utilisateur du PC, ou `wol-agent update`). |
 | Mise à jour de l'APK refusée | Signature différente : voir [docs/SIGNATURE.md](docs/SIGNATURE.md). |
 | Windows : « composant WebView2 introuvable » | Rare (Windows 10 non à jour) : acceptez l'ouverture de la page Microsoft et installez le composant. |

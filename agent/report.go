@@ -117,6 +117,9 @@ func agentReport(cfgPath string, now time.Time) string {
 		}
 	}
 	line("Températures : %s", describeTemperatures(sensors.Read()))
+	for _, d := range sensors.Details() {
+		line("- %s", d)
+	}
 
 	section("Fichiers de l'agent")
 	dir := filepath.Dir(cfgPath)

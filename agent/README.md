@@ -135,7 +135,7 @@ application le demande, au plus toutes les 5 secondes, en arrière-plan (la rép
 
 | Système | Carte graphique | Processeur |
 |---|---|---|
-| Windows | NVIDIA : NVML, fourni par le pilote (`nvml.dll`) | **[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)**, lu par WMI (`root\LibreHardwareMonitor`) ou, à défaut, par son serveur web local (`http://127.0.0.1:8085/data.json`) ; AMD / Intel : aussi via LibreHardwareMonitor |
+| Windows | **Toutes marques** (agent 1.6.0) : interface du noyau graphique de Windows, comme le Gestionnaire des tâches (cartes dédiées NVIDIA, AMD, Intel Arc ; pilote WDDM 2.4 ou plus) ; NVIDIA aussi par NVML (`nvml.dll`, fourni par le pilote) ; en secours, LibreHardwareMonitor (puces intégrées Intel avec sa version 0.9.6) | **[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)** (LHM), par son **serveur web** (`data.json`), ou par WMI (`root\LibreHardwareMonitor`) pour ses versions 0.9.4 et plus anciennes |
 | Linux | `nvidia-smi` (pilote NVIDIA), capteurs du noyau (`amdgpu`, `nouveau`, `radeon`) | capteurs du noyau (`/sys/class/hwmon` : `coretemp`, `k10temp`, `zenpower`) |
 | macOS | — | — |
 
@@ -143,12 +143,28 @@ Windows ne donne pas accès aux sondes du processeur sans pilote : l'agent n'en 
 LibreHardwareMonitor s'il tourne. Pour l'installer :
 
 1. Téléchargez la dernière version sur sa page GitHub et décompressez-la (par exemple dans `C:\Program Files\LibreHardwareMonitor`).
-2. Lancez `LibreHardwareMonitor.exe` **en administrateur** (clic droit → *Exécuter en tant qu'administrateur*).
-3. Dans *Options*, cochez **Start Minimized**, **Minimize To Tray** et **Run On Windows Startup** : il démarre avec
+2. Lancez `LibreHardwareMonitor.exe` **en administrateur** (clic droit → *Exécuter en tant qu'administrateur*). S'il
+   propose d'installer son pilote **PawnIO**, acceptez : sans lui, il ne lit pas le processeur.
+3. **Activez son serveur web** : *Options* → *Remote Web Server* → *Run*. Depuis la version 0.9.5, LHM ne publie
+   plus rien par WMI : c'est le seul moyen pour l'agent de le lire. Gardez le port (8085) et l'interface proposés,
+   sans *Authentication* (l'agent ne connaît pas ce mot de passe). Il est **inutile d'ouvrir ce port dans le
+   pare-feu** : l'agent le lit sur le PC même, et ce serveur sans mot de passe permet de piloter les ventilateurs.
+4. Dans *Options*, cochez **Start Minimized**, **Minimize To Tray** et **Run On Windows Startup** : il démarre avec
    Windows, discrètement, et l'agent retrouve la température du processeur à chaque démarrage.
 
-`wol-agent status` affiche les températures lues (ou ce qu'il manque). Sans LibreHardwareMonitor, les applications
-indiquent « LibreHardwareMonitor requis » à la place de la température du processeur.
+L'agent trouve LHM même si son serveur web écoute sur une autre adresse du PC ou un autre port (il lit ses réglages,
+`LibreHardwareMonitor.config`, à côté du programme). Quand la température du processeur manque, les applications
+disent pourquoi :
+
+| Message | Cause | Que faire |
+|---|---|---|
+| LibreHardwareMonitor requis | LHM ne tourne pas | Le lancer en administrateur (étapes ci-dessus) |
+| Serveur web LHM à activer | LHM tourne, son serveur web ne répond pas | *Options* → *Remote Web Server* → *Run* |
+| Mot de passe LHM à retirer | Le serveur web demande un mot de passe | Décocher *Options* → *Remote Web Server* → *Authentication* |
+| Non lue par LHM | LHM répond sans température du processeur | Accepter le pilote PawnIO au démarrage de LHM, ou mettre LHM à jour |
+
+`wol-agent status` affiche les températures lues et le détail : cartes graphiques vues par Windows, LHM trouvé (ou
+non), ses réglages, la réponse de son serveur web et la présence du pilote PawnIO.
 
 ## Compilation
 

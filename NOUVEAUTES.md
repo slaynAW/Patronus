@@ -7,6 +7,7 @@ Chaque section « ## X.Y.Z » est affichée dans les applications au moment de p
 
 - **Sauvegarde automatique chiffrée** : *Réglages* → *Sauvegarde automatique*. Après chaque changement (PC, réglages, partage) et chaque jour, une sauvegarde complète est chiffrée par votre mot de passe et enregistrée dans un Gist secret de votre compte GitHub et/ou dans un dossier ; les 7 dernières versions sont gardées.
 - **Restaurer depuis GitHub** : sur un nouveau téléphone ou PC, retrouvez vos PC, leurs clés, votre partage et l'historique en quelques gestes.
+- **Températures** : avec l'agent 1.6.0, la carte graphique est lue pour toutes les marques (NVIDIA, AMD, Intel Arc), et quand la température du processeur manque, la fiche du PC dit exactement quoi faire dans LibreHardwareMonitor (serveur web à activer, mot de passe, pilote).
 - **PC allumé mais affiché éteint ?** L'application explique la cause la plus fréquente (réseau classé « Public » dans Windows), et l'agent 1.6.0 propose de lui-même de corriger ce réglage sur le PC.
 
 ## 1.5.4

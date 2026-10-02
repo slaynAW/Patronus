@@ -1,9 +1,9 @@
 // Package sensors lit les températures du processeur et de la carte graphique, renvoyées par la
 // commande « status » :
 //
-//   - Windows : carte graphique NVIDIA par NVML (bibliothèque installée avec le pilote), processeur
-//     par LibreHardwareMonitor s'il tourne (Windows ne donne pas cette température sans pilote
-//     noyau, que l'agent n'installe pas) ;
+//   - Windows : cartes graphiques par l'interface du noyau graphique (comme le Gestionnaire des
+//     tâches) et par NVML pour NVIDIA, processeur par LibreHardwareMonitor s'il tourne (Windows ne
+//     donne pas cette température sans pilote noyau, que l'agent n'installe pas) ;
 //   - Linux : capteurs du noyau (hwmon), et nvidia-smi pour les cartes NVIDIA.
 //
 // Les relevés sont faits en arrière-plan, au plus toutes les quelques secondes et seulement tant
@@ -11,8 +11,12 @@
 package sensors
 
 import (
+	"bytes"
 	"encoding/json"
+	"encoding/xml"
 	"math"
+	"net"
+	"net/netip"
 	"regexp"
 	"slices"
 	"strconv"
@@ -79,6 +83,28 @@ func celsius(v float64) *float64 {
 	return &r
 }
 
+// Details décrit ce que l'agent trouve pour lire les températures (cartes graphiques,
+// LibreHardwareMonitor…), pour « wol-agent status » et le rapport de diagnostic.
+func Details() []string { return details() }
+
+// gpuReading est la température d'une carte graphique.
+type gpuReading struct {
+	temp float64
+	name string
+}
+
+// hottestGPU renvoie la carte graphique la plus chaude parmi les relevés valables.
+func hottestGPU(readings []gpuReading) (*float64, string) {
+	var best *float64
+	var name string
+	for _, r := range readings {
+		if t := celsius(r.temp); t != nil && (best == nil || *t > *best) {
+			best, name = t, r.name
+		}
+	}
+	return best, name
+}
+
 // --- LibreHardwareMonitor ---
 
 // lhmSensor est un capteur de température publié par LibreHardwareMonitor.
@@ -87,6 +113,8 @@ type lhmSensor struct {
 	Identifier string
 	Name       string
 	Value      float64
+	// Hardware : nom du matériel (« NVIDIA GeForce RTX 4070 ») quand il est connu.
+	Hardware string
 }
 
 // cpuPreference : noms des capteurs qui représentent le mieux le processeur, du meilleur au moins bon.
@@ -119,50 +147,190 @@ func pickCPU(sensors []lhmSensor) *float64 {
 	return best
 }
 
-// pickGPU choisit la température de la carte graphique (« GPU Core »), en secours de NVML.
-func pickGPU(sensors []lhmSensor) *float64 {
+// gpuSecondary : capteurs d'une carte graphique qui ne représentent pas la puce elle-même.
+var gpuSecondary = []string{"memory", "hot spot", "hotspot", "junction", "vram", "vr ", "vrm", "board"}
+
+// pickGPU choisit la température de la carte graphique (en secours des lectures directes) :
+// « GPU Core », sinon un capteur de la puce (les puces intégrées Intel, lues par LHM 0.9.6 ou
+// plus, n'ont pas toujours ce nom), sinon n'importe quel capteur de la carte.
+func pickGPU(sensors []lhmSensor) (*float64, string) {
+	var gpu []lhmSensor
 	for _, s := range sensors {
-		if strings.HasPrefix(s.Identifier, "/gpu-") && strings.EqualFold(strings.TrimSpace(s.Name), "GPU Core") {
-			if t := celsius(s.Value); t != nil {
-				return t
+		if strings.HasPrefix(s.Identifier, "/gpu-") && celsius(s.Value) != nil {
+			gpu = append(gpu, s)
+		}
+	}
+	core := func(s lhmSensor) bool { return strings.EqualFold(strings.TrimSpace(s.Name), "GPU Core") }
+	chip := func(s lhmSensor) bool {
+		name := strings.ToLower(s.Name) + " "
+		return !slices.ContainsFunc(gpuSecondary, func(w string) bool { return strings.Contains(name, w) })
+	}
+	for _, match := range []func(lhmSensor) bool{core, chip, func(lhmSensor) bool { return true }} {
+		for _, s := range gpu {
+			if match(s) {
+				return celsius(s.Value), s.Hardware
 			}
 		}
 	}
-	return nil
+	return nil, ""
 }
 
 var leadingNumber = regexp.MustCompile(`^-?[0-9]+(?:[.,][0-9]+)?`)
 
-// parseLHMWeb lit l'arbre publié par le serveur web de LibreHardwareMonitor (data.json), dont les
-// valeurs sont du texte formaté selon la langue de Windows (« 54,5 °C »).
+// parseLHMWeb lit l'arbre publié par le serveur web de LibreHardwareMonitor (data.json). La valeur
+// brute (RawValue, en °C) est préférée ; sinon Value, texte formaté selon la langue de Windows et
+// l'unité choisie dans LHM (« 54,5 °C », « 130,1 °F »).
 func parseLHMWeb(data []byte) ([]lhmSensor, error) {
 	type node struct {
-		Text     string `json:"Text"`
-		Value    string `json:"Value"`
-		SensorID string `json:"SensorId"`
-		Type     string `json:"Type"`
-		Children []node `json:"Children"`
+		Text     string          `json:"Text"`
+		Value    json.RawMessage `json:"Value"`
+		RawValue json.RawMessage `json:"RawValue"`
+		SensorID string          `json:"SensorId"`
+		Type     string          `json:"Type"`
+		Children []node          `json:"Children"`
 	}
 	var root node
 	if err := json.Unmarshal(data, &root); err != nil {
 		return nil, err
 	}
 	var out []lhmSensor
-	var walk func(n node)
-	walk = func(n node) {
+	// Arbre : ordinateur → matériel → groupe (« Temperatures ») → capteur ; parents = textes des
+	// nœuds au-dessus du nœud courant.
+	var walk func(n node, parents []string)
+	walk = func(n node, parents []string) {
 		if n.SensorID != "" && (n.Type == "Temperature" || strings.Contains(n.SensorID, "/temperature/")) {
-			if m := leadingNumber.FindString(strings.TrimSpace(n.Value)); m != "" {
-				if v, err := strconv.ParseFloat(strings.Replace(m, ",", ".", 1), 64); err == nil {
-					out = append(out, lhmSensor{Identifier: n.SensorID, Name: n.Text, Value: v})
+			if v, ok := lhmValue(n.RawValue, n.Value); ok {
+				s := lhmSensor{Identifier: n.SensorID, Name: n.Text, Value: v}
+				if len(parents) >= 2 {
+					s.Hardware = parents[len(parents)-2]
 				}
+				out = append(out, s)
 			}
 		}
+		parents = append(parents, n.Text)
 		for _, c := range n.Children {
-			walk(c)
+			walk(c, parents)
 		}
 	}
-	walk(root)
+	walk(root, nil)
 	return out, nil
+}
+
+// lhmValue lit la valeur d'un capteur de data.json en °C.
+func lhmValue(raw, text json.RawMessage) (float64, bool) {
+	if v, ok := jsonNumber(raw); ok {
+		return v, true
+	}
+	var s string
+	if json.Unmarshal(text, &s) != nil {
+		return jsonNumber(text)
+	}
+	s = strings.TrimSpace(s)
+	m := leadingNumber.FindString(s)
+	if m == "" {
+		return 0, false
+	}
+	v, err := strconv.ParseFloat(strings.Replace(m, ",", ".", 1), 64)
+	if err != nil {
+		return 0, false
+	}
+	if strings.HasSuffix(s, "°F") {
+		v = (v - 32) * 5 / 9
+	}
+	return v, true
+}
+
+// jsonNumber lit un nombre JSON, ou un texte qui en contient un (« 54.5 ») ; null n'en est pas un.
+func jsonNumber(raw json.RawMessage) (float64, bool) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return 0, false
+	}
+	var f float64
+	if json.Unmarshal(raw, &f) == nil {
+		return f, true
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		if f, err := strconv.ParseFloat(strings.TrimSpace(s), 64); err == nil {
+			return f, true
+		}
+	}
+	return 0, false
+}
+
+// lhmConfig : réglages de LibreHardwareMonitor utiles à l'agent, lus dans LibreHardwareMonitor.config
+// (à côté du programme). LHM ne les enregistre pas toujours tout de suite : ils guident la lecture
+// sans la conditionner.
+type lhmConfig struct {
+	// WebServer : Options → Remote Web Server → Run (runWebServerMenuItem).
+	WebServer bool
+	// IP : adresse d'écoute choisie (listenerIp) ; « ? » ou vide = toutes les adresses.
+	IP string
+	// Port : listenerPort, 8085 par défaut.
+	Port int
+	// Auth : mot de passe demandé (authenticationEnabled).
+	Auth bool
+}
+
+const lhmDefaultPort = 8085
+
+func parseLHMConfig(data []byte) (lhmConfig, error) {
+	cfg := lhmConfig{Port: lhmDefaultPort}
+	var doc struct {
+		Settings []struct {
+			Key   string `xml:"key,attr"`
+			Value string `xml:"value,attr"`
+		} `xml:"appSettings>add"`
+	}
+	if err := xml.Unmarshal(bytes.TrimPrefix(data, []byte("\xef\xbb\xbf")), &doc); err != nil {
+		return cfg, err
+	}
+	for _, s := range doc.Settings {
+		value := strings.TrimSpace(s.Value)
+		switch s.Key {
+		case "runWebServerMenuItem":
+			cfg.WebServer = strings.EqualFold(value, "true")
+		case "listenerIp":
+			cfg.IP = value
+		case "listenerPort":
+			if p, err := strconv.Atoi(value); err == nil && p > 0 && p < 65536 {
+				cfg.Port = p
+			}
+		case "authenticationEnabled":
+			cfg.Auth = strings.EqualFold(value, "true")
+		}
+	}
+	return cfg, nil
+}
+
+// lhmAddresses renvoie les adresses où interroger le serveur web : celle choisie dans LHM
+// (Interface / Port) d'abord si c'est une adresse de ce PC (le serveur ne répond alors que sur
+// elle), puis la boucle locale. Jamais une autre machine.
+func lhmAddresses(cfg lhmConfig, local []netip.Addr) []string {
+	port := strconv.Itoa(cfg.Port)
+	var out []string
+	if ip, err := netip.ParseAddr(cfg.IP); err == nil {
+		ip = ip.Unmap()
+		if !ip.IsLoopback() && !ip.IsUnspecified() && slices.Contains(local, ip) {
+			out = append(out, net.JoinHostPort(ip.String(), port))
+		}
+	}
+	return append(out, net.JoinHostPort("127.0.0.1", port))
+}
+
+// lhmState explique l'absence de température du processeur (protocol.LHM…) d'après ce qui a été
+// constaté : programme trouvé, mot de passe demandé, capteurs lus.
+func lhmState(running, auth, answered bool) string {
+	switch {
+	case answered:
+		return protocol.LHMNoSensor
+	case auth:
+		return protocol.LHMAuth
+	case running:
+		return protocol.LHMWebOff
+	}
+	return protocol.LHMNotRunning
 }
 
 // --- Linux ---

@@ -133,6 +133,13 @@
     <string name="detail_temp_cpu">Température CPU</string>
     <string name="detail_temp_gpu">Température GPU</string>
     <string name="temperature_cpu_lhm">LibreHardwareMonitor requis</string>
+    <string name="temperature_cpu_lhm_help">Sur ce PC, lancez LibreHardwareMonitor en administrateur et activez son serveur web : Options → Remote Web Server → Run. Dans Options, cochez aussi Run On Windows Startup.</string>
+    <string name="temperature_cpu_lhm_web">Serveur web LHM à activer</string>
+    <string name="temperature_cpu_lhm_web_help">LibreHardwareMonitor tourne sur ce PC, mais son serveur web est désactivé : depuis sa version 0.9.5, c’est le seul moyen pour l’agent de le lire. Activez Options → Remote Web Server → Run (port 8085 par défaut, inutile de l’ouvrir dans le pare-feu).</string>
+    <string name="temperature_cpu_lhm_auth">Mot de passe LHM à retirer</string>
+    <string name="temperature_cpu_lhm_auth_help">Le serveur web de LibreHardwareMonitor demande un mot de passe, que l’agent ne connaît pas. Désactivez-le : Options → Remote Web Server → Authentication.</string>
+    <string name="temperature_cpu_lhm_sensor">Non lue par LHM</string>
+    <string name="temperature_cpu_lhm_sensor_help">LibreHardwareMonitor répond, mais ne lit pas le processeur : il lui manque son pilote PawnIO (proposé au démarrage de LHM 0.9.5 ou plus, acceptez-le), ou cette version de LHM ne connaît pas ce processeur (mettez-la à jour).</string>
     <string name="latency_title">Latence</string>
     <string name="latency_live">En direct</string>
     <string name="latency_via_agent">via l’agent</string>

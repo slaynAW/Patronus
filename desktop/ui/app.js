@@ -119,7 +119,13 @@
     detail_temp_cpu: "Température CPU",
     detail_temp_gpu: "Température GPU",
     temperature_cpu_lhm: "LibreHardwareMonitor requis",
-    temperature_cpu_lhm_help: "Pour la température du processeur, lancez LibreHardwareMonitor en administrateur sur ce PC.",
+    temperature_cpu_lhm_help: "Sur ce PC, lancez LibreHardwareMonitor en administrateur et activez son serveur web : Options → Remote Web Server → Run. Dans Options, cochez aussi Run On Windows Startup.",
+    temperature_cpu_lhm_web: "Serveur web LHM à activer",
+    temperature_cpu_lhm_web_help: "LibreHardwareMonitor tourne sur ce PC, mais son serveur web est désactivé : depuis sa version 0.9.5, c’est le seul moyen pour l’agent de le lire. Activez Options → Remote Web Server → Run (port 8085 par défaut, inutile de l’ouvrir dans le pare-feu).",
+    temperature_cpu_lhm_auth: "Mot de passe LHM à retirer",
+    temperature_cpu_lhm_auth_help: "Le serveur web de LibreHardwareMonitor demande un mot de passe, que l’agent ne connaît pas. Désactivez-le : Options → Remote Web Server → Authentication.",
+    temperature_cpu_lhm_sensor: "Non lue par LHM",
+    temperature_cpu_lhm_sensor_help: "LibreHardwareMonitor répond, mais ne lit pas le processeur : il lui manque son pilote PawnIO (proposé au démarrage de LHM 0.9.5 ou plus, acceptez-le), ou cette version de LHM ne connaît pas ce processeur (mettez-la à jour).",
     temperature_cpu_short: "CPU %1$s",
     temperature_gpu_short: "GPU %1$s",
     latency_title: "Latence",
@@ -718,6 +724,12 @@
   const TEMP_HOT = 90;
   const celsius = (value) => `${Math.round(value)}\u00a0°C`;
   const tempClass = (value) => (value >= TEMP_HOT ? "temp-hot" : value >= TEMP_WARM ? "temp-warm" : null);
+  /** Texte court et explication quand LibreHardwareMonitor ne donne pas la température du processeur. */
+  const lhmHint = (state) => ({
+    "web-off": [S.temperature_cpu_lhm_web, S.temperature_cpu_lhm_web_help],
+    auth: [S.temperature_cpu_lhm_auth, S.temperature_cpu_lhm_auth_help],
+    "no-sensor": [S.temperature_cpu_lhm_sensor, S.temperature_cpu_lhm_sensor_help],
+  })[state] || [S.temperature_cpu_lhm, S.temperature_cpu_lhm_help];
   /** « CPU 54 °C · GPU 61 °C » et la classe de la plus élevée ; texte vide sans température connue. */
   function temperatureSummary(t) {
     const parts = [];
@@ -2030,7 +2042,10 @@
         rows.push({ key: "up", label: S.detail_uptime, text: formatLong(s.agent.uptime) });
         const t = s.agent.temperatures;
         if (t?.cpu != null) rows.push({ key: "cpu", label: S.detail_temp_cpu, text: celsius(t.cpu), cls: tempClass(t.cpu) });
-        else if (t?.cpuHint === "lhm") rows.push({ key: "cpu", label: S.detail_temp_cpu, text: S.temperature_cpu_lhm, cls: "muted", title: S.temperature_cpu_lhm_help });
+        else if (t?.cpuHint === "lhm") {
+          const [text, help] = lhmHint(t.lhm);
+          rows.push({ key: "cpu", label: S.detail_temp_cpu, text, cls: "muted", title: help, onClick: () => alertDialog(S.detail_temp_cpu, help) });
+        }
         if (t?.gpu != null) rows.push({ key: "gpu", label: S.detail_temp_gpu, text: celsius(t.gpu), cls: tempClass(t.gpu), title: t.gpuName });
       }
       if (d.shared) rows.push({ key: "shared", label: S.detail_shared, text: d.shared.ownerName, cls: "shared-by", iconName: "share" });
