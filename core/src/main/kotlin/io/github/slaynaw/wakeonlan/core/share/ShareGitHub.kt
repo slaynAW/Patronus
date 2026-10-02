@@ -9,6 +9,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -39,6 +40,9 @@ data class GitHubDeviceCode(
 
 /** Contenu d'un Gist lu sans compte. */
 data class GistSnapshot(val notModified: Boolean, val etag: String, val files: Map<String, String>)
+
+/** Fichier d'un Gist (sauvegardes). */
+data class GistFile(val name: String, val size: Int, val content: String)
 
 /**
  * Client minimal de l'API GitHub pour le partage (même comportement que l'application Windows) :
@@ -155,9 +159,43 @@ class ShareGitHub(
             if (!name.startsWith("acces-")) return@forEach
             val f = value as? JsonObject ?: return@forEach
             val truncated = (f["truncated"] as? JsonPrimitive)?.boolean ?: false
-            files[name] = if (truncated) raw(f["raw_url"]?.jsonPrimitive?.contentOrNull.orEmpty()) else f["content"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            files[name] = if (truncated) raw(f["raw_url"]?.jsonPrimitive?.contentOrNull.orEmpty(), ShareCrypto.MAX_FILE_SIZE) else f["content"]?.jsonPrimitive?.contentOrNull.orEmpty()
         }
         GistSnapshot(false, r.etag, files)
+    }
+
+    /** Identifiant du Gist du compte portant cette [description] (sauvegardes), ou null. */
+    suspend fun findGist(token: String, description: String): String? = withContext(Dispatchers.IO) {
+        for (page in 1..5) {
+            val r = request("GET", "/gists?per_page=100&page=$page", token, limit = 8 shl 20)
+            val list = decode(r.body) { Json.parseToJsonElement(it) as? JsonArray } ?: unexpected()
+            for (item in list) {
+                val o = item as? JsonObject ?: continue
+                val id = o["id"]?.jsonPrimitive?.contentOrNull ?: continue
+                if (o["description"]?.jsonPrimitive?.contentOrNull == description && ShareLinks.GIST.matches(id)) return@withContext id
+            }
+            if (list.size < 100) break
+        }
+        null
+    }
+
+    /**
+     * Lit tous les fichiers d'un Gist avec le jeton ; les fichiers tronqués par l'API sont relus en
+     * entier ([limit] octets au plus chacun, les plus gros sont ignorés).
+     */
+    suspend fun readGist(token: String, id: String, limit: Int): List<GistFile> = withContext(Dispatchers.IO) {
+        checkGist(id)
+        val r = request("GET", "/gists/$id", token, limit = 32 shl 20)
+        val files = ArrayList<GistFile>()
+        (r.json()["files"] as? JsonObject)?.forEach { (name, value) ->
+            val f = value as? JsonObject ?: return@forEach
+            val size = f["size"]?.jsonPrimitive?.intOrNull ?: 0
+            if (size > limit) return@forEach
+            val truncated = (f["truncated"] as? JsonPrimitive)?.boolean ?: false
+            val content = if (truncated) raw(f["raw_url"]?.jsonPrimitive?.contentOrNull.orEmpty(), limit) else f["content"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            files += GistFile(name, size, content)
+        }
+        files.sortedBy { it.name }
     }
 
     // --- HTTP ---
@@ -204,7 +242,7 @@ class ShareGitHub(
         }
     }
 
-    private fun request(method: String, path: String, token: String?, body: String? = null, etag: String = ""): Response {
+    private fun request(method: String, path: String, token: String?, body: String? = null, etag: String = "", limit: Int = 1 shl 20): Response {
         val connection = open(api + path, method)
         try {
             connection.setRequestProperty("Accept", "application/vnd.github+json")
@@ -227,7 +265,7 @@ class ShareGitHub(
                 code == HttpURLConnection.HTTP_FORBIDDEN -> throw unauthorized()
                 code !in 200..299 -> throw status(code)
             }
-            val text = if (code == HttpURLConnection.HTTP_NO_CONTENT) "" else read(connection.inputStream, 1 shl 20)
+            val text = if (code == HttpURLConnection.HTTP_NO_CONTENT) "" else read(connection.inputStream, limit)
             return Response(code, text, connection.getHeaderField("ETag").orEmpty())
         } catch (e: ShareException) {
             throw e
@@ -238,8 +276,8 @@ class ShareGitHub(
         }
     }
 
-    /** Fichier tronqué par l'API : relu seulement depuis le domaine des Gists. */
-    private fun raw(url: String): String {
+    /** Fichier tronqué par l'API : relu seulement depuis le domaine des Gists ([limit] octets au plus). */
+    private fun raw(url: String, limit: Int): String {
         val uri = try {
             URI(url)
         } catch (e: IllegalArgumentException) {
@@ -249,7 +287,7 @@ class ShareGitHub(
         val connection = open(url, "GET")
         try {
             if (connection.responseCode != HttpURLConnection.HTTP_OK) throw status(connection.responseCode)
-            return read(connection.inputStream, ShareCrypto.MAX_FILE_SIZE)
+            return read(connection.inputStream, limit)
         } catch (e: ShareException) {
             throw e
         } catch (e: IOException) {

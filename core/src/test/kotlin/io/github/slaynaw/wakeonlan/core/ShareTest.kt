@@ -222,6 +222,7 @@ class ShareTest {
     @Test
     fun `client GitHub`() {
         val gists = HashMap<String, HashMap<String, String>>()
+        val descriptions = HashMap<String, String>()
         var seq = 0
         var polls = 0
         var lastAuth: String? = "?"
@@ -237,8 +238,10 @@ class ShareTest {
             val body = ex.requestBody.readBytes().decodeToString()
             when (ex.requestMethod) {
                 "POST" -> {
-                    val files = Json.parseToJsonElement(body).jsonObject["files"]!!.jsonObject
+                    val request = Json.parseToJsonElement(body).jsonObject
+                    val files = request["files"]!!.jsonObject
                     gists["0123456789abcdef0123456789abcdef"] = HashMap(files.mapValues { it.value.jsonObject["content"]!!.jsonPrimitive.content })
+                    descriptions["0123456789abcdef0123456789abcdef"] = request["description"]!!.jsonPrimitive.content
                     seq++
                     ex.reply(201, """{"id":"0123456789abcdef0123456789abcdef"}""")
                 }
@@ -256,10 +259,16 @@ class ShareTest {
                 }
                 else -> {
                     lastAuth = ex.requestHeaders.getFirst("Authorization")
+                    if (id.isEmpty()) {
+                        // Liste des Gists du compte (sauvegardes).
+                        if (lastAuth != "Bearer tok") return@createContext ex.reply(401)
+                        val list = descriptions.map { (gid, d) -> buildJsonObject { put("id", gid); put("description", d) } }
+                        return@createContext ex.reply(200, kotlinx.serialization.json.JsonArray(list).toString())
+                    }
                     val g = gists[id] ?: return@createContext ex.reply(404)
                     val etag = "\"v$seq\""
                     if (ex.requestHeaders.getFirst("If-None-Match") == etag) return@createContext ex.reply(304)
-                    val files = buildJsonObject { g.forEach { (n, c) -> put(n, buildJsonObject { put("content", c) }) } }
+                    val files = buildJsonObject { g.forEach { (n, c) -> put(n, buildJsonObject { put("content", c); put("size", c.length) }) } }
                     ex.reply(200, buildJsonObject { put("files", files) }.toString(), etag)
                 }
             }
@@ -281,6 +290,13 @@ class ShareTest {
                 assertEquals(mapOf("acces-1.json" to "{}"), snap.files)
                 assertNull(lastAuth, "lecture sans jeton")
                 assertTrue(gh.fetchGist(id, snap.etag).notModified)
+                // Sauvegardes : Gist retrouvé par sa description, lecture de tous les fichiers avec le jeton.
+                assertEquals(id, gh.findGist(token, "Wake On LAN"))
+                assertNull(gh.findGist(token, "autre"))
+                val all = gh.readGist(token, id, 1 shl 20)
+                assertEquals(listOf("LISEZMOI.md", "acces-1.json"), all.map { it.name })
+                assertEquals("Bearer tok", lastAuth)
+                assertEquals(listOf("acces-1.json"), gh.readGist(token, id, 5).map { it.name }, "fichiers trop gros ignorés")
                 gh.updateGist(token, id, mapOf("acces-1.json" to null))
                 assertTrue(gh.fetchGist(id, snap.etag).files.isEmpty())
                 gh.deleteGist(token, id)

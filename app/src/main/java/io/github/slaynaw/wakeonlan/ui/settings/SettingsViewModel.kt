@@ -6,8 +6,8 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.slaynaw.wakeonlan.AppContainer
-import io.github.slaynaw.wakeonlan.BuildConfig
 import io.github.slaynaw.wakeonlan.R
+import io.github.slaynaw.wakeonlan.backup.FullBackup
 import io.github.slaynaw.wakeonlan.core.config.ConfigCodec
 import io.github.slaynaw.wakeonlan.core.config.ConfigException
 import io.github.slaynaw.wakeonlan.core.config.ExportCodec
@@ -33,7 +33,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.JsonElement
 import java.io.IOException
 import java.time.Instant
 
@@ -85,27 +84,30 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     /** Écrit la sauvegarde ; [password] nul = export lisible sans aucun secret. */
     fun export(resolver: ContentResolver, uri: Uri, password: CharArray?) = work {
-        val config = container.repository.current()
-        // Sauvegarde complète : la clé de partage suit, pour changer d'appareil sans réinviter, et
-        // l'historique, pour le retrouver sur le nouvel appareil.
-        val extra = buildMap<String, JsonElement> {
-            if (password == null) return@buildMap
-            container.share.exportOwner()?.let { put("sharing", ConfigCodec.json.encodeToJsonElement(ExportedShareOwner.serializer(), it)) }
-            val history = container.history.data.value.forBackup(System.currentTimeMillis())
-            put("history", ConfigCodec.json.parseToJsonElement(HistoryData.encode(history)))
+        val backup = try {
+            FullBackup.build(container.repository, container.share, container.history, password)
+        } finally {
+            password?.fill(' ')
         }
-        val text = withContext(Dispatchers.Default) {
-            ExportCodec.export(config, password, Instant.now().toString(), "Patronus ${BuildConfig.VERSION_NAME}", extra = extra)
-        }
-        val complete = password != null
-        password?.fill(' ')
         withContext(Dispatchers.IO) {
             (resolver.openOutputStream(uri, "wt") ?: throw IOException("Fichier inaccessible")).use {
-                it.write(text.toByteArray(Charsets.UTF_8))
+                it.write(backup.text.toByteArray(Charsets.UTF_8))
             }
         }
-        DiagnosticLog.i("sauvegarde", "export ${if (complete) "complet (chiffré, partage : ${extra.containsKey("sharing")})" else "sans secrets"} : ${config.devices.size} PC")
-        _messages.send(UiMessage(R.string.message_export_done, listOf(config.devices.size)))
+        DiagnosticLog.i("sauvegarde", "export ${if (password != null) "complet (chiffré, partage : ${backup.sharing})" else "sans secrets"} : ${backup.devices} PC")
+        _messages.send(UiMessage(R.string.message_export_done, listOf(backup.devices)))
+    }
+
+    /** Sauvegarde automatique choisie dans la liste de GitHub : l'import habituel prend le relais. */
+    fun restoreBackup(name: String) = work {
+        val text = container.backups.content(name)
+        _importStep.value = if (ExportCodec.isEncrypted(text)) ImportStep.NeedPassword(text) else ImportStep.Confirm(ExportCodec.import(text, null))
+    }
+
+    /** Sauvegarde demandée par l'utilisateur. */
+    fun backupNow() = work {
+        val result = container.backups.backupNow(manual = true)
+        if (result.errors.isEmpty()) _messages.send(UiMessage(R.string.backup_done)) else throw IOException(result.errors.joinToString("\n"))
     }
 
     /**

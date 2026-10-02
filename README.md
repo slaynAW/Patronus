@@ -25,6 +25,10 @@ Anciennement **Wake On LAN** (jusqu'à la version 1.5.0).
   personnelle envoyée sur Internet en clair (GitHub n'est contacté que pour la recherche de mises à jour, désactivable,
   et pour le partage si vous l'utilisez : uniquement des fichiers chiffrés).
 - 💾 **Export / import** de la configuration (fichier chiffré par mot de passe si les clés sont incluses).
+- ☁️ **Sauvegarde automatique chiffrée** après chaque changement et chaque jour, dans un Gist secret de votre compte
+  GitHub et/ou un dossier, 7 versions gardées, restauration en quelques gestes sur un nouvel appareil
+  ([docs/SAUVEGARDE.md](docs/SAUVEGARDE.md)).
+- 🩺 **Rapport de diagnostic chiffré** à transmettre en cas de problème ([docs/DIAGNOSTIC.md](docs/DIAGNOSTIC.md)).
 - 📷 **Appairage par QR code** : l'agent affiche un QR code, l'application remplit tout (IP, MAC, clé).
 - 🖥️ **Application Windows** très légère (un seul `.exe` d'environ 8 Mo, sans installation) : mêmes fonctions et même
   style, sauvegardes interchangeables avec le téléphone.
@@ -206,6 +210,7 @@ Détails : **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** et **[docs/PROTOCOLE
 | Accès depuis Internet | L'agent n'accepte que les adresses privées ; pare-feu Windows limité au sous-réseau local. |
 | Fuite d'une sauvegarde | Export complet chiffré par mot de passe (PBKDF2 600 000 itérations + AES-256-GCM) ; export « sans clés » sinon. |
 | Fuite d'un rapport de diagnostic | Journal chiffré sur l'appareil ; rapport exporté seulement à la demande, chiffré par mot de passe, sans aucune clé ni jeton ([docs/DIAGNOSTIC.md](docs/DIAGNOSTIC.md)). |
+| Fuite d'une sauvegarde automatique | Chiffrée comme l'export complet par un mot de passe dédié ; Gist secret ; mot de passe et jeton gardés chiffrés sur l'appareil ([docs/SAUVEGARDE.md](docs/SAUVEGARDE.md)). |
 | Partage des PC | Accès chiffré pour la clé d'un seul appareil (ECDH P-256 + AES-256-GCM) et signé par la personne qui partage (ECDSA P-256) ; code de vérification ; aucun accès aux dépôts GitHub ([docs/PARTAGE.md](docs/PARTAGE.md)). |
 | APK modifié | Signature de l'APK avec une clé privée stockée uniquement dans les secrets GitHub ; somme de contrôle de Gradle vérifiée. |
 
@@ -251,6 +256,7 @@ tuile de réglages rapides, raccourcis, notifications, verrouillage biométrique
 | Le PC ne démarre pas | Vérifier BIOS/UEFI, carte réseau et démarrage rapide (§3). Le PC doit être en Ethernet. Tester depuis l'état « veille » d'abord. |
 | Le voyant reste gris « pas de réseau local » | Le téléphone n'est pas sur le Wi-Fi (ou l'autorisation réseau local d'Android 17 est refusée : bannière en haut de l'écran). |
 | Le voyant est rouge alors que le PC est allumé | Sans agent, Windows bloque souvent le ping : installez l'agent, ou ajoutez un port ouvert (RDP 3389, SMB 445…) dans *Options avancées*. |
+| Agent installé, PC allumé mais affiché éteint | Le réseau du PC est sans doute classé « Public » dans Windows : le pare-feu bloque alors l'agent. *Paramètres Windows* → *Réseau et Internet* → ce réseau → *Type de profil réseau* : **Privé** (l'agent 1.6.0 le détecte et le propose de lui-même). Vérifiez aussi que le téléphone est sur le même réseau (pas un Wi-Fi invité). |
 | « agent arrêté sur le PC » | Le PC répond mais le service ne tourne pas : `wol-agent status`, ou relancez l'installation. |
 | « clé refusée par l'agent » | La clé a changé (`rotate-key`) : ré-appairez avec `wol-agent pair`. |
 | Historique : « Mettez à jour l'agent de ce PC… » | L'agent est antérieur à la version 1.2 : relancez l'installation avec la nouvelle version (configuration et clé conservées). |
@@ -259,5 +265,5 @@ tuile de réglages rapides, raccourcis, notifications, verrouillage biométrique
 | Mise à jour de l'APK refusée | Signature différente : voir [docs/SIGNATURE.md](docs/SIGNATURE.md). |
 | Windows : « composant WebView2 introuvable » | Rare (Windows 10 non à jour) : acceptez l'ouverture de la page Microsoft et installez le composant. |
 | Windows : un PC reste « État inconnu · pas de réseau local » | Ce PC n'a ni carte Ethernet ni Wi-Fi connectée (les cartes de machines virtuelles sont ignorées). |
-| « Données illisibles » au démarrage, partage ou liste des PC vides | Le fichier a été mis de côté (jamais effacé) : importez votre dernière sauvegarde complète (*Réglages* → *Importer*), puis reconnectez-vous à GitHub avec le même compte pour le partage. |
+| « Données illisibles » au démarrage, partage ou liste des PC vides | Le fichier a été mis de côté (jamais effacé) : restaurez votre dernière sauvegarde (*Restaurer depuis GitHub*, ou *Importer* un fichier), puis reconnectez-vous à GitHub avec le même compte pour le partage. Les sauvegardes automatiques se mettent en pause d'ici là. |
 | Plantage ou comportement anormal | *Réglages* → *Diagnostic* → *Exporter le rapport de diagnostic* (et `wol-agent diagnostic` sur le PC concerné) : transmettez le fichier et, séparément, son mot de passe. Voir [docs/DIAGNOSTIC.md](docs/DIAGNOSTIC.md). |

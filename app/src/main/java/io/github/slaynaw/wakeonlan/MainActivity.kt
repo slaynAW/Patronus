@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
                 container.updater.checkIfDue()
                 launch { container.historyTracker.run() }
                 launch { container.share.run() }
+                launch { container.backups.run() }
                 container.statusMonitor.run(container.allDevices, container.probeAvailability)
             }
         }
@@ -61,5 +62,6 @@ class MainActivity : ComponentActivity() {
         appContainer.refreshPermissions()
         // Retour du navigateur après la validation du code GitHub : la connexion reprend aussitôt.
         appContainer.share.onResume()
+        appContainer.backups.onResume()
     }
 }

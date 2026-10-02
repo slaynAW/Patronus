@@ -5,6 +5,10 @@ compilé par la CI. **Ajoutez une section (numéro supérieur) à chaque modific
 numéro que les agents installés comparent au leur pour proposer la mise à jour. Le texte de la section est
 affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
+## 1.6.0
+
+- **Réseau « Public » détecté** : sur un réseau classé Public par Windows, le pare-feu bloque l'agent et les applications voient le PC éteint. L'agent le signale et propose de classer le réseau en Privé (avec votre accord) ; `wol-agent status` et l'installation l'indiquent aussi.
+
 ## 1.5.3
 
 - **Rapport de diagnostic** : `wol-agent diagnostic` crée un rapport chiffré par un mot de passe (état du service, configuration sans la clé, journal des démarrages et arrêts, journal technique), à transmettre pour analyser un problème.
