@@ -222,6 +222,9 @@ fun DeviceDetailContent(
                 Text(stringResource(R.string.hint_shared, sharedBy), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
             } else if (item.status.state == PowerState.ONLINE && !item.device.canShutdown) {
                 Text(stringResource(R.string.hint_no_agent), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
+            } else if (item.status.state == PowerState.OFFLINE && item.device.agent?.hasKey == true) {
+                // Allumé mais sans réponse : le plus souvent un réseau « Public » sous Windows.
+                Text(stringResource(R.string.hint_offline_agent), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
             }
             if (item.device.hasHost) LatencyCard(item, now)
             InfoCard(item)
@@ -294,6 +297,14 @@ private fun Actions(item: DeviceItem, onWake: () -> Unit, onPower: (PowerAction)
     }
 }
 
+/** Texte court et explication quand LibreHardwareMonitor ne donne pas la température du processeur. */
+private fun lhmHint(state: String): Pair<Int, Int> = when (state) {
+    AgentTemperatures.LHM_WEB_OFF -> R.string.temperature_cpu_lhm_web to R.string.temperature_cpu_lhm_web_help
+    AgentTemperatures.LHM_AUTH -> R.string.temperature_cpu_lhm_auth to R.string.temperature_cpu_lhm_auth_help
+    AgentTemperatures.LHM_NO_SENSOR -> R.string.temperature_cpu_lhm_sensor to R.string.temperature_cpu_lhm_sensor_help
+    else -> R.string.temperature_cpu_lhm to R.string.temperature_cpu_lhm_help
+}
+
 @Composable
 private fun InfoCard(item: DeviceItem) {
     val device = item.device
@@ -326,8 +337,15 @@ private fun InfoCard(item: DeviceItem) {
                         KeyValueRow(stringResource(R.string.detail_temp_cpu), formatCelsius(cpu), valueColor = temperatureColor(cpu))
                     }
                     temps.cpuHint == AgentTemperatures.CPU_HINT_LHM -> {
+                        val (value, help) = lhmHint(temps.lhm)
                         RowDivider()
-                        KeyValueRow(stringResource(R.string.detail_temp_cpu), stringResource(R.string.temperature_cpu_lhm), valueColor = WolPalette.Text2)
+                        KeyValueRow(stringResource(R.string.detail_temp_cpu), stringResource(value), valueColor = WolPalette.Text2)
+                        Text(
+                            stringResource(help),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = WolPalette.Text2,
+                            modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 11.dp),
+                        )
                     }
                 }
                 temps.gpu?.let { gpu ->

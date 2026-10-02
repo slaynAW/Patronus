@@ -21,7 +21,7 @@ const (
 	name         = "WolAgent"
 	displayName  = "Patronus - Agent"
 	description  = "Permet d'éteindre, redémarrer ou mettre en veille ce PC depuis l'application Patronus (réseau local, commandes authentifiées)."
-	firewallRule = "Patronus - Agent"
+	firewallRule = FirewallRule
 	// legacyFirewallRule : nom de la règle créée avant le passage à « Patronus » (agent 1.5.0 ou antérieur).
 	legacyFirewallRule = "Wake On LAN - Agent"
 )

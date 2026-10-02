@@ -76,7 +76,7 @@ import io.github.slaynaw.wakeonlan.ui.common.scanQrCode
 import io.github.slaynaw.wakeonlan.ui.theme.WolPalette
 import kotlinx.coroutines.launch
 
-private const val GITHUB_DEVICE_URL = "https://github.com/login/device"
+internal const val GITHUB_DEVICE_URL = "https://github.com/login/device"
 
 /** Sections « Partager mes PC » et « PC partagés avec moi » des réglages (sans état propre). */
 @Composable
@@ -711,7 +711,7 @@ private fun ConfirmDialog(title: String, text: String, action: String, onConfirm
 }
 
 @Composable
-private fun MessageDialog(title: String, text: String, onDismiss: () -> Unit) {
+internal fun MessageDialog(title: String, text: String, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -722,7 +722,7 @@ private fun MessageDialog(title: String, text: String, onDismiss: () -> Unit) {
 
 /** Code (connexion GitHub, vérification) en grands caractères. */
 @Composable
-private fun CodeBox(code: String, modifier: Modifier = Modifier) {
+internal fun CodeBox(code: String, modifier: Modifier = Modifier) {
     Text(
         code,
         style = MonoStyle.copy(fontSize = 26.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp),
@@ -757,7 +757,7 @@ fun QrImage(text: String, modifier: Modifier = Modifier) {
     }
 }
 
-private fun openUrl(context: Context, url: String) {
+internal fun openUrl(context: Context, url: String) {
     try {
         context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
     } catch (_: ActivityNotFoundException) {

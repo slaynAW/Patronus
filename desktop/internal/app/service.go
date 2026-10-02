@@ -50,6 +50,8 @@ type Platform interface {
 	WriteClipboard(text string) error
 	// Relaunch démarre la nouvelle version de l'application (déjà installée) puis ferme celle-ci.
 	Relaunch() error
+	// PickFolder propose de choisir un dossier ; renvoie son chemin ou ErrCancelled.
+	PickFolder(title string) (string, error)
 	// RunInstaller lance l'installation de l'agent téléchargé dans path (invite administrateur),
 	// après avoir revérifié son empreinte SHA-256 (hexadécimal) sur le fichier verrouillé contre
 	// toute modification. Renvoie ErrCancelled si l'utilisateur refuse l'invite.
@@ -78,6 +80,8 @@ type Options struct {
 	Share *ShareOptions
 	// Agent active le téléchargement de l'agent depuis l'application (nil : indisponible).
 	Agent *AgentOptions
+	// Backup active les sauvegardes automatiques (nil : indisponibles).
+	Backup *BackupOptions
 }
 
 // Service est le cœur de l'application.
@@ -117,6 +121,8 @@ type Service struct {
 	sharing *sharer
 	// Erreurs de l'interface notées dans le journal (nombre limité).
 	clientLog clientLogLimit
+	// Sauvegardes automatiques (verrou propre) ; nil si indisponibles.
+	backups *backups
 }
 
 type importState struct {
@@ -152,10 +158,12 @@ func New(opts Options) *Service {
 	s.updates = newUpdater(opts.Updates, filepath.Dir(opts.Store.Path()), s.now)
 	s.agents = newAgentDownloads(opts.Agent)
 	s.sharing = newSharer(opts.Share)
+	s.backups = newBackups(opts.Backup)
 	if s.histStore != nil {
 		var err error
 		if s.hist, err = s.histStore.Load(); err != nil {
 			diag.Error(areaData, "historique : %v", err)
+			s.pauseBackups("historique illisible au démarrage")
 		}
 	}
 	if s.netState == nil {
@@ -173,6 +181,10 @@ func New(opts Options) *Service {
 	if err != nil {
 		diag.Error(areaData, "configuration : %v", err)
 		s.startupMessage = "Erreur : " + err.Error()
+		s.pauseBackups("liste des PC illisible au démarrage")
+	}
+	if s.sharing != nil && s.sharing.loadErr != "" {
+		s.pauseBackups("partage illisible au démarrage")
 	}
 	diag.Info(areaApp, "%d PC configurés, partage %s", len(cfg.Devices), s.sharing.summary())
 	s.cfg = cfg
@@ -199,6 +211,7 @@ func (s *Service) Run(ctx context.Context) {
 	go s.monitor.Run(ctx)
 	go s.runUpdates(ctx)
 	go s.runShare(ctx)
+	go s.runBackups(ctx)
 	s.updateMonitor()
 	ticker := time.NewTicker(s.netPoll)
 	defer ticker.Stop()
@@ -268,6 +281,8 @@ type UIState struct {
 	Share ShareView `json:"share"`
 	// Agent : téléchargement de l'agent (dernière version connue, téléchargement en cours).
 	Agent AgentView `json:"agent"`
+	// Backup : sauvegardes automatiques.
+	Backup BackupView `json:"backup"`
 }
 
 // NetworkView décrit le réseau local.
@@ -309,6 +324,7 @@ func (s *Service) State() UIState {
 	updateView := s.updates.snapshot()
 	agentView := s.agents.snapshot()
 	shareView := s.shareView()
+	backupView := s.backupView()
 	shared := s.sharedDevices()
 	s.histMu.Lock()
 	historyVersion := s.histVersion
@@ -319,6 +335,7 @@ func (s *Service) State() UIState {
 		Update:         updateView,
 		Agent:          agentView,
 		Share:          shareView,
+		Backup:         backupView,
 		HistoryVersion: historyVersion,
 		Version:        s.version,
 		Settings:       s.cfg.Settings,
@@ -560,6 +577,27 @@ func (s *Service) dispatch(method string, p callParams) (any, error) {
 	case "shareSync":
 		s.shareSyncNow()
 		return nil, nil
+	case "backupEnable":
+		return nil, s.backupEnable(p.Password)
+	case "backupDisable":
+		return nil, s.backupDisable()
+	case "backupFolder":
+		return s.backupPickFolder()
+	case "backupRemoveFolder":
+		return nil, s.backupRemoveFolder()
+	case "backupConnect":
+		return s.backupConnect()
+	case "backupCancelLogin":
+		s.backupCancelLogin()
+		return nil, nil
+	case "backupDisconnect":
+		return nil, s.backupDisconnect()
+	case "backupNow":
+		return s.backupNow(context.Background(), true)
+	case "backupList":
+		return s.backupList()
+	case "backupRestore":
+		return s.backupRestore(p.Name)
 	case "exportDiagnostic":
 		return s.exportDiagnostic(p.Password)
 	case "logClient":
@@ -598,6 +636,7 @@ func (s *Service) mutate(f func(model.AppConfig) model.AppConfig) error {
 	s.keepHistory(ids)
 	s.updateMonitor()
 	s.markShareDirty()
+	s.markBackupDirty()
 	s.notify()
 	return nil
 }
@@ -750,15 +789,45 @@ func (s *Service) testAgent(host, portText, key string) any {
 // --- Sauvegarde ---
 
 func (s *Service) exportConfig(withSecrets bool, password string) (any, error) {
-	s.mu.Lock()
-	cfg := s.cfg.Clone()
-	s.mu.Unlock()
 	if !withSecrets {
 		password = ""
 	} else if model.UTF16Len(password) < config.MinPasswordLength {
 		return nil, errors.New("Mot de passe trop court")
 	}
 	now := time.Now()
+	text, info, err := s.exportText(password, now)
+	if err != nil {
+		return nil, err
+	}
+	diag.Info(areaBackup, "sauvegarde %s : %d PC, clé de partage %s", pick(password != "", "complète (chiffrée)", "sans secret"),
+		info.devices, pick(info.sharing, "incluse", "non incluse"))
+	name := "patronus-" + now.Format("2006-01-02") + ".json"
+	path, err := s.platform.SaveFile(name, text)
+	if errors.Is(err, ErrCancelled) {
+		return map[string]any{"cancelled": true}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	result := map[string]any{"ok": true, "count": info.devices, "path": path}
+	if path == "" {
+		result["download"] = map[string]any{"name": name, "content": string(text)}
+	}
+	return result, nil
+}
+
+// exportInfo résume le contenu d'une sauvegarde.
+type exportInfo struct {
+	devices int
+	sharing bool
+}
+
+// exportText produit une sauvegarde : complète et chiffrée avec password (clé de partage et
+// historique compris), sinon sans aucun secret.
+func (s *Service) exportText(password string, now time.Time) ([]byte, exportInfo, error) {
+	s.mu.Lock()
+	cfg := s.cfg.Clone()
+	s.mu.Unlock()
 	opts := config.ExportOptions{
 		Password:   password,
 		ExportedAt: now.UTC().Format("2006-01-02T15:04:05.000Z"),
@@ -769,7 +838,7 @@ func (s *Service) exportConfig(withSecrets bool, password string) (any, error) {
 		// l'historique, pour le retrouver sur le nouvel appareil.
 		opts.Extra = map[string]json.RawMessage{}
 		if extra, err := s.shareExport(); err != nil {
-			return nil, err
+			return nil, exportInfo{}, err
 		} else if extra != nil {
 			opts.Extra["sharing"] = extra
 		}
@@ -777,29 +846,15 @@ func (s *Service) exportConfig(withSecrets bool, password string) (any, error) {
 		hist, err := json.Marshal(s.hist.ForBackup(now.UnixMilli()))
 		s.histMu.Unlock()
 		if err != nil {
-			return nil, err
+			return nil, exportInfo{}, err
 		}
 		opts.Extra["history"] = hist
 	}
 	text, err := config.Export(cfg, opts)
 	if err != nil {
-		return nil, err
+		return nil, exportInfo{}, err
 	}
-	diag.Info(areaBackup, "sauvegarde %s : %d PC, clé de partage %s", pick(password != "", "complète (chiffrée)", "sans secret"),
-		len(cfg.Devices), pick(opts.Extra["sharing"] != nil, "incluse", "non incluse"))
-	name := "patronus-" + now.Format("2006-01-02") + ".json"
-	path, err := s.platform.SaveFile(name, text)
-	if errors.Is(err, ErrCancelled) {
-		return map[string]any{"cancelled": true}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	result := map[string]any{"ok": true, "count": len(cfg.Devices), "path": path}
-	if path == "" {
-		result["download"] = map[string]any{"name": name, "content": string(text)}
-	}
-	return result, nil
+	return text, exportInfo{devices: len(cfg.Devices), sharing: opts.Extra["sharing"] != nil}, nil
 }
 
 func (s *Service) importFile(text []byte) (any, error) {

@@ -482,6 +482,7 @@ func (s *Service) finishLogin(ctx context.Context, login *shareLogin, dc share.D
 	}
 	diag.Info(areaShare, "connexion GitHub réussie : compte @%s, gist %s, %s (%d personne(s))", user, shortID(gist),
 		pick(created, "nouveau partage", "partage existant repris"), people)
+	s.markBackupDirty()
 	sh.poke()
 	s.notify()
 }
@@ -643,6 +644,7 @@ func (s *Service) shareGrant(device, name string, rights map[string]string) (any
 		return nil, err
 	}
 	sh.poke()
+	s.markBackupDirty()
 	s.notify()
 	return map[string]any{"ok": true}, nil
 }
@@ -660,6 +662,7 @@ func (s *Service) shareRevoke(device string) error {
 	}
 	sh.mu.Unlock()
 	sh.poke()
+	s.markBackupDirty()
 	s.notify()
 	return err
 }
@@ -690,6 +693,7 @@ func (s *Service) shareStop() error {
 	sh.publishErr = ""
 	err = sh.saveLocked()
 	sh.mu.Unlock()
+	s.markBackupDirty()
 	s.notify()
 	return err
 }

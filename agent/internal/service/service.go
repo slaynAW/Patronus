@@ -17,6 +17,9 @@ var (
 	ErrSystemShutdown = errors.New("arrêt du système")
 )
 
+// FirewallRule est le nom de la règle du pare-feu de Windows créée pour l'agent.
+const FirewallRule = "Patronus - Agent"
+
 // Options d'installation.
 type Options struct {
 	Binary string // emplacement définitif de l'exécutable

@@ -110,7 +110,16 @@ func agentReport(cfgPath string, now time.Time) string {
 	} else {
 		line("Carte réseau : %v", err)
 	}
+	if runtime.GOOS == "windows" {
+		line("Réseaux Windows : %s", describeNetworks())
+		if p, blocked := blockedNetwork(); blocked {
+			line("⚠ Réseau « %s » classé Public : l'agent est bloqué par le pare-feu (applications : PC vu éteint)", p.Name)
+		}
+	}
 	line("Températures : %s", describeTemperatures(sensors.Read()))
+	for _, d := range sensors.Details() {
+		line("- %s", d)
+	}
 
 	section("Fichiers de l'agent")
 	dir := filepath.Dir(cfgPath)

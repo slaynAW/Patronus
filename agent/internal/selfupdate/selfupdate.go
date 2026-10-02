@@ -42,8 +42,6 @@ const (
 	NoUserRetry = time.Hour
 	// AskTimeout : sans réponse, la fenêtre se ferme et la question sera reposée le lendemain.
 	AskTimeout = 12 * time.Hour
-	// Title est le titre des fenêtres affichées à l'utilisateur.
-	Title = "Patronus – agent"
 
 	nextName = "wol-agent-update.exe"
 )

@@ -156,6 +156,7 @@ func cmdRun(args []string) error {
 	asService := func(ctx context.Context) error {
 		if !*dryRun {
 			startAutoUpdate(ctx, *cfgPath, logger)
+			startNetworkAlert(ctx, *cfgPath, logger)
 		}
 		return runServer(ctx)
 	}
@@ -243,7 +244,13 @@ func cmdInstall(args []string) error {
 	}
 	fmt.Printf("✔ Agent installé (%s) et démarré sur le port TCP %d.\n", opts.Binary, cfg.Port)
 	fmt.Printf("  Configuration : %s\n\n", cfgPath)
-	return showPairing(cfg, *ip, "", false)
+	if err := showPairing(cfg, *ip, "", false); err != nil {
+		return err
+	}
+	if !*noFirewall {
+		warnBlockedNetwork(true)
+	}
+	return nil
 }
 
 func cmdPair(args []string) error {
@@ -264,7 +271,11 @@ func cmdPair(args []string) error {
 		}
 		return err
 	}
-	return showPairing(cfg, *ip, *pngPath, *invert)
+	if err := showPairing(cfg, *ip, *pngPath, *invert); err != nil {
+		return err
+	}
+	warnBlockedNetwork(false)
+	return nil
 }
 
 func cmdRotateKey(args []string) error {
@@ -300,6 +311,9 @@ func cmdStatus(args []string) error {
 		fmt.Println("                (", err, ")")
 	}
 	fmt.Printf("Températures  : %s\n", describeTemperatures(sensors.Read()))
+	for _, line := range sensors.Details() {
+		fmt.Println("                " + line)
+	}
 	if err != nil {
 		return nil
 	}
@@ -313,6 +327,10 @@ func cmdStatus(args []string) error {
 	}
 	if iface, err := netinfo.Detect(""); err == nil {
 		fmt.Printf("Carte réseau  : %s — IP %s — MAC %s\n", iface.Name, iface.IP, iface.MAC)
+	}
+	if runtime.GOOS == "windows" {
+		fmt.Printf("Réseaux       : %s\n", describeNetworks())
+		warnBlockedNetwork(false)
 	}
 	if journal, err := history.Open(historyPath(*cfgPath), time.Now); err == nil {
 		h := journal.Snapshot()
@@ -349,7 +367,7 @@ func describeTemperatures(t protocol.Temperatures) string {
 	if t.CPU != nil {
 		parts = append(parts, fmt.Sprintf("processeur %.0f °C", *t.CPU))
 	} else if t.CPUHint == protocol.CPUHintLHM {
-		parts = append(parts, "processeur : lancez LibreHardwareMonitor (en administrateur)")
+		parts = append(parts, "processeur : "+lhmAdvice(t.LHM))
 	}
 	if t.GPU != nil {
 		gpu := fmt.Sprintf("carte graphique %.0f °C", *t.GPU)
@@ -362,6 +380,20 @@ func describeTemperatures(t protocol.Temperatures) string {
 		return "non disponibles sur ce PC"
 	}
 	return strings.Join(parts, " · ")
+}
+
+// lhmAdvice dit quoi faire pour que l'agent lise la température du processeur dans
+// LibreHardwareMonitor.
+func lhmAdvice(state string) string {
+	switch state {
+	case protocol.LHMWebOff:
+		return "LibreHardwareMonitor tourne, mais son serveur web est désactivé : Options → Remote Web Server → Run"
+	case protocol.LHMAuth:
+		return "le serveur web de LibreHardwareMonitor demande un mot de passe : désactivez-le (Options → Remote Web Server → Authentication)"
+	case protocol.LHMNoSensor:
+		return "LibreHardwareMonitor ne la lit pas : installez son pilote PawnIO (proposé au démarrage de LHM 0.9.5 ou plus), ou mettez LHM à jour"
+	}
+	return "lancez LibreHardwareMonitor en administrateur, avec Options → Remote Web Server → Run"
 }
 
 func eventClient(e protocol.HistoryEvent) string {

@@ -25,6 +25,10 @@ Anciennement **Wake On LAN** (jusqu'à la version 1.5.0).
   personnelle envoyée sur Internet en clair (GitHub n'est contacté que pour la recherche de mises à jour, désactivable,
   et pour le partage si vous l'utilisez : uniquement des fichiers chiffrés).
 - 💾 **Export / import** de la configuration (fichier chiffré par mot de passe si les clés sont incluses).
+- ☁️ **Sauvegarde automatique chiffrée** après chaque changement et chaque jour, dans un Gist secret de votre compte
+  GitHub et/ou un dossier, 7 versions gardées, restauration en quelques gestes sur un nouvel appareil
+  ([docs/SAUVEGARDE.md](docs/SAUVEGARDE.md)).
+- 🩺 **Rapport de diagnostic chiffré** à transmettre en cas de problème ([docs/DIAGNOSTIC.md](docs/DIAGNOSTIC.md)).
 - 📷 **Appairage par QR code** : l'agent affiche un QR code, l'application remplit tout (IP, MAC, clé).
 - 🖥️ **Application Windows** très légère (un seul `.exe` d'environ 8 Mo, sans installation) : mêmes fonctions et même
   style, sauvegardes interchangeables avec le téléphone.
@@ -129,10 +133,12 @@ sudo ./wol-agent-darwin-arm64 install
 Sous Windows, l'agent (1.4.0 ou plus) propose lui-même ses nouvelles versions à l'utilisateur du PC et s'installe
 après son accord, sans changer la clé.
 
-**Températures (facultatif)** : l'agent 1.5.0 transmet la température de la carte graphique NVIDIA (lue par son
-pilote) et celle du processeur. Sous Windows, cette dernière demande **[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)**
-lancé **en administrateur** sur le PC (dans ses *Options* : *Start Minimized*, *Minimize To Tray* et *Run On Windows
-Startup* pour qu'il tourne en permanence). Sous Linux, rien à installer (capteurs du noyau, `nvidia-smi`).
+**Températures (facultatif)** : l'agent transmet la température de la carte graphique et celle du processeur. Sous
+Windows, la carte graphique est lue sans rien installer (NVIDIA, AMD, Intel Arc : agent 1.6.0 ; NVIDIA seulement
+avant) ; le processeur demande **[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)**
+lancé **en administrateur** sur le PC, avec son **serveur web activé** (*Options* → *Remote Web Server* → *Run*,
+indispensable depuis sa version 0.9.5) ; dans ses *Options*, cochez aussi *Start Minimized*, *Minimize To Tray* et
+*Run On Windows Startup* pour qu'il tourne en permanence. Sous Linux, rien à installer (capteurs du noyau, `nvidia-smi`).
 
 Commandes utiles : `wol-agent pair` (réafficher le QR code), `wol-agent status`, `wol-agent rotate-key` (changer la clé),
 `wol-agent update` (mettre à jour), `wol-agent uninstall`. Détails : **[agent/README.md](agent/README.md)**.
@@ -206,6 +212,7 @@ Détails : **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** et **[docs/PROTOCOLE
 | Accès depuis Internet | L'agent n'accepte que les adresses privées ; pare-feu Windows limité au sous-réseau local. |
 | Fuite d'une sauvegarde | Export complet chiffré par mot de passe (PBKDF2 600 000 itérations + AES-256-GCM) ; export « sans clés » sinon. |
 | Fuite d'un rapport de diagnostic | Journal chiffré sur l'appareil ; rapport exporté seulement à la demande, chiffré par mot de passe, sans aucune clé ni jeton ([docs/DIAGNOSTIC.md](docs/DIAGNOSTIC.md)). |
+| Fuite d'une sauvegarde automatique | Chiffrée comme l'export complet par un mot de passe dédié ; Gist secret ; mot de passe et jeton gardés chiffrés sur l'appareil ([docs/SAUVEGARDE.md](docs/SAUVEGARDE.md)). |
 | Partage des PC | Accès chiffré pour la clé d'un seul appareil (ECDH P-256 + AES-256-GCM) et signé par la personne qui partage (ECDSA P-256) ; code de vérification ; aucun accès aux dépôts GitHub ([docs/PARTAGE.md](docs/PARTAGE.md)). |
 | APK modifié | Signature de l'APK avec une clé privée stockée uniquement dans les secrets GitHub ; somme de contrôle de Gradle vérifiée. |
 
@@ -251,13 +258,17 @@ tuile de réglages rapides, raccourcis, notifications, verrouillage biométrique
 | Le PC ne démarre pas | Vérifier BIOS/UEFI, carte réseau et démarrage rapide (§3). Le PC doit être en Ethernet. Tester depuis l'état « veille » d'abord. |
 | Le voyant reste gris « pas de réseau local » | Le téléphone n'est pas sur le Wi-Fi (ou l'autorisation réseau local d'Android 17 est refusée : bannière en haut de l'écran). |
 | Le voyant est rouge alors que le PC est allumé | Sans agent, Windows bloque souvent le ping : installez l'agent, ou ajoutez un port ouvert (RDP 3389, SMB 445…) dans *Options avancées*. |
+| Agent installé, PC allumé mais affiché éteint | Le réseau du PC est sans doute classé « Public » dans Windows : le pare-feu bloque alors l'agent. *Paramètres Windows* → *Réseau et Internet* → ce réseau → *Type de profil réseau* : **Privé** (l'agent 1.6.0 le détecte et le propose de lui-même). Vérifiez aussi que le téléphone est sur le même réseau (pas un Wi-Fi invité). |
 | « agent arrêté sur le PC » | Le PC répond mais le service ne tourne pas : `wol-agent status`, ou relancez l'installation. |
 | « clé refusée par l'agent » | La clé a changé (`rotate-key`) : ré-appairez avec `wol-agent pair`. |
 | Historique : « Mettez à jour l'agent de ce PC… » | L'agent est antérieur à la version 1.2 : relancez l'installation avec la nouvelle version (configuration et clé conservées). |
-| Température CPU : « LibreHardwareMonitor requis » | Lancez LibreHardwareMonitor **en administrateur** sur ce PC (et cochez *Run On Windows Startup*). La carte graphique NVIDIA est lue sans lui. |
+| Température CPU : « LibreHardwareMonitor requis » | Lancez LibreHardwareMonitor **en administrateur** sur ce PC, activez *Options* → *Remote Web Server* → *Run* et cochez *Run On Windows Startup*. |
+| Température CPU : « Serveur web LHM à activer » | LibreHardwareMonitor tourne mais, depuis sa version 0.9.5, l'agent ne peut le lire que par son serveur web : *Options* → *Remote Web Server* → *Run* (inutile d'ouvrir le port 8085 dans le pare-feu). |
+| Température CPU : « Mot de passe LHM à retirer » / « Non lue par LHM » | Désactivez *Options* → *Remote Web Server* → *Authentication* / acceptez l'installation du pilote **PawnIO** au démarrage de LibreHardwareMonitor (ou mettez-le à jour). `wol-agent status` sur le PC détaille ce qu'il trouve. |
+| Pas de température GPU | Avec l'agent 1.6.0, toute carte graphique dédiée est lue (pilote récent requis) ; les puces graphiques intégrées ne donnent généralement pas leur température (LibreHardwareMonitor 0.9.6 lit celle des puces Intel s'il tourne). |
 | Pas de ligne « Température » | L'agent du PC est antérieur à la version 1.5.0 (il se met à jour après accord de l'utilisateur du PC, ou `wol-agent update`). |
 | Mise à jour de l'APK refusée | Signature différente : voir [docs/SIGNATURE.md](docs/SIGNATURE.md). |
 | Windows : « composant WebView2 introuvable » | Rare (Windows 10 non à jour) : acceptez l'ouverture de la page Microsoft et installez le composant. |
 | Windows : un PC reste « État inconnu · pas de réseau local » | Ce PC n'a ni carte Ethernet ni Wi-Fi connectée (les cartes de machines virtuelles sont ignorées). |
-| « Données illisibles » au démarrage, partage ou liste des PC vides | Le fichier a été mis de côté (jamais effacé) : importez votre dernière sauvegarde complète (*Réglages* → *Importer*), puis reconnectez-vous à GitHub avec le même compte pour le partage. |
+| « Données illisibles » au démarrage, partage ou liste des PC vides | Le fichier a été mis de côté (jamais effacé) : restaurez votre dernière sauvegarde (*Restaurer depuis GitHub*, ou *Importer* un fichier), puis reconnectez-vous à GitHub avec le même compte pour le partage. Les sauvegardes automatiques se mettent en pause d'ici là. |
 | Plantage ou comportement anormal | *Réglages* → *Diagnostic* → *Exporter le rapport de diagnostic* (et `wol-agent diagnostic` sur le PC concerné) : transmettez le fichier et, séparément, son mot de passe. Voir [docs/DIAGNOSTIC.md](docs/DIAGNOSTIC.md). |

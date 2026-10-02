@@ -57,6 +57,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.slaynaw.wakeonlan.BuildConfig
 import io.github.slaynaw.wakeonlan.R
 import io.github.slaynaw.wakeonlan.appContainer
+import io.github.slaynaw.wakeonlan.backup.BackupUiState
 import io.github.slaynaw.wakeonlan.core.config.ExportCodec
 import io.github.slaynaw.wakeonlan.core.diagnostics.DiagnosticCodec
 import io.github.slaynaw.wakeonlan.core.model.AppSettings
@@ -75,6 +76,7 @@ import io.github.slaynaw.wakeonlan.ui.common.rememberNow
 import io.github.slaynaw.wakeonlan.ui.overview.ScreenHeader
 import io.github.slaynaw.wakeonlan.ui.theme.WolPalette
 import io.github.slaynaw.wakeonlan.update.UpdateUiState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -100,6 +102,8 @@ fun SettingsTab(
     val ownDevices by remember(container) { container.repository.config.map { it.devices } }.collectAsStateWithLifecycle(emptyList())
     val pendingLink by container.share.pendingLink.collectAsStateWithLifecycle()
     var shareDialog by remember { mutableStateOf<ShareDialog?>(null) }
+    val backup by container.backups.state.collectAsStateWithLifecycle()
+    var backupDialog by remember { mutableStateOf<BackupDialog?>(null) }
     val now = rememberNow(periodMs = 30_000)
     val scope = rememberCoroutineScope()
     val busy by vm.busy.collectAsStateWithLifecycle()
@@ -126,6 +130,21 @@ fun SettingsTab(
     }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) vm.startImport(context.contentResolver, uri)
+    }
+    // Dossier des sauvegardes : le droit d'y écrire est conservé après le redémarrage du téléphone.
+    val backupFolderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                try {
+                    context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                    container.backups.setFolder(uri)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    backupDialog = BackupDialog.Error(e.message ?: e.javaClass.simpleName)
+                }
+            }
+        }
     }
 
     LaunchedEffect(vm) {
@@ -191,6 +210,10 @@ fun SettingsTab(
         ownDevices = ownDevices,
         now = now,
         onShareDialog = { shareDialog = it },
+        backup = backup,
+        onBackupDialog = { backupDialog = it },
+        onPickBackupFolder = { backupFolderLauncher.launch(null) },
+        onBackupNow = vm::backupNow,
     )
 
     if (sharingImported) {
@@ -202,6 +225,16 @@ fun SettingsTab(
             confirmButton = { TextButton(onClick = vm::dismissSharingImported) { Text(stringResource(R.string.ok)) } },
         )
     }
+
+    BackupDialogHost(
+        dialog = backupDialog,
+        onDialog = { backupDialog = it },
+        backup = backup,
+        manager = container.backups,
+        snackbar = snackbar,
+        onPickFolder = { backupFolderLauncher.launch(null) },
+        onRestore = vm::restoreBackup,
+    )
 
     ShareDialogHost(
         dialog = shareDialog,
@@ -312,6 +345,10 @@ fun SettingsContent(
     now: Long = System.currentTimeMillis(),
     onShareDialog: (ShareDialog) -> Unit = {},
     onExportDiagnostic: () -> Unit = {},
+    backup: BackupUiState = BackupUiState(loaded = true),
+    onBackupDialog: (BackupDialog) -> Unit = {},
+    onPickBackupFolder: () -> Unit = {},
+    onBackupNow: () -> Unit = {},
 ) {
     Column(
         Modifier
@@ -385,6 +422,8 @@ fun SettingsContent(
                 onClick = onImport,
             )
         }
+
+        BackupSection(backup = backup, now = now, onDialog = onBackupDialog, onPickFolder = onPickBackupFolder, onBackupNow = onBackupNow)
 
         SectionLabel(stringResource(R.string.section_history), Modifier.padding(top = 6.dp))
         WolCard {

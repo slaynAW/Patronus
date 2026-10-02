@@ -43,6 +43,14 @@ func (devPlatform) ReadClipboard() (string, error) { return "", fmt.Errorf("indi
 // WriteClipboard : l'interface utilise alors le presse-papiers du navigateur.
 func (devPlatform) WriteClipboard(string) error { return fmt.Errorf("indisponible") }
 
+// PickFolder : en mode développement, dossier indiqué par WOL_BACKUP_DIR (pas de boîte de dialogue).
+func (devPlatform) PickFolder(string) (string, error) {
+	if dir := os.Getenv("WOL_BACKUP_DIR"); dir != "" {
+		return dir, nil
+	}
+	return "", fmt.Errorf("mode développement : indiquez le dossier avec WOL_BACKUP_DIR")
+}
+
 // RunInstaller : en mode développement, l'agent est téléchargé et vérifié mais pas installé.
 func (devPlatform) RunInstaller(string, string) error {
 	return fmt.Errorf("mode développement : agent vérifié, installation non lancée")
@@ -72,7 +80,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	svc := app.New(app.Options{Version: version, Store: store, Platform: devPlatform{}, History: histStore, Share: shareOptions(*dataDir)})
+	svc := app.New(app.Options{Version: version, Store: store, Platform: devPlatform{}, History: histStore,
+		Share: shareOptions(*dataDir), Backup: backupOptions(*dataDir)})
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	go svc.Run(ctx)

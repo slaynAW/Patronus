@@ -90,10 +90,11 @@ class AgentProtocolTest {
             assertEquals(server.temperatures, (status as AgentResult.Success).value.temperatures)
 
             // Processeur illisible sous Windows : LibreHardwareMonitor à lancer.
-            server.temperatures = AgentTemperatures(gpu = 61.0, cpuHint = AgentTemperatures.CPU_HINT_LHM)
+            server.temperatures = AgentTemperatures(gpu = 61.0, cpuHint = AgentTemperatures.CPU_HINT_LHM, lhm = AgentTemperatures.LHM_WEB_OFF)
             val hint = (AgentClient().status("127.0.0.1", settings) as AgentResult.Success).value.temperatures
             assertEquals(null, hint?.cpu)
             assertEquals(AgentTemperatures.CPU_HINT_LHM, hint?.cpuHint)
+            assertEquals(AgentTemperatures.LHM_WEB_OFF, hint?.lhm)
         }
     }
 

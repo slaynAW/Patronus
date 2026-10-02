@@ -146,11 +146,28 @@ type Temperatures struct {
 	GPUName string `json:"gpuName,omitempty"`
 	// CPUHint explique l'absence de la température du processeur : CPUHintLHM sous Windows.
 	CPUHint string `json:"cpuHint,omitempty"`
+	// LHM précise ce qui empêche de lire LibreHardwareMonitor quand CPUHint vaut CPUHintLHM
+	// (agent 1.6.0 ou plus ; les applications plus anciennes s'en tiennent à CPUHint).
+	LHM string `json:"lhm,omitempty"`
 }
 
 // CPUHintLHM : sous Windows, la température du processeur est lue dans LibreHardwareMonitor, qui ne
-// tourne pas sur ce PC.
+// la fournit pas (voir Temperatures.LHM).
 const CPUHintLHM = "lhm"
+
+// États de LibreHardwareMonitor (Temperatures.LHM).
+const (
+	// LHMNotRunning : LibreHardwareMonitor ne tourne pas sur ce PC.
+	LHMNotRunning = "not-running"
+	// LHMWebOff : il tourne, mais son serveur web (Options → Remote Web Server → Run) ne répond
+	// pas ; c'est le seul moyen de le lire depuis sa version 0.9.5 (WMI retiré).
+	LHMWebOff = "web-off"
+	// LHMAuth : son serveur web demande un mot de passe (Options → Remote Web Server → Authentication).
+	LHMAuth = "auth"
+	// LHMNoSensor : il répond, mais sans température du processeur (pilote PawnIO absent, processeur
+	// non reconnu…).
+	LHMNoSensor = "no-sensor"
+)
 
 var b64 = base64.RawURLEncoding
 

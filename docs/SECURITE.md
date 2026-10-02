@@ -48,6 +48,10 @@
   fichier chiffré.
 - **Sans les clés** : fichier lisible, clés d'agent et mots de passe SecureOn retirés.
 - Format identique sur Android et Windows (vérifié par des sauvegardes de référence produites indépendamment).
+- **Sauvegarde automatique** : même chiffrement que l'export complet, par un mot de passe propre aux sauvegardes,
+  gardé chiffré sur l'appareil (Keystore / DPAPI) ; fichiers dans un Gist **secret** du compte GitHub (droit « gist »
+  seulement) et/ou un dossier choisi ; jamais de sauvegarde automatique vide, pause après des données illisibles
+  ([SAUVEGARDE.md](SAUVEGARDE.md)).
 - **Rapport de diagnostic** : même chiffrement (PBKDF2-HMAC-SHA256 600 000 itérations + AES-256-GCM), format
   `patronus-diagnostic/1` commun aux applications et à l'agent ; jamais de clé, de jeton ni de mot de passe dedans
   ([DIAGNOSTIC.md](DIAGNOSTIC.md)).
@@ -60,11 +64,11 @@
 | Authentification mutuelle | Les réponses sont signées : un faux agent ne peut pas faire croire qu'une extinction a réussi. |
 | Anti force brute | 5 échecs par minute et par adresse IP → blocage 5 minutes. |
 | Filtrage | Seules les adresses privées sont acceptées (`10/8`, `172.16/12`, `192.168/16`, `169.254/16`, `100.64/10`, IPv6 locales), modifiable dans `config.json` (`allow`). |
-| Pare-feu Windows | Règle limitée à l'exécutable de l'agent, au port 9770, au **sous-réseau local**, profils privé/domaine uniquement. |
+| Pare-feu Windows | Règle limitée à l'exécutable de l'agent, au port 9770, au **sous-réseau local**, profils privé/domaine uniquement. Sur un réseau classé « Public », l'agent reste bloqué : le service le détecte et propose à l'utilisateur connecté (fenêtre « Oui / Non ») de classer ce réseau en Privé ; rien n'est changé sans son accord, et un refus n'est reposé qu'une semaine plus tard. |
 | Robustesse | Messages de 8 Kio maximum (réponse `history` : 512 Kio au plus côté client), délai de 10 s, 16 connexions simultanées maximum. |
 | Commandes | Liste blanche configurable (`commands` dans `config.json`), par ex. pour n'autoriser que la veille. Le journal (`history`, lecture seule) et l'ajout des démarrages demandés (`wakes`) sont accessibles dès que `status` l'est. |
 | Journal du PC | `history.json` et `alive.json` rangés avec la configuration, dans un dossier réservé à root / SYSTEM et aux administrateurs. Le journal ne contient que des heures, des types d'évènement et, pour chaque demande, l'adresse IP et le nom de l'appareil qui l'a faite (nom indiqué par l'application : « Pixel 8 », nom du PC) ; il est borné (30 jours, 2 000 évènements, noms de 40 caractères). Toute personne qui a la clé de l'agent (vous, et les personnes à qui vous avez partagé le PC avec le droit « démarrer et éteindre ») peut le lire. Les démarrages signalés ne sont acceptés qu'authentifiés, et seulement pour la période couverte par le journal. |
-| Températures | Lecture seule des capteurs, jointe à `status` (donc réservée aux détenteurs de la clé). L'agent n'installe aucun pilote : la carte NVIDIA est lue par la bibliothèque de son pilote (`nvml.dll`, dossier système), le processeur par LibreHardwareMonitor s'il tourne (WMI local, ou son serveur web sur `127.0.0.1` uniquement), ou par les capteurs du noyau sous Linux. Relevés limités à un toutes les 5 s. |
+| Températures | Lecture seule des capteurs, jointe à `status` (donc réservée aux détenteurs de la clé). L'agent n'installe aucun pilote : les cartes graphiques sont lues par l'interface du noyau graphique de Windows (comme le Gestionnaire des tâches) et, pour NVIDIA, par la bibliothèque de son pilote (`nvml.dll`, dossier système) ; le processeur par LibreHardwareMonitor s'il tourne (WMI local, ou son serveur web : `127.0.0.1`, ou l'adresse choisie dans LHM si c'est l'une de celles du PC ; jamais d'autre machine, ni proxy ni redirection), ou par les capteurs du noyau sous Linux. Le serveur web de LibreHardwareMonitor n'a pas de mot de passe par défaut et permet de piloter les ventilateurs : ne l'ouvrez pas dans le pare-feu, l'agent le lit en local. Relevés limités à un toutes les 5 s. |
 | Fichier de configuration | Lisible uniquement par root (Linux/macOS, `0600`) ou SYSTEM/Administrateurs (Windows, ACL posées via les SID). |
 | Linux | Service systemd durci (`NoNewPrivileges`, `ProtectSystem`, `ProtectHome`, `PrivateTmp`…). |
 | Chaîne de production | Binaires compilés par la CI (`-trimpath`, sans CGO), sommes SHA-256 publiées ; somme du wrapper Gradle vérifiée. |

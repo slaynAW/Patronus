@@ -23,7 +23,11 @@ Téléchargement : section **Releases** du dépôt (`wol-agent-<système>-<archi
 ```
 - copie dans `C:\Program Files\WolAgent\`, configuration dans `C:\ProgramData\WolAgent\config.json` ;
 - service **WolAgent** (démarrage automatique, relance en cas d'erreur), journal dans `C:\ProgramData\WolAgent\agent.log` (`wol-agent diagnostic` en fait un rapport chiffré par mot de passe, voir [docs/DIAGNOSTIC.md](../docs/DIAGNOSTIC.md)) ;
-- règle de pare-feu « Patronus - Agent » : port 9770, **sous-réseau local**, profils privé et domaine.
+- règle de pare-feu « Patronus - Agent » : port 9770, **sous-réseau local**, profils privé et domaine. Si le réseau
+  du PC est classé « **Public** » par Windows, l'agent reste bloqué (les applications voient le PC éteint) :
+  l'installation le signale et propose de le classer en Privé, et le service le propose ensuite à l'utilisateur
+  connecté (depuis l'agent 1.6.0). À la main : *Paramètres* → *Réseau et Internet* → ce réseau → *Type de profil
+  réseau* : Privé.
 
 **Linux** (systemd) / **macOS** (launchd) :
 ```bash
@@ -69,7 +73,7 @@ une nouvelle version des applications ne provoque pas de mise à jour de l'agent
 |---|---|
 | `wol-agent install [--port 9770] [--name "PC Bureau"] [--ip 192.168.1.20] [--no-firewall] [--firewall-public]` | Installe / met à jour le service |
 | `wol-agent pair [--ip …] [--png qr.png] [--invert]` | Réaffiche le QR code (ou l'enregistre en PNG) et le lien d'appairage |
-| `wol-agent status` | État du service, configuration, carte réseau détectée, derniers évènements du journal |
+| `wol-agent status` | État du service, configuration, carte réseau détectée, type des réseaux Windows (alerte si « Public »), derniers évènements du journal |
 | `wol-agent diagnostic` | Rapport de diagnostic chiffré par un mot de passe (état, configuration sans la clé, journaux), à transmettre pour analyser un problème ([docs/DIAGNOSTIC.md](../docs/DIAGNOSTIC.md)). Terminal administrateur recommandé. |
 | `wol-agent rotate-key` | Nouvelle clé ; l'ancienne est immédiatement refusée (ré-appairer) |
 | `wol-agent update [--check] [--yes] [--auto on\|off]` | Recherche et installe une nouvelle version (Windows) ; `--auto` : recherche quotidienne |
@@ -131,7 +135,7 @@ application le demande, au plus toutes les 5 secondes, en arrière-plan (la rép
 
 | Système | Carte graphique | Processeur |
 |---|---|---|
-| Windows | NVIDIA : NVML, fourni par le pilote (`nvml.dll`) | **[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)**, lu par WMI (`root\LibreHardwareMonitor`) ou, à défaut, par son serveur web local (`http://127.0.0.1:8085/data.json`) ; AMD / Intel : aussi via LibreHardwareMonitor |
+| Windows | **Toutes marques** (agent 1.6.0) : interface du noyau graphique de Windows, comme le Gestionnaire des tâches (cartes dédiées NVIDIA, AMD, Intel Arc ; pilote WDDM 2.4 ou plus) ; NVIDIA aussi par NVML (`nvml.dll`, fourni par le pilote) ; en secours, LibreHardwareMonitor (puces intégrées Intel avec sa version 0.9.6) | **[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)** (LHM), par son **serveur web** (`data.json`), ou par WMI (`root\LibreHardwareMonitor`) pour ses versions 0.9.4 et plus anciennes |
 | Linux | `nvidia-smi` (pilote NVIDIA), capteurs du noyau (`amdgpu`, `nouveau`, `radeon`) | capteurs du noyau (`/sys/class/hwmon` : `coretemp`, `k10temp`, `zenpower`) |
 | macOS | — | — |
 
@@ -139,12 +143,28 @@ Windows ne donne pas accès aux sondes du processeur sans pilote : l'agent n'en 
 LibreHardwareMonitor s'il tourne. Pour l'installer :
 
 1. Téléchargez la dernière version sur sa page GitHub et décompressez-la (par exemple dans `C:\Program Files\LibreHardwareMonitor`).
-2. Lancez `LibreHardwareMonitor.exe` **en administrateur** (clic droit → *Exécuter en tant qu'administrateur*).
-3. Dans *Options*, cochez **Start Minimized**, **Minimize To Tray** et **Run On Windows Startup** : il démarre avec
+2. Lancez `LibreHardwareMonitor.exe` **en administrateur** (clic droit → *Exécuter en tant qu'administrateur*). S'il
+   propose d'installer son pilote **PawnIO**, acceptez : sans lui, il ne lit pas le processeur.
+3. **Activez son serveur web** : *Options* → *Remote Web Server* → *Run*. Depuis la version 0.9.5, LHM ne publie
+   plus rien par WMI : c'est le seul moyen pour l'agent de le lire. Gardez le port (8085) et l'interface proposés,
+   sans *Authentication* (l'agent ne connaît pas ce mot de passe). Il est **inutile d'ouvrir ce port dans le
+   pare-feu** : l'agent le lit sur le PC même, et ce serveur sans mot de passe permet de piloter les ventilateurs.
+4. Dans *Options*, cochez **Start Minimized**, **Minimize To Tray** et **Run On Windows Startup** : il démarre avec
    Windows, discrètement, et l'agent retrouve la température du processeur à chaque démarrage.
 
-`wol-agent status` affiche les températures lues (ou ce qu'il manque). Sans LibreHardwareMonitor, les applications
-indiquent « LibreHardwareMonitor requis » à la place de la température du processeur.
+L'agent trouve LHM même si son serveur web écoute sur une autre adresse du PC ou un autre port (il lit ses réglages,
+`LibreHardwareMonitor.config`, à côté du programme). Quand la température du processeur manque, les applications
+disent pourquoi :
+
+| Message | Cause | Que faire |
+|---|---|---|
+| LibreHardwareMonitor requis | LHM ne tourne pas | Le lancer en administrateur (étapes ci-dessus) |
+| Serveur web LHM à activer | LHM tourne, son serveur web ne répond pas | *Options* → *Remote Web Server* → *Run* |
+| Mot de passe LHM à retirer | Le serveur web demande un mot de passe | Décocher *Options* → *Remote Web Server* → *Authentication* |
+| Non lue par LHM | LHM répond sans température du processeur | Accepter le pilote PawnIO au démarrage de LHM, ou mettre LHM à jour |
+
+`wol-agent status` affiche les températures lues et le détail : cartes graphiques vues par Windows, LHM trouvé (ou
+non), ses réglages, la réponse de son serveur web et la présence du pilote PawnIO.
 
 ## Compilation
 

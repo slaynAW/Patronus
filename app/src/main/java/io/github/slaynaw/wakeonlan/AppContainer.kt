@@ -8,6 +8,7 @@ import io.github.slaynaw.wakeonlan.core.model.AppConfig
 import io.github.slaynaw.wakeonlan.core.status.HostProber
 import io.github.slaynaw.wakeonlan.core.status.ProbeAvailability
 import io.github.slaynaw.wakeonlan.core.status.StatusMonitor
+import io.github.slaynaw.wakeonlan.backup.BackupManager
 import io.github.slaynaw.wakeonlan.core.status.UnknownReason
 import io.github.slaynaw.wakeonlan.core.wol.WakeOnLanSender
 import io.github.slaynaw.wakeonlan.data.ConfigRepository
@@ -60,6 +61,9 @@ class AppContainer(private val context: Context) {
     val history = HistoryRepository(context, scope)
     val historyTracker = HistoryTracker(allDevices, statusMonitor.statuses, agentClient, history, scope)
     val actions = DeviceActions(network, WakeOnLanSender(binder = network), agentClient, statusMonitor, historyTracker)
+
+    /** Sauvegardes automatiques (GitHub et dossier), chiffrées par un mot de passe dédié. */
+    val backups = BackupManager(context, scope, repository, share, history)
 
     /** Mises à jour intégrées (versions officielles publiées sur GitHub). */
     val updater = AppUpdater(context, scope)
