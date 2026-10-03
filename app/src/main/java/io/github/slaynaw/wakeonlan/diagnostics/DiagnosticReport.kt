@@ -95,6 +95,7 @@ object DiagnosticReport {
 
         section("Sauvegardes automatiques")
         appendLine(container.backups.describe())
+        appendLine("Archives : ${container.archives.describe()}")
 
         section("Mises à jour")
         val update = container.updater.state.value

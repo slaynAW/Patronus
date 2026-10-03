@@ -329,3 +329,58 @@ func TestStatusTemperatures(t *testing.T) {
 		t.Errorf("champ vide envoyé : %s", resp.Body)
 	}
 }
+
+type fakeMetrics struct{ rows []protocol.MetricsRow }
+
+func (f fakeMetrics) Days() []string { return []string{"2026-10-02", "2026-10-03"} }
+
+func (f fakeMetrics) Day(day string) ([]protocol.MetricsRow, error) {
+	if day != "2026-10-03" {
+		return []protocol.MetricsRow{}, nil
+	}
+	return f.rows, nil
+}
+
+func TestMetricsCommand(t *testing.T) {
+	v := 54.5
+	m := fakeMetrics{rows: []protocol.MetricsRow{{T: 1759492800, N: 6, CPUTemp: &v, CPUTempMax: &v}}}
+	cfg, _, addr := startServer(t, func(c *config.Config) { c.Commands = []string{"status"} }, func(s *Server) { s.SetMetrics(m) })
+	// Liste des jours seule.
+	body := decodeBody(t, first(exchange(t, addr, cfg.Key, `{"cmd":"metrics"}`)))
+	if !body.OK || body.Metrics == nil || len(body.Metrics.Days) != 2 || len(body.Metrics.Rows) != 0 {
+		t.Fatalf("jours : %+v", body.Metrics)
+	}
+	// Un jour.
+	body = decodeBody(t, first(exchange(t, addr, cfg.Key, `{"cmd":"metrics","day":"2026-10-03"}`)))
+	if !body.OK || body.Metrics.Day != "2026-10-03" || len(body.Metrics.Rows) != 1 || *body.Metrics.Rows[0].CPUTemp != 54.5 {
+		t.Fatalf("mesures : %+v", body.Metrics)
+	}
+	// Sans « status » : refusé ; agent sans enregistrement : non pris en charge.
+	cfg, _, addr = startServer(t, func(c *config.Config) { c.Commands = []string{"sleep"} }, func(s *Server) { s.SetMetrics(m) })
+	if body := decodeBody(t, first(exchange(t, addr, cfg.Key, `{"cmd":"metrics"}`))); body.OK || body.Code != "forbidden" {
+		t.Fatalf("mesures sans status : %+v", body)
+	}
+	cfg, _, addr = start(t, nil)
+	if body := decodeBody(t, first(exchange(t, addr, cfg.Key, `{"cmd":"metrics"}`))); body.OK || body.Code != "unsupported" {
+		t.Fatalf("mesures absentes : %+v", body)
+	}
+}
+
+// Une journée complète, toutes les valeurs renseignées, tient dans la réponse admise par les clients.
+func TestMetricsDayFitsResponse(t *testing.T) {
+	v := 100.0
+	rows := make([]protocol.MetricsRow, 1440)
+	for i := range rows {
+		rows[i] = protocol.MetricsRow{T: 1759449600 + int64(i)*60, N: 12, CPUTemp: &v, CPUTempMax: &v, GPUTemp: &v, GPUTempMax: &v,
+			CPULoad: &v, CPULoadMax: &v, GPULoad: &v, GPULoadMax: &v}
+	}
+	days := make([]string, protocol.MetricsDays)
+	for i := range days {
+		days[i] = "2026-10-03"
+	}
+	body, _ := json.Marshal(protocol.ResponseBody{OK: true, Code: "ok", Hostname: strings.Repeat("x", 64), Metrics: &protocol.Metrics{Day: "2026-10-03", Days: days, Rows: rows}})
+	line, _ := json.Marshal(protocol.Response{Body: string(body), Mac: strings.Repeat("m", 43)})
+	if len(line) > protocol.MaxMetricsBytes/2 {
+		t.Errorf("journée de mesures : %d octets (limite %d)", len(line), protocol.MaxMetricsBytes)
+	}
+}

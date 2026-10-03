@@ -19,6 +19,7 @@ import (
 
 	"github.com/slaynaw/wakeonlan/agent/internal/config"
 	"github.com/slaynaw/wakeonlan/agent/internal/history"
+	"github.com/slaynaw/wakeonlan/agent/internal/metrics"
 	"github.com/slaynaw/wakeonlan/agent/internal/netinfo"
 	"github.com/slaynaw/wakeonlan/agent/internal/pairing"
 	"github.com/slaynaw/wakeonlan/agent/internal/power"
@@ -128,7 +129,19 @@ func cmdRun(args []string) error {
 		if err != nil {
 			return err
 		}
-		srv.SetTemperatures(sensors.NewCache(sensors.Read).Get)
+		if cfg.RecordsMetrics() {
+			// Relevés continus : l'état renvoie le dernier, les applications lisent les minutes enregistrées.
+			recorder := metrics.New(metricsDir(*cfgPath), sensors.Read, time.Now)
+			recorder.OnError = func(err error) { logger.Printf("mesures : %v", err) }
+			recording, stopRecording := context.WithCancel(context.Background())
+			done := make(chan struct{})
+			go func() { recorder.Run(recording); close(done) }()
+			defer func() { stopRecording(); <-done }()
+			srv.SetTemperatures(recorder.Latest)
+			srv.SetMetrics(recorder)
+		} else {
+			srv.SetTemperatures(sensors.NewCache(sensors.Read).Get)
+		}
 		journal := startHistory(*cfgPath, logger)
 		if journal != nil {
 			srv.SetHistory(journal)
@@ -172,6 +185,9 @@ func cmdRun(args []string) error {
 func historyPath(cfgPath string) string { return filepath.Join(filepath.Dir(cfgPath), "history.json") }
 
 func alivePath(cfgPath string) string { return filepath.Join(filepath.Dir(cfgPath), "alive.json") }
+
+// metricsDir : mesures enregistrées en continu (un fichier par jour), à côté de la configuration.
+func metricsDir(cfgPath string) string { return filepath.Join(filepath.Dir(cfgPath), "metrics") }
 
 // startHistory ouvre le journal et enregistre le démarrage (nil si le journal est indisponible :
 // l'agent fonctionne quand même).
@@ -318,6 +334,7 @@ func cmdStatus(args []string) error {
 		return nil
 	}
 	fmt.Printf("Nom           : %s\nPort          : %d\nCommandes     : %v\nRéseaux       : %v\n", cfg.Name, cfg.Port, cfg.Commands, cfg.Allow)
+	fmt.Printf("Mesures       : %s\n", describeMetrics(cfg, *cfgPath))
 	if runtime.GOOS == "windows" {
 		if cfg.AutoUpdates() {
 			fmt.Println("Mises à jour  : recherche quotidienne, installées après accord de l'utilisateur connecté")
@@ -398,6 +415,19 @@ func describeTemperatures(t protocol.Temperatures) string {
 		return "non disponibles sur ce PC"
 	}
 	return strings.Join(parts, " · ")
+}
+
+// describeMetrics décrit l'enregistrement continu des mesures.
+func describeMetrics(cfg *config.Config, cfgPath string) string {
+	if !cfg.RecordsMetrics() {
+		return "enregistrement désactivé (« metrics »: false dans config.json)"
+	}
+	days := metrics.New(metricsDir(cfgPath), nil, time.Now).Days()
+	if len(days) == 0 {
+		return fmt.Sprintf("enregistrées chaque minute, gardées %d jours (aucune pour l'instant)", protocol.MetricsDays)
+	}
+	return fmt.Sprintf("enregistrées chaque minute, gardées %d jours : %d jour(s), du %s au %s (UTC)",
+		protocol.MetricsDays, len(days), days[0], days[len(days)-1])
 }
 
 // lhmAdvice dit quoi faire pour que l'agent lise la température du processeur dans

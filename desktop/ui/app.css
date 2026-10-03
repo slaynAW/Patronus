@@ -399,6 +399,11 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); width: 
 .field input:focus, .field textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus); }
 .field.has-trailing input { padding-right: 86px; }
 .field .trailing { position: absolute; right: 4px; }
+.field.has-reveal input { padding-right: 42px; }
+.field .reveal { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 6px; background: transparent; color: var(--text-3); cursor: pointer; touch-action: none; user-select: none; }
+.field .reveal:hover { color: var(--text-2); background: var(--surface-2); }
+.field .reveal.on { color: var(--blue); }
+.field .reveal svg.icon { width: 18px; height: 18px; }
 .field .support { font-size: 12px; line-height: 16px; color: var(--text-3); }
 .field.error input, .field.error textarea { border-color: var(--off); }
 .field.error .support { color: var(--danger-text); }
@@ -561,3 +566,27 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); width: 
 .shared-by { display: inline-flex; align-items: center; gap: 6px; }
 .shared-by svg { color: var(--blue); }
 .item .supporting.bad { color: var(--danger-text); font-weight: 500; }
+
+/* ---------- Mesures (températures, utilisation) ---------- */
+
+.mcharts { display: flex; flex-direction: column; gap: 18px; }
+.mblock { display: flex; flex-direction: column; gap: 8px; }
+.mchart { position: relative; }
+.mchart svg { display: block; width: 100%; height: auto; cursor: crosshair; }
+.mchart .grid { stroke: var(--line); stroke-width: 1; }
+.mchart .axis { fill: var(--text-3); font-size: 10px; font-family: var(--font); }
+.mchart .mline { fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.mchart .mline.avg { stroke-width: 1.8; }
+.mchart .mline.max { stroke-width: 1; opacity: 0.4; }
+.mchart .s-cpu { stroke: var(--blue); }
+.mchart .s-gpu { stroke: #c084fc; }
+.mchart .cursor { stroke: var(--text-3); stroke-width: 1; stroke-dasharray: 3 3; }
+.mchart .hidden { display: none; }
+.mtip { position: absolute; top: -6px; transform: translateY(-100%); background: var(--surface-3); border: 1px solid var(--line-2); border-radius: 8px; padding: 6px 9px; font-size: 12px; line-height: 17px; white-space: nowrap; pointer-events: none; box-shadow: var(--shadow); }
+.mtip b { display: block; font-weight: 600; color: var(--text-2); margin-bottom: 2px; }
+.mtip small { color: var(--text-3); }
+.mtip i, .mleg i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.mtip i.s-cpu, .mleg i.s-cpu { background: var(--blue); }
+.mtip i.s-gpu, .mleg i.s-gpu { background: #c084fc; }
+.mlegend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--text-2); }
+.mleg b { color: var(--text); font-weight: 600; margin-right: 6px; }

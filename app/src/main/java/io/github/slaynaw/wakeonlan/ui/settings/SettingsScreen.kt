@@ -49,13 +49,13 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.slaynaw.wakeonlan.BuildConfig
 import io.github.slaynaw.wakeonlan.R
+import io.github.slaynaw.wakeonlan.archive.ArchiveUiState
 import io.github.slaynaw.wakeonlan.appContainer
 import io.github.slaynaw.wakeonlan.backup.BackupUiState
 import io.github.slaynaw.wakeonlan.core.config.ExportCodec
@@ -70,7 +70,9 @@ import io.github.slaynaw.wakeonlan.ui.common.RowDivider
 import io.github.slaynaw.wakeonlan.ui.common.SectionLabel
 import io.github.slaynaw.wakeonlan.ui.common.WolButton
 import io.github.slaynaw.wakeonlan.ui.common.WolCard
+import io.github.slaynaw.wakeonlan.ui.common.PasswordRevealIcon
 import io.github.slaynaw.wakeonlan.ui.common.WolIcons
+import io.github.slaynaw.wakeonlan.ui.common.rememberPasswordReveal
 import io.github.slaynaw.wakeonlan.ui.common.formatDuration
 import io.github.slaynaw.wakeonlan.ui.common.rememberNow
 import io.github.slaynaw.wakeonlan.ui.overview.ScreenHeader
@@ -103,6 +105,7 @@ fun SettingsTab(
     val pendingLink by container.share.pendingLink.collectAsStateWithLifecycle()
     var shareDialog by remember { mutableStateOf<ShareDialog?>(null) }
     val backup by container.backups.state.collectAsStateWithLifecycle()
+    val archive by container.archives.state.collectAsStateWithLifecycle()
     var backupDialog by remember { mutableStateOf<BackupDialog?>(null) }
     val now = rememberNow(periodMs = 30_000)
     val scope = rememberCoroutineScope()
@@ -214,6 +217,7 @@ fun SettingsTab(
         onBackupDialog = { backupDialog = it },
         onPickBackupFolder = { backupFolderLauncher.launch(null) },
         onBackupNow = vm::backupNow,
+        archive = archive,
     )
 
     if (sharingImported) {
@@ -231,6 +235,7 @@ fun SettingsTab(
         onDialog = { backupDialog = it },
         backup = backup,
         manager = container.backups,
+        archives = container.archives,
         snackbar = snackbar,
         onPickFolder = { backupFolderLauncher.launch(null) },
         onRestore = vm::restoreBackup,
@@ -349,6 +354,7 @@ fun SettingsContent(
     onBackupDialog: (BackupDialog) -> Unit = {},
     onPickBackupFolder: () -> Unit = {},
     onBackupNow: () -> Unit = {},
+    archive: ArchiveUiState = ArchiveUiState(),
 ) {
     Column(
         Modifier
@@ -423,7 +429,7 @@ fun SettingsContent(
             )
         }
 
-        BackupSection(backup = backup, now = now, onDialog = onBackupDialog, onPickFolder = onPickBackupFolder, onBackupNow = onBackupNow)
+        BackupSection(backup = backup, now = now, onDialog = onBackupDialog, onPickFolder = onPickBackupFolder, onBackupNow = onBackupNow, archive = archive)
 
         SectionLabel(stringResource(R.string.section_history), Modifier.padding(top = 6.dp))
         WolCard {
@@ -622,6 +628,7 @@ private fun ExportDialog(hasSecrets: Boolean, onConfirm: (CharArray?) -> Unit, o
                     onSelect = { withSecrets = false },
                 )
                 if (withSecrets) {
+                    val reveal1 = rememberPasswordReveal()
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it },
@@ -629,16 +636,19 @@ private fun ExportDialog(hasSecrets: Boolean, onConfirm: (CharArray?) -> Unit, o
                         singleLine = true,
                         isError = password.isNotEmpty() && tooShort,
                         supportingText = { Text(stringResource(R.string.field_password_help, ExportCodec.MIN_PASSWORD_LENGTH)) },
-                        visualTransformation = PasswordVisualTransformation(),
+                        visualTransformation = reveal1.transformation,
+                        trailingIcon = { PasswordRevealIcon(reveal1) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     )
+                    val reveal2 = rememberPasswordReveal()
                     OutlinedTextField(
                         value = confirmation,
                         onValueChange = { confirmation = it },
                         label = { Text(stringResource(R.string.field_password_confirm)) },
                         singleLine = true,
                         isError = confirmation.isNotEmpty() && mismatch,
-                        visualTransformation = PasswordVisualTransformation(),
+                        visualTransformation = reveal2.transformation,
+                        trailingIcon = { PasswordRevealIcon(reveal2) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     )
                 }
@@ -668,6 +678,7 @@ private fun DiagnosticDialog(onConfirm: (CharArray) -> Unit, onDismiss: () -> Un
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.diagnostic_text), style = MaterialTheme.typography.bodyMedium)
+                val reveal3 = rememberPasswordReveal()
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
@@ -675,16 +686,19 @@ private fun DiagnosticDialog(onConfirm: (CharArray) -> Unit, onDismiss: () -> Un
                     singleLine = true,
                     isError = password.isNotEmpty() && tooShort,
                     supportingText = { Text(stringResource(R.string.field_password_help, DiagnosticCodec.MIN_PASSWORD_LENGTH)) },
-                    visualTransformation = PasswordVisualTransformation(),
+                    visualTransformation = reveal3.transformation,
+                    trailingIcon = { PasswordRevealIcon(reveal3) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 )
+                val reveal4 = rememberPasswordReveal()
                 OutlinedTextField(
                     value = confirmation,
                     onValueChange = { confirmation = it },
                     label = { Text(stringResource(R.string.field_password_confirm)) },
                     singleLine = true,
                     isError = confirmation.isNotEmpty() && mismatch,
-                    visualTransformation = PasswordVisualTransformation(),
+                    visualTransformation = reveal4.transformation,
+                    trailingIcon = { PasswordRevealIcon(reveal4) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 )
             }
@@ -710,6 +724,7 @@ private fun ImportPasswordDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.import_password_title)) },
         text = {
+            val reveal5 = rememberPasswordReveal()
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
@@ -721,7 +736,8 @@ private fun ImportPasswordDialog(
                 } else {
                     null
                 },
-                visualTransformation = PasswordVisualTransformation(),
+                visualTransformation = reveal5.transformation,
+                trailingIcon = { PasswordRevealIcon(reveal5) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             )
         },

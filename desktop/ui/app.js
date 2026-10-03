@@ -16,6 +16,7 @@
     save: "Enregistrer",
     show: "Afficher",
     hide: "Masquer",
+    password_hold: "Maintenir pour afficher le mot de passe",
 
     tab_overview: "Vue d’ensemble",
     tab_devices: "Appareils",
@@ -120,6 +121,24 @@
     detail_temp_gpu: "Température GPU",
     detail_load_cpu: "Utilisation CPU",
     detail_load_gpu: "Utilisation GPU",
+    detail_metrics: "Mesures",
+    metrics_open: "Températures et utilisation dans le temps",
+    metrics_title: "Mesures",
+    metrics_period: "Période",
+    metrics_24h: "24 dernières heures",
+    metrics_7d: "7 derniers jours",
+    metrics_30d: "30 derniers jours",
+    metrics_90d: "90 derniers jours",
+    metrics_months: "Mois archivés",
+    metrics_temp: "Températures",
+    metrics_load: "Utilisation",
+    metrics_stats: "moy. %1$s · max %2$s",
+    metrics_empty: "Aucune mesure sur cette période.",
+    metrics_loading: "Chargement des mesures…",
+    metrics_journal: "Journal",
+    metrics_journal_empty: "Aucun évènement sur cette période.",
+    metrics_sources: "Une ligne par minute (trait plein : moyenne, trait fin : maximum), lue sur le PC (90 derniers jours) ou dans les archives chiffrées GitHub.",
+    metrics_coverage: "%1$s de mesures",
     temperature_gpu_shared: "intégré au CPU",
     temperature_gpu_shared_help: "%1$s est intégré au processeur et n’a pas de sonde à part : c’est la température de la puce, la même que celle du processeur.",
     temperature_cpu_lhm: "LibreHardwareMonitor requis",
@@ -265,6 +284,20 @@
     backup_folder_off: "Aucun : cliquez pour en choisir un (par exemple un dossier synchronisé Google Drive ou OneDrive)",
     backup_last: "dernière sauvegarde il y a %1$s",
     backup_never: "pas encore sauvegardé",
+    archive_title: "Archives des mesures",
+    archive_off: "Températures et utilisation des PC minute par minute, et journal des démarrages : archivés chiffrés sur GitHub",
+    archive_need_github: "Connectez GitHub ci-dessus pour archiver les mesures de vos PC",
+    archive_running: "Archivage en cours…",
+    archive_last: "dernier archivage il y a %1$s",
+    archive_pending: "premier archivage dans quelques minutes",
+    archive_enable_title: "Archiver les mesures sur GitHub ?",
+    archive_enable_text: "Chaque PC équipé de l’agent 1.8.0 enregistre en continu ses températures et l’utilisation du processeur et de la carte graphique (une ligne par minute, 90 jours gardés sur le PC). Cette application les range, avec le journal des démarrages et arrêts, dans un Gist secret par mois de votre compte GitHub, chiffrés par le mot de passe des sauvegardes : illisibles sans lui. L’archivage a lieu toutes les 30 minutes tant que l’application est ouverte et rattrape ce que les PC ont gardé.",
+    archive_enable_ok: "Activer",
+    archive_dialog_text: "Les mesures de vos PC sont archivées toutes les 30 minutes dans des Gists secrets chiffrés (« Patronus – archives chiffrées AAAA-MM »). Consultez-les depuis la fiche d’un PC → Mesures.",
+    archive_now: "Archiver maintenant",
+    archive_done: "Archivage terminé : %1$s minute(s) ajoutée(s)",
+    archive_skipped: "Non archivés pour l’instant : %1$s",
+    archive_disable: "Arrêter l’archivage",
     backup_now: "Sauvegarder maintenant",
     backup_now_help: "Sauvegarde automatique après chaque changement et chaque jour ; 7 versions gardées.",
     backup_running: "Sauvegarde en cours…",
@@ -505,6 +538,8 @@
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.2a6.5 6.5 0 0 1 3 5.8"/>',
     copy: '<rect x="8.5" y="8.5" width="12" height="12" rx="2"/><path d="M15.5 8.5v-3a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/>',
     cloud: '<path d="M7 18.5h10.5a4 4 0 0 0 .6-8 6 6 0 0 0-11.6-1.4A4.8 4.8 0 0 0 7 18.5z"/>',
+    chart: '<path d="M3.5 20.5h17"/><path d="M4.5 16.5l4.5-5 3.5 3 6.5-8"/>',
+    eye: '<path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>',
   };
 
   function icon(name, cls = "", size = 0) {
@@ -1035,14 +1070,44 @@
 
   let fieldSeq = 0;
 
+  /**
+   * Bouton « œil » d'un mot de passe : affiché en clair tant qu'on maintient l'appui (souris, doigt,
+   * ou Espace / Entrée au clavier), masqué dès qu'on relâche. Le curseur reste dans le champ.
+   */
+  function revealButton(input) {
+    const button = h("button", { type: "button", class: "reveal", title: S.password_hold, "aria-label": S.password_hold }, icon("eye"));
+    const show = (on) => {
+      input.type = on ? "text" : "password";
+      button.classList.toggle("on", on);
+    };
+    button.addEventListener("pointerdown", (e) => {
+      e.preventDefault(); // garde le focus (et le curseur) dans le champ
+      button.setPointerCapture?.(e.pointerId);
+      show(true);
+    });
+    for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) button.addEventListener(ev, () => show(false));
+    button.addEventListener("keydown", (e) => {
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        show(true);
+      }
+    });
+    button.addEventListener("keyup", () => show(false));
+    button.addEventListener("blur", () => show(false));
+    return button;
+  }
+
   function field({ label, helper, value = "", type = "text", mono = false, onInput, onEnter, trailing, multiline = false, placeholder }) {
     const id = "f" + ++fieldSeq;
     const input = multiline
       ? h("textarea", { id, rows: 3, spellcheck: "false", placeholder })
       : h("input", { id, type, spellcheck: "false", autocomplete: "off", class: mono ? "mono" : null, placeholder });
     input.value = value;
+    // Mot de passe sans bouton propre : œil à maintenir pour le voir.
+    if (type === "password" && !trailing && !multiline) trailing = revealButton(input);
     const support = h("div", { class: "support" });
-    const wrap = h("div", { class: `field${trailing ? " has-trailing" : ""}` },
+    const reveal = trailing?.classList?.contains("reveal");
+    const wrap = h("div", { class: `field${trailing ? (reveal ? " has-reveal" : " has-trailing") : ""}` },
       label ? h("label", { for: id, text: label }) : null,
       h("div", { class: "box" }, input, trailing ? h("div", { class: "trailing" }, trailing) : null),
       support);
@@ -2065,6 +2130,7 @@
         } else if (t?.gpu != null) rows.push({ key: "gpu", label: S.detail_temp_gpu, text: celsius(t.gpu), cls: tempClass(t.gpu), title: t.gpuName });
         if (t?.gpuLoad != null) rows.push({ key: "gpuLoad", label: S.detail_load_gpu, text: percentText(t.gpuLoad), title: t.gpuName });
       }
+      if (d.hasAgent) rows.push({ key: "metrics", label: S.detail_metrics, text: S.metrics_open, iconName: "chart", onClick: () => openMetricsSheet(d.id) });
       if (d.shared) rows.push({ key: "shared", label: S.detail_shared, text: d.shared.ownerName, cls: "shared-by", iconName: "share" });
       if (!d.hasAgent) {
         if (!d.shared) rows.push({ key: "agent", label: S.detail_agent, text: S.agent_not_configured, cls: "muted" });
@@ -2240,6 +2306,211 @@
       }
       list.replaceChildren(...nodes);
       moreButton.classList.toggle("hidden", data.events.length <= limit);
+    }
+  }
+
+  /** Élément SVG (graphiques des mesures). */
+  function svgEl(tag, attrs = {}, text) {
+    const el = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+    if (text != null) el.textContent = text;
+    return el;
+  }
+
+  const percentAxis = (v) => `${Math.round(v)}\u00a0%`;
+  const celsiusAxis = (v) => `${Math.round(v)}°`;
+
+  /**
+   * Graphique des mesures : une courbe par série (trait plein : moyenne, trait fin : maximum), coupée
+   * quand le PC n'a rien enregistré (éteint). Info-bulle au survol.
+   */
+  function metricsChart({ points, from, to, step, series, percent }) {
+    const W = 516, H = 176, L = 36, R = 8, T = 10, B = 22;
+    const wrap = h("div", { class: "mchart" });
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+    const values = [];
+    for (const p of points) for (const s of series) for (const k of [s.key, s.maxKey]) if (p[k] != null) values.push(p[k]);
+    let lo = 0;
+    let hi = 100;
+    if (!percent) {
+      // Graduations rondes : 4 intervalles de 5, 10, 15 ou 20 °C.
+      lo = Math.max(0, Math.floor((Math.min(...values) - 5) / 10) * 10);
+      const span = Math.max(20, Math.max(...values) + 5 - lo);
+      hi = lo + Math.ceil(span / 20) * 20;
+    }
+    const x = (t) => L + ((t - from) / (to - from)) * (W - L - R);
+    const y = (v) => T + (1 - (Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo)) * (H - T - B);
+    for (let i = 0; i <= 4; i++) {
+      const v = lo + ((hi - lo) * i) / 4;
+      svg.append(svgEl("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), class: "grid" }),
+        svgEl("text", { x: L - 6, y: y(v) + 3.5, class: "axis", "text-anchor": "end" }, (percent ? percentAxis : celsiusAxis)(v)));
+    }
+    const short = to - from <= 36 * 3600e3;
+    const fmtX = (t) => (short ? clockFmt : shortDateFmt).format(t);
+    for (let i = 0; i <= 4; i++) {
+      const t = from + ((to - from) * i) / 4;
+      svg.append(svgEl("text", { x: x(t), y: H - 6, class: "axis", "text-anchor": i === 0 ? "start" : i === 4 ? "end" : "middle" }, fmtX(t)));
+    }
+    const gap = step * 1000 * 2.5;
+    for (const s of series) {
+      for (const [key, kind] of [[s.maxKey, "max"], [s.key, "avg"]]) {
+        let d = "";
+        let prev = null;
+        for (const p of points) {
+          const v = p[key];
+          if (v == null) {
+            prev = null;
+            continue;
+          }
+          d += (prev == null || p.t - prev > gap ? "M" : "L") + x(p.t).toFixed(1) + " " + y(v).toFixed(1);
+          prev = p.t;
+        }
+        if (d) svg.append(svgEl("path", { d, class: `mline ${s.cls} ${kind}` }));
+      }
+    }
+    const cursor = svgEl("line", { y1: T, y2: H - B, class: "cursor hidden" });
+    svg.append(cursor);
+    const tip = h("div", { class: "mtip hidden" });
+    wrap.append(svg, tip);
+    svg.addEventListener("mousemove", (e) => {
+      const r = svg.getBoundingClientRect();
+      const t = from + ((((e.clientX - r.left) / r.width) * W - L) / (W - L - R)) * (to - from);
+      let best = null;
+      for (const p of points) if (best == null || Math.abs(p.t - t) < Math.abs(best.t - t)) best = p;
+      if (!best || Math.abs(best.t - t) > gap) {
+        cursor.classList.add("hidden");
+        tip.classList.add("hidden");
+        return;
+      }
+      cursor.setAttribute("x1", x(best.t));
+      cursor.setAttribute("x2", x(best.t));
+      cursor.classList.remove("hidden");
+      const fmtV = (v) => (v == null ? "—" : percent ? percentText(v) : celsius(v));
+      tip.replaceChildren(h("b", { text: (short ? clockFmt : fullFmt).format(best.t) }),
+        ...series.filter((s) => best[s.key] != null).map((s) => h("div", {},
+          h("i", { class: s.cls }), `${s.label} ${fmtV(best[s.key])}`, h("small", { text: ` max ${fmtV(best[s.maxKey])}` }))));
+      tip.classList.remove("hidden");
+      const left = ((x(best.t) / W) * r.width);
+      tip.style.left = Math.min(Math.max(0, left - tip.offsetWidth / 2), r.width - tip.offsetWidth) + "px";
+    });
+    svg.addEventListener("mouseleave", () => {
+      cursor.classList.add("hidden");
+      tip.classList.add("hidden");
+    });
+    return wrap;
+  }
+
+  /** Mesures d'un PC dans le temps : températures, utilisation et journal, du PC ou des archives. */
+  function openMetricsSheet(deviceId) {
+    const d = deviceById(deviceId);
+    if (!d) return;
+    const DAY = 86400e3;
+    const presets = [["24h", S.metrics_24h, DAY], ["7d", S.metrics_7d, 7 * DAY], ["30d", S.metrics_30d, 30 * DAY], ["90d", S.metrics_90d, 90 * DAY]];
+    let period = "24h";
+    let seq = 0;
+    const select = h("select", { "aria-label": S.metrics_period });
+    const presetOptions = presets.map(([v, label]) => h("option", { value: v, text: label }));
+    select.replaceChildren(...presetOptions);
+    select.addEventListener("change", () => {
+      period = select.value;
+      load();
+    });
+    const notes = h("div", { class: "hist-note hidden" });
+    const charts = h("div", { class: "mcharts" });
+    const journal = h("div", { class: "hist" });
+    openSheet({
+      title: S.metrics_title,
+      subtitle: d.name,
+      headExtra: [select, iconBtn("refresh", S.history_refresh, () => load(), "flat")],
+      body: [notes, charts, h("div", { class: "hist-head", text: S.metrics_journal }), journal],
+      foot: h("div", { class: "hist-note grow", text: S.metrics_sources }),
+    });
+    loadMonths();
+    load();
+
+    async function loadMonths() {
+      try {
+        const r = await api.call("metricsMonths", {});
+        if (!r.months?.length) return;
+        const group = h("optgroup", { label: S.metrics_months });
+        const monthFmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
+        for (const m of r.months) {
+          const [yy, mm] = m.split("-").map(Number);
+          group.append(h("option", { value: "m:" + m, text: monthFmt.format(new Date(yy, mm - 1, 1)) }));
+        }
+        select.replaceChildren(...presetOptions, group);
+        select.value = period;
+      } catch {
+        // Archives illisibles : seules les périodes récentes sont proposées.
+      }
+    }
+
+    function range() {
+      const now = Date.now();
+      if (period.startsWith("m:")) {
+        const [yy, mm] = period.slice(2).split("-").map(Number);
+        return [new Date(yy, mm - 1, 1).getTime(), Math.min(new Date(yy, mm, 1).getTime(), now)];
+      }
+      const preset = presets.find(([v]) => v === period) || presets[0];
+      return [now - preset[2], now];
+    }
+
+    async function load() {
+      const mine = ++seq;
+      const [from, to] = range();
+      charts.replaceChildren(h("div", { class: "placeholder" }, h("span", { text: S.metrics_loading })));
+      journal.replaceChildren();
+      try {
+        const [m, j] = await Promise.all([
+          api.call("metricsRange", { id: deviceId, from, to, points: 600 }),
+          api.call("metricsJournal", { id: deviceId, from, to }),
+        ]);
+        if (mine !== seq) return;
+        render(m, j.events || []);
+      } catch (e) {
+        if (mine !== seq) return;
+        charts.replaceChildren(h("div", { class: "placeholder" }, h("span", { text: errorMessage(e) })));
+      }
+    }
+
+    function render(m, events) {
+      const lines = [...(m.notes || [])];
+      if (m.minutes) lines.unshift(fmt(S.metrics_coverage, formatLong(m.minutes * 60)) + ".");
+      notes.replaceChildren(...lines.map((text) => h("div", { text })));
+      notes.classList.toggle("hidden", !lines.length);
+      if (!m.points.length) {
+        charts.replaceChildren(h("div", { class: "placeholder" }, h("span", { class: "ni" }, icon("chart", "", 28)), h("span", { text: S.metrics_empty })));
+      } else {
+        const block = (title, series, percent) => {
+          const fmtV = percent ? percentText : celsius;
+          const legend = series.filter((s) => m.summary[s.key] != null).map((s) => h("span", { class: "mleg" },
+            h("i", { class: s.cls }), h("b", { text: s.label }), fmt(S.metrics_stats, fmtV(m.summary[s.key]), fmtV(m.summary[s.maxKey]))));
+          if (!legend.length) return null;
+          return h("section", { class: "mblock" }, h("div", { class: "hist-head", text: title }),
+            metricsChart({ points: m.points, from: m.from, to: m.to, step: m.step, series: series.filter((s) => m.summary[s.key] != null), percent }),
+            h("div", { class: "mlegend" }, legend));
+        };
+        charts.replaceChildren(...[
+          block(S.metrics_temp, [{ key: "ct", maxKey: "ctx", label: "CPU", cls: "s-cpu" }, { key: "gt", maxKey: "gtx", label: "GPU", cls: "s-gpu" }], false),
+          block(S.metrics_load, [{ key: "cl", maxKey: "clx", label: "CPU", cls: "s-cpu" }, { key: "gl", maxKey: "glx", label: "GPU", cls: "s-gpu" }], true),
+        ].filter(Boolean));
+      }
+      if (!events.length) {
+        journal.replaceChildren(h("div", { class: "hist-note", text: S.metrics_journal_empty }));
+        return;
+      }
+      const now = Date.now();
+      const nodes = [];
+      let day = null;
+      for (const e of events.slice(0, 300)) {
+        const key = startOfDay(e.time);
+        if (key !== day) {
+          day = key;
+          nodes.push(h("div", { class: "day", text: dayLabel(e.time, now) }));
+        }
+        nodes.push(eventRow(e, now, { clockOnly: true }));
+      }
+      journal.replaceChildren(...nodes);
     }
   }
 
@@ -3289,7 +3560,12 @@
         b.running ? S.backup_running : b.paused ? fmt(S.backup_paused, b.paused) : S.backup_now_help,
         b.running ? null : backupNow);
       if (b.paused) now.querySelector(".supporting").classList.add("bad");
-      return [github, folder, now, restore,
+      const a = b.archive || {};
+      const archiveText = !b.github ? S.archive_need_github : !a.enabled ? S.archive_off : a.running ? S.archive_running :
+        a.error ? a.error : a.last ? fmt(S.archive_last, formatDuration(Math.max(0, Date.now() - a.last))) : S.archive_pending;
+      const archiveItem = settingItem("chart", S.archive_title, archiveText, !b.github ? connect : a.enabled ? archiveDialog : archiveEnableDialog);
+      if (a.enabled && a.error) archiveItem.querySelector(".supporting").classList.add("bad");
+      return [github, folder, now, archiveItem, restore,
         settingItem("delete", S.backup_disable, S.backup_disable_help, disableDialog, { danger: true, chevron: false })];
     }
 
@@ -3465,6 +3741,55 @@
           { label: S.close, onClick: () => dialog.close() },
         ],
       });
+    }
+
+    function archiveEnableDialog() {
+      const dialog = openDialog({
+        iconName: "chart",
+        title: S.archive_enable_title,
+        body: [h("p", { text: S.archive_enable_text })],
+        actions: [
+          { label: S.cancel, onClick: () => dialog.close() },
+          { label: S.archive_enable_ok, onClick: async () => {
+            dialog.close();
+            try {
+              await api.call("archiveEnable", { enabled: true });
+            } catch (e) {
+              alertDialog(S.archive_title, errorMessage(e));
+            }
+          } },
+        ],
+      });
+    }
+
+    function archiveDialog() {
+      const dialog = openDialog({
+        iconName: "chart",
+        title: S.archive_title,
+        body: [h("p", { text: S.archive_dialog_text })],
+        actions: [
+          { label: S.archive_disable, kind: "danger", onClick: async () => {
+            dialog.close();
+            try {
+              await api.call("archiveEnable", { enabled: false });
+            } catch (e) {
+              snackbar(errorMessage(e));
+            }
+          } },
+          { label: S.archive_now, kind: "sec", onClick: () => { dialog.close(); archiveNow(); } },
+          { label: S.close, onClick: () => dialog.close() },
+        ],
+      });
+    }
+
+    async function archiveNow() {
+      try {
+        const r = await api.call("archiveNow");
+        if (r.skipped?.length) alertDialog(S.archive_now, fmt(S.archive_done, r.minutes) + "\n" + fmt(S.archive_skipped, r.skipped.join(", ")));
+        else snackbar(fmt(S.archive_done, r.minutes));
+      } catch (e) {
+        alertDialog(S.archive_now, errorMessage(e));
+      }
     }
 
     async function backupNow() {

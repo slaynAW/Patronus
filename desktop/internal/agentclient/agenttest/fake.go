@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net"
+	"sort"
 	"sync"
 	"time"
 
@@ -32,6 +33,7 @@ type Server struct {
 	mu       sync.Mutex
 	history  *protocol.History
 	temps    *protocol.Temperatures
+	metrics  map[string][]protocol.MetricsRow
 	commands []string
 	requests []protocol.RequestBody
 	wg       sync.WaitGroup
@@ -63,6 +65,13 @@ func (s *Server) SetHistory(h *protocol.History) {
 func (s *Server) SetTemperatures(t *protocol.Temperatures) {
 	s.mu.Lock()
 	s.temps = t
+	s.mu.Unlock()
+}
+
+// SetMetrics définit les mesures enregistrées, par jour (nil : agent antérieur à 1.8.0).
+func (s *Server) SetMetrics(days map[string][]protocol.MetricsRow) {
+	s.mu.Lock()
+	s.metrics = days
 	s.mu.Unlock()
 }
 
@@ -165,6 +174,23 @@ func (s *Server) handle(conn net.Conn) {
 		} else {
 			resp.History = h
 		}
+	}
+	if body.Cmd == protocol.CmdMetrics {
+		s.mu.Lock()
+		if s.metrics == nil {
+			resp = protocol.ResponseBody{OK: false, Code: "forbidden", Message: "commande « metrics » désactivée sur ce PC"}
+		} else {
+			m := protocol.Metrics{Day: body.Day, Days: []string{}, Rows: []protocol.MetricsRow{}}
+			for day := range s.metrics {
+				m.Days = append(m.Days, day)
+			}
+			sort.Strings(m.Days)
+			if body.Day != "" && s.metrics[body.Day] != nil {
+				m.Rows = s.metrics[body.Day]
+			}
+			resp.Metrics = &m
+		}
+		s.mu.Unlock()
 	}
 	if s.behavior == Reject {
 		resp = protocol.ResponseBody{OK: false, Code: "forbidden", Message: "commande désactivée"}

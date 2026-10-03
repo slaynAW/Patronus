@@ -341,7 +341,7 @@ func (s *Service) diagnosticReport(now time.Time) string {
 	s.describeSharing(line, cfg)
 
 	section("Sauvegardes automatiques")
-	s.describeBackups(line)
+	s.describeBackupsAndArchives(line)
 
 	section("Mises à jour")
 	u := s.updates.snapshot()

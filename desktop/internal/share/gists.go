@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 )
 
 // Fonctions des Gists utilisées par les sauvegardes automatiques (Gist secret du compte, commun aux
@@ -35,6 +36,37 @@ func (g *GitHub) FindGist(ctx context.Context, token, description string) (strin
 		}
 	}
 	return "", nil
+}
+
+// GistInfo est un Gist du compte.
+type GistInfo struct {
+	ID          string
+	Description string
+}
+
+// ListGists renvoie les Gists du compte dont la description commence par prefix (500 Gists examinés
+// au plus, du plus récent au plus ancien).
+func (g *GitHub) ListGists(ctx context.Context, token, prefix string) ([]GistInfo, error) {
+	var out []GistInfo
+	for page := 1; page <= 5; page++ {
+		var gists []struct {
+			ID          string `json:"id"`
+			Description string `json:"description"`
+		}
+		path := fmt.Sprintf("/gists?per_page=100&page=%d", page)
+		if _, err := g.apiLimit(ctx, http.MethodGet, path, token, "", nil, &gists, 8<<20); err != nil {
+			return nil, err
+		}
+		for _, gist := range gists {
+			if strings.HasPrefix(gist.Description, prefix) && gistPattern.MatchString(gist.ID) {
+				out = append(out, GistInfo{ID: gist.ID, Description: gist.Description})
+			}
+		}
+		if len(gists) < 100 {
+			break
+		}
+	}
+	return out, nil
 }
 
 // GistFile est un fichier d'un Gist.

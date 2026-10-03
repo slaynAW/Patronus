@@ -107,6 +107,9 @@ class BackupManager(
     private val mutex = Mutex()
     private val settings = MutableStateFlow<BackupSettings?>(null)
 
+    /** Réglages (lecture seule) : l'archivage utilise le même compte GitHub et le même mot de passe. */
+    internal val current: StateFlow<BackupSettings?> get() = settings
+
     private data class Runtime(
         val running: Boolean = false,
         val paused: String? = null,
@@ -202,6 +205,11 @@ class BackupManager(
         if (rt.dirty && now - rt.changedAt >= DELAY_MS) return true
         val lasts = listOfNotNull(st.lastGithub.takeIf { st.github?.gist?.isNotEmpty() == true }, st.lastFolder.takeIf { st.folder.isNotEmpty() })
         return now - (lasts.minOrNull() ?: 0) >= DAILY_MS
+    }
+
+    /** Met à jour les réglages des archives (enregistrés avec ceux des sauvegardes). */
+    internal suspend fun updateArchive(transform: (ArchiveSettings) -> ArchiveSettings) {
+        save { it.copy(archive = transform(it.archive)) }
     }
 
     private suspend fun save(transform: (BackupSettings) -> BackupSettings): BackupSettings = mutex.withLock {
@@ -314,10 +322,13 @@ class BackupManager(
     suspend fun enable(password: CharArray) {
         try {
             save { st ->
+                val newPassword = String(password)
                 st.copy(
                     enabled = true,
-                    password = String(password),
+                    password = newPassword,
                     device = st.device.ifEmpty { BackupNames.deviceId("android", android.os.Build.MODEL) },
+                    // Nouveau mot de passe : les archives repartent dans des Gists qu'il ouvre (rattrapage complet).
+                    archive = if (st.password != newPassword) st.archive.resetProgress() else st.archive,
                 )
             }
         } finally {
@@ -329,8 +340,8 @@ class BackupManager(
 
     /** Désactive les sauvegardes et oublie le mot de passe (les sauvegardes existantes restent). */
     suspend fun disable() {
-        save { it.copy(enabled = false, password = "") }
-        DiagnosticLog.i(AREA, "sauvegarde automatique désactivée")
+        save { it.copy(enabled = false, password = "", archive = it.archive.copy(enabled = false)) }
+        DiagnosticLog.i(AREA, "sauvegarde automatique désactivée (archives arrêtées)")
     }
 
     /** Dossier choisi (URI d'arborescence, droit d'accès déjà conservé par l'appelant). */
@@ -397,14 +408,18 @@ class BackupManager(
     private suspend fun attach(token: String, user: String) {
         val gist = github.findGist(token, BackupNames.GIST_DESCRIPTION)
             ?: github.createGist(token, BackupNames.GIST_DESCRIPTION, mapOf("LISEZMOI.md" to BackupNames.GIST_NOTE))
-        save { it.copy(github = BackupGitHub(token, user, gist)) }
+        save {
+            // Autre compte : archives à rattraper dans ses propres Gists.
+            val archive = if (it.github?.user != user) it.archive.resetProgress() else it.archive
+            it.copy(github = BackupGitHub(token, user, gist), archive = archive)
+        }
         listing = emptyMap()
         runtime.update { it.copy(errGithub = null, dirty = true, changedAt = 0) }
         DiagnosticLog.i(AREA, "GitHub connecté pour les sauvegardes : @$user, gist ${gist.take(8)}…")
     }
 
     suspend fun disconnect() {
-        save { it.copy(github = null, lastGithub = 0, uploaded = emptyList()) }
+        save { it.copy(github = null, lastGithub = 0, uploaded = emptyList(), archive = it.archive.resetProgress().copy(enabled = false)) }
         listing = emptyMap()
         runtime.update { it.copy(errGithub = null) }
         DiagnosticLog.i(AREA, "GitHub déconnecté des sauvegardes")

@@ -13,6 +13,10 @@ Anciennement **Wake On LAN** (jusqu'à la version 1.5.0).
 - ⏻ **Extinction, redémarrage et mise en veille à distance** grâce à un petit agent à installer sur les PC (Windows, Linux, macOS).
 - 🌡️ **Températures du processeur et de la carte graphique** de chaque PC allumé (agent 1.5.0), en orange dès 80 °C
   et en rouge dès 90 °C, et leur **utilisation en %** (agent 1.7.0), mesurée comme dans le Gestionnaire des tâches.
+- 📊 **Mesures dans le temps** : l'agent 1.8.0 enregistre en continu températures et utilisation (une ligne par
+  minute, 90 jours sur le PC) ; graphiques sur 24 h à 90 jours et **archives chiffrées sur GitHub** (un Gist secret
+  par mois, avec le journal des démarrages et arrêts) pour les consulter des mois plus tard
+  ([docs/ARCHIVES.md](docs/ARCHIVES.md)).
 - 🕘 **Historique discret** des démarrages et extinctions sur 30 jours (complet grâce au journal de l'agent, même quand
   l'application était fermée).
 - 🌙 **Style sombre et moderne**, identique sur Android et Windows : synthèse en anneau, plan du réseau, fiche de chaque PC.
@@ -213,6 +217,7 @@ Détails : **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** et **[docs/PROTOCOLE
 | Fuite d'une sauvegarde | Export complet chiffré par mot de passe (PBKDF2 600 000 itérations + AES-256-GCM) ; export « sans clés » sinon. |
 | Fuite d'un rapport de diagnostic | Journal chiffré sur l'appareil ; rapport exporté seulement à la demande, chiffré par mot de passe, sans aucune clé ni jeton ([docs/DIAGNOSTIC.md](docs/DIAGNOSTIC.md)). |
 | Fuite d'une sauvegarde automatique | Chiffrée comme l'export complet par un mot de passe dédié ; Gist secret ; mot de passe et jeton gardés chiffrés sur l'appareil ([docs/SAUVEGARDE.md](docs/SAUVEGARDE.md)). |
+| Fuite des archives des mesures | Chiffrées par le mot de passe des sauvegardes (AES-256-GCM, PBKDF2 600 000) ; seules les dates sont en clair ; Gists secrets ([docs/ARCHIVES.md](docs/ARCHIVES.md)). |
 | Partage des PC | Accès chiffré pour la clé d'un seul appareil (ECDH P-256 + AES-256-GCM) et signé par la personne qui partage (ECDSA P-256) ; code de vérification ; aucun accès aux dépôts GitHub ([docs/PARTAGE.md](docs/PARTAGE.md)). |
 | APK modifié | Signature de l'APK avec une clé privée stockée uniquement dans les secrets GitHub ; somme de contrôle de Gradle vérifiée. |
 
@@ -265,6 +270,8 @@ tuile de réglages rapides, raccourcis, notifications, verrouillage biométrique
 | Température CPU : « LibreHardwareMonitor requis » | Lancez LibreHardwareMonitor **en administrateur** sur ce PC, activez *Options* → *Remote Web Server* → *Run* et cochez *Run On Windows Startup*. |
 | Température CPU : « Serveur web LHM à activer » | LibreHardwareMonitor tourne mais, depuis sa version 0.9.5, l'agent ne peut le lire que par son serveur web : *Options* → *Remote Web Server* → *Run* (inutile d'ouvrir le port 8085 dans le pare-feu). |
 | Température CPU : « Mot de passe LHM à retirer » / « Non lue par LHM » | Désactivez *Options* → *Remote Web Server* → *Authentication* / acceptez l'installation du pilote **PawnIO** au démarrage de LibreHardwareMonitor (ou mettez-le à jour). `wol-agent status` sur le PC détaille ce qu'il trouve. |
+| *Mesures* : graphiques vides | L'agent du PC doit être en version 1.8.0 (il enregistre alors en continu, même application fermée) ; les mesures commencent à son installation. Au-delà de 90 jours ou PC éteint : activez les archives (*Réglages* → *Sauvegarde automatique* → *Archives des mesures*). |
+| Archives : « mot de passe incorrect » / mois absents | Les archives d'un mois sont chiffrées par le mot de passe des sauvegardes de l'époque : un autre mot de passe ne les ouvre pas ([docs/ARCHIVES.md](docs/ARCHIVES.md)). |
 | Pas de température GPU | Avec l'agent 1.6.0, toute carte graphique dédiée est lue (pilote récent requis). Une puce graphique intégrée au processeur (Intel UHD Graphics, Iris Xe, Radeon des APU AMD) n'a pas de sonde à part : l'agent 1.6.1 affiche la température de la puce, celle du processeur (« intégré au CPU ») ; il faut donc que la température du processeur soit lue (LibreHardwareMonitor). |
 | Pas de ligne « Température » | L'agent du PC est antérieur à la version 1.5.0 (il se met à jour après accord de l'utilisateur du PC, ou `wol-agent update`). |
 | Mise à jour de l'APK refusée | Signature différente : voir [docs/SIGNATURE.md](docs/SIGNATURE.md). |

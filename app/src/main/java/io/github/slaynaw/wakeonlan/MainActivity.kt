@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
                 launch { container.historyTracker.run() }
                 launch { container.share.run() }
                 launch { container.backups.run() }
+                launch { container.archives.run() }
                 container.statusMonitor.run(container.allDevices, container.probeAvailability)
             }
         }

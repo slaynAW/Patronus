@@ -28,6 +28,9 @@ object AgentProtocol {
     /** Taille maximale de la réponse à la commande `history` (journal de 30 jours). */
     const val MAX_HISTORY_BYTES = 512 * 1024
 
+    /** Taille maximale de la réponse à la commande `metrics` (une journée de mesures). */
+    const val MAX_METRICS_BYTES = 512 * 1024
+
     /** Démarrages signalés en une fois (commande « wakes »). */
     const val MAX_WAKES = 50
 
@@ -134,6 +137,33 @@ data class AgentHistory(val from: Long = 0, val events: List<AgentHistoryEvent> 
 @Serializable
 data class AgentHistoryEvent(val t: Long, val k: String, val a: String? = null, val c: String? = null, val b: String? = null)
 
+/**
+ * Mesures d'un jour renvoyées par la commande `metrics` (agent 1.8.0) : [day] jour demandé (UTC,
+ * « 2026-10-03 », vide pour la seule liste des jours), [days] jours enregistrés sur le PC (90 au
+ * plus), [rows] une ligne par minute.
+ */
+@Serializable
+data class AgentMetrics(val day: String = "", val days: List<String> = emptyList(), val rows: List<MetricsRow> = emptyList())
+
+/**
+ * Mesures d'une minute : [t] début (s), [n] nombre de relevés, puis moyenne et maximum de la
+ * température du processeur ([ct], [ctx]) et de la carte graphique ([gt], [gtx]), de l'utilisation du
+ * processeur ([cl], [clx]) et de la carte graphique ([gl], [glx]) ; `null` si non lue.
+ */
+@Serializable
+data class MetricsRow(
+    val t: Long,
+    val n: Int = 0,
+    val ct: Double? = null,
+    val ctx: Double? = null,
+    val gt: Double? = null,
+    val gtx: Double? = null,
+    val cl: Double? = null,
+    val clx: Double? = null,
+    val gl: Double? = null,
+    val glx: Double? = null,
+)
+
 @Serializable
 internal data class HelloMessage(val proto: String, val nonce: String)
 
@@ -146,6 +176,8 @@ internal data class RequestBody(
     val by: String? = null,
     /** Heures (s) des démarrages demandés, pour la commande « wakes ». */
     val wakes: List<Long>? = null,
+    /** Jour des mesures demandées (UTC), pour la commande « metrics ». */
+    val day: String? = null,
 )
 
 @Serializable
@@ -170,6 +202,7 @@ internal data class ResponseBody(
     val uptime: Long = 0,
     val history: AgentHistory? = null,
     val temperatures: AgentTemperatures? = null,
+    val metrics: AgentMetrics? = null,
 ) {
     fun toStatus() = AgentStatus(hostname, os, arch, version, uptime, temperatures)
 }

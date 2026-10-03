@@ -315,6 +315,10 @@ func (s *Service) backupEnable(password string) error {
 		return fmt.Errorf("Mot de passe trop court (%d caractères au moins)", config.MinPasswordLength)
 	}
 	b.mu.Lock()
+	if b.st.Password != password {
+		// Nouveau mot de passe : les archives repartent dans des Gists qu'il ouvre (rattrapage complet).
+		b.st.Archive.ResetProgress()
+	}
 	b.st.Enabled, b.st.Password = true, password
 	if b.st.Device == "" {
 		b.st.Device = backup.DeviceID(b.opts.Kind, b.opts.Name)
@@ -326,6 +330,7 @@ func (s *Service) backupEnable(password string) error {
 		return err
 	}
 	diag.Info(areaBackup, "sauvegarde automatique activée (appareil %s)", b.st.Device)
+	s.forgetArchiveKeys()
 	b.poke()
 	s.notify()
 	return nil
@@ -339,9 +344,13 @@ func (s *Service) backupDisable() error {
 	}
 	b.mu.Lock()
 	b.st.Enabled, b.st.Password = false, ""
+	if b.st.Archive != nil {
+		b.st.Archive.Enabled = false
+	}
 	err = b.saveLocked()
 	b.mu.Unlock()
-	diag.Info(areaBackup, "sauvegarde automatique désactivée")
+	s.forgetArchiveKeys()
+	diag.Info(areaBackup, "sauvegarde automatique désactivée (archives arrêtées)")
 	s.notify()
 	return err
 }
@@ -502,6 +511,9 @@ func (s *Service) backupAttach(ctx context.Context, token, user string) error {
 		return err
 	}
 	b.mu.Lock()
+	if b.st.GitHub == nil || b.st.GitHub.User != user {
+		b.st.Archive.ResetProgress() // autre compte : archives à rattraper dans ses Gists
+	}
 	b.st.GitHub = &backup.GitHub{Token: token, User: user, Gist: gist}
 	b.errGH, b.listing = "", nil
 	err = b.saveLocked()
@@ -511,6 +523,7 @@ func (s *Service) backupAttach(ctx context.Context, token, user string) error {
 		return err
 	}
 	diag.Info(areaBackup, "GitHub connecté pour les sauvegardes : @%s, gist %s", user, shortID(gist))
+	s.forgetArchiveKeys()
 	b.poke()
 	s.notify()
 	return nil
@@ -536,8 +549,13 @@ func (s *Service) backupDisconnect() error {
 	}
 	b.mu.Lock()
 	b.st.GitHub, b.st.LastGitHub, b.st.Uploaded, b.errGH, b.listing = nil, 0, nil, "", nil
+	b.st.Archive.ResetProgress()
+	if b.st.Archive != nil {
+		b.st.Archive.Enabled = false
+	}
 	err = b.saveLocked()
 	b.mu.Unlock()
+	s.forgetArchiveKeys()
 	diag.Info(areaBackup, "GitHub déconnecté des sauvegardes")
 	s.notify()
 	return err
@@ -629,6 +647,8 @@ type BackupView struct {
 	GitHub *BackupTargetView `json:"github,omitempty"`
 	Folder *BackupTargetView `json:"folder,omitempty"`
 	Login  *LoginView        `json:"login,omitempty"`
+	// Archive : archives des mesures et du journal des PC.
+	Archive *ArchiveView `json:"archive,omitempty"`
 }
 
 // BackupTargetView est une destination des sauvegardes.
@@ -644,6 +664,7 @@ func (s *Service) backupView() BackupView {
 	if b == nil {
 		return BackupView{}
 	}
+	archiveView := s.archiveView()
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	v := BackupView{
@@ -662,6 +683,7 @@ func (s *Service) backupView() BackupView {
 	if l := b.login; l != nil {
 		v.Login = &LoginView{Code: l.code, URI: l.uri, Error: l.err}
 	}
+	v.Archive = archiveView
 	return v
 }
 
@@ -687,4 +709,10 @@ func (s *Service) describeBackups(line func(string, ...any)) {
 	} else {
 		line("Dossier : aucun")
 	}
+}
+
+// describeBackupsAndArchives : sauvegardes puis archives (verrous pris l'un après l'autre).
+func (s *Service) describeBackupsAndArchives(line func(string, ...any)) {
+	s.describeBackups(line)
+	s.describeArchives(line)
 }
