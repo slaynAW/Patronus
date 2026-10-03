@@ -130,7 +130,7 @@ func TestAddRows(t *testing.T) {
 	rows := []protocol.MetricsRow{
 		{T: start + 60, N: 6, CPUTemp: f(50)},
 		{T: start, N: 6, CPUTemp: f(49)},
-		{T: start - 60, N: 6, CPUTemp: f(40)},     // veille : ignorée
+		{T: start - 60, N: 6, CPUTemp: f(40)},    // veille : ignorée
 		{T: start + 86400, N: 6, CPUTemp: f(40)}, // lendemain : ignorée
 	}
 	day, changed := day.AddRows("AA:BB:CC:DD:EE:01", "PC Bureau", rows)

@@ -30,6 +30,27 @@ type Settings struct {
 	LastFolder int64 `json:"lastFolder,omitempty"`
 	// Uploaded : fichiers de cet appareil présents dans le Gist (pour ne garder que Keep versions).
 	Uploaded []string `json:"uploaded,omitempty"`
+	// Archive : archives chiffrées des mesures et du journal des PC (même compte et même mot de passe).
+	Archive *ArchiveSettings `json:"archive,omitempty"`
+}
+
+// ArchiveSettings sont les réglages des archives de cet appareil (docs/ARCHIVES.md).
+type ArchiveSettings struct {
+	Enabled bool `json:"enabled"`
+	// Synced : par PC (adresse MAC), début de la dernière minute archivée (secondes Unix).
+	Synced map[string]int64 `json:"synced,omitempty"`
+	// Gists : Gist d'archives de chaque mois (« 2026-10 ») utilisé par cet appareil.
+	Gists map[string]string `json:"gists,omitempty"`
+	// Last : dernier archivage réussi (Unix ms).
+	Last int64 `json:"last,omitempty"`
+}
+
+// ResetProgress oublie l'avancement (autre compte ou autre mot de passe) : tout ce que les agents
+// gardent encore sera archivé de nouveau, dans des Gists que le nouveau mot de passe ouvre.
+func (a *ArchiveSettings) ResetProgress() {
+	if a != nil {
+		a.Synced, a.Gists, a.Last = nil, nil, 0
+	}
 }
 
 // GitHub est le compte GitHub des sauvegardes.

@@ -152,6 +152,19 @@ func (c *Client) History(ctx context.Context, host string, agent model.AgentSett
 	return *body.History, nil
 }
 
+// Metrics lit les mesures enregistrées par le PC (day : jour UTC « 2026-10-03 », "" pour la seule
+// liste des jours). Un agent antérieur à 1.8.0 répond Rejected.
+func (c *Client) Metrics(ctx context.Context, host string, agent model.AgentSettings, day string) (protocol.Metrics, error) {
+	body, err := c.exchange(ctx, host, agent, protocol.RequestBody{Cmd: protocol.CmdMetrics, Day: day}, protocol.MaxMetricsBytes)
+	if err != nil {
+		return protocol.Metrics{}, err
+	}
+	if body.Metrics == nil {
+		return protocol.Metrics{}, &Error{Code: Protocol, Detail: "mesures absentes de la réponse"}
+	}
+	return *body.Metrics, nil
+}
+
 // ReportWakes signale au journal du PC les démarrages demandés depuis cet appareil (heures en secondes)
 // et renvoie le journal à jour. Un agent antérieur à 1.4.0 répond Rejected.
 func (c *Client) ReportWakes(ctx context.Context, host string, agent model.AgentSettings, times []int64) (protocol.History, error) {
@@ -183,6 +196,7 @@ type responseBody struct {
 	Version  string            `json:"version"`
 	Uptime   int64             `json:"uptime"`
 	History  *protocol.History `json:"history"`
+	Metrics  *protocol.Metrics `json:"metrics"`
 	// Temperatures : réponse à « status » d'un agent 1.5.0 ou plus.
 	Temperatures *protocol.Temperatures `json:"temperatures"`
 }

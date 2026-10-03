@@ -123,6 +123,9 @@ type Service struct {
 	clientLog clientLogLimit
 	// Sauvegardes automatiques (verrou propre) ; nil si indisponibles.
 	backups *backups
+	// Archives des mesures et du journal sur GitHub (verrou propre, jamais pris en tenant celui
+	// des sauvegardes) ; nil si les sauvegardes sont indisponibles.
+	archives *archiver
 }
 
 type importState struct {
@@ -159,6 +162,9 @@ func New(opts Options) *Service {
 	s.agents = newAgentDownloads(opts.Agent)
 	s.sharing = newSharer(opts.Share)
 	s.backups = newBackups(opts.Backup)
+	if s.backups != nil {
+		s.archives = newArchiver()
+	}
 	if s.histStore != nil {
 		var err error
 		if s.hist, err = s.histStore.Load(); err != nil {
@@ -212,6 +218,7 @@ func (s *Service) Run(ctx context.Context) {
 	go s.runUpdates(ctx)
 	go s.runShare(ctx)
 	go s.runBackups(ctx)
+	go s.runArchives(ctx)
 	s.updateMonitor()
 	ticker := time.NewTicker(s.netPoll)
 	defer ticker.Stop()
@@ -398,8 +405,12 @@ type callParams struct {
 	Owner      string            `json:"owner"`
 	Rights     map[string]string `json:"rights"`
 	Platform   string            `json:"platform"`
-	Install    bool              `json:"install"`
-	Level      string            `json:"level"`
+	// From, To (millisecondes) et Points : période et finesse de l'écran « Mesures ».
+	From    int64  `json:"from"`
+	To      int64  `json:"to"`
+	Points  int    `json:"points"`
+	Install bool   `json:"install"`
+	Level   string `json:"level"`
 }
 
 // Call exécute une méthode de l'interface ; params est un objet JSON. Chaque action et chaque erreur
@@ -476,6 +487,16 @@ func (s *Service) dispatch(method string, p callParams) (any, error) {
 		// PC affiché en détail (vide : aucun) : sondé chaque seconde pour le tracé de latence.
 		s.monitor.SetLive(p.ID)
 		return nil, nil
+	case "archiveEnable":
+		return nil, s.archiveEnable(p.Enabled)
+	case "archiveNow":
+		return s.archiveNow(context.Background())
+	case "metricsRange":
+		return s.metricsRange(p.ID, p.From, p.To, p.Points)
+	case "metricsJournal":
+		return s.metricsJournal(p.ID, p.From, p.To)
+	case "metricsMonths":
+		return s.metricsMonths(p.Refresh)
 	case "getHistory":
 		if p.Refresh {
 			s.refreshAgentHistories(p.ID, true)
