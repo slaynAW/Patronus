@@ -144,6 +144,10 @@ type Temperatures struct {
 	GPU *float64 `json:"gpu,omitempty"`
 	// GPUName est le nom de la carte graphique (« NVIDIA GeForce RTX 4070 »).
 	GPUName string `json:"gpuName,omitempty"`
+	// GPUShared : la carte graphique est intégrée au processeur et n'a pas de sonde lisible à
+	// part (Intel UHD Graphics…) ; GPU vaut alors la température de la puce, celle du processeur
+	// (agent 1.6.1 ou plus).
+	GPUShared bool `json:"gpuShared,omitempty"`
 	// CPUHint explique l'absence de la température du processeur : CPUHintLHM sous Windows.
 	CPUHint string `json:"cpuHint,omitempty"`
 	// LHM précise ce qui empêche de lire LibreHardwareMonitor quand CPUHint vaut CPUHintLHM

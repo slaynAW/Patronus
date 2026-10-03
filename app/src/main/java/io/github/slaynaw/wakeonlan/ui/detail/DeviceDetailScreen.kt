@@ -351,6 +351,14 @@ private fun InfoCard(item: DeviceItem) {
                 temps.gpu?.let { gpu ->
                     RowDivider()
                     KeyValueRow(stringResource(R.string.detail_temp_gpu), formatCelsius(gpu), valueColor = temperatureColor(gpu))
+                    if (temps.gpuShared) {
+                        Text(
+                            stringResource(R.string.temperature_gpu_shared_help, temps.gpuName.ifBlank { "GPU" }),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = WolPalette.Text2,
+                            modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 11.dp),
+                        )
+                    }
                 }
             }
         }

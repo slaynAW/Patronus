@@ -119,11 +119,14 @@ fun temperatureColor(celsius: Double?, normal: Color = WolPalette.Text): Color =
     else -> normal
 }
 
-/** « CPU 54 °C · GPU 61 °C » ; vide si aucune température n'est connue. */
+/**
+ * « CPU 54 °C · GPU 61 °C » ; vide si aucune température n'est connue. Une puce graphique intégrée
+ * ([AgentTemperatures.gpuShared]) n'est pas répétée : sa température est celle du processeur.
+ */
 @Composable
 fun AgentTemperatures.summary(): String = listOfNotNull(
     cpu?.let { stringResource(R.string.temperature_cpu_short, formatCelsius(it)) },
-    gpu?.let { stringResource(R.string.temperature_gpu_short, formatCelsius(it)) },
+    gpu?.takeUnless { gpuShared && cpu != null }?.let { stringResource(R.string.temperature_gpu_short, formatCelsius(it)) },
 ).joinToString(" · ")
 
 /** Température la plus élevée (couleur d'un résumé). */

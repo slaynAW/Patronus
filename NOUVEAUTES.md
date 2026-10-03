@@ -3,6 +3,10 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.6.1
+
+- **Température GPU des PC à graphique intégré** (Intel UHD Graphics, Iris Xe, Radeon des processeurs AMD) : ces puces font partie du processeur et n'ont pas de sonde à part ; la fiche du PC affiche désormais la température de la puce, en le précisant (agent 1.6.1).
+
 ## 1.6.0
 
 - **Sauvegarde automatique chiffrée** : *Réglages* → *Sauvegarde automatique*. Après chaque changement (PC, réglages, partage) et chaque jour, une sauvegarde complète est chiffrée par votre mot de passe et enregistrée dans un Gist secret de votre compte GitHub et/ou dans un dossier ; les 7 dernières versions sont gardées.

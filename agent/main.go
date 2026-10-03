@@ -374,6 +374,9 @@ func describeTemperatures(t protocol.Temperatures) string {
 		if t.GPUName != "" {
 			gpu += " (" + t.GPUName + ")"
 		}
+		if t.GPUShared {
+			gpu += ", intégrée au processeur : température de la puce"
+		}
 		parts = append(parts, gpu)
 	}
 	if len(parts) == 0 {

@@ -5,6 +5,10 @@ compilé par la CI. **Ajoutez une section (numéro supérieur) à chaque modific
 numéro que les agents installés comparent au leur pour proposer la mise à jour. Le texte de la section est
 affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
+## 1.6.1
+
+- **Température GPU des PC à graphique intégré** (Intel UHD Graphics 770, Iris Xe, Radeon des processeurs AMD) : ces puces font partie du processeur et n'ont pas de sonde lisible à part (le Gestionnaire des tâches n'en affiche pas non plus). L'agent transmet la température de la puce, celle du processeur, en le précisant.
+
 ## 1.6.0
 
 - **Température de la carte graphique pour toutes les marques** : NVIDIA, AMD et Intel Arc sont lues comme dans le Gestionnaire des tâches, sans rien installer (seules les cartes NVIDIA l'étaient).

@@ -26,7 +26,17 @@ import (
 
 func read() protocol.Temperatures {
 	var t protocol.Temperatures
-	t.GPU, t.GPUName = hottestGPU(append(nvidiaGPUs(), adapterReadings()...))
+	list := adapters()
+	readings := nvidiaGPUs()
+	integrated, hasIntegrated := "", false
+	for _, a := range list {
+		if a.temp > 0 {
+			readings = append(readings, gpuReading{temp: a.temp, name: a.name})
+		} else if a.integrated && !hasIntegrated {
+			integrated, hasIntegrated = a.name, true
+		}
+	}
+	t.GPU, t.GPUName = hottestGPU(readings)
 	lhm := readLHM(nil)
 	t.CPU = pickCPU(lhm.sensors)
 	if t.CPU == nil {
@@ -35,6 +45,7 @@ func read() protocol.Temperatures {
 	if t.GPU == nil {
 		t.GPU, t.GPUName = pickGPU(lhm.sensors)
 	}
+	shareCPU(&t, integrated, hasIntegrated)
 	return t
 }
 
@@ -46,10 +57,13 @@ func details() []string {
 	}
 	list := adapters()
 	for _, a := range list {
-		if a.temp > 0 {
+		switch {
+		case a.temp > 0:
 			note("Carte graphique : %s, %.0f °C", a.name, a.temp)
-		} else {
-			note("Carte graphique : %s, température non fournie par le pilote (puce intégrée ou pilote ancien)", a.name)
+		case a.integrated:
+			note("Carte graphique : %s, intégrée au processeur, sans sonde à part : la température de la puce (processeur) est affichée", a.name)
+		default:
+			note("Carte graphique : %s, température non fournie par le pilote (pilote trop ancien ?)", a.name)
 		}
 	}
 	if len(list) == 0 {
@@ -145,6 +159,7 @@ var (
 )
 
 const (
+	kmtqaiAdapterAddress      = 6  // KMTQAITYPE_ADAPTERADDRESS
 	kmtqaiAdapterRegistryInfo = 8  // KMTQAITYPE_ADAPTERREGISTRYINFO
 	kmtqaiAdapterPerfData     = 62 // KMTQAITYPE_ADAPTERPERFDATA
 	maxAdapters               = 16
@@ -197,8 +212,9 @@ type d3dkmtAdapterRegistryInfo struct {
 
 // adapter : carte graphique vue par Windows ; temp vaut 0 si le pilote ne la donne pas.
 type adapter struct {
-	name string
-	temp float64
+	name       string
+	temp       float64
+	integrated bool // puce graphique intégrée au processeur
 }
 
 // adapters liste les cartes graphiques matérielles et leur température.
@@ -246,7 +262,13 @@ func adapters() []adapter {
 		if name == "" && temp == 0 {
 			continue
 		}
-		out = append(out, adapter{name: name, temp: temp})
+		// D3DKMT_ADAPTERADDRESS : emplacement PCI (bus, périphérique, fonction).
+		var addr pciAddress
+		where := &addr
+		if !queryAdapter(a.Adapter, kmtqaiAdapterAddress, unsafe.Pointer(&addr), unsafe.Sizeof(addr)) {
+			where = nil
+		}
+		out = append(out, adapter{name: name, temp: temp, integrated: integratedGPU(name, where)})
 	}
 	return out
 }
@@ -256,19 +278,6 @@ func queryAdapter(handle, kind uint32, data unsafe.Pointer, size uintptr) bool {
 	r, _, _ := procQueryAdapterInf.Call(uintptr(unsafe.Pointer(&q)))
 	return r == 0 // STATUS_SUCCESS
 }
-
-// adapterReadings : cartes dont le pilote donne la température.
-func adapterReadings() []gpuReading {
-	var out []gpuReading
-	for _, a := range adapters() {
-		if a.temp > 0 {
-			out = append(out, gpuReading{temp: a.temp, name: a.name})
-		}
-	}
-	return out
-}
-
-// --- LibreHardwareMonitor ---
 
 // lhmReading : ce que LibreHardwareMonitor a fourni ; state (protocol.LHM…) explique l'absence
 // de température du processeur.

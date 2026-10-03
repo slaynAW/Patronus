@@ -105,6 +105,47 @@ func hottestGPU(readings []gpuReading) (*float64, string) {
 	return best, name
 }
 
+// pciAddress : emplacement d'une carte graphique sur le bus PCI.
+type pciAddress struct {
+	Bus, Device, Function uint32
+}
+
+// intelIGPUAddress : emplacement de la puce graphique intégrée aux processeurs Intel (00:02.0),
+// toujours le même depuis 2011 ; une carte Intel Arc dédiée est ailleurs.
+var intelIGPUAddress = pciAddress{0, 2, 0}
+
+// amdIGPUName : puces graphiques intégrées aux processeurs AMD (« AMD Radeon(TM) Graphics »,
+// « AMD Radeon(TM) Vega 8 Graphics », « AMD Radeon 780M Graphics ») ; les cartes dédiées ont un
+// modèle (« Radeon RX 7800 XT », « Radeon Pro W7600 »).
+var amdIGPUName = regexp.MustCompile(`(?i)radeon(\(tm\))?( vega \d+)? graphics$|radeon(\(tm\))? \d{3}m\b`)
+
+// integratedGPU indique si la carte graphique est la puce intégrée au processeur ; addr est nil
+// si son emplacement est inconnu.
+func integratedGPU(name string, addr *pciAddress) bool {
+	lower := strings.ToLower(name)
+	switch {
+	case strings.Contains(lower, "intel"):
+		if addr != nil {
+			return *addr == intelIGPUAddress
+		}
+		return strings.Contains(lower, "uhd graphics") || strings.Contains(lower, "hd graphics") || strings.Contains(lower, "iris")
+	case strings.Contains(lower, "amd") || strings.Contains(lower, "radeon"):
+		return amdIGPUName.MatchString(strings.TrimSpace(name))
+	}
+	return false
+}
+
+// shareCPU complète t quand aucune carte graphique ne donne sa température mais qu'une puce
+// graphique intégrée au processeur est présente : elle n'a pas de sonde lisible à part et partage
+// la puce du processeur, dont la température est reprise (GPUShared).
+func shareCPU(t *protocol.Temperatures, integrated string, found bool) {
+	if t.GPU != nil || t.CPU == nil || !found {
+		return
+	}
+	v := *t.CPU
+	t.GPU, t.GPUName, t.GPUShared = &v, integrated, true
+}
+
 // --- LibreHardwareMonitor ---
 
 // lhmSensor est un capteur de température publié par LibreHardwareMonitor.

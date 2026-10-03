@@ -35,11 +35,14 @@ func TestD3DKMTLayout(t *testing.T) {
 	if unsafe.Sizeof(d3dkmtAdapterInfo{}) != 20 || unsafe.Sizeof(d3dkmtEnumAdapters2{}) != 16 {
 		t.Errorf("D3DKMT_ADAPTERINFO %d, D3DKMT_ENUMADAPTERS2 %d", unsafe.Sizeof(d3dkmtAdapterInfo{}), unsafe.Sizeof(d3dkmtEnumAdapters2{}))
 	}
+	if unsafe.Sizeof(pciAddress{}) != 12 {
+		t.Errorf("D3DKMT_ADAPTERADDRESS : %d", unsafe.Sizeof(pciAddress{}))
+	}
 	if unsafe.Sizeof(d3dkmtAdapterRegistryInfo{}) != 4*260*2 {
 		t.Errorf("D3DKMT_ADAPTERREGISTRYINFO : %d", unsafe.Sizeof(d3dkmtAdapterRegistryInfo{}))
 	}
 	// Lecture réelle : la machine de CI n'a que l'adaptateur logiciel, ignoré.
 	for _, a := range adapters() {
-		t.Logf("carte : %q, %.1f °C", a.name, a.temp)
+		t.Logf("carte : %q, %.1f °C, intégrée %t", a.name, a.temp, a.integrated)
 	}
 }
