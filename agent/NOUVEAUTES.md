@@ -5,6 +5,10 @@ compilé par la CI. **Ajoutez une section (numéro supérieur) à chaque modific
 numéro que les agents installés comparent au leur pour proposer la mise à jour. Le texte de la section est
 affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
+## 1.7.0
+
+- **Utilisation du processeur et de la carte graphique en %**, affichée par les applications 1.7.0. Sous Windows, elle est mesurée exactement comme dans le Gestionnaire des tâches (compteurs de performance de Windows), pour toutes les cartes graphiques, y compris les puces intégrées (Intel UHD…), sans rien installer. `wol-agent status` l'affiche aussi.
+
 ## 1.6.1
 
 - **Température GPU des PC à graphique intégré** (Intel UHD Graphics 770, Iris Xe, Radeon des processeurs AMD) : ces puces font partie du processeur et n'ont pas de sonde lisible à part (le Gestionnaire des tâches n'en affiche pas non plus). L'agent transmet la température de la puce, celle du processeur, en le précisant.

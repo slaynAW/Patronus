@@ -11,7 +11,10 @@ import (
 // serveur web) doit échouer proprement et indiquer ce qu'il manque pour le processeur.
 func TestReadWithoutSensors(t *testing.T) {
 	got := Read()
-	t.Logf("relevé : cpu=%v gpu=%v nom=%q indice=%q lhm=%q", value(got.CPU), value(got.GPU), got.GPUName, got.CPUHint, got.LHM)
+	t.Logf("relevé : cpu=%v gpu=%v nom=%q indice=%q lhm=%q utilisation cpu=%v gpu=%v", value(got.CPU), value(got.GPU), got.GPUName, got.CPUHint, got.LHM, value(got.CPULoad), value(got.GPULoad))
+	if got.CPULoad == nil {
+		t.Error("utilisation du processeur absente")
+	}
 	if got.CPU == nil && (got.CPUHint != protocol.CPUHintLHM || got.LHM != protocol.LHMNotRunning) {
 		t.Errorf("processeur absent sans indication : %+v", got)
 	}
@@ -34,6 +37,9 @@ func TestD3DKMTLayout(t *testing.T) {
 	}
 	if unsafe.Sizeof(d3dkmtAdapterInfo{}) != 20 || unsafe.Sizeof(d3dkmtEnumAdapters2{}) != 16 {
 		t.Errorf("D3DKMT_ADAPTERINFO %d, D3DKMT_ENUMADAPTERS2 %d", unsafe.Sizeof(d3dkmtAdapterInfo{}), unsafe.Sizeof(d3dkmtEnumAdapters2{}))
+	}
+	if unsafe.Sizeof(pdhCounterValue{}) != 16 || unsafe.Offsetof(pdhCounterValue{}.Value) != 8 || unsafe.Sizeof(pdhCounterValueItem{}) != 24 {
+		t.Errorf("PDH_FMT_COUNTERVALUE %d, ITEM %d", unsafe.Sizeof(pdhCounterValue{}), unsafe.Sizeof(pdhCounterValueItem{}))
 	}
 	if unsafe.Sizeof(pciAddress{}) != 12 {
 		t.Errorf("D3DKMT_ADAPTERADDRESS : %d", unsafe.Sizeof(pciAddress{}))

@@ -134,14 +134,22 @@ type ResponseBody struct {
 	Uptime   int64  `json:"uptime"`
 	// History n'est renseigné que pour la commande « history ».
 	History *History `json:"history,omitempty"`
-	// Temperatures n'est renseigné que pour la commande « status » (agent 1.5.0 ou plus).
+	// Temperatures n'est renseigné que pour la commande « status » (agent 1.5.0 ou plus) ; il
+	// contient aussi l'utilisation du processeur et de la carte graphique (agent 1.7.0 ou plus).
 	Temperatures *Temperatures `json:"temperatures,omitempty"`
 }
 
-// Temperatures donne les températures du PC en °C ; un capteur illisible est absent.
+// Temperatures donne les températures du PC en °C et l'utilisation du processeur et de la carte
+// graphique en % ; un capteur illisible est absent.
 type Temperatures struct {
 	CPU *float64 `json:"cpu,omitempty"`
 	GPU *float64 `json:"gpu,omitempty"`
+	// CPULoad : utilisation du processeur en % (0 à 100), mesurée sur une seconde comme le
+	// Gestionnaire des tâches (agent 1.7.0 ou plus).
+	CPULoad *float64 `json:"cpuLoad,omitempty"`
+	// GPULoad : utilisation de la carte graphique GPUName en % (0 à 100) : moteur le plus occupé,
+	// comme le Gestionnaire des tâches (agent 1.7.0 ou plus).
+	GPULoad *float64 `json:"gpuLoad,omitempty"`
 	// GPUName est le nom de la carte graphique (« NVIDIA GeForce RTX 4070 »).
 	GPUName string `json:"gpuName,omitempty"`
 	// GPUShared : la carte graphique est intégrée au processeur et n'a pas de sonde lisible à

@@ -132,6 +132,8 @@
     <string name="detail_uptime">Allumé depuis</string>
     <string name="detail_temp_cpu">Température CPU</string>
     <string name="detail_temp_gpu">Température GPU</string>
+    <string name="detail_load_cpu">Utilisation CPU</string>
+    <string name="detail_load_gpu">Utilisation GPU</string>
     <string name="temperature_gpu_shared_help">%1$s est intégré au processeur et n’a pas de sonde à part : c’est la température de la puce, la même que celle du processeur.</string>
     <string name="temperature_cpu_lhm">LibreHardwareMonitor requis</string>
     <string name="temperature_cpu_lhm_help">Sur ce PC, lancez LibreHardwareMonitor en administrateur et activez son serveur web : Options → Remote Web Server → Run. Dans Options, cochez aussi Run On Windows Startup.</string>

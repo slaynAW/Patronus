@@ -116,7 +116,7 @@ func agentReport(cfgPath string, now time.Time) string {
 			line("⚠ Réseau « %s » classé Public : l'agent est bloqué par le pare-feu (applications : PC vu éteint)", p.Name)
 		}
 	}
-	line("Températures : %s", describeTemperatures(sensors.Read()))
+	line("Capteurs : %s", describeTemperatures(sensors.Read()))
 	for _, d := range sensors.Details() {
 		line("- %s", d)
 	}

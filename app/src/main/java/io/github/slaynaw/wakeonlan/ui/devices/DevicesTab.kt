@@ -202,7 +202,7 @@ private fun DeviceCard(
                     color = WolPalette.Text2,
                     modifier = Modifier.padding(top = 2.dp),
                 )
-                agent.temperatures?.takeIf { it.cpu != null || it.gpu != null }?.let { temps ->
+                agent.temperatures?.takeIf { it.hasReadings() }?.let { temps ->
                     val color = temperatureColor(temps.hottest(), WolPalette.Text2)
                     Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(WolIcons.Thermometer, contentDescription = null, tint = color, modifier = Modifier.size(14.dp))

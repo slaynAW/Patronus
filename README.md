@@ -12,7 +12,7 @@ Anciennement **Wake On LAN** (jusqu'à la version 1.5.0).
   minute (une mesure par seconde), avec min / moyenne / max et sondes restées sans réponse ; mini-tracés dans les listes.
 - ⏻ **Extinction, redémarrage et mise en veille à distance** grâce à un petit agent à installer sur les PC (Windows, Linux, macOS).
 - 🌡️ **Températures du processeur et de la carte graphique** de chaque PC allumé (agent 1.5.0), en orange dès 80 °C
-  et en rouge dès 90 °C.
+  et en rouge dès 90 °C, et leur **utilisation en %** (agent 1.7.0), mesurée comme dans le Gestionnaire des tâches.
 - 🕘 **Historique discret** des démarrages et extinctions sur 30 jours (complet grâce au journal de l'agent, même quand
   l'application était fermée).
 - 🌙 **Style sombre et moderne**, identique sur Android et Windows : synthèse en anneau, plan du réseau, fiche de chaque PC.

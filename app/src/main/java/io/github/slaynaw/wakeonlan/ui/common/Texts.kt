@@ -119,15 +119,29 @@ fun temperatureColor(celsius: Double?, normal: Color = WolPalette.Text): Color =
     else -> normal
 }
 
+/** Utilisation en % : « 23 % ». */
+fun formatPercent(percent: Double): String = "${percent.roundToInt()}\u00A0%"
+
+/** « 54 °C (23 %) », « 54 °C » ou « 23 % » ; null si rien n'est connu. */
+private fun sensorText(celsius: Double?, load: Double?): String? = when {
+    celsius != null && load != null -> "${formatCelsius(celsius)} (${formatPercent(load)})"
+    celsius != null -> formatCelsius(celsius)
+    load != null -> formatPercent(load)
+    else -> null
+}
+
 /**
- * « CPU 54 °C · GPU 61 °C » ; vide si aucune température n'est connue. Une puce graphique intégrée
- * ([AgentTemperatures.gpuShared]) n'est pas répétée : sa température est celle du processeur.
+ * « CPU 54 °C (23 %) · GPU 61 °C (41 %) » ; vide si rien n'est connu. La température d'une puce
+ * graphique intégrée ([AgentTemperatures.gpuShared]) n'est pas répétée : c'est celle du processeur.
  */
 @Composable
 fun AgentTemperatures.summary(): String = listOfNotNull(
-    cpu?.let { stringResource(R.string.temperature_cpu_short, formatCelsius(it)) },
-    gpu?.takeUnless { gpuShared && cpu != null }?.let { stringResource(R.string.temperature_gpu_short, formatCelsius(it)) },
+    sensorText(cpu, cpuLoad)?.let { stringResource(R.string.temperature_cpu_short, it) },
+    sensorText(gpu.takeUnless { gpuShared && cpu != null }, gpuLoad)?.let { stringResource(R.string.temperature_gpu_short, it) },
 ).joinToString(" · ")
+
+/** Au moins une température ou une utilisation est connue. */
+fun AgentTemperatures.hasReadings(): Boolean = listOfNotNull(cpu, gpu, cpuLoad, gpuLoad).isNotEmpty()
 
 /** Température la plus élevée (couleur d'un résumé). */
 fun AgentTemperatures.hottest(): Double? = listOfNotNull(cpu, gpu).maxOrNull()

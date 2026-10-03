@@ -81,7 +81,8 @@ data class AgentStatus(
 )
 
 /**
- * Températures du PC en °C ; un capteur illisible est `null`. [cpuHint] explique l'absence de la
+ * Températures du PC en °C et utilisation du processeur et de la carte graphique en % ([cpuLoad],
+ * [gpuLoad] : mesurées comme le Gestionnaire des tâches, agent 1.7.0) ; un capteur illisible est `null`. [cpuHint] explique l'absence de la
  * température du processeur : [CPU_HINT_LHM] = LibreHardwareMonitor ne la fournit pas (Windows), et
  * [lhm] précise pourquoi (agent 1.6.0 ou plus ; vide avec un agent plus ancien).
  */
@@ -89,6 +90,8 @@ data class AgentStatus(
 data class AgentTemperatures(
     val cpu: Double? = null,
     val gpu: Double? = null,
+    val cpuLoad: Double? = null,
+    val gpuLoad: Double? = null,
     val gpuName: String = "",
     /** Carte graphique intégrée au processeur, sans sonde à part : [gpu] est la température de la puce (agent 1.6.1). */
     val gpuShared: Boolean = false,

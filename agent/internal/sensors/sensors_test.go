@@ -246,12 +246,95 @@ func TestFromHwmon(t *testing.T) {
 }
 
 func TestParseNvidiaSMI(t *testing.T) {
-	gpu, name := parseNvidiaSMI("45, NVIDIA GeForce RTX 3060\n67, NVIDIA GeForce RTX 4090\n")
-	if value(gpu) != 67 || name != "NVIDIA GeForce RTX 4090" {
-		t.Errorf("deux cartes : %v, %q", value(gpu), name)
+	gpu, load, name := parseNvidiaSMI("45, 12, NVIDIA GeForce RTX 3060\n67, 98, NVIDIA GeForce RTX 4090\n")
+	if value(gpu) != 67 || value(load) != 98 || name != "NVIDIA GeForce RTX 4090" {
+		t.Errorf("deux cartes : %v, %v, %q", value(gpu), value(load), name)
 	}
-	if gpu, _ := parseNvidiaSMI("[N/A], NVIDIA\n"); gpu != nil {
+	if gpu, load, _ := parseNvidiaSMI("[N/A], [N/A], NVIDIA\n"); gpu != nil || load != nil {
 		t.Error("valeur non disponible acceptée")
+	}
+	// Température illisible : la carte la plus occupée.
+	gpu, load, name = parseNvidiaSMI("[N/A], 5, NVIDIA A\n[N/A], 40, NVIDIA B\n")
+	if gpu != nil || value(load) != 40 || name != "NVIDIA B" {
+		t.Errorf("sans température : %v, %v, %q", gpu, value(load), name)
+	}
+}
+
+func TestPercent(t *testing.T) {
+	for in, want := range map[float64]float64{0: 0, 12.34: 12.3, 100: 100, 187.5: 100} {
+		if got := value(percent(in)); got != want {
+			t.Errorf("%v → %v, attendu %v", in, got, want)
+		}
+	}
+	if percent(-1) != nil || percent(math.NaN()) != nil || percent(math.Inf(1)) != nil {
+		t.Error("valeur absurde acceptée")
+	}
+}
+
+func TestBusyPercent(t *testing.T) {
+	// 4 s de temps processeur (4 cœurs × 1 s) dont 3 inactives : 25 %.
+	if got := value(busyPercent(1000, 2000, 1300, 2400)); got != 25 {
+		t.Errorf("25 %% : %v", got)
+	}
+	if busyPercent(1000, 2000, 1000, 2000) != nil || busyPercent(1000, 2000, 900, 2400) != nil {
+		t.Error("relevés incohérents acceptés")
+	}
+}
+
+func TestParseProcStat(t *testing.T) {
+	data := "cpu  100 5 50 800 40 3 2 0 10 0\ncpu0 50 2 25 400 20 1 1 0 5 0\nintr 1234\n"
+	idle, total, ok := parseProcStat(data)
+	// idle = 800 + 40 ; total = 100+5+50+800+40+3+2+0 (guest déjà compté dans user)
+	if !ok || idle != 840 || total != 1000 {
+		t.Errorf("/proc/stat : %d, %d, %v", idle, total, ok)
+	}
+	if _, _, ok := parseProcStat("intr 1\n"); ok {
+		t.Error("ligne cpu absente acceptée")
+	}
+}
+
+func TestGPUEngineLoads(t *testing.T) {
+	samples := []engineSample{
+		// Carte A (LUID 0x0000F0B6) : moteur 3D utilisé par deux processus (30 + 25), vidéo 10.
+		{"pid_100_luid_0x00000000_0x0000F0B6_phys_0_eng_0_engtype_3D", 30},
+		{"pid_200_luid_0x00000000_0x0000f0b6_phys_0_eng_0_engtype_3D", 25},
+		{"pid_200_luid_0x00000000_0x0000F0B6_phys_0_eng_3_engtype_VideoDecode", 10},
+		// Carte B : copie à 80, mais plafonnée à 100 si la somme dépasse.
+		{"pid_300_luid_0x00000001_0x00001234_phys_0_eng_1_engtype_Copy", 80},
+		{"pid_301_luid_0x00000001_0x00001234_phys_0_eng_1_engtype_Copy", 40},
+		{"nom inattendu", 99},
+	}
+	loads := gpuEngineLoads(samples)
+	if len(loads) != 2 || loads[0x0000F0B6] != 55 || loads[1<<32|0x1234] != 100 {
+		t.Errorf("utilisation par carte : %v", loads)
+	}
+}
+
+func TestPickGPULoad(t *testing.T) {
+	cards := []loadCard{{"Intel(R) UHD Graphics 770", 1}, {"NVIDIA GeForce RTX 4070", 2}}
+	loads := map[uint64]float64{2: 64.04}
+	// Carte affichée (température) : son utilisation ; une carte absente des compteurs est inactive.
+	if load, _ := pickGPULoad(cards, loads, "NVIDIA GeForce RTX 4070"); value(load) != 64 {
+		t.Errorf("carte affichée : %v", value(load))
+	}
+	if load, _ := pickGPULoad(cards, loads, "Intel(R) UHD Graphics 770"); value(load) != 0 {
+		t.Errorf("carte inactive : %v", value(load))
+	}
+	// Nom inconnu avec plusieurs cartes : pas de devinette.
+	if load, _ := pickGPULoad(cards, loads, "Autre"); load != nil {
+		t.Error("utilisation attribuée à une autre carte")
+	}
+	// Une seule carte : c'est elle, même nommée autrement (lue par LibreHardwareMonitor).
+	if load, name := pickGPULoad(cards[:1], map[uint64]float64{1: 12}, "Intel UHD 770"); value(load) != 12 || name != "Intel UHD 770" {
+		t.Errorf("carte unique : %v, %q", value(load), name)
+	}
+	// Sans carte affichée : la plus occupée, avec son nom.
+	if load, name := pickGPULoad(cards, loads, ""); value(load) != 64 || name != "NVIDIA GeForce RTX 4070" {
+		t.Errorf("plus occupée : %v, %q", value(load), name)
+	}
+	// Compteur absent : rien.
+	if load, _ := pickGPULoad(cards, nil, ""); load != nil {
+		t.Error("utilisation sans compteur")
 	}
 }
 

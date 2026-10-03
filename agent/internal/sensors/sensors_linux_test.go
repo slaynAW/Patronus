@@ -32,6 +32,31 @@ func TestReadHwmon(t *testing.T) {
 	}
 }
 
+func TestAMDGPUBusy(t *testing.T) {
+	root := t.TempDir()
+	if amdgpuBusy(root) != nil {
+		t.Error("sans carte")
+	}
+	for card, v := range map[string]string{"card0": "12\n", "card1": "57\n"} {
+		dir := filepath.Join(root, card, "device")
+		_ = os.MkdirAll(dir, 0o755)
+		if err := os.WriteFile(filepath.Join(dir, "gpu_busy_percent"), []byte(v), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := value(amdgpuBusy(root)); got != 57 {
+		t.Errorf("plus occupée : %v", got)
+	}
+}
+
+func TestReadLinux(t *testing.T) {
+	got := Read()
+	t.Logf("relevé : %+v, processeur %v %%", got, value(got.CPULoad))
+	if got.CPULoad == nil {
+		t.Error("utilisation du processeur absente")
+	}
+}
+
 func TestIntelIGPU(t *testing.T) {
 	root := t.TempDir()
 	write := func(path, content string) {
