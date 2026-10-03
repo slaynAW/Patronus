@@ -123,9 +123,10 @@ class ArchiveManager(
     }.stateIn(scope, SharingStarted.Eagerly, ArchiveUiState())
 
     init {
-        // Autre mot de passe ou autre compte : clés et données lues oubliées.
+        // Autre mot de passe, autre compte ou Gists recopiés (changement du mot de passe) : clés et
+        // données lues oubliées.
         scope.launch {
-            backups.current.map { it?.password to it?.github?.token }.distinctUntilChanged().collect { reset() }
+            backups.current.map { Triple(it?.password, it?.github?.token, it?.rotation == null) }.distinctUntilChanged().collect { reset() }
         }
     }
 
@@ -167,7 +168,7 @@ class ArchiveManager(
         val st = backups.current.value ?: return false
         val rt = runtime.value
         val now = System.currentTimeMillis()
-        if (!st.archive.enabled || access() == null || rt.running) return false
+        if (!st.archive.enabled || access() == null || rt.running || backups.rotationPending()) return false
         if (rt.failed && now - rt.attemptAt < RETRY_MS) return false
         return now - st.archive.last >= EVERY_MS
     }
@@ -204,6 +205,9 @@ class ArchiveManager(
         if (runtime.value.running) throw IOException("archivage déjà en cours")
         runtime.update { it.copy(running = true, attemptAt = System.currentTimeMillis()) }
         try {
+            // Mot de passe changé sur un autre appareil, ou changement en cours : rien n'est écrit.
+            backups.checkPassword()
+            if (backups.rotationPending()) throw IOException("changement du mot de passe des sauvegardes en cours : l'archivage suivra")
             val gistIds = st.archive.gists.toMutableMap()
             val synced = HashMap<String, Long>()
             val work = LinkedHashMap<String, PcWork>()
@@ -225,6 +229,7 @@ class ArchiveManager(
             var files = 0
             var minutes = 0
             for (month in monthsTouched) {
+                if (backups.rotationPending()) throw IOException("changement du mot de passe des sauvegardes en cours : l'archivage suivra")
                 val (f, m) = archiveMonth(acc, month, work, gistIds)
                 files += f
                 minutes += m

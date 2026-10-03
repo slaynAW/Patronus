@@ -134,13 +134,58 @@ object ExportCodec {
                 ?: throw ConfigException(ConfigException.Reason.INVALID_DATA, "Sauvegarde vide")
             return ConfigCodec.fromJson(config) to emptyMap()
         }
+        val plain = decrypt(envelope, encryption, password)
+        val text = String(plain, Charsets.UTF_8)
+        val extra = try {
+            ConfigCodec.json.parseToJsonElement(text).jsonObject.filterKeys { it in EXTRA_KEYS }
+        } catch (e: Exception) {
+            emptyMap()
+        }
+        return ConfigCodec.decode(text) to extra
+    }
+
+    /**
+     * Rechiffre une sauvegarde chiffrée par [oldPassword] avec [newPassword] (sel et IV neufs), sans
+     * toucher à son contenu ni à sa date. Exception WRONG_PASSWORD si [oldPassword] ne l'ouvre pas.
+     */
+    fun reencrypt(text: String, oldPassword: CharArray, newPassword: CharArray, random: SecureRandom = SecureRandom()): String {
+        val envelope = inspect(text)
+        val encryption = envelope.encryption
+            ?: throw ConfigException(ConfigException.Reason.INVALID_DATA, "Sauvegarde non chiffrée")
+        val plain = decrypt(envelope, encryption, oldPassword)
+        try {
+            require(newPassword.size >= MIN_PASSWORD_LENGTH) { "Mot de passe trop court" }
+            val salt = ByteArray(16).also(random::nextBytes)
+            val iv = ByteArray(12).also(random::nextBytes)
+            val sealed = cipher(Cipher.ENCRYPT_MODE, newPassword, salt, iv, DEFAULT_ITERATIONS).doFinal(plain)
+            val next = envelope.copy(
+                config = null,
+                encryption = EncryptionInfo(KDF, DEFAULT_ITERATIONS, b64.encodeToString(salt), CIPHER, b64.encodeToString(iv)),
+                data = b64.encodeToString(sealed),
+            )
+            return ConfigCodec.prettyJson.encodeToString(ExportEnvelope.serializer(), next)
+        } finally {
+            plain.fill(0)
+        }
+    }
+
+    /** Vérifie que [password] ouvre la sauvegarde chiffrée [text] (exception WRONG_PASSWORD sinon). */
+    fun checkPassword(text: String, password: CharArray) {
+        val envelope = inspect(text)
+        val encryption = envelope.encryption
+            ?: throw ConfigException(ConfigException.Reason.INVALID_DATA, "Sauvegarde non chiffrée")
+        decrypt(envelope, encryption, password).fill(0)
+    }
+
+    /** Déchiffre le contenu d'une sauvegarde chiffrée (JSON en clair). */
+    private fun decrypt(envelope: ExportEnvelope, encryption: EncryptionInfo, password: CharArray?): ByteArray {
         if (password == null || password.isEmpty()) {
             throw ConfigException(ConfigException.Reason.PASSWORD_REQUIRED, "Cette sauvegarde est protégée par un mot de passe")
         }
         if (encryption.kdf != KDF || encryption.cipher != CIPHER || encryption.iterations !in MIN_ITERATIONS..MAX_ITERATIONS) {
             throw ConfigException(ConfigException.Reason.INVALID_DATA, "Paramètres de chiffrement non pris en charge")
         }
-        val plain = try {
+        return try {
             val salt = b64Decoder.decode(encryption.salt)
             val iv = b64Decoder.decode(encryption.iv)
             val data = b64Decoder.decode(envelope.data ?: "")
@@ -150,13 +195,6 @@ object ExportCodec {
         } catch (e: IllegalArgumentException) {
             throw ConfigException(ConfigException.Reason.INVALID_DATA, "Sauvegarde corrompue", e)
         }
-        val text = String(plain, Charsets.UTF_8)
-        val extra = try {
-            ConfigCodec.json.parseToJsonElement(text).jsonObject.filterKeys { it in EXTRA_KEYS }
-        } catch (e: Exception) {
-            emptyMap()
-        }
-        return ConfigCodec.decode(text) to extra
     }
 
     /** Données ajoutées reconnues dans une sauvegarde chiffrée : partage, historique. */

@@ -203,14 +203,22 @@ class ShareGitHub(
      * Lit tous les fichiers d'un Gist avec le jeton ; les fichiers tronqués par l'API sont relus en
      * entier ([limit] octets au plus chacun, les plus gros sont ignorés).
      */
-    suspend fun readGist(token: String, id: String, limit: Int): List<GistFile> = withContext(Dispatchers.IO) {
+    suspend fun readGist(token: String, id: String, limit: Int): List<GistFile> = readGist(token, id, limit, strict = false)
+
+    /** Comme [readGist], mais échoue si un fichier dépasse [limit] (pour recopier un Gist sans rien perdre). */
+    suspend fun readGistAll(token: String, id: String, limit: Int): List<GistFile> = readGist(token, id, limit, strict = true)
+
+    private suspend fun readGist(token: String, id: String, limit: Int, strict: Boolean): List<GistFile> = withContext(Dispatchers.IO) {
         checkGist(id)
         val r = request("GET", "/gists/$id", token, limit = 32 shl 20)
         val files = ArrayList<GistFile>()
         (r.json()["files"] as? JsonObject)?.forEach { (name, value) ->
             val f = value as? JsonObject ?: return@forEach
             val size = f["size"]?.jsonPrimitive?.intOrNull ?: 0
-            if (size > limit) return@forEach
+            if (size > limit) {
+                if (strict) throw ShareException(ShareException.Reason.INVALID, "fichier $name trop volumineux ($size octets)")
+                return@forEach
+            }
             val truncated = (f["truncated"] as? JsonPrimitive)?.boolean ?: false
             val content = if (truncated) raw(f["raw_url"]?.jsonPrimitive?.contentOrNull.orEmpty(), limit) else f["content"]?.jsonPrimitive?.contentOrNull.orEmpty()
             files += GistFile(name, size, content)

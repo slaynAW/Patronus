@@ -23,6 +23,20 @@ data class ArchiveSettings(
     fun resetProgress() = copy(synced = emptyMap(), gists = emptyMap(), last = 0)
 }
 
+/**
+ * Changement du mot de passe des sauvegardes en cours (voir BackupManager) : tout ce que [old] ouvre
+ * est rechiffré par le nouveau mot de passe ; [done] étapes faites (reprise après interruption).
+ */
+@Serializable
+data class BackupRotation(val old: String, val done: Set<String> = emptySet(), val started: Long = 0) {
+    override fun toString(): String = "BackupRotation(${done.size} étape(s) faite(s), début $started)"
+
+    companion object {
+        const val BACKUPS = "sauvegardes"
+        const val FOLDER = "dossier"
+    }
+}
+
 /** Compte GitHub des sauvegardes. */
 @Serializable
 data class BackupGitHub(val token: String, val user: String, val gist: String = "")
@@ -47,10 +61,16 @@ data class BackupSettings(
     val uploaded: List<String> = emptyList(),
     /** Archives des mesures (même compte et même mot de passe). */
     val archive: ArchiveSettings = ArchiveSettings(),
+    /** Ancien identifiant (avec le nom du téléphone, avant la 1.9.0) dont les fichiers restent à renommer. */
+    val legacyDevice: String = "",
+    /** Changement du mot de passe en cours (repris s'il a été interrompu). */
+    val rotation: BackupRotation? = null,
+    /** Gist en cours de remplacement → Gist qui le remplace (recopie interrompue, reprise). */
+    val replacing: Map<String, String> = emptyMap(),
 ) {
     override fun toString(): String =
         "BackupSettings(enabled=$enabled, password=${if (password.isEmpty()) "<vide>" else "***"}, device=$device, " +
-            "github=${github?.let { "@${it.user}" }}, folder=$folderLabel)"
+            "github=${github?.let { "@${it.user}" }}, folder=$folderLabel, rotation=${rotation != null})"
 }
 
 /** Fichier des réglages (backup.bin, chiffré). */

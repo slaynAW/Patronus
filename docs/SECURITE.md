@@ -51,7 +51,13 @@
 - **Sauvegarde automatique** : même chiffrement que l'export complet, par un mot de passe propre aux sauvegardes,
   gardé chiffré sur l'appareil (Keystore / DPAPI) ; fichiers dans un Gist **secret** du compte GitHub (droit « gist »
   seulement) et/ou un dossier choisi ; jamais de sauvegarde automatique vide, pause après des données illisibles
-  ([SAUVEGARDE.md](SAUVEGARDE.md)).
+  ([SAUVEGARDE.md](SAUVEGARDE.md)). Noms de fichiers en clair sans le nom de l'appareil (type et identifiant
+  aléatoire, date).
+- **Changement du mot de passe des sauvegardes** : tout ce que l'ancien ouvre (sauvegardes, archives) est rechiffré
+  par le nouveau ; chaque Gist est recopié dans un Gist neuf, vérifié, puis l'ancien est supprimé avec son
+  historique : plus aucune version chiffrée par l'ancien mot de passe ne reste sur GitHub. Un Gist secret n'est
+  pas privé (quiconque en a le lien peut le télécharger) : la protection repose sur le chiffrement, donc sur la
+  force du mot de passe (phrase de plusieurs mots ou 12 caractères aléatoires conseillés).
 - **Archives des mesures** : mesures minute par minute et journal des PC, rangés dans un Gist secret par mois,
   compressés puis chiffrés en AES-256-GCM par une clé dérivée du mot de passe des sauvegardes (PBKDF2-HMAC-SHA256,
   600 000 itérations, sel propre au mois), nom de fichier authentifié ; seules les dates apparaissent en clair

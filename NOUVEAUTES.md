@@ -3,6 +3,13 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.9.0
+
+- **Changer le mot de passe des sauvegardes sans rien perdre** : *Réglages* → *Sauvegarde automatique* → *Changer le mot de passe*. Sauvegardes (GitHub et dossier) et archives des mesures sont rechiffrées par le nouveau mot de passe ; sur GitHub, chaque Gist est recopié, vérifié, puis l'ancien est supprimé avec son historique : l'ancien mot de passe n'ouvre plus rien. Un changement interrompu reprend tout seul.
+- **Vos autres appareils suivent** : ils s'aperçoivent du changement et affichent *Nouveau mot de passe à saisir* ; sauvegardes et archives y reprennent dès qu'il est saisi.
+- **Plus de nom d'appareil sur GitHub** : les fichiers de sauvegarde ne portent plus le nom de votre téléphone ou de votre PC, seulement son type et un identifiant aléatoire. Les fichiers existants sont renommés automatiquement, et l'ancien nom disparaît aussi de l'historique du Gist.
+- Mettez à jour tous vos appareils avant de changer le mot de passe.
+
 ## 1.8.1
 
 - **Connexion GitHub des sauvegardes et des archives** : quand GitHub n'acceptait plus la connexion du partage (expirée ou révoquée), *Sur GitHub* et *Archives des mesures* affichaient « connexion GitHub expirée ou révoquée » sans proposer de se reconnecter. La connexion par code s'ouvre désormais, et elle reconnecte aussi le partage (même compte). Après la connexion depuis *Archives des mesures*, l'activation de l'archivage est proposée directement.

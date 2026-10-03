@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.security.GeneralSecurityException
@@ -132,6 +133,33 @@ object ArchiveCodec {
         }
         if (check != FORMAT) throw ArchiveException("Mot de passe des archives incorrect", wrongPassword = true)
         return key
+    }
+
+    /**
+     * Rechiffre les fichiers d'un Gist d'archives de [oldPassword] vers [newPassword] : nouveau
+     * manifeste (sel neuf), même contenu. Exception (wrongPassword) si l'ancien mot de passe n'ouvre pas
+     * ce mois. Renvoie les fichiers, et ceux que l'ancienne clé n'ouvre pas (abîmés, recopiés tels quels).
+     */
+    fun reencrypt(files: Map<String, String>, oldPassword: CharArray, newPassword: CharArray): Pair<Map<String, String>, List<String>> {
+        val text = files[MANIFEST_FILE] ?: throw ArchiveException("Manifeste absent")
+        val manifest = parseManifest(text)
+        val oldKey = unlock(manifest, oldPassword)
+        val (next, newKey) = newManifest(manifest.month, newPassword)
+        val out = linkedMapOf(MANIFEST_FILE to manifestJson(next), README_FILE to README)
+        val unreadable = ArrayList<String>()
+        for (name in files.keys.sorted()) {
+            if (name == MANIFEST_FILE || name == README_FILE) continue
+            val content = files.getValue(name)
+            val value = try {
+                oldKey.open(name, content, JsonElement.serializer())
+            } catch (e: ArchiveException) {
+                out[name] = content
+                unreadable += name
+                continue
+            }
+            out[name] = newKey.seal(name, JsonElement.serializer(), value)
+        }
+        return out to unreadable
     }
 
     private fun deriveKey(password: CharArray, salt: ByteArray, iterations: Int): ArchiveKey {
