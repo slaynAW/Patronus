@@ -30,6 +30,8 @@ type gistServer struct {
 	seq          int
 	// created : Gists créés (identifiants jamais réutilisés, même après une suppression).
 	created int
+	// failDelete : prochaines suppressions refusées (erreur passagère de GitHub).
+	failDelete int
 }
 
 func newGistServer(t *testing.T) (*gistServer, *httptest.Server) {
@@ -84,7 +86,11 @@ func newGistServer(t *testing.T) (*gistServer, *httptest.Server) {
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		g.mu.Lock()
 		defer g.mu.Unlock()
-		files := g.files[r.PathValue("id")]
+		files, ok := g.files[r.PathValue("id")]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		for name, f := range body.Files {
 			if f == nil {
 				delete(files, name)
@@ -97,8 +103,17 @@ func newGistServer(t *testing.T) (*gistServer, *httptest.Server) {
 	})
 	mux.HandleFunc("DELETE /gists/{id}", func(w http.ResponseWriter, r *http.Request) {
 		g.mu.Lock()
+		defer g.mu.Unlock()
+		if g.failDelete > 0 {
+			g.failDelete--
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
+		if _, ok := g.files[r.PathValue("id")]; !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		delete(g.files, r.PathValue("id"))
-		g.mu.Unlock()
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("GET /gists", func(w http.ResponseWriter, r *http.Request) {

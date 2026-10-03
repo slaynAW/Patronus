@@ -261,15 +261,32 @@ func (s *Service) backupNow(ctx context.Context, manual bool) (BackupResult, err
 	var errGH, errDir string
 	if gh.Gist != "" {
 		content := string(text)
-		files := map[string]*string{name: &content}
-		names := append(slices.DeleteFunc(uploaded, func(n string) bool { return n == name }), name)
-		old := backup.Outdated(names, device, backup.Keep)
-		for _, n := range old {
-			files[n] = nil
+		var names, old []string
+		upload := func() error {
+			files := map[string]*string{name: &content}
+			names = append(slices.DeleteFunc(uploaded, func(n string) bool { return n == name }), name)
+			old = backup.Outdated(names, device, backup.Keep)
+			for _, n := range old {
+				files[n] = nil
+			}
+			ctx, cancel := context.WithTimeout(ctx, backupTimeout)
+			defer cancel()
+			return b.opts.GitHub.UpdateGist(ctx, gh.Token, gh.Gist, files)
 		}
-		ctx, cancel := context.WithTimeout(ctx, backupTimeout)
-		err := b.opts.GitHub.UpdateGist(ctx, gh.Token, gh.Gist, files)
-		cancel()
+		err := upload()
+		if errors.Is(err, share.ErrNotFound) {
+			// Gist recopié par un autre appareil (mot de passe changé, fichiers renommés) : retrouvé sur
+			// le compte, mot de passe vérifié, puis nouvel essai.
+			if found, _, ferr := s.backupGistFiles(ctx, gh.Token, gh.Gist, false); ferr == nil && found != "" && found != gh.Gist {
+				if cerr := s.checkBackupPassword(ctx); errors.Is(cerr, errStalePassword) {
+					return BackupResult{}, cerr
+				}
+				b.mu.Lock()
+				gh.Gist, uploaded = found, slices.Clone(b.st.Uploaded)
+				b.mu.Unlock()
+				err = upload()
+			}
+		}
 		if err != nil {
 			errGH = shareErrorText(err)
 			if errors.Is(err, share.ErrNotFound) {
