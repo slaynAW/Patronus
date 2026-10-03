@@ -59,6 +59,7 @@ import io.github.slaynaw.wakeonlan.ui.common.WolCard
 import io.github.slaynaw.wakeonlan.ui.common.WolIcons
 import io.github.slaynaw.wakeonlan.ui.common.formatCelsius
 import io.github.slaynaw.wakeonlan.ui.common.formatLongDuration
+import io.github.slaynaw.wakeonlan.ui.common.formatPercent
 import io.github.slaynaw.wakeonlan.ui.common.label
 import io.github.slaynaw.wakeonlan.ui.common.rememberDeviceDialogState
 import io.github.slaynaw.wakeonlan.ui.common.rememberNow

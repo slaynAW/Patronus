@@ -48,6 +48,7 @@ import io.github.slaynaw.wakeonlan.ui.common.WolButton
 import io.github.slaynaw.wakeonlan.ui.common.WolCard
 import io.github.slaynaw.wakeonlan.ui.common.WolIcons
 import io.github.slaynaw.wakeonlan.ui.common.formatLongDuration
+import io.github.slaynaw.wakeonlan.ui.common.hasReadings
 import io.github.slaynaw.wakeonlan.ui.common.hottest
 import io.github.slaynaw.wakeonlan.ui.common.icon
 import io.github.slaynaw.wakeonlan.ui.common.label
