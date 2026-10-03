@@ -5,6 +5,10 @@ compilé par la CI. **Ajoutez une section (numéro supérieur) à chaque modific
 numéro que les agents installés comparent au leur pour proposer la mise à jour. Le texte de la section est
 affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
+## 1.8.0
+
+- **Enregistrement continu des mesures** : températures et utilisation du processeur et de la carte graphique relevées toutes les 10 secondes et résumées chaque minute (moyenne et maximum), gardées 90 jours sur le PC, même quand aucune application n'est ouverte. Les applications 1.8.0 les affichent en graphiques et les archivent chiffrées sur GitHub. `wol-agent status` indique les jours enregistrés ; `"metrics": false` dans la configuration le désactive.
+
 ## 1.7.0
 
 - **Utilisation du processeur et de la carte graphique en %**, affichée par les applications 1.7.0. Sous Windows, elle est mesurée exactement comme dans le Gestionnaire des tâches (compteurs de performance de Windows), pour toutes les cartes graphiques, y compris les puces intégrées (Intel UHD…), sans rien installer. `wol-agent status` l'affiche aussi.

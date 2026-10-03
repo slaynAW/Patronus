@@ -47,11 +47,12 @@ et comparées en temps constant.
 
 | Champ | Description |
 |---|---|
-| `cmd` | `status`, `history` (journal, voir plus bas), `wakes` (démarrages demandés, agent 1.4.0 ou plus), `shutdown`, `reboot` ou `sleep` |
+| `cmd` | `status`, `history` (journal, voir plus bas), `wakes` (démarrages demandés, agent 1.4.0 ou plus), `metrics` (mesures minute par minute, agent 1.8.0), `shutdown`, `reboot` ou `sleep` |
 | `delay` | secondes avant l'action (0 – 3600). L'agent attend au minimum 1,5 s pour que la réponse parte d'abord. |
 | `force` | fermer les applications sans attendre (Windows `/f`, Linux `--ignore-inhibitors`) |
 | `by` | facultatif : nom de l'appareil qui envoie la demande (40 caractères au plus), noté au journal (agent 1.4.0 ou plus ; ignoré avant) |
 | `wakes` | pour `wakes` : heures (secondes Unix) des démarrages demandés, 50 au plus |
+| `day` | pour `metrics` : jour UTC des mesures demandées (« 2026-10-03 ») ; absent : seule la liste des jours. Lecture seule, autorisée dès que `status` l'est |
 
 ### Réponse `R`
 
@@ -65,6 +66,7 @@ et comparées en temps constant.
 | `message` | texte lisible |
 | `hostname`, `os`, `arch`, `version` | informations sur le PC et l'agent (`os` = `windows`, `linux`, `darwin`) |
 | `uptime` | secondes depuis le démarrage du système |
+| `metrics` | réponse à `metrics` (agent 1.8.0) : `day` (jour demandé, UTC, « 2026-10-03 », vide pour la seule liste), `days` (jours enregistrés sur le PC, 90 au plus, du plus ancien au plus récent), `rows` : une ligne par minute `{t, n, ct, ctx, gt, gtx, cl, clx, gl, glx}` (début de la minute en secondes, nombre de relevés, puis moyenne et maximum de la température du processeur et de la carte graphique en °C, de l'utilisation du processeur et de la carte graphique en % ; absents si non lus). Réponse de 512 Kio au plus. |
 | `temperatures` | réponse à `status`, agent 1.5.0 ou plus, absent si aucun capteur n'est lisible : `cpu` et `gpu` en °C (arrondis au dixième, absents si illisibles), `cpuLoad` et `gpuLoad` : utilisation en % de 0 à 100, mesurée sur une seconde comme le Gestionnaire des tâches (agent 1.7.0 ; `gpuLoad` est celle de la carte `gpuName`), `gpuName` (nom de la carte), `gpuShared` = `true` quand la carte graphique est intégrée au processeur sans sonde à part et que `gpu` est la température de la puce, celle du processeur (agent 1.6.1), `cpuHint` = `lhm` quand la température du processeur manque parce que LibreHardwareMonitor ne la fournit pas (Windows), précisé par `lhm` (agent 1.6.0) : `not-running` (ne tourne pas), `web-off` (serveur web désactivé), `auth` (serveur web protégé par mot de passe), `no-sensor` (pas de capteur du processeur : pilote PawnIO absent…) |
 | `history` | réponse à `history` uniquement (voir ci-dessous) |
 

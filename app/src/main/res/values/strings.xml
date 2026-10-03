@@ -150,6 +150,7 @@
     <string name="metrics_journal">Journal</string>
     <string name="metrics_journal_empty">Aucun évènement sur cette période.</string>
     <string name="metrics_sources">Une ligne par minute (trait plein : moyenne, trait fin : maximum), lue sur le PC (90 derniers jours) ou dans les archives chiffrées GitHub.</string>
+    <string name="password_hold">Maintenir pour afficher le mot de passe</string>
     <string name="metrics_coverage">%1$s de mesures.</string>
     <string name="temperature_gpu_shared_help">%1$s est intégré au processeur et n’a pas de sonde à part : c’est la température de la puce, la même que celle du processeur.</string>
     <string name="temperature_cpu_lhm">LibreHardwareMonitor requis</string>

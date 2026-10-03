@@ -37,7 +37,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.slaynaw.wakeonlan.R
 import io.github.slaynaw.wakeonlan.archive.ArchiveManager
@@ -52,7 +51,9 @@ import io.github.slaynaw.wakeonlan.ui.common.RowDivider
 import io.github.slaynaw.wakeonlan.ui.common.SectionLabel
 import io.github.slaynaw.wakeonlan.ui.common.WolButton
 import io.github.slaynaw.wakeonlan.ui.common.WolCard
+import io.github.slaynaw.wakeonlan.ui.common.PasswordRevealIcon
 import io.github.slaynaw.wakeonlan.ui.common.WolIcons
+import io.github.slaynaw.wakeonlan.ui.common.rememberPasswordReveal
 import io.github.slaynaw.wakeonlan.ui.common.formatDuration
 import io.github.slaynaw.wakeonlan.ui.theme.WolPalette
 import kotlinx.coroutines.CancellationException
@@ -387,6 +388,7 @@ private fun EnableDialog(onConfirm: (CharArray) -> Unit, onDismiss: () -> Unit) 
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.backup_enable_text), style = MaterialTheme.typography.bodyMedium)
+                val reveal1 = rememberPasswordReveal()
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
@@ -394,16 +396,19 @@ private fun EnableDialog(onConfirm: (CharArray) -> Unit, onDismiss: () -> Unit) 
                     singleLine = true,
                     isError = password.isNotEmpty() && tooShort,
                     supportingText = { Text(stringResource(R.string.field_password_help, ExportCodec.MIN_PASSWORD_LENGTH)) },
-                    visualTransformation = PasswordVisualTransformation(),
+                    visualTransformation = reveal1.transformation,
+                    trailingIcon = { PasswordRevealIcon(reveal1) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 )
+                val reveal2 = rememberPasswordReveal()
                 OutlinedTextField(
                     value = confirmation,
                     onValueChange = { confirmation = it },
                     label = { Text(stringResource(R.string.field_password_confirm)) },
                     singleLine = true,
                     isError = confirmation.isNotEmpty() && mismatch,
-                    visualTransformation = PasswordVisualTransformation(),
+                    visualTransformation = reveal2.transformation,
+                    trailingIcon = { PasswordRevealIcon(reveal2) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 )
             }

@@ -399,6 +399,11 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); width: 
 .field input:focus, .field textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus); }
 .field.has-trailing input { padding-right: 86px; }
 .field .trailing { position: absolute; right: 4px; }
+.field.has-reveal input { padding-right: 42px; }
+.field .reveal { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 6px; background: transparent; color: var(--text-3); cursor: pointer; touch-action: none; user-select: none; }
+.field .reveal:hover { color: var(--text-2); background: var(--surface-2); }
+.field .reveal.on { color: var(--blue); }
+.field .reveal svg.icon { width: 18px; height: 18px; }
 .field .support { font-size: 12px; line-height: 16px; color: var(--text-3); }
 .field.error input, .field.error textarea { border-color: var(--off); }
 .field.error .support { color: var(--danger-text); }

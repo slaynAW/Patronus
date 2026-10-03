@@ -96,6 +96,7 @@ afin que le QR code contienne la bonne adresse MAC.
 ```
 
 - `autoUpdate` (facultatif, Windows) : `false` désactive la recherche quotidienne des mises à jour.
+- `metrics` (facultatif) : `false` désactive l'enregistrement continu des mesures (90 jours, dossier `metrics/`).
 
 - `allow` : réseaux autorisés à se connecter (par défaut uniquement des adresses privées).
 - `commands` : retirez par exemple `"shutdown"` pour n'autoriser que la veille. La lecture du journal (`history`) est
@@ -143,6 +144,13 @@ arrière-plan (la réponse n'attend jamais les capteurs).
 | macOS | — | — |
 
 Les compteurs sont lus par leur nom anglais : la mesure fonctionne quelle que soit la langue de Windows.
+
+**Enregistrement continu** (agent 1.8.0) : un relevé toutes les 10 s (5 s quand une application regarde le PC),
+résumé chaque minute (moyenne et maximum de chaque mesure), gardé **90 jours** dans `metrics/` (un fichier par jour
+UTC, jours terminés compressés) à côté de la configuration. L'état renvoie alors le dernier relevé ; les applications
+lisent les minutes enregistrées (commande `metrics`) pour les graphiques et les archives chiffrées sur GitHub
+([docs/ARCHIVES.md](../docs/ARCHIVES.md)). `"metrics": false` dans `config.json` désactive l'enregistrement (lecture
+à la demande, comme avant).
 
 **Températures** :
 

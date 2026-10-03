@@ -3,6 +3,12 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.8.0
+
+- **Mesures dans le temps** : fiche d'un PC → *Mesures*. Températures et utilisation du processeur et de la carte graphique sur 24 h, 7, 30 ou 90 jours, minute par minute (moyenne et maximum), avec le journal des démarrages et arrêts de la période (avec l'agent 1.8.0, qui les enregistre en continu, même application fermée).
+- **Archives chiffrées sur GitHub** : *Réglages* → *Sauvegarde automatique* → *Archives des mesures*. Toutes les 30 minutes, les mesures et le journal de vos PC sont rangés dans un Gist secret par mois, chiffrés par le mot de passe des sauvegardes, pour les consulter des mois plus tard, même PC éteint ou depuis un autre appareil.
+- **Œil sur les mots de passe** : maintenez l'œil d'un champ de mot de passe (sauvegarde, export, import, diagnostic) pour voir ce que vous tapez ; il se masque dès que vous relâchez.
+
 ## 1.7.0
 
 - **Utilisation du processeur et de la carte graphique en %** de chaque PC allumé, sur sa fiche et dans les listes (« CPU 54 °C (23 %) · GPU 61 °C (41 %) »). Les chiffres sont mesurés comme dans le Gestionnaire des tâches de Windows, pour toutes les marques de cartes graphiques, y compris les puces intégrées (avec l'agent 1.7.0, qui se propose tout seul aux PC Windows).

@@ -16,6 +16,7 @@
     save: "Enregistrer",
     show: "Afficher",
     hide: "Masquer",
+    password_hold: "Maintenir pour afficher le mot de passe",
 
     tab_overview: "Vue d’ensemble",
     tab_devices: "Appareils",
@@ -538,6 +539,7 @@
     copy: '<rect x="8.5" y="8.5" width="12" height="12" rx="2"/><path d="M15.5 8.5v-3a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/>',
     cloud: '<path d="M7 18.5h10.5a4 4 0 0 0 .6-8 6 6 0 0 0-11.6-1.4A4.8 4.8 0 0 0 7 18.5z"/>',
     chart: '<path d="M3.5 20.5h17"/><path d="M4.5 16.5l4.5-5 3.5 3 6.5-8"/>',
+    eye: '<path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>',
   };
 
   function icon(name, cls = "", size = 0) {
@@ -1068,14 +1070,44 @@
 
   let fieldSeq = 0;
 
+  /**
+   * Bouton « œil » d'un mot de passe : affiché en clair tant qu'on maintient l'appui (souris, doigt,
+   * ou Espace / Entrée au clavier), masqué dès qu'on relâche. Le curseur reste dans le champ.
+   */
+  function revealButton(input) {
+    const button = h("button", { type: "button", class: "reveal", title: S.password_hold, "aria-label": S.password_hold }, icon("eye"));
+    const show = (on) => {
+      input.type = on ? "text" : "password";
+      button.classList.toggle("on", on);
+    };
+    button.addEventListener("pointerdown", (e) => {
+      e.preventDefault(); // garde le focus (et le curseur) dans le champ
+      button.setPointerCapture?.(e.pointerId);
+      show(true);
+    });
+    for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) button.addEventListener(ev, () => show(false));
+    button.addEventListener("keydown", (e) => {
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        show(true);
+      }
+    });
+    button.addEventListener("keyup", () => show(false));
+    button.addEventListener("blur", () => show(false));
+    return button;
+  }
+
   function field({ label, helper, value = "", type = "text", mono = false, onInput, onEnter, trailing, multiline = false, placeholder }) {
     const id = "f" + ++fieldSeq;
     const input = multiline
       ? h("textarea", { id, rows: 3, spellcheck: "false", placeholder })
       : h("input", { id, type, spellcheck: "false", autocomplete: "off", class: mono ? "mono" : null, placeholder });
     input.value = value;
+    // Mot de passe sans bouton propre : œil à maintenir pour le voir.
+    if (type === "password" && !trailing && !multiline) trailing = revealButton(input);
     const support = h("div", { class: "support" });
-    const wrap = h("div", { class: `field${trailing ? " has-trailing" : ""}` },
+    const reveal = trailing?.classList?.contains("reveal");
+    const wrap = h("div", { class: `field${trailing ? (reveal ? " has-reveal" : " has-trailing") : ""}` },
       label ? h("label", { for: id, text: label }) : null,
       h("div", { class: "box" }, input, trailing ? h("div", { class: "trailing" }, trailing) : null),
       support);

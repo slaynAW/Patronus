@@ -52,6 +52,10 @@
   gardé chiffré sur l'appareil (Keystore / DPAPI) ; fichiers dans un Gist **secret** du compte GitHub (droit « gist »
   seulement) et/ou un dossier choisi ; jamais de sauvegarde automatique vide, pause après des données illisibles
   ([SAUVEGARDE.md](SAUVEGARDE.md)).
+- **Archives des mesures** : mesures minute par minute et journal des PC, rangés dans un Gist secret par mois,
+  compressés puis chiffrés en AES-256-GCM par une clé dérivée du mot de passe des sauvegardes (PBKDF2-HMAC-SHA256,
+  600 000 itérations, sel propre au mois), nom de fichier authentifié ; seules les dates apparaissent en clair
+  ([ARCHIVES.md](ARCHIVES.md)).
 - **Rapport de diagnostic** : même chiffrement (PBKDF2-HMAC-SHA256 600 000 itérations + AES-256-GCM), format
   `patronus-diagnostic/1` commun aux applications et à l'agent ; jamais de clé, de jeton ni de mot de passe dedans
   ([DIAGNOSTIC.md](DIAGNOSTIC.md)).
