@@ -700,6 +700,7 @@ func (s *Service) runRotation(ctx context.Context) (err error) {
 
 	b.mu.Lock()
 	b.st.Rotation = nil
+	b.rotated = s.now().UnixMilli()
 	if legacy != "" && b.st.LegacyDevice == legacy && token != "" {
 		b.st.LegacyDevice = "" // fichiers renommés avec la recopie du Gist et du dossier
 	}

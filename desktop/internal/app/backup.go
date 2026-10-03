@@ -71,6 +71,8 @@ type backups struct {
 	rotateStep string
 	rotateErr  string
 	rotateAt   time.Time
+	// rotated : fin du dernier changement de mot de passe (Unix ms, pour l'interface).
+	rotated int64
 }
 
 func newBackups(opts *BackupOptions) *backups {
@@ -729,6 +731,8 @@ type BackupView struct {
 	// appareil (nouveau mot de passe à saisir).
 	Rotation *RotationView `json:"rotation,omitempty"`
 	Stale    bool          `json:"stale,omitempty"`
+	// Rotated : fin du dernier changement de mot de passe (Unix ms).
+	Rotated int64 `json:"rotated,omitempty"`
 }
 
 // BackupTargetView est une destination des sauvegardes.
@@ -764,7 +768,7 @@ func (s *Service) backupView() BackupView {
 		v.Login = &LoginView{Code: l.code, URI: l.uri, Error: l.err}
 	}
 	v.Archive = archiveView
-	v.Rotation, v.Stale = b.rotationView(), b.stale
+	v.Rotation, v.Stale, v.Rotated = b.rotationView(), b.stale, b.rotated
 	return v
 }
 
