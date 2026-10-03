@@ -278,6 +278,61 @@ func (s *Service) publishShares(ctx context.Context) error {
 	return err
 }
 
+// shareTokenRejected oublie le jeton du partage quand GitHub le refuse ailleurs que dans la
+// publication (connexion des sauvegardes) : l'interface propose de se reconnecter, comme après une
+// publication refusée.
+func (s *Service) shareTokenRejected(token string, err error) {
+	sh := s.sharing
+	if sh == nil {
+		return
+	}
+	sh.mu.Lock()
+	o := sh.state.Owner
+	forgot := o != nil && o.Token != "" && o.Token == token
+	if forgot {
+		o.Token = ""
+		sh.publishErr, sh.dirty = err.Error(), true
+		if err := sh.saveLocked(); err != nil {
+			diag.Warn(areaShare, "jeton refusé oublié, état non enregistré : %v", err)
+		}
+	}
+	sh.mu.Unlock()
+	if forgot {
+		diag.Warn(areaShare, "accès GitHub refusé, jeton oublié (%v)", err)
+		s.notify()
+	}
+}
+
+// shareAdoptToken reprend pour le partage le jeton d'une nouvelle connexion GitHub (celle des
+// sauvegardes) quand le partage a perdu le sien et qu'il s'agit du même compte : une seule connexion
+// par code répare les deux.
+func (s *Service) shareAdoptToken(token, user string) {
+	sh := s.sharing
+	if sh == nil || token == "" {
+		return
+	}
+	sh.mu.Lock()
+	o := sh.state.Owner
+	adopted := o != nil && o.Token == "" && o.Gist != "" && strings.EqualFold(o.User, user)
+	if adopted {
+		o.Token = token
+		if err := sh.saveLocked(); err != nil {
+			o.Token = ""
+			adopted = false
+			diag.Warn(areaShare, "connexion GitHub des sauvegardes non reprise par le partage : %v", err)
+		} else {
+			sh.publishErr, sh.dirty = "", true
+		}
+	}
+	sh.mu.Unlock()
+	if adopted {
+		diag.Info(areaShare, "connexion GitHub des sauvegardes reprise par le partage (@%s)", user)
+		s.markBackupDirty()
+		sh.poke()
+		s.notify()
+	}
+}
+
 // syncAccess lit le Gist d'un partage reçu et applique son contenu.
 func (s *Service) syncAccess(ctx context.Context, owner string) {
 	sh := s.sharing

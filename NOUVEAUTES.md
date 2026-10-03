@@ -3,6 +3,10 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.8.1
+
+- **Connexion GitHub des sauvegardes et des archives** : quand GitHub n'acceptait plus la connexion du partage (expirée ou révoquée), *Sur GitHub* et *Archives des mesures* affichaient « connexion GitHub expirée ou révoquée » sans proposer de se reconnecter. La connexion par code s'ouvre désormais, et elle reconnecte aussi le partage (même compte). Après la connexion depuis *Archives des mesures*, l'activation de l'archivage est proposée directement.
+
 ## 1.8.0
 
 - **Mesures dans le temps** : fiche d'un PC → *Mesures*. Températures et utilisation du processeur et de la carte graphique sur 24 h, 7, 30 ou 90 jours, minute par minute (moyenne et maximum), avec le journal des démarrages et arrêts de la période (avec l'agent 1.8.0, qui les enregistre en continu, même application fermée).

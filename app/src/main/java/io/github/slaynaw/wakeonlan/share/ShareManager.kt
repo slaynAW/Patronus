@@ -204,6 +204,36 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
         }
     }
 
+    /**
+     * GitHub refuse le jeton du partage ailleurs que dans la publication (connexion des sauvegardes) :
+     * il est oublié, et l'interface propose de se reconnecter, comme après une publication refusée.
+     */
+    internal suspend fun tokenRejected(token: String, message: String?) {
+        if (token.isEmpty()) return
+        val before = repo.current().owner
+        val after = repo.update { st -> st.owner?.takeIf { it.token == token }?.let { st.copy(owner = it.copy(token = "")) } ?: st }.owner
+        if (before?.token == token && after?.token?.isEmpty() == true) {
+            DiagnosticLog.w(AREA, "accès GitHub refusé, jeton oublié")
+            runtime.update { it.copy(publishError = message, publishFailedAt = System.currentTimeMillis()) }
+        }
+    }
+
+    /**
+     * Reprend le jeton d'une nouvelle connexion GitHub (celle des sauvegardes) quand le partage a perdu
+     * le sien et qu'il s'agit du même compte : une seule connexion par code répare les deux. La
+     * publication repart d'elle-même (partage de nouveau connecté).
+     */
+    internal suspend fun adoptToken(token: String, user: String) {
+        if (token.isEmpty()) return
+        val adoptable = { o: ShareOwner -> o.token.isEmpty() && o.gist.isNotEmpty() && o.user.equals(user, ignoreCase = true) }
+        if (repo.current().owner?.let(adoptable) != true) return
+        val owner = repo.update { st -> st.owner?.takeIf(adoptable)?.let { st.copy(owner = it.copy(token = token)) } ?: st }.owner
+        if (owner?.token == token) {
+            DiagnosticLog.i(AREA, "connexion GitHub des sauvegardes reprise par le partage (@$user)")
+            runtime.update { it.copy(publishError = null) }
+        }
+    }
+
     /** Réessaie une étape de la connexion (à intervalle croissant, ou au retour dans l'application). */
     private suspend fun <T> retrying(step: suspend () -> T): T {
         var attempt = 1

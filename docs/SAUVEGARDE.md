@@ -16,7 +16,9 @@ l'application Windows.
    - **Sur GitHub** : dans un **Gist secret** de votre compte (« Patronus – sauvegardes chiffrées »),
      commun à tous vos appareils. Les sauvegardes vous suivent si vous perdez ou changez d'appareil.
      Si le partage est déjà connecté sur l'appareil, son compte est repris ; sinon, connexion par
-     code comme pour le partage (droit « gist » uniquement).
+     code comme pour le partage (droit « gist » uniquement). Si GitHub n'accepte plus la connexion du
+     partage (expirée ou révoquée), la connexion par code est proposée et sa nouvelle connexion sert
+     aussi au partage (même compte).
    - **Dans un dossier** : sur Windows, de préférence un dossier synchronisé (Google Drive, OneDrive…) ;
      sur le téléphone, un dossier choisi dans le sélecteur d'Android.
 
