@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -239,6 +240,46 @@ func (k *Key) Open(name, text string, v any) error {
 		return errors.New("fichier d'archive trop volumineux")
 	}
 	return json.Unmarshal(plain, v)
+}
+
+// Reencrypt rechiffre les fichiers d'un Gist d'archives de oldPassword vers newPassword : nouveau
+// manifeste (sel neuf), même contenu. ErrWrongPassword si oldPassword n'ouvre pas ce mois.
+// unreadable : fichiers de données que l'ancienne clé n'ouvre pas (abîmés), recopiés tels quels.
+func Reencrypt(files map[string]string, oldPassword, newPassword string) (out map[string]string, unreadable []string, err error) {
+	text, ok := files[ManifestFile]
+	if !ok {
+		return nil, nil, errors.New("manifeste absent")
+	}
+	m, err := ParseManifest(text)
+	if err != nil {
+		return nil, nil, err
+	}
+	oldKey, err := m.Unlock(oldPassword)
+	if err != nil {
+		return nil, nil, err
+	}
+	next, newKey, err := NewManifest(m.Month, newPassword)
+	if err != nil {
+		return nil, nil, err
+	}
+	out = map[string]string{ManifestFile: next.JSON(), ReadmeFile: Readme}
+	for _, name := range slices.Sorted(maps.Keys(files)) {
+		if name == ManifestFile || name == ReadmeFile {
+			continue
+		}
+		var raw json.RawMessage
+		if err := oldKey.Open(name, files[name], &raw); err != nil {
+			out[name] = files[name]
+			unreadable = append(unreadable, name)
+			continue
+		}
+		sealed, err := newKey.Seal(name, raw)
+		if err != nil {
+			return nil, nil, err
+		}
+		out[name] = sealed
+	}
+	return out, unreadable, nil
 }
 
 // --- Contenu ---

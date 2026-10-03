@@ -77,8 +77,18 @@ type GistFile struct {
 }
 
 // ReadGist lit tous les fichiers d'un Gist avec le jeton (fichiers tronqués par l'API relus en entier,
-// limit octets au plus chacun), triés par nom.
+// limit octets au plus chacun ; les plus gros sont ignorés), triés par nom.
 func (g *GitHub) ReadGist(ctx context.Context, token, id string, limit int) ([]GistFile, error) {
+	return g.readGist(ctx, token, id, limit, false)
+}
+
+// ReadGistAll lit tous les fichiers d'un Gist comme ReadGist, mais échoue si l'un d'eux dépasse limit
+// (pour recopier un Gist sans rien perdre).
+func (g *GitHub) ReadGistAll(ctx context.Context, token, id string, limit int) ([]GistFile, error) {
+	return g.readGist(ctx, token, id, limit, true)
+}
+
+func (g *GitHub) readGist(ctx context.Context, token, id string, limit int, strict bool) ([]GistFile, error) {
 	if !gistPattern.MatchString(id) {
 		return nil, ErrNotFound
 	}
@@ -96,6 +106,9 @@ func (g *GitHub) ReadGist(ctx context.Context, token, id string, limit int) ([]G
 	var out []GistFile
 	for name, f := range r.Files {
 		if f.Size > limit {
+			if strict {
+				return nil, fmt.Errorf("fichier %s trop volumineux (%d octets)", name, f.Size)
+			}
 			continue
 		}
 		content := f.Content

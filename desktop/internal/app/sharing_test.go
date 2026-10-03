@@ -28,6 +28,8 @@ type gistServer struct {
 	// descriptions : description de chaque Gist (listes du compte, sauvegardes).
 	descriptions map[string]string
 	seq          int
+	// created : Gists créés (identifiants jamais réutilisés, même après une suppression).
+	created int
 }
 
 func newGistServer(t *testing.T) (*gistServer, *httptest.Server) {
@@ -55,9 +57,10 @@ func newGistServer(t *testing.T) (*gistServer, *httptest.Server) {
 			t.Error("Gist public créé")
 		}
 		id := "abcdefabcdefabcdefabcdefabcdef12"
-		if len(g.files) > 0 {
-			id = fmt.Sprintf("%032x", len(g.files)+1)
+		if g.created > 0 {
+			id = fmt.Sprintf("%032x", g.created+1)
 		}
+		g.created++
 		g.descriptions[id] = body.Description
 		g.files[id] = map[string]string{}
 		for name, f := range body.Files {

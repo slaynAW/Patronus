@@ -391,6 +391,7 @@ type callParams struct {
 	Key        string            `json:"key"`
 	Text       string            `json:"text"`
 	Password   string            `json:"password"`
+	Current    string            `json:"current"`
 	Replace    bool              `json:"replace"`
 	URL        string            `json:"url"`
 	Visible    bool              `json:"visible"`
@@ -615,6 +616,10 @@ func (s *Service) dispatch(method string, p callParams) (any, error) {
 		return nil, s.backupDisconnect()
 	case "backupNow":
 		return s.backupNow(context.Background(), true)
+	case "backupChangePassword":
+		return nil, s.backupChangePassword(p.Current, p.Password)
+	case "backupUpdatePassword":
+		return nil, s.backupUpdatePassword(p.Password)
 	case "backupList":
 		return s.backupList()
 	case "backupRestore":

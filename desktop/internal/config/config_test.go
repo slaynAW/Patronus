@@ -201,3 +201,39 @@ func TestStore(t *testing.T) {
 		t.Errorf("fichier non mis de côté : %v", entries)
 	}
 }
+
+// Changement de mot de passe : même contenu (données ajoutées comprises) et même date.
+func TestReencrypt(t *testing.T) {
+	c := sample(t)
+	extra := map[string]json.RawMessage{"history": json.RawMessage(`[{"t":1}]`)}
+	text, err := Export(c, ExportOptions{Password: "ancien mot de passe", ExportedAt: "2026-09-27T10:00:00Z", App: "Patronus test", Extra: extra})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Reencrypt(text, "mauvais mot de passe", "nouveau mot de passe"); reason(err) != WrongPassword {
+		t.Fatalf("mauvais mot de passe : %v", err)
+	}
+	if _, err := Reencrypt(text, "ancien mot de passe", "court"); err == nil {
+		t.Error("nouveau mot de passe trop court accepté")
+	}
+	next, err := Reencrypt(text, "ancien mot de passe", "nouveau mot de passe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if CheckPassword(next, "ancien mot de passe") == nil || CheckPassword(next, "nouveau mot de passe") != nil {
+		t.Error("vérification du mot de passe")
+	}
+	back, gotExtra, err := ImportWithExtra(next, "nouveau mot de passe")
+	if err != nil || !reflect.DeepEqual(c, back) || string(gotExtra["history"]) != `[{"t":1}]` {
+		t.Fatalf("contenu changé : %v %s", err, gotExtra["history"])
+	}
+	env, _ := Inspect(next)
+	if env.ExportedAt != "2026-09-27T10:00:00Z" || env.App != "Patronus test" {
+		t.Errorf("enveloppe : %+v", env)
+	}
+	if plain, _ := Export(c, ExportOptions{ExportedAt: "x"}); plain != nil {
+		if _, err := Reencrypt(plain, "ancien mot de passe", "nouveau mot de passe"); err == nil {
+			t.Error("export lisible rechiffré")
+		}
+	}
+}

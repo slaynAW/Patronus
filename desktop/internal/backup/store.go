@@ -32,7 +32,31 @@ type Settings struct {
 	Uploaded []string `json:"uploaded,omitempty"`
 	// Archive : archives chiffrées des mesures et du journal des PC (même compte et même mot de passe).
 	Archive *ArchiveSettings `json:"archive,omitempty"`
+	// LegacyDevice : ancien identifiant de cet appareil (avec son nom, avant la 1.9.0) dont les
+	// fichiers restent à renommer.
+	LegacyDevice string `json:"legacyDevice,omitempty"`
+	// Rotation : changement du mot de passe en cours (repris s'il a été interrompu).
+	Rotation *Rotation `json:"rotation,omitempty"`
+	// Replacing : Gist en cours de remplacement → Gist qui le remplace (recopie interrompue, reprise).
+	Replacing map[string]string `json:"replacing,omitempty"`
 }
+
+// Rotation est un changement du mot de passe des sauvegardes : tout ce que l'ancien mot de passe ouvre
+// (sauvegardes sur GitHub et dans le dossier, archives) est rechiffré par le nouveau (Settings.Password),
+// dans de nouveaux Gists : l'historique des anciens disparaît avec eux.
+type Rotation struct {
+	Old string `json:"old"`
+	// Done : étapes terminées (RotationBackups, RotationFolder, identifiants des Gists d'archives traités).
+	Done map[string]bool `json:"done,omitempty"`
+	// Started : début du changement (Unix ms).
+	Started int64 `json:"started"`
+}
+
+// Étapes d'un changement de mot de passe (Rotation.Done).
+const (
+	RotationBackups = "sauvegardes"
+	RotationFolder  = "dossier"
+)
 
 // ArchiveSettings sont les réglages des archives de cet appareil (docs/ARCHIVES.md).
 type ArchiveSettings struct {
@@ -126,6 +150,35 @@ func (s *Store) Save(st Settings) error {
 	return nil
 }
 
+// ReplaceFile remplace (ou crée) le fichier name de dir de façon atomique.
+func ReplaceFile(dir, name string, content []byte) error {
+	path := filepath.Join(dir, name)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, content, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
+// FolderBackups liste les sauvegardes du dossier dir (noms de fichiers).
+func FolderBackups(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("dossier inaccessible : %w", err)
+	}
+	var names []string
+	for _, e := range entries {
+		if _, ok := Parse(e.Name()); ok && !e.IsDir() {
+			names = append(names, e.Name())
+		}
+	}
+	return names, nil
+}
+
 // WriteFolder écrit la sauvegarde name dans dir (remplace celle du jour) puis supprime les versions de
 // l'appareil au-delà de Keep. Renvoie le chemin écrit.
 func WriteFolder(dir, device, name string, content []byte) (string, error) {
@@ -137,12 +190,7 @@ func WriteFolder(dir, device, name string, content []byte) (string, error) {
 		return "", errors.New("le chemin choisi n'est pas un dossier")
 	}
 	path := filepath.Join(dir, name)
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, content, 0o600); err != nil {
-		return "", err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
+	if err := ReplaceFile(dir, name, content); err != nil {
 		return "", err
 	}
 	entries, err := os.ReadDir(dir)
