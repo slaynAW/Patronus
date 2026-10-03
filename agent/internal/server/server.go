@@ -43,6 +43,7 @@ type Server struct {
 	info     func() sysinfo.Info
 	history  *history.Log
 	temps    func() *protocol.Temperatures
+	metrics  Metrics
 	now      func() time.Time
 
 	mu      sync.Mutex
@@ -79,6 +80,15 @@ func (s *Server) SetHistory(l *history.Log) { s.history = l }
 // SetTemperatures branche la lecture des températures, jointes aux réponses à « status » (elle doit
 // répondre tout de suite : voir sensors.Cache).
 func (s *Server) SetTemperatures(read func() *protocol.Temperatures) { s.temps = read }
+
+// Metrics donne les mesures enregistrées en continu (voir metrics.Recorder).
+type Metrics interface {
+	Days() []string
+	Day(day string) ([]protocol.MetricsRow, error)
+}
+
+// SetMetrics branche les mesures enregistrées (commande « metrics »).
+func (s *Server) SetMetrics(m Metrics) { s.metrics = m }
 
 // ListenAndServe écoute sur le port configuré jusqu'à l'annulation de ctx.
 func (s *Server) ListenAndServe(ctx context.Context) error {
@@ -237,6 +247,26 @@ func (s *Server) execute(rawBody, ip string) protocol.ResponseBody {
 		}
 		snapshot := s.history.Snapshot()
 		resp.History = &snapshot
+		resp.OK, resp.Code = true, "ok"
+		return resp
+	}
+	// Les mesures sont en lecture seule, comme l'état : autorisées dès que « status » l'est.
+	if body.Cmd == protocol.CmdMetrics {
+		if !s.cfg.Allows(protocol.CmdStatus) && !s.cfg.Allows(protocol.CmdHistory) {
+			return fail("forbidden", "commande « metrics » désactivée sur ce PC")
+		}
+		if s.metrics == nil {
+			return fail("unsupported", "mesures non enregistrées sur ce PC")
+		}
+		m := protocol.Metrics{Day: body.Day, Days: s.metrics.Days(), Rows: []protocol.MetricsRow{}}
+		if body.Day != "" {
+			rows, err := s.metrics.Day(body.Day)
+			if err != nil {
+				return fail("bad_request", "jour invalide ou illisible")
+			}
+			m.Rows = rows
+		}
+		resp.Metrics = &m
 		resp.OK, resp.Code = true, "ok"
 		return resp
 	}

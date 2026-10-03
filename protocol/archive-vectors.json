@@ -1,0 +1,89 @@
+{
+  "description": "Archives de référence (format patronus-archive/1), produites indépendamment (Node.js / OpenSSL) et relues par les tests Go (Windows) et Kotlin (Android) : les archives sont interchangeables entre le PC et le téléphone.",
+  "password": "mot de passe très sûr",
+  "wrongPassword": "autre mot de passe",
+  "manifest": {
+    "format": "patronus-archive",
+    "version": 1,
+    "month": "2026-10",
+    "kdf": "PBKDF2WithHmacSHA256",
+    "iterations": 600000,
+    "salt": "AAECAwQFBgcICQoLDA0ODw==",
+    "check": "AQEBAQEBAQEBAQEBNIWcDG1Z8v+T5w7sUBJvEKhB+qfdt9IqClll6i2gymH/ZYSQQrOFKaq3T3dmr33iqeE0jafV"
+  },
+  "files": {
+    "mesures-2026-10-03.txt": "AgICAgICAgICAgICVfV8kP6txD9J3evwTdZLzTTUse+OMHjm5w/W4ah0jOgxCfimmTDl+Pk9O3nbAkktS65otn/DIugIU9UKEJwNUXNEPhuVac7TJNQIbf/8Wh6IwlnAiRH7WA/gq9flwcJNaRNZRVchNl4hMd75soSLkkjH3rNmw+vPE4akjkZCyvMW+9tT7XldjuS3PIjMAPYHeGMOcmxcURCsYvVcEdt2dTzbpzAkM8tXDOePjZEz/or0KSgb6dkE10Ld6NzVRMKT6rVyeBrN7rwJf1b9EYgDs7kxm6RYK6lPreBAhU/aThbhKL0Qy+/3Vhs=",
+    "journal-2026-10.txt": "AwMDAwMDAwMDAwMDzWv+305yhvdDEsO/RE3MzcojMV2IEIlZqXcVC/R/fQ0yIvAgeSWPbhHGQpPs75nn5Aecv2793sowiCeWZGVhj1ioTwXeT9qVlEyYSEzj3s0U6LkOxFw4ebjJP1vP+dYI6CRWX4rJK8endnWY3glpDXmIGBYaAnUi7oAFgeuzsBUgDFpSgH6Bcm6X+p4r7kp8XQM63SLK4Tr0MvXVyajnTjLegp9Zsn4wE1qqTyhcFyKhJmnqbr0ovpPgWlg="
+  },
+  "day": {
+    "day": "2026-10-03",
+    "pcs": [
+      {
+        "mac": "AA:BB:CC:DD:EE:01",
+        "name": "PC Bureau",
+        "rows": [
+          {
+            "t": 1790985600,
+            "n": 6,
+            "ct": 52.3,
+            "ctx": 55.1,
+            "gt": 41,
+            "gtx": 43.5,
+            "cl": 12.4,
+            "clx": 30,
+            "gl": 2.1,
+            "glx": 5
+          },
+          {
+            "t": 1790985660,
+            "n": 6,
+            "ct": 53,
+            "ctx": 54,
+            "cl": 9.8,
+            "clx": 15.5
+          }
+        ]
+      },
+      {
+        "mac": "AA:BB:CC:DD:EE:02",
+        "name": "PC Salon",
+        "rows": [
+          {
+            "t": 1790985600,
+            "n": 5,
+            "gt": 61,
+            "gtx": 62,
+            "gl": 97.5,
+            "glx": 100
+          }
+        ]
+      }
+    ]
+  },
+  "journal": {
+    "month": "2026-10",
+    "pcs": [
+      {
+        "mac": "AA:BB:CC:DD:EE:01",
+        "name": "PC Bureau",
+        "events": [
+          {
+            "t": 1790982000,
+            "k": "boot"
+          },
+          {
+            "t": 1791025200,
+            "k": "cmd",
+            "a": "shutdown",
+            "c": "192.168.1.30",
+            "b": "Pixel 8"
+          },
+          {
+            "t": 1791025260,
+            "k": "shutdown"
+          }
+        ]
+      }
+    ]
+  }
+}

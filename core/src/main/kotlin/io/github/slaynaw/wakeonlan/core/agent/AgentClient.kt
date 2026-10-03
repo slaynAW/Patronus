@@ -107,6 +107,17 @@ class AgentClient(
         }
 
     /**
+     * Lit les mesures enregistrées par le PC ([day] : jour UTC « 2026-10-03 », `null` pour la seule
+     * liste des jours). Un agent antérieur à 1.8.0 répond [AgentError.REJECTED].
+     */
+    suspend fun metrics(host: String, agent: AgentSettings, day: String? = null): AgentResult<AgentMetrics> =
+        when (val r = exchange(host, agent, RequestBody(cmd = "metrics", day = day), AgentProtocol.MAX_METRICS_BYTES)) {
+            is AgentResult.Success ->
+                r.value.metrics?.let { AgentResult.Success(it) } ?: protocolError("mesures absentes de la réponse")
+            is AgentResult.Failure -> r
+        }
+
+    /**
      * Signale au journal du PC les démarrages demandés depuis cet appareil ([times] en secondes), et
      * renvoie le journal à jour. Un agent antérieur à 1.4.0 répond [AgentError.REJECTED].
      */

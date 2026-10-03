@@ -31,6 +31,10 @@ const (
 	MaxLineBytes = 8 * 1024
 	// MaxHistoryBytes borne la taille de la réponse à la commande « history » (journal de 30 jours).
 	MaxHistoryBytes = 512 * 1024
+	// MaxMetricsBytes borne la taille de la réponse à la commande « metrics » (une journée de mesures).
+	MaxMetricsBytes = 512 * 1024
+	// MetricsDays : nombre de jours de mesures gardés par l'agent.
+	MetricsDays = 90
 	// MaxWakes borne le nombre de démarrages signalés en une fois (commande « wakes »).
 	MaxWakes = 50
 	// MaxByLength borne le nom de l'appareil indiqué par l'application (en caractères).
@@ -44,6 +48,9 @@ const (
 	// CmdWakes : l'application signale les démarrages qu'elle a demandés (paquet magique, que l'agent
 	// ne peut pas voir), une fois le PC joignable. La réponse contient le journal à jour.
 	CmdWakes = "wakes"
+	// CmdMetrics : mesures enregistrées en continu, une ligne par minute (agent 1.8.0) ; RequestBody.Day
+	// choisit le jour (UTC), la réponse donne aussi la liste des jours disponibles.
+	CmdMetrics = "metrics"
 )
 
 // Types d'évènements du journal de l'agent (commande « history »).
@@ -113,6 +120,9 @@ type RequestBody struct {
 	By string `json:"by,omitempty"`
 	// Wakes : heures (secondes Unix) des démarrages demandés, pour la commande « wakes ».
 	Wakes []int64 `json:"wakes,omitempty"`
+	// Day : jour des mesures demandées (« 2026-10-03 », UTC), pour la commande « metrics » ; vide pour
+	// la seule liste des jours.
+	Day string `json:"day,omitempty"`
 }
 
 // Response est la réponse de l'agent : signée (Body + Mac) ou erreur d'authentification (Error).
@@ -134,6 +144,8 @@ type ResponseBody struct {
 	Uptime   int64  `json:"uptime"`
 	// History n'est renseigné que pour la commande « history ».
 	History *History `json:"history,omitempty"`
+	// Metrics n'est renseigné que pour la commande « metrics » (agent 1.8.0 ou plus).
+	Metrics *Metrics `json:"metrics,omitempty"`
 	// Temperatures n'est renseigné que pour la commande « status » (agent 1.5.0 ou plus) ; il
 	// contient aussi l'utilisation du processeur et de la carte graphique (agent 1.7.0 ou plus).
 	Temperatures *Temperatures `json:"temperatures,omitempty"`
@@ -161,6 +173,37 @@ type Temperatures struct {
 	// LHM précise ce qui empêche de lire LibreHardwareMonitor quand CPUHint vaut CPUHintLHM
 	// (agent 1.6.0 ou plus ; les applications plus anciennes s'en tiennent à CPUHint).
 	LHM string `json:"lhm,omitempty"`
+}
+
+// Metrics : mesures d'un jour, renvoyées par la commande « metrics ».
+type Metrics struct {
+	// Day : jour demandé (« 2026-10-03 », UTC), vide si seule la liste des jours est demandée.
+	Day string `json:"day"`
+	// Days : jours disponibles sur le PC (MetricsDays au plus), du plus ancien au plus récent.
+	Days []string `json:"days"`
+	// Rows : une ligne par minute, dans l'ordre.
+	Rows []MetricsRow `json:"rows"`
+}
+
+// MetricsRow : mesures d'une minute (relevés toutes les 5 à 10 s) ; une valeur absente n'a pas pu
+// être lue pendant cette minute. Températures en °C, utilisation en %.
+type MetricsRow struct {
+	// T : début de la minute (secondes Unix).
+	T int64 `json:"t"`
+	// N : nombre de relevés de la minute.
+	N int `json:"n"`
+	// CPUTemp / CPUTempMax : température moyenne et maximale du processeur.
+	CPUTemp    *float64 `json:"ct,omitempty"`
+	CPUTempMax *float64 `json:"ctx,omitempty"`
+	// GPUTemp / GPUTempMax : température moyenne et maximale de la carte graphique.
+	GPUTemp    *float64 `json:"gt,omitempty"`
+	GPUTempMax *float64 `json:"gtx,omitempty"`
+	// CPULoad / CPULoadMax : utilisation moyenne et maximale du processeur.
+	CPULoad    *float64 `json:"cl,omitempty"`
+	CPULoadMax *float64 `json:"clx,omitempty"`
+	// GPULoad / GPULoadMax : utilisation moyenne et maximale de la carte graphique.
+	GPULoad    *float64 `json:"gl,omitempty"`
+	GPULoadMax *float64 `json:"glx,omitempty"`
 }
 
 // CPUHintLHM : sous Windows, la température du processeur est lue dans LibreHardwareMonitor, qui ne

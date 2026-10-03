@@ -41,7 +41,13 @@ type Config struct {
 	// AutoUpdate : recherche quotidienne des nouvelles versions de l'agent, installées après accord de
 	// l'utilisateur connecté (Windows). Absent : activée ; « wol-agent update --auto off » la désactive.
 	AutoUpdate *bool `json:"autoUpdate,omitempty"`
+	// Metrics : enregistrement continu des températures et de l'utilisation, une ligne par minute
+	// gardée 90 jours et lue par les applications (absent = activé).
+	Metrics *bool `json:"metrics,omitempty"`
 }
+
+// RecordsMetrics indique si les mesures (températures, utilisation) sont enregistrées en continu.
+func (c *Config) RecordsMetrics() bool { return c.Metrics == nil || *c.Metrics }
 
 // AutoUpdates indique si la recherche quotidienne des mises à jour est activée.
 func (c *Config) AutoUpdates() bool { return c.AutoUpdate == nil || *c.AutoUpdate }
