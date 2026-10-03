@@ -49,6 +49,27 @@ class ArchiveTest {
     }
 
     @Test
+    fun `rechiffrement des archives de reference (changement de mot de passe)`() {
+        val files = root.getValue("files").jsonObject.mapValues { it.value.jsonPrimitive.content } +
+            (ArchiveCodec.MANIFEST_FILE to root.getValue("manifest").toString()) + ("mesures-2026-10-04.txt" to "abîmé")
+        val wrong = assertThrows<ArchiveException> {
+            ArchiveCodec.reencrypt(files, text("wrongPassword").toCharArray(), "nouveau mot de passe".toCharArray())
+        }
+        assertTrue(wrong.wrongPassword)
+        val (out, unreadable) = ArchiveCodec.reencrypt(files, text("password").toCharArray(), "nouveau mot de passe".toCharArray())
+        assertEquals(listOf("mesures-2026-10-04.txt"), unreadable)
+        assertEquals("abîmé", out["mesures-2026-10-04.txt"])
+        val manifest = ArchiveCodec.parseManifest(out.getValue(ArchiveCodec.MANIFEST_FILE))
+        assertEquals("2026-10", manifest.month)
+        assertTrue(assertThrows<ArchiveException> { ArchiveCodec.unlock(manifest, text("password").toCharArray()) }.wrongPassword)
+        val key = ArchiveCodec.unlock(manifest, "nouveau mot de passe".toCharArray())
+        val day = key.open(ArchiveCodec.dayFile("2026-10-03"), out.getValue("mesures-2026-10-03.txt"), ArchiveDay.serializer())
+        assertEquals(Json.decodeFromJsonElement(ArchiveDay.serializer(), root.getValue("day")), day)
+        val journal = key.open(ArchiveCodec.journalFile("2026-10"), out.getValue("journal-2026-10.txt"), ArchiveJournal.serializer())
+        assertEquals(Json.decodeFromJsonElement(ArchiveJournal.serializer(), root.getValue("journal")), journal)
+    }
+
+    @Test
     fun `aller-retour et manifeste`() {
         val (manifest, key) = ArchiveCodec.newManifest("2026-11", "mot de passe très sûr".toCharArray())
         val parsed = ArchiveCodec.parseManifest(ArchiveCodec.manifestJson(manifest))

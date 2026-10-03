@@ -46,9 +46,13 @@ des sauvegardes, pas directement celle du partage ; toucher *Archives des mesure
   qui ne pourrait de toute façon rien en lire.
 - Le mot de passe et le jeton GitHub restent sur l'appareil, chiffrés (DPAPI sous Windows, Keystore sur
   Android).
-- Nouveau mot de passe des sauvegardes, ou autre compte GitHub : les mois suivants vont dans de nouveaux
-  Gists (le mois en cours est réarchivé avec tout ce que les agents gardent encore). Les anciens restent
-  lisibles avec l'ancien mot de passe.
+- *Changer le mot de passe* (sauvegarde automatique) rechiffre **tous les mois d'archives** par le
+  nouveau mot de passe, sans rien perdre : chaque Gist est recopié, vérifié, puis l'ancien est supprimé
+  avec son historique ([SAUVEGARDE.md](SAUVEGARDE.md#changer-le-mot-de-passe)).
+- En revanche, désactiver puis réactiver la sauvegarde automatique avec un autre mot de passe, ou
+  changer de compte GitHub, ne rechiffre rien : les mois suivants vont dans de nouveaux Gists (le mois en
+  cours est réarchivé avec tout ce que les agents gardent encore) et les anciens restent lisibles avec
+  l'ancien mot de passe seulement.
 
 Format détaillé : `desktop/internal/archive` (Windows) et `core/archive` (Android), vecteurs de test
 communs dans `protocol/archive-vectors.json`.

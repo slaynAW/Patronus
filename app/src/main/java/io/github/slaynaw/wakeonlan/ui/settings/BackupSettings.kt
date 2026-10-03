@@ -75,6 +75,8 @@ sealed interface BackupDialog {
     data object Restore : BackupDialog
     data object ArchiveEnable : BackupDialog
     data object Archive : BackupDialog
+    data object ChangePassword : BackupDialog
+    data object NewPassword : BackupDialog
     data class Error(val message: String) : BackupDialog
 }
 
@@ -110,6 +112,16 @@ private fun EnabledItems(
     onBackupNow: () -> Unit,
 ) {
     val github = backup.github
+    if (backup.stale) {
+        SettingItem(
+            icon = WolIcons.Lock,
+            title = stringResource(R.string.backup_stale_title),
+            text = stringResource(R.string.backup_stale_help),
+            onClick = { onDialog(BackupDialog.NewPassword) },
+            danger = true,
+        )
+        RowDivider()
+    }
     SettingItem(
         icon = WolIcons.Cloud,
         title = stringResource(R.string.backup_github),
@@ -158,6 +170,19 @@ private fun EnabledItems(
         },
     )
     RowDivider()
+    val rotation = backup.rotation
+    SettingItem(
+        icon = WolIcons.Lock,
+        title = stringResource(R.string.backup_change),
+        text = when {
+            rotation?.error != null -> rotation.error
+            rotation?.step != null -> stringResource(R.string.backup_rotation_running, rotation.step)
+            rotation != null -> stringResource(R.string.backup_rotation_waiting)
+            else -> stringResource(R.string.backup_change_help)
+        },
+        onClick = if (rotation != null || backup.stale) null else ({ onDialog(BackupDialog.ChangePassword) }),
+    )
+    RowDivider()
     SettingItem(WolIcons.Download, stringResource(R.string.backup_restore), stringResource(R.string.backup_restore_help), { onDialog(BackupDialog.Restore) })
     RowDivider()
     SettingItem(
@@ -198,6 +223,15 @@ fun BackupDialogHost(
     fun copy(text: String) {
         context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Patronus", text))
         toast(R.string.share_copied)
+    }
+    // Fin d'un changement de mot de passe demandé depuis cet écran (since : heure de la demande).
+    var notice by remember { mutableStateOf<Pair<Long, Int>?>(null) }
+    LaunchedEffect(backup.rotated, backup.rotation) {
+        val pending = notice ?: return@LaunchedEffect
+        if (backup.rotation == null && backup.rotated >= pending.first) {
+            notice = null
+            toast(pending.second)
+        }
     }
     fun connect(then: BackupDialog? = null) = scope.launch {
         try {
@@ -372,6 +406,40 @@ fun BackupDialogHost(
             },
             confirmButton = { TextButton(onClick = close) { Text(stringResource(R.string.close)) } },
         )
+        BackupDialog.ChangePassword -> ChangePasswordDialog(
+            onConfirm = { current, password ->
+                scope.launch {
+                    try {
+                        notice = System.currentTimeMillis() - 2_000 to R.string.backup_change_done
+                        manager.changePassword(current, password)
+                        close()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        notice = null
+                        fail(e)
+                    }
+                }
+            },
+            onDismiss = close,
+        )
+        BackupDialog.NewPassword -> NewPasswordDialog(
+            onConfirm = { password ->
+                scope.launch {
+                    try {
+                        notice = System.currentTimeMillis() - 2_000 to R.string.backup_stale_done
+                        manager.updatePassword(password)
+                        close()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        notice = null
+                        fail(e)
+                    }
+                }
+            },
+            onDismiss = close,
+        )
         is BackupDialog.Error -> MessageDialog(stringResource(R.string.section_backup_auto), dialog.message, close)
     }
 }
@@ -417,6 +485,100 @@ private fun EnableDialog(onConfirm: (CharArray) -> Unit, onDismiss: () -> Unit) 
         confirmButton = {
             TextButton(onClick = { onConfirm(password.toCharArray()) }, enabled = !tooShort && !mismatch) {
                 Text(stringResource(R.string.backup_enable_ok))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+/** Changement du mot de passe : actuel, nouveau et confirmation (le rechiffrement suit en fond). */
+@Composable
+private fun ChangePasswordDialog(onConfirm: (CharArray, CharArray) -> Unit, onDismiss: () -> Unit) {
+    var current by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirmation by remember { mutableStateOf("") }
+    val tooShort = password.length < ExportCodec.MIN_PASSWORD_LENGTH
+    val mismatch = password != confirmation
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(WolIcons.Lock, contentDescription = null, tint = WolPalette.Blue) },
+        title = { Text(stringResource(R.string.backup_change_title)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.backup_change_text), style = MaterialTheme.typography.bodyMedium)
+                val reveal0 = rememberPasswordReveal()
+                OutlinedTextField(
+                    value = current,
+                    onValueChange = { current = it },
+                    label = { Text(stringResource(R.string.field_password_current)) },
+                    singleLine = true,
+                    visualTransformation = reveal0.transformation,
+                    trailingIcon = { PasswordRevealIcon(reveal0) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+                val reveal1 = rememberPasswordReveal()
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text(stringResource(R.string.field_password_new)) },
+                    singleLine = true,
+                    isError = password.isNotEmpty() && tooShort,
+                    supportingText = { Text(stringResource(R.string.field_password_help, ExportCodec.MIN_PASSWORD_LENGTH)) },
+                    visualTransformation = reveal1.transformation,
+                    trailingIcon = { PasswordRevealIcon(reveal1) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+                val reveal2 = rememberPasswordReveal()
+                OutlinedTextField(
+                    value = confirmation,
+                    onValueChange = { confirmation = it },
+                    label = { Text(stringResource(R.string.field_password_confirm)) },
+                    singleLine = true,
+                    isError = confirmation.isNotEmpty() && mismatch,
+                    visualTransformation = reveal2.transformation,
+                    trailingIcon = { PasswordRevealIcon(reveal2) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(current.toCharArray(), password.toCharArray()) },
+                enabled = current.isNotEmpty() && !tooShort && !mismatch && password != current,
+            ) {
+                Text(stringResource(R.string.backup_change_ok))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+/** Mot de passe changé sur un autre appareil : saisie du nouveau. */
+@Composable
+private fun NewPasswordDialog(onConfirm: (CharArray) -> Unit, onDismiss: () -> Unit) {
+    var password by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(WolIcons.Lock, contentDescription = null, tint = WolPalette.Blue) },
+        title = { Text(stringResource(R.string.backup_stale_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.backup_stale_text), style = MaterialTheme.typography.bodyMedium)
+                val reveal = rememberPasswordReveal()
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text(stringResource(R.string.field_password_new)) },
+                    singleLine = true,
+                    visualTransformation = reveal.transformation,
+                    trailingIcon = { PasswordRevealIcon(reveal) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(password.toCharArray()) }, enabled = password.isNotEmpty()) {
+                Text(stringResource(R.string.backup_stale_ok))
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },

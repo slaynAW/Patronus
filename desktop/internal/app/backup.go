@@ -62,6 +62,17 @@ type backups struct {
 	login    *shareLogin
 	listing  map[string]string
 	listedAt time.Time
+	// stale : mot de passe changé sur un autre appareil (sauvegardes et archives arrêtées) ;
+	// checked : Gist dont le mot de passe a été vérifié pendant cette session.
+	stale   bool
+	checked string
+	// Changement du mot de passe en cours (voir backup_rotate.go).
+	rotating   bool
+	rotateStep string
+	rotateErr  string
+	rotateAt   time.Time
+	// rotated : fin du dernier changement de mot de passe (Unix ms, pour l'interface).
+	rotated int64
 }
 
 func newBackups(opts *BackupOptions) *backups {
@@ -127,6 +138,11 @@ func (s *Service) runBackups(ctx context.Context) {
 		case <-timer.C:
 		case <-b.wake:
 		}
+		if s.rotationDue() {
+			if err := s.runRotation(ctx); err != nil {
+				diag.Warn(areaBackup, "changement du mot de passe interrompu, nouvel essai dans %s : %v", rotateRetry, err)
+			}
+		}
 		if s.backupDue() {
 			_, _ = s.backupNow(ctx, false)
 		}
@@ -146,7 +162,7 @@ func (s *Service) backupDue() bool {
 	now := s.now()
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if !b.st.Enabled || b.st.Password == "" || b.running || b.paused != "" || !b.hasTarget() {
+	if !b.st.Enabled || b.st.Password == "" || b.running || b.paused != "" || !b.hasTarget() || b.st.Rotation != nil || b.stale {
 		return false
 	}
 	if b.failed && now.Sub(b.attempt) < backupRetry {
@@ -193,16 +209,18 @@ func (s *Service) backupNow(ctx context.Context, manual bool) (BackupResult, err
 		b.mu.Unlock()
 		return BackupResult{}, errors.New("sauvegarde déjà en cours")
 	}
+	if b.st.Rotation != nil {
+		b.mu.Unlock()
+		return BackupResult{}, errors.New("changement du mot de passe en cours : la sauvegarde suivra")
+	}
+	if b.stale {
+		b.mu.Unlock()
+		return BackupResult{}, errStalePassword
+	}
 	if manual {
 		b.paused = ""
 	}
 	b.running, b.dirty, b.attempt = true, false, now
-	password, device, folder := b.st.Password, b.st.Device, b.st.Folder
-	var gh backup.GitHub
-	if b.st.GitHub != nil {
-		gh = *b.st.GitHub
-	}
-	uploaded := slices.Clone(b.st.Uploaded)
 	b.mu.Unlock()
 	s.notify()
 	defer func() {
@@ -211,6 +229,23 @@ func (s *Service) backupNow(ctx context.Context, manual bool) (BackupResult, err
 		b.mu.Unlock()
 		s.notify()
 	}()
+
+	// Mot de passe changé sur un autre appareil ? Puis identifiant anonyme (fichiers renommés).
+	if err := s.checkBackupPassword(ctx); errors.Is(err, errStalePassword) {
+		return BackupResult{}, err
+	} else if err != nil {
+		diag.Warn(areaBackup, "vérification du mot de passe sur GitHub impossible : %v", err)
+	}
+	s.migrateDevice(ctx)
+
+	b.mu.Lock()
+	password, device, folder := b.st.Password, b.st.Device, b.st.Folder
+	var gh backup.GitHub
+	if b.st.GitHub != nil {
+		gh = *b.st.GitHub
+	}
+	uploaded := slices.Clone(b.st.Uploaded)
+	b.mu.Unlock()
 
 	text, info, err := s.exportText(password, now)
 	if err != nil {
@@ -228,15 +263,32 @@ func (s *Service) backupNow(ctx context.Context, manual bool) (BackupResult, err
 	var errGH, errDir string
 	if gh.Gist != "" {
 		content := string(text)
-		files := map[string]*string{name: &content}
-		names := append(slices.DeleteFunc(uploaded, func(n string) bool { return n == name }), name)
-		old := backup.Outdated(names, device, backup.Keep)
-		for _, n := range old {
-			files[n] = nil
+		var names, old []string
+		upload := func() error {
+			files := map[string]*string{name: &content}
+			names = append(slices.DeleteFunc(uploaded, func(n string) bool { return n == name }), name)
+			old = backup.Outdated(names, device, backup.Keep)
+			for _, n := range old {
+				files[n] = nil
+			}
+			ctx, cancel := context.WithTimeout(ctx, backupTimeout)
+			defer cancel()
+			return b.opts.GitHub.UpdateGist(ctx, gh.Token, gh.Gist, files)
 		}
-		ctx, cancel := context.WithTimeout(ctx, backupTimeout)
-		err := b.opts.GitHub.UpdateGist(ctx, gh.Token, gh.Gist, files)
-		cancel()
+		err := upload()
+		if errors.Is(err, share.ErrNotFound) {
+			// Gist recopié par un autre appareil (mot de passe changé, fichiers renommés) : retrouvé sur
+			// le compte, mot de passe vérifié, puis nouvel essai.
+			if found, _, ferr := s.backupGistFiles(ctx, gh.Token, gh.Gist, false); ferr == nil && found != "" && found != gh.Gist {
+				if cerr := s.checkBackupPassword(ctx); errors.Is(cerr, errStalePassword) {
+					return BackupResult{}, cerr
+				}
+				b.mu.Lock()
+				gh.Gist, uploaded = found, slices.Clone(b.st.Uploaded)
+				b.mu.Unlock()
+				err = upload()
+			}
+		}
 		if err != nil {
 			errGH = shareErrorText(err)
 			if errors.Is(err, share.ErrNotFound) {
@@ -321,7 +373,7 @@ func (s *Service) backupEnable(password string) error {
 	}
 	b.st.Enabled, b.st.Password = true, password
 	if b.st.Device == "" {
-		b.st.Device = backup.DeviceID(b.opts.Kind, b.opts.Name)
+		b.st.Device = backup.DeviceID(b.opts.Kind)
 	}
 	err = b.saveLocked()
 	b.dirty, b.changed = true, time.Time{}
@@ -343,7 +395,11 @@ func (s *Service) backupDisable() error {
 		return err
 	}
 	b.mu.Lock()
-	b.st.Enabled, b.st.Password = false, ""
+	if b.st.Rotation != nil {
+		b.mu.Unlock()
+		return errors.New("changement du mot de passe en cours : attendez qu'il se termine")
+	}
+	b.st.Enabled, b.st.Password, b.stale, b.checked = false, "", false, ""
 	if b.st.Archive != nil {
 		b.st.Archive.Enabled = false
 	}
@@ -565,7 +621,12 @@ func (s *Service) backupDisconnect() error {
 		return err
 	}
 	b.mu.Lock()
+	if b.st.Rotation != nil {
+		b.mu.Unlock()
+		return errors.New("changement du mot de passe en cours : attendez qu'il se termine")
+	}
 	b.st.GitHub, b.st.LastGitHub, b.st.Uploaded, b.errGH, b.listing = nil, 0, nil, "", nil
+	b.stale, b.checked = false, ""
 	b.st.Archive.ResetProgress()
 	if b.st.Archive != nil {
 		b.st.Archive.Enabled = false
@@ -666,6 +727,12 @@ type BackupView struct {
 	Login  *LoginView        `json:"login,omitempty"`
 	// Archive : archives des mesures et du journal des PC.
 	Archive *ArchiveView `json:"archive,omitempty"`
+	// Rotation : changement du mot de passe en cours ; Stale : mot de passe changé sur un autre
+	// appareil (nouveau mot de passe à saisir).
+	Rotation *RotationView `json:"rotation,omitempty"`
+	Stale    bool          `json:"stale,omitempty"`
+	// Rotated : fin du dernier changement de mot de passe (Unix ms).
+	Rotated int64 `json:"rotated,omitempty"`
 }
 
 // BackupTargetView est une destination des sauvegardes.
@@ -701,6 +768,7 @@ func (s *Service) backupView() BackupView {
 		v.Login = &LoginView{Code: l.code, URI: l.uri, Error: l.err}
 	}
 	v.Archive = archiveView
+	v.Rotation, v.Stale, v.Rotated = b.rotationView(), b.stale, b.rotated
 	return v
 }
 
@@ -715,6 +783,15 @@ func (s *Service) describeBackups(line func(string, ...any)) {
 	defer b.mu.Unlock()
 	line("Activées %t, mot de passe %s, appareil %s, en cours %t%s%s", b.st.Enabled, pick(b.st.Password != "", "présent", "absent"),
 		pick(b.st.Device != "", b.st.Device, "-"), b.running, pick(b.paused != "", ", EN PAUSE : "+b.paused, ""), errorSuffix(b.loadErr))
+	if b.st.LegacyDevice != "" {
+		line("Ancien identifiant (avec le nom de l'appareil) : fichiers à renommer")
+	}
+	if r := b.st.Rotation; r != nil {
+		line("Changement du mot de passe en cours depuis %s, %d étape(s) faite(s), en cours %t%s", millisText(r.Started), len(r.Done), b.rotating, errorSuffix(b.rotateErr))
+	}
+	if b.stale {
+		line("MOT DE PASSE CHANGÉ SUR UN AUTRE APPAREIL : nouveau mot de passe à saisir")
+	}
 	if gh := b.st.GitHub; gh != nil {
 		line("GitHub : @%s, gist %s, jeton %s, dernière réussite %s, %d version(s) de cet appareil%s", gh.User, shortID(gh.Gist),
 			pick(gh.Token != "", "présent", "absent"), millisText(b.st.LastGitHub), len(b.st.Uploaded), errorSuffix(b.errGH))

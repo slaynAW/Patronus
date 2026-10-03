@@ -118,6 +118,17 @@ func (s *Service) forgetArchiveKeys() {
 	}
 }
 
+// archivesRunning indique un archivage en cours.
+func (s *Service) archivesRunning() bool {
+	a := s.archives
+	if a == nil {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.running
+}
+
 // archiveAccess : ce qu'il faut pour lire ou écrire les archives (vide si indisponible).
 type archiveAccess struct {
 	enabled  bool
@@ -183,7 +194,7 @@ func (s *Service) runArchives(ctx context.Context) {
 
 func (s *Service) archiveDue() bool {
 	acc := s.archiveAccess()
-	if !acc.enabled || !acc.usable() {
+	if !acc.enabled || !acc.usable() || s.rotationPending() {
 		return false
 	}
 	a := s.archives
@@ -235,9 +246,23 @@ func (s *Service) archiveNow(ctx context.Context) (ArchiveResult, error) {
 	}
 	a.running, a.attempt = true, now
 	a.mu.Unlock()
+	// Changement du mot de passe en cours (vérifié après avoir pris la main : l'un attend l'autre).
+	if s.rotationPending() {
+		a.mu.Lock()
+		a.running = false
+		a.mu.Unlock()
+		return ArchiveResult{}, errors.New("changement du mot de passe des sauvegardes en cours : l'archivage suivra")
+	}
 	s.notify()
 	ctx, cancel := context.WithTimeout(ctx, archiveTimeout)
 	defer cancel()
+	if err := s.checkBackupPassword(ctx); errors.Is(err, errStalePassword) {
+		a.mu.Lock()
+		a.running, a.failed, a.err = false, true, err.Error()
+		a.mu.Unlock()
+		s.notify()
+		return ArchiveResult{}, err
+	}
 	result, synced, err := s.archiveCollectAndUpload(ctx, acc)
 	a.mu.Lock()
 	a.running, a.failed = false, err != nil

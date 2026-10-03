@@ -177,3 +177,47 @@ func TestNames(t *testing.T) {
 		t.Error("nom de fichier")
 	}
 }
+
+// Changement de mot de passe : même contenu, nouveau sel ; l'ancien mot de passe n'ouvre plus rien.
+func TestReencrypt(t *testing.T) {
+	m, key, err := NewManifest("2026-10", "ancien-mot-de-passe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	day := Day{Day: "2026-10-03", PCs: []DayPC{{MAC: "AA:BB:CC:DD:EE:FF", Name: "Bureau", Rows: []protocol.MetricsRow{{T: 1790985600, N: 6}}}}}
+	journal := Journal{Month: "2026-10"}
+	dayText, _ := key.Seal(DayFile(day.Day), day)
+	journalText, _ := key.Seal(JournalFile("2026-10"), journal)
+	files := map[string]string{ManifestFile: m.JSON(), ReadmeFile: Readme, DayFile(day.Day): dayText,
+		JournalFile("2026-10"): journalText, "mesures-2026-10-04.txt": "abîmé"}
+
+	if _, _, err := Reencrypt(files, "mauvais-mot-de-passe", "nouveau-mot-de-passe"); !errors.Is(err, ErrWrongPassword) {
+		t.Fatalf("mauvais mot de passe accepté : %v", err)
+	}
+	out, unreadable, err := Reencrypt(files, "ancien-mot-de-passe", "nouveau-mot-de-passe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != len(files) || !reflect.DeepEqual(unreadable, []string{"mesures-2026-10-04.txt"}) || out["mesures-2026-10-04.txt"] != "abîmé" {
+		t.Fatalf("fichiers : %d %v", len(out), unreadable)
+	}
+	next, err := ParseManifest(out[ManifestFile])
+	if err != nil || next.Month != "2026-10" || next.Salt == m.Salt {
+		t.Fatalf("manifeste : %+v %v", next, err)
+	}
+	if _, err := next.Unlock("ancien-mot-de-passe"); !errors.Is(err, ErrWrongPassword) {
+		t.Error("l'ancien mot de passe ouvre encore le mois")
+	}
+	newKey, err := next.Unlock("nouveau-mot-de-passe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var gotDay Day
+	if err := newKey.Open(DayFile(day.Day), out[DayFile(day.Day)], &gotDay); err != nil || !reflect.DeepEqual(gotDay, day) {
+		t.Errorf("mesures : %+v %v", gotDay, err)
+	}
+	var gotJournal Journal
+	if err := newKey.Open(JournalFile("2026-10"), out[JournalFile("2026-10")], &gotJournal); err != nil || gotJournal.Month != "2026-10" {
+		t.Errorf("journal : %+v %v", gotJournal, err)
+	}
+}

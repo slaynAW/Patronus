@@ -211,29 +211,96 @@ func importDecrypt(data []byte, password string) (model.AppConfig, []byte, error
 		c, err := fromJSON(root)
 		return c, nil, err
 	}
+	plain, err := decryptEnvelope(env, password)
+	if err != nil {
+		return model.AppConfig{}, nil, err
+	}
+	c, err := Decode(plain)
+	return c, plain, err
+}
+
+// Reencrypt rechiffre une sauvegarde chiffrée par oldPassword avec newPassword (sel et IV neufs),
+// sans toucher à son contenu ni à sa date. Erreur WrongPassword si oldPassword ne l'ouvre pas.
+func Reencrypt(data []byte, oldPassword, newPassword string) ([]byte, error) {
+	env, err := Inspect(data)
+	if err != nil {
+		return nil, err
+	}
+	if env.Encryption == nil {
+		return nil, fail(InvalidData, "Sauvegarde non chiffrée")
+	}
+	plain, err := decryptEnvelope(env, oldPassword)
+	if err != nil {
+		return nil, err
+	}
+	defer clear(plain)
+	if model.UTF16Len(newPassword) < MinPasswordLength {
+		return nil, errors.New("Mot de passe trop court")
+	}
+	salt, iv := make([]byte, 16), make([]byte, 12)
+	if _, err := rand.Read(salt); err != nil {
+		return nil, err
+	}
+	if _, err := rand.Read(iv); err != nil {
+		return nil, err
+	}
+	aead, err := newAEAD(newPassword, salt, DefaultIterations, len(iv))
+	if err != nil {
+		return nil, err
+	}
+	out := Envelope{Format: Format, Version: env.Version, ExportedAt: env.ExportedAt, App: env.App,
+		Encryption: &EncryptionInfo{KDF: KDF, Iterations: DefaultIterations, Cipher: Cipher,
+			Salt: base64.StdEncoding.EncodeToString(salt), IV: base64.StdEncoding.EncodeToString(iv)},
+		Data: base64.StdEncoding.EncodeToString(aead.Seal(nil, iv, plain, aad))}
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "    ")
+	if err := encoder.Encode(out); err != nil {
+		return nil, err
+	}
+	return bytes.TrimRight(buf.Bytes(), "\n"), nil
+}
+
+// CheckPassword vérifie que password ouvre la sauvegarde chiffrée data (erreur WrongPassword sinon).
+func CheckPassword(data []byte, password string) error {
+	env, err := Inspect(data)
+	if err != nil {
+		return err
+	}
+	if env.Encryption == nil {
+		return fail(InvalidData, "Sauvegarde non chiffrée")
+	}
+	plain, err := decryptEnvelope(env, password)
+	clear(plain)
+	return err
+}
+
+// decryptEnvelope déchiffre le contenu d'une enveloppe chiffrée (JSON en clair).
+func decryptEnvelope(env Envelope, password string) ([]byte, error) {
+	enc := env.Encryption
 	if password == "" {
-		return model.AppConfig{}, nil, fail(PasswordRequired, "Cette sauvegarde est protégée par un mot de passe")
+		return nil, fail(PasswordRequired, "Cette sauvegarde est protégée par un mot de passe")
 	}
 	if enc.KDF != KDF || enc.Cipher != Cipher || enc.Iterations < MinIterations || enc.Iterations > MaxIterations {
-		return model.AppConfig{}, nil, fail(InvalidData, "Paramètres de chiffrement non pris en charge")
+		return nil, fail(InvalidData, "Paramètres de chiffrement non pris en charge")
 	}
 	corrupted := fail(InvalidData, "Sauvegarde corrompue")
 	salt, err1 := decodeStd(enc.Salt)
 	iv, err2 := decodeStd(enc.IV)
 	sealed, err3 := decodeStd(env.Data)
 	if err1 != nil || err2 != nil || err3 != nil || len(iv) == 0 {
-		return model.AppConfig{}, nil, corrupted
+		return nil, corrupted
 	}
 	aead, err := newAEAD(password, salt, enc.Iterations, len(iv))
 	if err != nil {
-		return model.AppConfig{}, nil, corrupted
+		return nil, corrupted
 	}
 	plain, err := aead.Open(nil, iv, sealed, aad)
 	if err != nil {
-		return model.AppConfig{}, nil, fail(WrongPassword, "Mot de passe incorrect ou fichier modifié")
+		return nil, fail(WrongPassword, "Mot de passe incorrect ou fichier modifié")
 	}
-	c, err := Decode(plain)
-	return c, plain, err
+	return plain, nil
 }
 
 // newAEAD dérive la clé AES-256 du mot de passe (encodé en UTF-8, comme Java/Android).

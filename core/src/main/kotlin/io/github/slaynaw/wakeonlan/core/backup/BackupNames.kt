@@ -17,6 +17,7 @@ object BackupNames {
         "(https://github.com/slaynAW/Patronus), chiffrées par un mot de passe : illisibles sans lui.\n"
 
     private val NAME = Regex("""^patronus-([a-z0-9-]{1,40})-(\d{4}-\d{2}-\d{2})\.json$""")
+    private val ANONYMOUS = Regex("""^[a-z0-9]{1,20}-[0-9a-f]{8}$""")
     private val MARKS = Regex("""\p{Mn}+""")
 
     /** Sauvegarde repérée par son nom. */
@@ -43,12 +44,25 @@ object BackupNames {
         return out.toString().trim('-')
     }
 
-    /** Identifiant de l'appareil dans les noms de fichiers : nom simplifié et 4 caractères aléatoires. */
-    fun deviceId(kind: String, name: String, random: SecureRandom = SecureRandom()): String {
-        var base = slug("$kind-$name")
-        if (base.length > 30) base = base.take(30).trim('-')
-        val suffix = ByteArray(2).also(random::nextBytes).joinToString("") { "%02x".format(it) }
-        return "$base-$suffix"
+    /**
+     * Identifiant de l'appareil dans les noms de fichiers : son type et 8 caractères aléatoires
+     * (« android-3fa29c1e »). Les noms des fichiers sont visibles en clair : le nom de l'appareil n'y
+     * figure pas.
+     */
+    fun deviceId(kind: String, random: SecureRandom = SecureRandom()): String {
+        var k = slug(kind).replace("-", "")
+        if (k.isEmpty() || k.length > 20) k = "appareil"
+        val suffix = ByteArray(4).also(random::nextBytes).joinToString("") { "%02x".format(it) }
+        return "$k-$suffix"
+    }
+
+    /** Identifiant sans nom d'appareil ([deviceId]) ; ceux d'avant la 1.9.0 contiennent le nom. */
+    fun isAnonymous(device: String): Boolean = ANONYMOUS.matches(device)
+
+    /** Nom de la sauvegarde [name] de l'appareil [from] sous l'identifiant [to] (null : autre fichier). */
+    fun renamed(name: String, from: String, to: String): String? {
+        val e = parse(name) ?: return null
+        return if (e.device == from) "patronus-$to-${e.date}.json" else null
     }
 
     fun fileName(device: String, day: LocalDate): String = "patronus-$device-$day.json"

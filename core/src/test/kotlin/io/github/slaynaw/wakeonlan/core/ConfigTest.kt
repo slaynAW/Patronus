@@ -120,6 +120,23 @@ class ConfigTest {
     }
 
     @Test
+    fun `rechiffrement d une sauvegarde (changement de mot de passe)`() {
+        val old = "ancien mot de passe".toCharArray()
+        val text = ExportCodec.export(config, old, "2026-09-27T10:00:00Z", appVersion = "Patronus test")
+        val wrong = assertThrows<ConfigException> { ExportCodec.reencrypt(text, "mauvais mot de passe".toCharArray(), "nouveau mot de passe".toCharArray()) }
+        assertEquals(ConfigException.Reason.WRONG_PASSWORD, wrong.reason)
+        assertThrows<IllegalArgumentException> { ExportCodec.reencrypt(text, old, "court".toCharArray()) }
+        val next = ExportCodec.reencrypt(text, old, "nouveau mot de passe".toCharArray())
+        assertEquals(config, ExportCodec.import(next, "nouveau mot de passe".toCharArray()))
+        ExportCodec.checkPassword(next, "nouveau mot de passe".toCharArray())
+        assertEquals(ConfigException.Reason.WRONG_PASSWORD, assertThrows<ConfigException> { ExportCodec.checkPassword(next, old) }.reason)
+        val envelope = ExportCodec.inspect(next)
+        assertEquals("2026-09-27T10:00:00Z", envelope.exportedAt)
+        assertEquals("Patronus test", envelope.app)
+        assertThrows<ConfigException> { ExportCodec.reencrypt(ExportCodec.export(config, null, "x"), old, "nouveau mot de passe".toCharArray()) }
+    }
+
+    @Test
     fun `fichier etranger refuse`() {
         val e = assertThrows<ConfigException> { ExportCodec.import("""{"hello":"world"}""", null) }
         assertEquals(ConfigException.Reason.NOT_A_BACKUP, e.reason)

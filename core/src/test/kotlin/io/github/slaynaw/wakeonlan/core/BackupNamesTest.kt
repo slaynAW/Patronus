@@ -13,10 +13,18 @@ class BackupNamesTest {
     @Test
     fun `noms et versions`() {
         assertEquals("pc-bureau-d-helene-etage", BackupNames.slug("PC Bureau d'Hélène – Étage"))
-        val id = BackupNames.deviceId("android", "Pixel 8 Pro")
-        assertTrue(Regex("^android-pixel-8-pro-[0-9a-f]{4}$").matches(id), id)
-        val long = BackupNames.deviceId("android", "Pixel ".repeat(20))
-        assertTrue(long.length <= 35 && !long.contains("--"), long)
+        // Identifiant anonyme : type de l'appareil et 8 caractères aléatoires, jamais son nom.
+        val id = BackupNames.deviceId("android")
+        assertTrue(Regex("^android-[0-9a-f]{8}$").matches(id) && BackupNames.isAnonymous(id), id)
+        assertTrue(id != BackupNames.deviceId("android"))
+        for (legacy in listOf("android-pixel-8-3fa2", "windows-bureau-3fa2", "android-3fa2", "windows-a1b2c3d4-3fa2")) {
+            assertFalse(BackupNames.isAnonymous(legacy), legacy)
+        }
+        assertEquals(
+            "patronus-android-0a1b2c3d-2026-09-30.json",
+            BackupNames.renamed("patronus-android-pixel-8-3fa2-2026-09-30.json", "android-pixel-8-3fa2", "android-0a1b2c3d"),
+        )
+        assertNull(BackupNames.renamed("patronus-windows-bureau-3fa2-2026-09-30.json", "android-pixel-8-3fa2", "android-0a1b2c3d"))
 
         val day = LocalDate.of(2026, 9, 30)
         val name = BackupNames.fileName("android-pixel-8-3fa2", day)

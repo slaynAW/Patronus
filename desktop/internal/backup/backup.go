@@ -21,18 +21,36 @@ const (
 	prefix = "patronus-"
 )
 
-var namePattern = regexp.MustCompile(`^patronus-([a-z0-9-]{1,40})-(\d{4}-\d{2}-\d{2})\.json$`)
+var (
+	namePattern = regexp.MustCompile(`^patronus-([a-z0-9-]{1,40})-(\d{4}-\d{2}-\d{2})\.json$`)
+	anonymousID = regexp.MustCompile(`^[a-z0-9]{1,20}-[0-9a-f]{8}$`)
+)
 
-// DeviceID renvoie l'identifiant de fichier d'un appareil : son nom simplifié et 4 caractères
-// aléatoires (deux appareils du même nom ne se remplacent pas). Ex. « windows-bureau-3fa2 ».
-func DeviceID(kind, name string) string {
-	random := make([]byte, 2)
+// DeviceID renvoie l'identifiant de fichier d'un appareil : son type et 8 caractères aléatoires
+// (« windows-3fa29c1e »). Les noms des fichiers sont visibles en clair : le nom de l'appareil n'y
+// figure pas.
+func DeviceID(kind string) string {
+	random := make([]byte, 4)
 	_, _ = rand.Read(random)
-	slug := Slug(kind + "-" + name)
-	if len(slug) > 30 {
-		slug = strings.Trim(slug[:30], "-")
+	k := strings.ReplaceAll(Slug(kind), "-", "")
+	if k == "" || len(k) > 20 {
+		k = "appareil"
 	}
-	return slug + "-" + hex.EncodeToString(random)
+	return k + "-" + hex.EncodeToString(random)
+}
+
+// Anonymous indique un identifiant sans nom d'appareil (DeviceID). Les identifiants d'avant la 1.9.0
+// (« windows-bureau-3fa2 ») contiennent le nom : leurs fichiers sont renommés.
+func Anonymous(device string) bool { return anonymousID.MatchString(device) }
+
+// Renamed renvoie le nom de la sauvegarde name de l'appareil from sous l'identifiant to (ok faux si
+// name n'est pas une sauvegarde de from).
+func Renamed(name, from, to string) (string, bool) {
+	e, ok := Parse(name)
+	if !ok || e.Device != from {
+		return "", false
+	}
+	return prefix + to + "-" + e.Date + ".json", true
 }
 
 // accents : lettres accentuées courantes et leur équivalent sans accent.

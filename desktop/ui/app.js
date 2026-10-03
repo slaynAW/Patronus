@@ -298,6 +298,19 @@
     archive_done: "Archivage terminé : %1$s minute(s) ajoutée(s)",
     archive_skipped: "Non archivés pour l’instant : %1$s",
     archive_disable: "Arrêter l’archivage",
+    backup_change: "Changer le mot de passe",
+    backup_change_help: "Rechiffre les sauvegardes et les archives avec un nouveau mot de passe, sans rien perdre",
+    backup_change_title: "Changer le mot de passe des sauvegardes",
+    backup_change_text: "Tout ce que l’ancien mot de passe protège est rechiffré par le nouveau : sauvegardes (sur GitHub et dans le dossier, celles de vos autres appareils comprises) et archives des mesures. Rien n’est perdu. Sur GitHub, chaque Gist est recopié, vérifié, puis l’ancien est supprimé avec son historique : l’ancien mot de passe n’ouvre plus rien. Vos autres appareils vous demanderont le nouveau mot de passe. Notez-le en lieu sûr : il ne pourra pas être récupéré.",
+    backup_change_ok: "Changer",
+    backup_change_done: "Mot de passe changé : sauvegardes et archives rechiffrées",
+    backup_rotation_running: "Changement du mot de passe en cours : %1$s…",
+    backup_rotation_waiting: "Changement du mot de passe en cours…",
+    backup_stale_title: "Nouveau mot de passe à saisir",
+    backup_stale_help: "Mot de passe des sauvegardes changé sur un autre appareil : sauvegardes et archives arrêtées ici",
+    backup_stale_text: "Le mot de passe des sauvegardes a été changé sur un autre de vos appareils. Saisissez le nouveau mot de passe : les sauvegardes et les archives reprendront.",
+    backup_stale_ok: "Valider",
+    backup_stale_done: "Nouveau mot de passe enregistré : sauvegardes et archives reprises",
     backup_now: "Sauvegarder maintenant",
     backup_now_help: "Sauvegarde automatique après chaque changement et chaque jour ; 7 versions gardées.",
     backup_running: "Sauvegarde en cours…",
@@ -332,6 +345,8 @@
     field_password: "Mot de passe",
     field_password_help: "%1$d caractères minimum. Il ne pourra pas être récupéré.",
     field_password_confirm: "Confirmer le mot de passe",
+    field_password_current: "Mot de passe actuel",
+    field_password_new: "Nouveau mot de passe",
     import_password_title: "Sauvegarde protégée",
     import_wrong_password: "Mot de passe incorrect",
     import_confirm_title: "Importer la sauvegarde (PC : %1$d) ?",
@@ -3538,6 +3553,9 @@
   // Sauvegardes automatiques (GitHub et dossier) et restauration depuis GitHub
   // ---------------------------------------------------------------------------------------------
   const backups = (() => {
+    // Message à afficher à la fin du changement de mot de passe demandé (since : heure de la demande).
+    let changeNotice = null;
+
     function lastText(target) {
       if (target.error) return target.error;
       return target.last ? fmt(S.backup_last, formatDuration(Math.max(0, Date.now() - target.last))) : S.backup_never;
@@ -3567,8 +3585,19 @@
       const archiveItem = settingItem("chart", S.archive_title, archiveText,
         !b.github ? () => connect(archiveEnableDialog) : a.enabled ? archiveDialog : archiveEnableDialog);
       if (a.enabled && a.error) archiveItem.querySelector(".supporting").classList.add("bad");
-      return [github, folder, now, archiveItem, restore,
+      const r = b.rotation;
+      const change = settingItem("lock", S.backup_change,
+        r ? (r.error || (r.step ? fmt(S.backup_rotation_running, r.step) : S.backup_rotation_waiting)) : S.backup_change_help,
+        r || b.stale ? null : changeDialog);
+      if (r?.error) change.querySelector(".supporting").classList.add("bad");
+      const items = [github, folder, now, archiveItem, change, restore,
         settingItem("delete", S.backup_disable, S.backup_disable_help, disableDialog, { danger: true, chevron: false })];
+      if (b.stale) {
+        const stale = settingItem("lock", S.backup_stale_title, S.backup_stale_help, staleDialog);
+        stale.querySelector(".supporting").classList.add("bad");
+        items.unshift(stale);
+      }
+      return items;
     }
 
     /** Section des réglages, reconstruite quand l'état change (et chaque minute pour les durées). */
@@ -3581,6 +3610,11 @@
         update() {
           const b = state.backup || {};
           const now = Date.now();
+          // Fin d'un changement de mot de passe demandé depuis cet écran.
+          if (changeNotice && !b.rotation && (b.rotated || 0) >= changeNotice.since) {
+            snackbar(changeNotice.text);
+            changeNotice = null;
+          }
           const next = JSON.stringify(b);
           if (next === sig && Math.floor(now / 60000) === minute) return;
           sig = next;
@@ -3802,6 +3836,79 @@
         else snackbar(S.backup_done);
       } catch (e) {
         alertDialog(S.backup_now, errorMessage(e));
+      }
+    }
+
+    /** Changement du mot de passe : actuel, nouveau et confirmation ; le rechiffrement suit en fond. */
+    function changeDialog() {
+      let current = "";
+      let password = "";
+      let confirmation = "";
+      const currentField = field({ label: S.field_password_current, type: "password", onInput: (v) => { current = v; refresh(); } });
+      const passwordField = field({ label: S.field_password_new, helper: fmt(S.field_password_help, MIN_PASSWORD_LENGTH), type: "password", onInput: (v) => { password = v; refresh(); } });
+      const confirmField = field({ label: S.field_password_confirm, type: "password", onInput: (v) => { confirmation = v; refresh(); } });
+      const dialog = openDialog({
+        iconName: "lock",
+        title: S.backup_change_title,
+        body: [h("p", { text: S.backup_change_text }), h("div", { class: "form-section" }, currentField.wrap, passwordField.wrap, confirmField.wrap)],
+      });
+      refresh();
+      [currentField.input, passwordField.input, confirmField.input].forEach((i) => i.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && valid()) submit();
+      }));
+      function valid() {
+        return current.length > 0 && [...password].length >= MIN_PASSWORD_LENGTH && password === confirmation && password !== current;
+      }
+      function refresh() {
+        passwordField.wrap.classList.toggle("error", password.length > 0 && [...password].length < MIN_PASSWORD_LENGTH);
+        confirmField.wrap.classList.toggle("error", confirmation.length > 0 && password !== confirmation);
+        dialog.setActions([
+          { label: S.cancel, onClick: () => dialog.close() },
+          { label: S.backup_change_ok, disabled: !valid(), onClick: submit },
+        ]);
+      }
+      async function submit() {
+        try {
+          changeNotice = { since: Date.now() - 2000, text: S.backup_change_done };
+          await api.call("backupChangePassword", { current, password });
+          dialog.close();
+          current = password = confirmation = "";
+        } catch (e) {
+          changeNotice = null;
+          alertDialog(S.backup_change_title, errorMessage(e));
+        }
+      }
+    }
+
+    /** Mot de passe changé sur un autre appareil : saisie du nouveau. */
+    function staleDialog() {
+      let password = "";
+      const passwordField = field({ label: S.field_password_new, type: "password", onInput: (v) => { password = v; refresh(); } });
+      const dialog = openDialog({
+        iconName: "lock",
+        title: S.backup_stale_title,
+        body: [h("p", { text: S.backup_stale_text }), h("div", { class: "form-section" }, passwordField.wrap)],
+      });
+      refresh();
+      passwordField.input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && password) submit();
+      });
+      function refresh() {
+        dialog.setActions([
+          { label: S.cancel, onClick: () => dialog.close() },
+          { label: S.backup_stale_ok, disabled: !password, onClick: submit },
+        ]);
+      }
+      async function submit() {
+        try {
+          changeNotice = { since: Date.now() - 2000, text: S.backup_stale_done };
+          await api.call("backupUpdatePassword", { password });
+          dialog.close();
+          password = "";
+        } catch (e) {
+          changeNotice = null;
+          alertDialog(S.backup_stale_title, errorMessage(e));
+        }
       }
     }
 

@@ -129,7 +129,9 @@ func TestBackupToGitHubAndFolder(t *testing.T) {
 		t.Fatalf("sauvegarde : %v %v", res, err)
 	}
 	name := res["github"].(string)
-	if !strings.HasPrefix(name, "patronus-windows-bureau-") || !strings.HasSuffix(name, "-2026-09-30.json") {
+	// Nom en clair sur GitHub : type de l'appareil et identifiant aléatoire, jamais son nom (« Bureau »).
+	if e, ok := backup.Parse(name); !ok || !backup.Anonymous(e.Device) || !strings.HasPrefix(name, "patronus-windows-") ||
+		strings.Contains(name, "bureau") || !strings.HasSuffix(name, "-2026-09-30.json") {
 		t.Errorf("nom : %s", name)
 	}
 	gists.mu.Lock()
@@ -240,7 +242,8 @@ func TestBackupRestoreOnNewDevice(t *testing.T) {
 		t.Fatalf("sauvegardes listées : %v", list)
 	}
 	entry := entries[0].(map[string]any)
-	if entry["mine"] != false || !strings.HasPrefix(entry["device"].(string), "windows-bureau-") || entry["date"] != "2026-09-30" {
+	if entry["mine"] != false || !backup.Anonymous(entry["device"].(string)) || !strings.HasPrefix(entry["device"].(string), "windows-") ||
+		strings.Contains(entry["name"].(string), "bureau") || entry["date"] != "2026-09-30" {
 		t.Errorf("sauvegarde : %v", entry)
 	}
 	step, err := callJSON(t, fresh, "backupRestore", `{"name":"`+entry["name"].(string)+`"}`)

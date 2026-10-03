@@ -31,9 +31,33 @@ l'application Windows.
 - Sur le téléphone, les sauvegardes se font quand l'application est ouverte (pas d'activité en
   arrière-plan, comme la surveillance des PC).
 
-Chaque appareil écrit un fichier par jour, `patronus-<appareil>-AAAA-MM-JJ.json` (par exemple
-`patronus-android-pixel-8-3fa2-2026-09-30.json`), et garde les **7 derniers** ; les plus anciens sont
-supprimés. Le Gist garde en plus l'historique de ses révisions (GitHub).
+Chaque appareil écrit un fichier par jour, `patronus-<appareil>-AAAA-MM-JJ.json`, et garde les **7
+derniers** ; les plus anciens sont supprimés. Le Gist garde en plus l'historique de ses révisions (GitHub).
+
+Les noms des fichiers sont visibles en clair : `<appareil>` n'est que le **type d'appareil et un
+identifiant aléatoire** (par exemple `patronus-android-3fa29c1e-2026-09-30.json`), jamais le nom du
+téléphone ou du PC. Avant la 1.9.0, le nom y figurait : à la première sauvegarde de la 1.9.0, les
+fichiers de l'appareil sont renommés et le Gist est recopié dans un Gist neuf (l'ancien est supprimé
+avec son historique), pour que l'ancien nom disparaisse aussi de GitHub.
+
+## Changer le mot de passe
+
+*Réglages* → *Sauvegarde automatique* → *Changer le mot de passe* : mot de passe actuel, puis le
+nouveau (deux fois). **Rien n'est perdu** :
+
+- tout ce que l'ancien mot de passe protège est **rechiffré** par le nouveau : les sauvegardes sur
+  GitHub (celles de vos autres appareils comprises, si elles utilisaient le même mot de passe), celles
+  du dossier, et les **archives des mesures** de tous les mois ;
+- sur GitHub, chaque Gist est **recopié** dans un Gist neuf, la copie est **vérifiée**, puis l'ancien
+  Gist est **supprimé avec son historique** : plus aucune version chiffrée par l'ancien mot de passe ne
+  reste sur GitHub ;
+- un changement interrompu (Internet coupé, application fermée) **reprend tout seul** où il s'était
+  arrêté ; sauvegardes et archives attendent qu'il soit terminé ;
+- vos **autres appareils** s'en aperçoivent à leur sauvegarde suivante (leurs fichiers ne s'ouvrent plus
+  avec l'ancien mot de passe) : leurs sauvegardes et archives s'arrêtent et *Nouveau mot de passe à
+  saisir* apparaît dans leurs réglages. Saisissez-y le nouveau mot de passe : tout reprend.
+
+Mettez d'abord tous vos appareils en 1.9.0 : une version plus ancienne ne reconnaît pas le changement.
 
 ## Protections
 

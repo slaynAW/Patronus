@@ -12,13 +12,21 @@ func TestNamesAndVersions(t *testing.T) {
 	if got := Slug("PC Bureau d'Hélène – Étage"); got != "pc-bureau-d-helene-etage" {
 		t.Errorf("slug : %q", got)
 	}
-	id := DeviceID("windows", "BUREAU-01")
-	if !strings.HasPrefix(id, "windows-bureau-01-") || len(id) != len("windows-bureau-01-")+4 {
+	// Identifiant anonyme : type de l'appareil et 8 caractères aléatoires, jamais son nom.
+	id := DeviceID("windows")
+	if !strings.HasPrefix(id, "windows-") || len(id) != len("windows-")+8 || !Anonymous(id) || id == DeviceID("windows") {
 		t.Errorf("identifiant : %q", id)
 	}
-	long := DeviceID("android", strings.Repeat("Pixel ", 20))
-	if len(long) > 35 || strings.Contains(long, "--") {
-		t.Errorf("identifiant long : %q", long)
+	for _, legacy := range []string{"windows-bureau-3fa2", "android-pixel-8-3fa2", "windows-3fa2", "windows-a1b2c3d4-3fa2"} {
+		if Anonymous(legacy) {
+			t.Errorf("ancien identifiant pris pour anonyme : %q", legacy)
+		}
+	}
+	if got, ok := Renamed("patronus-windows-bureau-3fa2-2026-09-30.json", "windows-bureau-3fa2", "windows-0a1b2c3d"); !ok || got != "patronus-windows-0a1b2c3d-2026-09-30.json" {
+		t.Errorf("renommage : %q %v", got, ok)
+	}
+	if _, ok := Renamed("patronus-android-pixel-1111-2026-09-30.json", "windows-bureau-3fa2", "windows-0a1b2c3d"); ok {
+		t.Error("fichier d'un autre appareil renommé")
 	}
 	day := time.Date(2026, 9, 30, 15, 0, 0, 0, time.Local)
 	name := FileName("windows-bureau-3fa2", day)
