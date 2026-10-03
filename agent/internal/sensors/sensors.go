@@ -427,21 +427,36 @@ func firstNonNil(a, b *float64) *float64 {
 	return b
 }
 
-// parseNvidiaSMI lit « nvidia-smi --query-gpu=temperature.gpu,name --format=csv,noheader,nounits »
-// (une ligne par carte : la plus chaude est retenue).
-func parseNvidiaSMI(out string) (gpu *float64, name string) {
+// parseNvidiaSMI lit « nvidia-smi --query-gpu=temperature.gpu,utilization.gpu,name
+// --format=csv,noheader,nounits » (une ligne par carte : la plus chaude est retenue, avec son
+// utilisation ; sans température, la plus occupée).
+func parseNvidiaSMI(out string) (temp, load *float64, name string) {
+	number := func(s string) (float64, bool) {
+		v, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+		return v, err == nil
+	}
 	for line := range strings.SplitSeq(strings.TrimSpace(out), "\n") {
-		temp, n, ok := strings.Cut(line, ",")
-		if !ok {
+		fields := strings.SplitN(line, ",", 3)
+		if len(fields) != 3 {
 			continue
 		}
-		v, err := strconv.ParseFloat(strings.TrimSpace(temp), 64)
-		if err != nil {
-			continue
+		var t, l *float64
+		if v, ok := number(fields[0]); ok {
+			t = celsius(v)
 		}
-		if t := celsius(v); t != nil && (gpu == nil || *t > *gpu) {
-			gpu, name = t, strings.TrimSpace(n)
+		if v, ok := number(fields[1]); ok {
+			l = percent(v)
+		}
+		better := false
+		switch {
+		case t != nil:
+			better = temp == nil || *t > *temp
+		case l != nil:
+			better = temp == nil && (load == nil || *l > *load)
+		}
+		if better {
+			temp, load, name = t, l, strings.TrimSpace(fields[2])
 		}
 	}
-	return gpu, name
+	return temp, load, name
 }

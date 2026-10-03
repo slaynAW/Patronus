@@ -118,6 +118,8 @@
     detail_uptime: "Allumé depuis",
     detail_temp_cpu: "Température CPU",
     detail_temp_gpu: "Température GPU",
+    detail_load_cpu: "Utilisation CPU",
+    detail_load_gpu: "Utilisation GPU",
     temperature_gpu_shared: "intégré au CPU",
     temperature_gpu_shared_help: "%1$s est intégré au processeur et n’a pas de sonde à part : c’est la température de la puce, la même que celle du processeur.",
     temperature_cpu_lhm: "LibreHardwareMonitor requis",
@@ -732,12 +734,18 @@
     auth: [S.temperature_cpu_lhm_auth, S.temperature_cpu_lhm_auth_help],
     "no-sensor": [S.temperature_cpu_lhm_sensor, S.temperature_cpu_lhm_sensor_help],
   })[state] || [S.temperature_cpu_lhm, S.temperature_cpu_lhm_help];
-  /** « CPU 54 °C · GPU 61 °C » et la classe de la plus élevée ; texte vide sans température connue. */
+  const percentText = (value) => `${Math.round(value)}\u00a0%`;
+  /** « 54 °C (23 %) », « 54 °C » ou « 23 % » ; texte vide si rien n'est connu. */
+  const sensorText = (temp, load) =>
+    temp != null && load != null ? `${celsius(temp)} (${percentText(load)})` : temp != null ? celsius(temp) : load != null ? percentText(load) : "";
+  /** « CPU 54 °C (23 %) · GPU 61 °C (41 %) » et la classe de la plus chaude ; texte vide si rien n'est connu. */
   function temperatureSummary(t) {
     const parts = [];
-    if (t?.cpu != null) parts.push(fmt(S.temperature_cpu_short, celsius(t.cpu)));
+    const cpu = sensorText(t?.cpu, t?.cpuLoad);
+    if (cpu) parts.push(fmt(S.temperature_cpu_short, cpu));
     // Puce graphique intégrée : même température que le processeur, pas répétée.
-    if (t?.gpu != null && !(t.gpuShared && t.cpu != null)) parts.push(fmt(S.temperature_gpu_short, celsius(t.gpu)));
+    const gpu = sensorText(t?.gpuShared && t?.cpu != null ? null : t?.gpu, t?.gpuLoad);
+    if (gpu) parts.push(fmt(S.temperature_gpu_short, gpu));
     const values = [t?.cpu, t?.gpu].filter((v) => v != null);
     return { text: parts.join(" · "), cls: values.length ? tempClass(Math.max(...values)) : null };
   }
@@ -1508,6 +1516,7 @@
         setText(stateText, shortState(s, now));
         const t = temperatureSummary(online && s.agent ? s.agent.temperatures : null);
         setText(temps, t.text);
+        temps.title = t.text; // texte complet si la colonne est étroite
         setClass(temps, `temps${t.cls ? " " + t.cls : ""}${t.text ? "" : " hidden"}`);
         setText(mac, d.mac || "—");
         setText(system, online && s.agent ? [osLabel(s.agent.os), archLabel(s.agent.arch)].filter(Boolean).join(" · ") : "—");
@@ -2049,10 +2058,12 @@
           const [text, help] = lhmHint(t.lhm);
           rows.push({ key: "cpu", label: S.detail_temp_cpu, text, cls: "muted", title: help, onClick: () => alertDialog(S.detail_temp_cpu, help) });
         }
+        if (t?.cpuLoad != null) rows.push({ key: "cpuLoad", label: S.detail_load_cpu, text: percentText(t.cpuLoad) });
         if (t?.gpu != null && t.gpuShared) {
           const help = fmt(S.temperature_gpu_shared_help, t.gpuName || "GPU");
           rows.push({ key: "gpu", label: S.detail_temp_gpu, text: `${celsius(t.gpu)} · ${S.temperature_gpu_shared}`, cls: tempClass(t.gpu), title: help });
         } else if (t?.gpu != null) rows.push({ key: "gpu", label: S.detail_temp_gpu, text: celsius(t.gpu), cls: tempClass(t.gpu), title: t.gpuName });
+        if (t?.gpuLoad != null) rows.push({ key: "gpuLoad", label: S.detail_load_gpu, text: percentText(t.gpuLoad), title: t.gpuName });
       }
       if (d.shared) rows.push({ key: "shared", label: S.detail_shared, text: d.shared.ownerName, cls: "shared-by", iconName: "share" });
       if (!d.hasAgent) {

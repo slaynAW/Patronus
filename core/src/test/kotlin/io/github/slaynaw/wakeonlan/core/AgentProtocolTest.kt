@@ -85,7 +85,7 @@ class AgentProtocolTest {
             val old = AgentClient().status("127.0.0.1", settings)
             assertEquals(null, (old as AgentResult.Success).value.temperatures)
 
-            server.temperatures = AgentTemperatures(cpu = 54.5, gpu = 61.0, gpuName = "NVIDIA GeForce RTX 4070")
+            server.temperatures = AgentTemperatures(cpu = 54.5, gpu = 61.0, gpuName = "NVIDIA GeForce RTX 4070", cpuLoad = 23.4, gpuLoad = 97.0)
             val status = AgentClient().status("127.0.0.1", settings)
             assertEquals(server.temperatures, (status as AgentResult.Success).value.temperatures)
 

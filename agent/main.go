@@ -310,7 +310,7 @@ func cmdStatus(args []string) error {
 	if err != nil {
 		fmt.Println("                (", err, ")")
 	}
-	fmt.Printf("Températures  : %s\n", describeTemperatures(sensors.Read()))
+	fmt.Printf("Capteurs      : %s\n", describeTemperatures(sensors.Read()))
 	for _, line := range sensors.Details() {
 		fmt.Println("                " + line)
 	}
@@ -364,13 +364,28 @@ func describeEvent(e protocol.HistoryEvent) string {
 
 func describeTemperatures(t protocol.Temperatures) string {
 	var parts []string
+	cpu := ""
 	if t.CPU != nil {
-		parts = append(parts, fmt.Sprintf("processeur %.0f °C", *t.CPU))
-	} else if t.CPUHint == protocol.CPUHintLHM {
-		parts = append(parts, "processeur : "+lhmAdvice(t.LHM))
+		cpu = fmt.Sprintf("%.0f °C", *t.CPU)
 	}
-	if t.GPU != nil {
-		gpu := fmt.Sprintf("carte graphique %.0f °C", *t.GPU)
+	if t.CPULoad != nil {
+		cpu = strings.TrimPrefix(cpu+fmt.Sprintf(", utilisé à %.0f %%", *t.CPULoad), ", ")
+	}
+	if cpu != "" {
+		parts = append(parts, "processeur "+cpu)
+	}
+	if t.CPU == nil && t.CPUHint == protocol.CPUHintLHM {
+		parts = append(parts, "température du processeur : "+lhmAdvice(t.LHM))
+	}
+	if t.GPU != nil || t.GPULoad != nil {
+		var values []string
+		if t.GPU != nil {
+			values = append(values, fmt.Sprintf("%.0f °C", *t.GPU))
+		}
+		if t.GPULoad != nil {
+			values = append(values, fmt.Sprintf("utilisée à %.0f %%", *t.GPULoad))
+		}
+		gpu := "carte graphique " + strings.Join(values, ", ")
 		if t.GPUName != "" {
 			gpu += " (" + t.GPUName + ")"
 		}

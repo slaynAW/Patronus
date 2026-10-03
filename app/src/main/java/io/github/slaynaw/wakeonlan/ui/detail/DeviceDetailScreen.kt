@@ -59,6 +59,7 @@ import io.github.slaynaw.wakeonlan.ui.common.WolCard
 import io.github.slaynaw.wakeonlan.ui.common.WolIcons
 import io.github.slaynaw.wakeonlan.ui.common.formatCelsius
 import io.github.slaynaw.wakeonlan.ui.common.formatLongDuration
+import io.github.slaynaw.wakeonlan.ui.common.formatPercent
 import io.github.slaynaw.wakeonlan.ui.common.label
 import io.github.slaynaw.wakeonlan.ui.common.rememberDeviceDialogState
 import io.github.slaynaw.wakeonlan.ui.common.rememberNow
@@ -348,6 +349,10 @@ private fun InfoCard(item: DeviceItem) {
                         )
                     }
                 }
+                temps.cpuLoad?.let { load ->
+                    RowDivider()
+                    KeyValueRow(stringResource(R.string.detail_load_cpu), formatPercent(load))
+                }
                 temps.gpu?.let { gpu ->
                     RowDivider()
                     KeyValueRow(stringResource(R.string.detail_temp_gpu), formatCelsius(gpu), valueColor = temperatureColor(gpu))
@@ -359,6 +364,10 @@ private fun InfoCard(item: DeviceItem) {
                             modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 11.dp),
                         )
                     }
+                }
+                temps.gpuLoad?.let { load ->
+                    RowDivider()
+                    KeyValueRow(stringResource(R.string.detail_load_gpu), formatPercent(load))
                 }
             }
         }

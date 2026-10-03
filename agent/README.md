@@ -127,11 +127,24 @@ mis à jour chaque minute). Les applications relisent ce journal dès que le PC 
 > version, la configuration et la clé sont conservées. Avec un agent plus ancien, les applications n'affichent que les
 > changements qu'elles constatent elles-mêmes, pendant qu'elles sont ouvertes.
 
-## Températures
+## Températures et utilisation
 
 Depuis la version 1.5.0, la réponse à `status` contient la température du **processeur** et de la **carte graphique**
-(la plus chaude s'il y en a plusieurs), affichées par les applications. Les capteurs ne sont lus que lorsqu'une
-application le demande, au plus toutes les 5 secondes, en arrière-plan (la réponse n'attend jamais les capteurs).
+(la plus chaude s'il y en a plusieurs), et depuis la version 1.7.0 leur **utilisation en %**, affichées par les
+applications. Les capteurs ne sont lus que lorsqu'une application le demande, au plus toutes les 5 secondes, en
+arrière-plan (la réponse n'attend jamais les capteurs).
+
+**Utilisation** (agent 1.7.0), mesurée sur une seconde à chaque relevé :
+
+| Système | Processeur | Carte graphique |
+|---|---|---|
+| Windows | Compteur de performance `Processor Information(_Total)\% Processor Utility`, **celui du Gestionnaire des tâches** (travail réellement fourni, selon la fréquence ; plafonné à 100 %), à défaut le temps d'activité (`GetSystemTimes`) | Compteurs `GPU Engine(*)\Utilization Percentage` (Windows 10 1709 ou plus), **calcul du Gestionnaire des tâches** : chaque moteur (3D, copie, vidéo…) additionné sur tous les programmes, puis moteur le plus occupé de la carte. Toutes marques, puces intégrées comprises. C'est la carte dont la température est affichée (sinon la plus occupée) |
+| Linux | `/proc/stat` | `nvidia-smi` (NVIDIA), `gpu_busy_percent` (AMD, pilote `amdgpu`) |
+| macOS | — | — |
+
+Les compteurs sont lus par leur nom anglais : la mesure fonctionne quelle que soit la langue de Windows.
+
+**Températures** :
 
 | Système | Carte graphique | Processeur |
 |---|---|---|

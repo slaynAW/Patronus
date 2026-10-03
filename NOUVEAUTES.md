@@ -3,6 +3,10 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.7.0
+
+- **Utilisation du processeur et de la carte graphique en %** de chaque PC allumé, sur sa fiche et dans les listes (« CPU 54 °C (23 %) · GPU 61 °C (41 %) »). Les chiffres sont mesurés comme dans le Gestionnaire des tâches de Windows, pour toutes les marques de cartes graphiques, y compris les puces intégrées (avec l'agent 1.7.0, qui se propose tout seul aux PC Windows).
+
 ## 1.6.1
 
 - **Température GPU des PC à graphique intégré** (Intel UHD Graphics, Iris Xe, Radeon des processeurs AMD) : ces puces font partie du processeur et n'ont pas de sonde à part ; la fiche du PC affiche désormais la température de la puce, en le précisant (agent 1.6.1).

@@ -26,6 +26,9 @@ import (
 
 func read() protocol.Temperatures {
 	var t protocol.Temperatures
+	// Utilisation mesurée pendant une seconde, en même temps que les autres lectures.
+	measured := make(chan usageReading, 1)
+	go func() { measured <- measureUsage() }()
 	list := adapters()
 	readings := nvidiaGPUs()
 	integrated, hasIntegrated := "", false
@@ -46,6 +49,18 @@ func read() protocol.Temperatures {
 		t.GPU, t.GPUName = pickGPU(lhm.sensors)
 	}
 	shareCPU(&t, integrated, hasIntegrated)
+	usage := <-measured
+	t.CPULoad = usage.cpu
+	cards := make([]loadCard, 0, len(list))
+	for _, a := range list {
+		cards = append(cards, loadCard{name: a.name, luid: a.luid})
+	}
+	if load, name := pickGPULoad(cards, usage.gpus, t.GPUName); load != nil {
+		t.GPULoad = load
+		if t.GPUName == "" {
+			t.GPUName = name
+		}
+	}
 	return t
 }
 
@@ -68,6 +83,19 @@ func details() []string {
 	}
 	if len(list) == 0 {
 		note("Cartes graphiques : aucune trouvée par Windows")
+	}
+	usage := measureUsage()
+	if usage.cpu != nil {
+		note("Utilisation du processeur : %.0f %% (%s, comme le Gestionnaire des tâches)", *usage.cpu, usage.cpuSource)
+	} else {
+		note("Utilisation du processeur : illisible")
+	}
+	if usage.gpuErr != nil {
+		note("Utilisation des cartes graphiques : illisible (%v)", usage.gpuErr)
+	} else {
+		for _, a := range list {
+			note("Utilisation de %s : %.0f %%", a.name, min(usage.gpus[a.luid], 100))
+		}
 	}
 	readLHM(note)
 	if v, err := pawnIOVersion(); err == nil {
@@ -214,7 +242,8 @@ type d3dkmtAdapterRegistryInfo struct {
 type adapter struct {
 	name       string
 	temp       float64
-	integrated bool // puce graphique intégrée au processeur
+	integrated bool   // puce graphique intégrée au processeur
+	luid       uint64 // identifiant de la carte (compteurs « GPU Engine »)
 }
 
 // adapters liste les cartes graphiques matérielles et leur température.
@@ -268,7 +297,8 @@ func adapters() []adapter {
 		if !queryAdapter(a.Adapter, kmtqaiAdapterAddress, unsafe.Pointer(&addr), unsafe.Sizeof(addr)) {
 			where = nil
 		}
-		out = append(out, adapter{name: name, temp: temp, integrated: integratedGPU(name, where)})
+		out = append(out, adapter{name: name, temp: temp, integrated: integratedGPU(name, where),
+			luid: uint64(uint32(a.LUIDHigh))<<32 | uint64(a.LUIDLow)})
 	}
 	return out
 }
