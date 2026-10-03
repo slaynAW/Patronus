@@ -40,6 +40,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.slaynaw.wakeonlan.R
+import io.github.slaynaw.wakeonlan.archive.ArchiveManager
+import io.github.slaynaw.wakeonlan.archive.ArchiveUiState
 import io.github.slaynaw.wakeonlan.backup.BackupEntryView
 import io.github.slaynaw.wakeonlan.backup.BackupManager
 import io.github.slaynaw.wakeonlan.backup.BackupTarget
@@ -69,6 +71,8 @@ sealed interface BackupDialog {
     data object Folder : BackupDialog
     data object Disable : BackupDialog
     data object Restore : BackupDialog
+    data object ArchiveEnable : BackupDialog
+    data object Archive : BackupDialog
     data class Error(val message: String) : BackupDialog
 }
 
@@ -80,6 +84,7 @@ fun ColumnScope.BackupSection(
     onDialog: (BackupDialog) -> Unit,
     onPickFolder: () -> Unit,
     onBackupNow: () -> Unit,
+    archive: ArchiveUiState = ArchiveUiState(),
 ) {
     SectionLabel(stringResource(R.string.section_backup_auto), Modifier.padding(top = 6.dp))
     WolCard {
@@ -88,7 +93,7 @@ fun ColumnScope.BackupSection(
             RowDivider()
             SettingItem(WolIcons.Download, stringResource(R.string.backup_restore), stringResource(R.string.backup_restore_help), { onDialog(BackupDialog.Restore) })
         } else {
-            EnabledItems(backup, now, onDialog, onPickFolder, onBackupNow)
+            EnabledItems(backup, archive, now, onDialog, onPickFolder, onBackupNow)
         }
     }
 }
@@ -96,6 +101,7 @@ fun ColumnScope.BackupSection(
 @Composable
 private fun EnabledItems(
     backup: BackupUiState,
+    archive: ArchiveUiState,
     now: Long,
     onDialog: (BackupDialog) -> Unit,
     onPickFolder: () -> Unit,
@@ -128,6 +134,28 @@ private fun EnabledItems(
         onClick = if (backup.running) null else onBackupNow,
     )
     RowDivider()
+    SettingItem(
+        icon = WolIcons.Chart,
+        title = stringResource(R.string.archive_title),
+        text = when {
+            github == null -> stringResource(R.string.archive_need_github)
+            !archive.enabled -> stringResource(R.string.archive_off)
+            archive.running -> stringResource(R.string.archive_running)
+            archive.error != null -> archive.error
+            archive.last > 0 -> stringResource(R.string.archive_last, formatDuration((now - archive.last).coerceAtLeast(0)))
+            else -> stringResource(R.string.archive_pending)
+        },
+        onClick = {
+            onDialog(
+                when {
+                    github == null -> BackupDialog.Connect
+                    archive.enabled -> BackupDialog.Archive
+                    else -> BackupDialog.ArchiveEnable
+                },
+            )
+        },
+    )
+    RowDivider()
     SettingItem(WolIcons.Download, stringResource(R.string.backup_restore), stringResource(R.string.backup_restore_help), { onDialog(BackupDialog.Restore) })
     RowDivider()
     SettingItem(
@@ -154,6 +182,7 @@ fun BackupDialogHost(
     onDialog: (BackupDialog?) -> Unit,
     backup: BackupUiState,
     manager: BackupManager,
+    archives: ArchiveManager,
     snackbar: SnackbarHostState,
     onPickFolder: () -> Unit,
     onRestore: (String) -> Unit,
@@ -293,6 +322,54 @@ fun BackupDialogHost(
                 RestoreDialog(manager = manager, onRestore = { close(); onRestore(it) }, onError = ::fail, onDismiss = close)
             }
         }
+        BackupDialog.ArchiveEnable -> AlertDialog(
+            onDismissRequest = close,
+            icon = { Icon(WolIcons.Chart, contentDescription = null, tint = WolPalette.Blue) },
+            title = { Text(stringResource(R.string.archive_enable_title)) },
+            text = { Text(stringResource(R.string.archive_enable_text), Modifier.verticalScroll(rememberScrollState())) },
+            confirmButton = {
+                TextButton(onClick = {
+                    close()
+                    scope.launch { runCatching { archives.enable(true) }.onFailure(::fail) }
+                }) { Text(stringResource(R.string.archive_enable_ok)) }
+            },
+            dismissButton = { TextButton(onClick = close) { Text(stringResource(R.string.cancel)) } },
+        )
+        BackupDialog.Archive -> AlertDialog(
+            onDismissRequest = close,
+            icon = { Icon(WolIcons.Chart, contentDescription = null, tint = WolPalette.Blue) },
+            title = { Text(stringResource(R.string.archive_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.archive_dialog_text))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        WolButton(stringResource(R.string.archive_disable), {
+                            close()
+                            scope.launch { runCatching { archives.enable(false) }.onFailure(::fail) }
+                        }, Modifier.weight(1f))
+                        WolButton(stringResource(R.string.archive_now), {
+                            close()
+                            scope.launch {
+                                try {
+                                    val r = archives.archiveNow()
+                                    if (r.skipped.isEmpty()) {
+                                        toast(R.string.archive_done, r.minutes)
+                                    } else {
+                                        onDialog(BackupDialog.Error(resources.getString(R.string.archive_done, r.minutes) + "\n" +
+                                            resources.getString(R.string.archive_skipped, r.skipped.joinToString())))
+                                    }
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    fail(e)
+                                }
+                            }
+                        }, Modifier.weight(1f), ButtonKind.PRIMARY)
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = close) { Text(stringResource(R.string.close)) } },
+        )
         is BackupDialog.Error -> MessageDialog(stringResource(R.string.section_backup_auto), dialog.message, close)
     }
 }

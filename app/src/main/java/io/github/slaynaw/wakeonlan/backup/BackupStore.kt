@@ -8,6 +8,21 @@ import java.io.File
 import java.io.IOException
 import java.security.GeneralSecurityException
 
+/**
+ * Archives des mesures et du journal des PC (docs/ARCHIVES.md) : [synced] début de la dernière minute
+ * archivée par PC (adresse MAC, secondes), [gists] Gist de chaque mois, [last] dernier archivage réussi.
+ */
+@Serializable
+data class ArchiveSettings(
+    val enabled: Boolean = false,
+    val synced: Map<String, Long> = emptyMap(),
+    val gists: Map<String, String> = emptyMap(),
+    val last: Long = 0,
+) {
+    /** Autre compte ou autre mot de passe : tout ce que les agents gardent sera archivé de nouveau. */
+    fun resetProgress() = copy(synced = emptyMap(), gists = emptyMap(), last = 0)
+}
+
 /** Compte GitHub des sauvegardes. */
 @Serializable
 data class BackupGitHub(val token: String, val user: String, val gist: String = "")
@@ -30,6 +45,8 @@ data class BackupSettings(
     val lastFolder: Long = 0,
     /** Fichiers de ce téléphone présents dans le Gist (pour ne garder que KEEP versions). */
     val uploaded: List<String> = emptyList(),
+    /** Archives des mesures (même compte et même mot de passe). */
+    val archive: ArchiveSettings = ArchiveSettings(),
 ) {
     override fun toString(): String =
         "BackupSettings(enabled=$enabled, password=${if (password.isEmpty()) "<vide>" else "***"}, device=$device, " +

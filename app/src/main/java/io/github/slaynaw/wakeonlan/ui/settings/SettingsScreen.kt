@@ -56,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.slaynaw.wakeonlan.BuildConfig
 import io.github.slaynaw.wakeonlan.R
+import io.github.slaynaw.wakeonlan.archive.ArchiveUiState
 import io.github.slaynaw.wakeonlan.appContainer
 import io.github.slaynaw.wakeonlan.backup.BackupUiState
 import io.github.slaynaw.wakeonlan.core.config.ExportCodec
@@ -103,6 +104,7 @@ fun SettingsTab(
     val pendingLink by container.share.pendingLink.collectAsStateWithLifecycle()
     var shareDialog by remember { mutableStateOf<ShareDialog?>(null) }
     val backup by container.backups.state.collectAsStateWithLifecycle()
+    val archive by container.archives.state.collectAsStateWithLifecycle()
     var backupDialog by remember { mutableStateOf<BackupDialog?>(null) }
     val now = rememberNow(periodMs = 30_000)
     val scope = rememberCoroutineScope()
@@ -214,6 +216,7 @@ fun SettingsTab(
         onBackupDialog = { backupDialog = it },
         onPickBackupFolder = { backupFolderLauncher.launch(null) },
         onBackupNow = vm::backupNow,
+        archive = archive,
     )
 
     if (sharingImported) {
@@ -231,6 +234,7 @@ fun SettingsTab(
         onDialog = { backupDialog = it },
         backup = backup,
         manager = container.backups,
+        archives = container.archives,
         snackbar = snackbar,
         onPickFolder = { backupFolderLauncher.launch(null) },
         onRestore = vm::restoreBackup,
@@ -349,6 +353,7 @@ fun SettingsContent(
     onBackupDialog: (BackupDialog) -> Unit = {},
     onPickBackupFolder: () -> Unit = {},
     onBackupNow: () -> Unit = {},
+    archive: ArchiveUiState = ArchiveUiState(),
 ) {
     Column(
         Modifier
@@ -423,7 +428,7 @@ fun SettingsContent(
             )
         }
 
-        BackupSection(backup = backup, now = now, onDialog = onBackupDialog, onPickFolder = onPickBackupFolder, onBackupNow = onBackupNow)
+        BackupSection(backup = backup, now = now, onDialog = onBackupDialog, onPickFolder = onPickBackupFolder, onBackupNow = onBackupNow, archive = archive)
 
         SectionLabel(stringResource(R.string.section_history), Modifier.padding(top = 6.dp))
         WolCard {

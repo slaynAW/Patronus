@@ -11,6 +11,7 @@ import io.github.slaynaw.wakeonlan.ui.detail.DeviceDetailScreen
 import io.github.slaynaw.wakeonlan.ui.edit.EditDeviceScreen
 import io.github.slaynaw.wakeonlan.ui.history.HistoryScreen
 import io.github.slaynaw.wakeonlan.ui.main.MainScreen
+import io.github.slaynaw.wakeonlan.ui.metrics.MetricsScreen
 import kotlinx.serialization.Serializable
 
 /** Écran principal (onglets vue d'ensemble, appareils, réglages). */
@@ -24,6 +25,10 @@ data class DeviceRoute(val deviceId: String)
 /** Édition d'un terminal ; [deviceId] nul = nouveau terminal. */
 @Serializable
 data class EditDeviceRoute(val deviceId: String? = null)
+
+/** Mesures d'un PC dans le temps (températures, utilisation, journal archivé). */
+@Serializable
+data class MetricsRoute(val deviceId: String)
 
 /** Historique complet ; [deviceId] nul = tous les PC. */
 @Serializable
@@ -47,6 +52,13 @@ fun WolApp() {
                 onBack = { nav.leave(entry) },
                 onEdit = { id -> nav.navigate(EditDeviceRoute(id)) },
                 onOpenHistory = { id -> nav.navigate(HistoryRoute(id)) },
+                onOpenMetrics = { id -> nav.navigate(MetricsRoute(id)) },
+            )
+        }
+        composable<MetricsRoute> { entry ->
+            MetricsScreen(
+                deviceId = entry.toRoute<MetricsRoute>().deviceId,
+                onBack = { nav.leave(entry) },
             )
         }
         composable<EditDeviceRoute> { entry ->

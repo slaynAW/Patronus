@@ -44,6 +44,9 @@ data class GistSnapshot(val notModified: Boolean, val etag: String, val files: M
 /** Fichier d'un Gist (sauvegardes). */
 data class GistFile(val name: String, val size: Int, val content: String)
 
+/** Gist du compte (identifiant et description). */
+data class GistInfo(val id: String, val description: String)
+
 /**
  * Client minimal de l'API GitHub pour le partage (même comportement que l'application Windows) :
  * connexion par code (droit « gist » uniquement), Gist secret de la personne qui partage, lecture
@@ -177,6 +180,23 @@ class ShareGitHub(
             if (list.size < 100) break
         }
         null
+    }
+
+    /** Gists du compte dont la description commence par [prefix] (500 examinés au plus, archives). */
+    suspend fun listGists(token: String, prefix: String): List<GistInfo> = withContext(Dispatchers.IO) {
+        val out = ArrayList<GistInfo>()
+        for (page in 1..5) {
+            val r = request("GET", "/gists?per_page=100&page=$page", token, limit = 8 shl 20)
+            val list = decode(r.body) { Json.parseToJsonElement(it) as? JsonArray } ?: unexpected()
+            for (item in list) {
+                val o = item as? JsonObject ?: continue
+                val id = o["id"]?.jsonPrimitive?.contentOrNull ?: continue
+                val description = o["description"]?.jsonPrimitive?.contentOrNull ?: continue
+                if (description.startsWith(prefix) && ShareLinks.GIST.matches(id)) out += GistInfo(id, description)
+            }
+            if (list.size < 100) break
+        }
+        out
     }
 
     /**

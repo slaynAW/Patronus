@@ -90,6 +90,7 @@ fun DeviceDetailScreen(
     onBack: () -> Unit,
     onEdit: (String) -> Unit,
     onOpenHistory: (String) -> Unit,
+    onOpenMetrics: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -141,6 +142,7 @@ fun DeviceDetailScreen(
         onMove = { offset -> item?.let { vm.move(it.device, offset) } },
         onDelete = { item?.let { dialogs.pendingDelete = it.device } },
         onClearNotice = { item?.let { vm.clearNotice(it.device) } },
+        onOpenMetrics = { onOpenMetrics(deviceId) },
     )
 
     DeviceDialogs(dialogs, onPower = vm::power, onDelete = vm::delete, onConfigure = onEdit)
@@ -164,6 +166,7 @@ fun DeviceDetailContent(
     onMove: (Int) -> Unit,
     onDelete: () -> Unit,
     onClearNotice: () -> Unit,
+    onOpenMetrics: () -> Unit = {},
 ) {
     Scaffold(
         containerColor = WolPalette.Background,
@@ -229,6 +232,12 @@ fun DeviceDetailContent(
             }
             if (item.device.hasHost) LatencyCard(item, now)
             InfoCard(item)
+            if (item.device.agent?.hasKey == true) {
+                // Températures et utilisation dans le temps (agent et archives).
+                WolCard(onClick = onOpenMetrics) {
+                    KeyValueRow(stringResource(R.string.detail_metrics), stringResource(R.string.metrics_open), valueColor = WolPalette.Blue, icon = WolIcons.Chart)
+                }
+            }
             RecentHistory(history, now, onShowAll = onOpenHistory)
             Spacer(Modifier.height(24.dp))
         }
