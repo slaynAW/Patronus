@@ -118,6 +118,8 @@
     detail_uptime: "Allumé depuis",
     detail_temp_cpu: "Température CPU",
     detail_temp_gpu: "Température GPU",
+    temperature_gpu_shared: "intégré au CPU",
+    temperature_gpu_shared_help: "%1$s est intégré au processeur et n’a pas de sonde à part : c’est la température de la puce, la même que celle du processeur.",
     temperature_cpu_lhm: "LibreHardwareMonitor requis",
     temperature_cpu_lhm_help: "Sur ce PC, lancez LibreHardwareMonitor en administrateur et activez son serveur web : Options → Remote Web Server → Run. Dans Options, cochez aussi Run On Windows Startup.",
     temperature_cpu_lhm_web: "Serveur web LHM à activer",
@@ -734,7 +736,8 @@
   function temperatureSummary(t) {
     const parts = [];
     if (t?.cpu != null) parts.push(fmt(S.temperature_cpu_short, celsius(t.cpu)));
-    if (t?.gpu != null) parts.push(fmt(S.temperature_gpu_short, celsius(t.gpu)));
+    // Puce graphique intégrée : même température que le processeur, pas répétée.
+    if (t?.gpu != null && !(t.gpuShared && t.cpu != null)) parts.push(fmt(S.temperature_gpu_short, celsius(t.gpu)));
     const values = [t?.cpu, t?.gpu].filter((v) => v != null);
     return { text: parts.join(" · "), cls: values.length ? tempClass(Math.max(...values)) : null };
   }
@@ -2046,7 +2049,10 @@
           const [text, help] = lhmHint(t.lhm);
           rows.push({ key: "cpu", label: S.detail_temp_cpu, text, cls: "muted", title: help, onClick: () => alertDialog(S.detail_temp_cpu, help) });
         }
-        if (t?.gpu != null) rows.push({ key: "gpu", label: S.detail_temp_gpu, text: celsius(t.gpu), cls: tempClass(t.gpu), title: t.gpuName });
+        if (t?.gpu != null && t.gpuShared) {
+          const help = fmt(S.temperature_gpu_shared_help, t.gpuName || "GPU");
+          rows.push({ key: "gpu", label: S.detail_temp_gpu, text: `${celsius(t.gpu)} · ${S.temperature_gpu_shared}`, cls: tempClass(t.gpu), title: help });
+        } else if (t?.gpu != null) rows.push({ key: "gpu", label: S.detail_temp_gpu, text: celsius(t.gpu), cls: tempClass(t.gpu), title: t.gpuName });
       }
       if (d.shared) rows.push({ key: "shared", label: S.detail_shared, text: d.shared.ownerName, cls: "shared-by", iconName: "share" });
       if (!d.hasAgent) {

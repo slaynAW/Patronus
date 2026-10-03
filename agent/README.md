@@ -135,8 +135,8 @@ application le demande, au plus toutes les 5 secondes, en arrière-plan (la rép
 
 | Système | Carte graphique | Processeur |
 |---|---|---|
-| Windows | **Toutes marques** (agent 1.6.0) : interface du noyau graphique de Windows, comme le Gestionnaire des tâches (cartes dédiées NVIDIA, AMD, Intel Arc ; pilote WDDM 2.4 ou plus) ; NVIDIA aussi par NVML (`nvml.dll`, fourni par le pilote) ; en secours, LibreHardwareMonitor (puces intégrées Intel avec sa version 0.9.6) | **[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)** (LHM), par son **serveur web** (`data.json`), ou par WMI (`root\LibreHardwareMonitor`) pour ses versions 0.9.4 et plus anciennes |
-| Linux | `nvidia-smi` (pilote NVIDIA), capteurs du noyau (`amdgpu`, `nouveau`, `radeon`) | capteurs du noyau (`/sys/class/hwmon` : `coretemp`, `k10temp`, `zenpower`) |
+| Windows | **Toutes marques** (agent 1.6.0) : interface du noyau graphique de Windows, comme le Gestionnaire des tâches (cartes dédiées NVIDIA, AMD, Intel Arc ; pilote WDDM 2.4 ou plus) ; NVIDIA aussi par NVML (`nvml.dll`, fourni par le pilote) ; en secours, LibreHardwareMonitor ; puce graphique **intégrée au processeur** (Intel UHD Graphics, Iris Xe, Radeon des APU AMD), qui n'a pas de sonde à part : température de la puce, celle du processeur (agent 1.6.1) | **[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)** (LHM), par son **serveur web** (`data.json`), ou par WMI (`root\LibreHardwareMonitor`) pour ses versions 0.9.4 et plus anciennes |
+| Linux | `nvidia-smi` (pilote NVIDIA), capteurs du noyau (`amdgpu`, `nouveau`, `radeon`) ; puce Intel intégrée : température du processeur | capteurs du noyau (`/sys/class/hwmon` : `coretemp`, `k10temp`, `zenpower`) |
 | macOS | — | — |
 
 Windows ne donne pas accès aux sondes du processeur sans pilote : l'agent n'en installe **aucun** et s'appuie sur

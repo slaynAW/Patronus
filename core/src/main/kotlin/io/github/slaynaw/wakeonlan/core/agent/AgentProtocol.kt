@@ -90,6 +90,8 @@ data class AgentTemperatures(
     val cpu: Double? = null,
     val gpu: Double? = null,
     val gpuName: String = "",
+    /** Carte graphique intégrée au processeur, sans sonde à part : [gpu] est la température de la puce (agent 1.6.1). */
+    val gpuShared: Boolean = false,
     val cpuHint: String = "",
     val lhm: String = "",
 ) {

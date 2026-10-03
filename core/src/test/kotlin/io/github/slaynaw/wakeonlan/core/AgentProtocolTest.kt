@@ -95,6 +95,12 @@ class AgentProtocolTest {
             assertEquals(null, hint?.cpu)
             assertEquals(AgentTemperatures.CPU_HINT_LHM, hint?.cpuHint)
             assertEquals(AgentTemperatures.LHM_WEB_OFF, hint?.lhm)
+
+            // Puce graphique intégrée au processeur : température de la puce.
+            server.temperatures = AgentTemperatures(cpu = 58.0, gpu = 58.0, gpuName = "Intel(R) UHD Graphics 770", gpuShared = true)
+            val shared = (AgentClient().status("127.0.0.1", settings) as AgentResult.Success).value.temperatures
+            assertEquals(true, shared?.gpuShared)
+            assertEquals(58.0, shared?.gpu)
         }
     }
 

@@ -102,6 +102,64 @@ func TestParseLHMWebRawValue(t *testing.T) {
 	}
 }
 
+func TestIntegratedGPU(t *testing.T) {
+	igpu, other := &pciAddress{0, 2, 0}, &pciAddress{3, 0, 0}
+	cases := []struct {
+		name string
+		addr *pciAddress
+		want bool
+	}{
+		{"Intel(R) UHD Graphics 770", igpu, true},
+		{"Intel(R) UHD Graphics 770", nil, true},
+		{"Intel(R) Iris(R) Xe Graphics", nil, true},
+		{"Intel(R) Arc(TM) Graphics", igpu, true}, // Core Ultra : intégrée, malgré son nom
+		{"Intel(R) Arc(TM) A770 Graphics", other, false},
+		{"Intel(R) Arc(TM) A770 Graphics", nil, false},
+		{"AMD Radeon(TM) Graphics", other, true},
+		{"AMD Radeon(TM) Vega 8 Graphics", nil, true},
+		{"AMD Radeon 780M Graphics", nil, true},
+		{"AMD Radeon(TM) 760M", nil, true},
+		{"AMD Radeon RX 7800 XT", other, false},
+		{"AMD Radeon RX 6600M", nil, false},
+		{"AMD Radeon Pro W7600", nil, false},
+		{"NVIDIA GeForce RTX 4070", igpu, false},
+	}
+	for _, c := range cases {
+		if got := integratedGPU(c.name, c.addr); got != c.want {
+			t.Errorf("%q (%v) : %v", c.name, c.addr, got)
+		}
+	}
+}
+
+func TestShareCPU(t *testing.T) {
+	cpu, gpu := 58.0, 47.0
+	// Puce intégrée seule : la température de la puce (processeur) est reprise.
+	got := protocol.Temperatures{CPU: &cpu}
+	shareCPU(&got, "Intel(R) UHD Graphics 770", true)
+	if value(got.GPU) != 58 || got.GPUName != "Intel(R) UHD Graphics 770" || !got.GPUShared {
+		t.Errorf("puce intégrée : %+v", got)
+	}
+	*got.GPU = 70 // copie : le processeur ne change pas
+	if cpu != 58 {
+		t.Error("température du processeur modifiée")
+	}
+	// Carte graphique déjà lue, processeur inconnu, ou pas de puce intégrée : rien ne change.
+	for _, c := range []struct {
+		t     protocol.Temperatures
+		found bool
+	}{
+		{protocol.Temperatures{CPU: &cpu, GPU: &gpu, GPUName: "NVIDIA"}, true},
+		{protocol.Temperatures{}, true},
+		{protocol.Temperatures{CPU: &cpu}, false},
+	} {
+		before := c.t
+		shareCPU(&c.t, "Intel(R) UHD Graphics 770", c.found)
+		if c.t != before {
+			t.Errorf("modifié : %+v", c.t)
+		}
+	}
+}
+
 func TestHottestGPU(t *testing.T) {
 	got, name := hottestGPU([]gpuReading{{0, "Intel(R) UHD Graphics"}, {61, "NVIDIA GeForce RTX 4070"}, {64.25, "AMD Radeon RX 7800 XT"}})
 	if value(got) != 64.3 || name != "AMD Radeon RX 7800 XT" {

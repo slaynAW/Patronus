@@ -18,7 +18,20 @@ func read() protocol.Temperatures {
 	if gpu, name := nvidiaSMI(); gpu != nil {
 		t.GPU, t.GPUName = gpu, name
 	}
+	shareCPU(&t, "Intel (graphique intégré)", intelIGPU("/sys/bus/pci/devices"))
 	return t
+}
+
+// intelIGPU indique si la puce graphique intégrée d'un processeur Intel est présente (PCI 00:02.0,
+// sous root = /sys/bus/pci/devices) : le noyau ne donne pas sa température.
+func intelIGPU(root string) bool {
+	dir := filepath.Join(root, "0000:00:02.0")
+	vendor, err := os.ReadFile(filepath.Join(dir, "vendor"))
+	if err != nil || strings.TrimSpace(string(vendor)) != "0x8086" {
+		return false
+	}
+	class, err := os.ReadFile(filepath.Join(dir, "class"))
+	return err == nil && strings.HasPrefix(strings.TrimSpace(string(class)), "0x03") // écran
 }
 
 // readHwmon lit les puces de capteurs du noyau sous root (/sys/class/hwmon).
