@@ -242,7 +242,7 @@
     <string name="backup_never">pas encore sauvegardé</string>
     <string name="archive_title">Archives des mesures</string>
     <string name="archive_off">Températures et utilisation des PC minute par minute, et journal des démarrages : archivés chiffrés sur GitHub</string>
-    <string name="archive_need_github">Connectez GitHub ci-dessus pour archiver les mesures de vos PC</string>
+    <string name="archive_need_github">Les archives utilisent la connexion GitHub des sauvegardes : touchez pour la connecter</string>
     <string name="archive_running">Archivage en cours…</string>
     <string name="archive_last">dernier archivage il y a %1$s</string>
     <string name="archive_pending">premier archivage dans quelques minutes</string>
@@ -272,6 +272,7 @@
     <string name="backup_restore_mine">ce téléphone</string>
     <string name="backup_login_done">GitHub connecté : les sauvegardes y seront enregistrées.</string>
     <string name="backup_login_reused">Compte GitHub @%1$s du partage utilisé pour les sauvegardes.</string>
+    <string name="backup_login_share_rejected">GitHub n’accepte plus la connexion du partage (@%1$s) : elle a expiré ou a été révoquée. Connectez-vous avec ce compte : le partage et les sauvegardes utiliseront cette nouvelle connexion.</string>
     <string name="backup_github_title">Sauvegardes sur GitHub</string>
     <string name="backup_github_text">Compte %1$s. Les sauvegardes sont dans un Gist secret de ce compte, chiffrées par votre mot de passe.</string>
     <string name="backup_disconnect">Déconnecter</string>

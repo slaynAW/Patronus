@@ -63,6 +63,8 @@ data class BackupUiState(
     val github: BackupTarget? = null,
     val folder: BackupTarget? = null,
     val login: ShareLogin? = null,
+    /** Compte du partage dont GitHub refuse la connexion : la connexion par code le reconnecte aussi. */
+    val loginShareUser: String? = null,
 )
 
 /** Résultat d'une sauvegarde. */
@@ -117,6 +119,7 @@ class BackupManager(
         val errGithub: String? = null,
         val errFolder: String? = null,
         val login: ShareLogin? = null,
+        val loginShareUser: String? = null,
         val dirty: Boolean = false,
         val changedAt: Long = 0,
         val attemptAt: Long = 0,
@@ -142,6 +145,7 @@ class BackupManager(
             github = st?.github?.let { BackupTarget("@${it.user}", st.lastGithub, rt.errGithub) },
             folder = st?.takeIf { it.folder.isNotEmpty() }?.let { BackupTarget(it.folderLabel, it.lastFolder, rt.errFolder) },
             login = rt.login,
+            loginShareUser = rt.loginShareUser?.takeIf { rt.login != null },
         )
     }.stateIn(scope, SharingStarted.Eagerly, BackupUiState())
 
@@ -374,13 +378,25 @@ class BackupManager(
      */
     suspend fun connect(): String? {
         val owner = share.state.value.owner
-        if (owner != null && owner.token.isNotEmpty() && owner.user.isNotEmpty()) {
-            attach(owner.token, owner.user)
-            return owner.user
+        // Compte du partage à reconnecter par la même occasion (jeton refusé ou déjà oublié).
+        var shareUser: String? = null
+        if (owner != null && owner.user.isNotEmpty()) {
+            if (owner.token.isNotEmpty()) {
+                try {
+                    attach(owner.token, owner.user)
+                    return owner.user
+                } catch (e: ShareException) {
+                    // Jeton expiré ou révoqué : connexion par code, dont le jeton servira aussi au partage.
+                    if (e.reason != ShareException.Reason.UNAUTHORIZED) throw e
+                    DiagnosticLog.w(AREA, "jeton GitHub du partage refusé (@${owner.user}) : connexion par code", e)
+                    share.tokenRejected(owner.token, e.message)
+                }
+            }
+            shareUser = owner.user
         }
         loginJob?.cancel()
         val code = github.startLogin()
-        runtime.update { it.copy(login = ShareLogin(code.userCode, code.verificationUri)) }
+        runtime.update { it.copy(login = ShareLogin(code.userCode, code.verificationUri), loginShareUser = shareUser) }
         DiagnosticLog.i(AREA, "connexion GitHub des sauvegardes : code affiché")
         loginJob = scope.launch {
             try {
@@ -388,6 +404,7 @@ class BackupManager(
                 val user = github.user(token)
                 attach(token, user)
                 runtime.update { it.copy(login = null) }
+                share.adoptToken(token, user)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

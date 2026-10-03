@@ -21,7 +21,9 @@ environ 2 à 3 Mo au total), même quand aucune application n'est ouverte.
 
 *Réglages* → *Sauvegarde automatique* → *Archives des mesures* (application Windows ou téléphone). Il faut
 que la sauvegarde automatique soit activée (son **mot de passe** chiffre les archives) et que GitHub y soit
-connecté (même compte, droit « gist » seulement).
+connecté (*Sur GitHub* : même compte, droit « gist » seulement). Les archives utilisent cette connexion
+des sauvegardes, pas directement celle du partage ; toucher *Archives des mesures* la connecte au besoin
+(compte du partage repris, ou connexion par code), puis propose d'activer l'archivage.
 
 - **Toutes les 30 minutes** tant que l'application est ouverte, elle rattrape ce que les agents des PC
   joignables ont enregistré depuis le dernier archivage, avec leur journal des démarrages et arrêts (y

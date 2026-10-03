@@ -286,7 +286,7 @@
     backup_never: "pas encore sauvegardé",
     archive_title: "Archives des mesures",
     archive_off: "Températures et utilisation des PC minute par minute, et journal des démarrages : archivés chiffrés sur GitHub",
-    archive_need_github: "Connectez GitHub ci-dessus pour archiver les mesures de vos PC",
+    archive_need_github: "Les archives utilisent la connexion GitHub des sauvegardes : cliquez pour la connecter",
     archive_running: "Archivage en cours…",
     archive_last: "dernier archivage il y a %1$s",
     archive_pending: "premier archivage dans quelques minutes",
@@ -315,6 +315,7 @@
     backup_restore_mine: "ce PC",
     backup_login_done: "GitHub connecté : les sauvegardes y seront enregistrées.",
     backup_login_reused: "Compte GitHub @%1$s du partage utilisé pour les sauvegardes.",
+    backup_login_share_rejected: "GitHub n’accepte plus la connexion du partage (@%1$s) : elle a expiré ou a été révoquée. Connectez-vous avec ce compte : le partage et les sauvegardes utiliseront cette nouvelle connexion.",
     backup_github_title: "Sauvegardes sur GitHub",
     backup_github_text: "Compte %1$s. Les sauvegardes sont dans un Gist secret de ce compte, chiffrées par votre mot de passe.",
     backup_disconnect: "Déconnecter",
@@ -3563,7 +3564,8 @@
       const a = b.archive || {};
       const archiveText = !b.github ? S.archive_need_github : !a.enabled ? S.archive_off : a.running ? S.archive_running :
         a.error ? a.error : a.last ? fmt(S.archive_last, formatDuration(Math.max(0, Date.now() - a.last))) : S.archive_pending;
-      const archiveItem = settingItem("chart", S.archive_title, archiveText, !b.github ? connect : a.enabled ? archiveDialog : archiveEnableDialog);
+      const archiveItem = settingItem("chart", S.archive_title, archiveText,
+        !b.github ? () => connect(archiveEnableDialog) : a.enabled ? archiveDialog : archiveEnableDialog);
       if (a.enabled && a.error) archiveItem.querySelector(".supporting").classList.add("bad");
       return [github, folder, now, archiveItem, restore,
         settingItem("delete", S.backup_disable, S.backup_disable_help, disableDialog, { danger: true, chevron: false })];
@@ -3677,7 +3679,8 @@
       const dialog = openDialog({
         iconName: "cloud",
         title: S.share_login_title,
-        body: [h("p", { text: S.share_login_text }), sharing.codeView(r.code), status],
+        body: [r.shareUser ? h("p", { class: "muted", text: fmt(S.backup_login_share_rejected, r.shareUser) }) : null,
+          h("p", { text: S.share_login_text }), sharing.codeView(r.code), status],
         actions: [
           { label: S.cancel, onClick: () => { api.call("backupCancelLogin").catch(() => {}); close(); } },
           { label: S.share_login_copy, kind: "sec", onClick: () => sharing.copy(r.code) },

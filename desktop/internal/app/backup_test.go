@@ -290,3 +290,58 @@ func TestBackupsPausedAfterDataLoss(t *testing.T) {
 		t.Errorf("pause maintenue : %+v", st)
 	}
 }
+
+// Jeton du partage révoqué (ou expiré) sur GitHub alors que le partage se croit connecté : la
+// connexion des sauvegardes ne doit pas rester bloquée sur « expirée ou révoquée ». Elle passe par
+// un code, et le nouveau jeton répare aussi le partage (même compte).
+func TestBackupConnectFallsBackWhenShareTokenRevoked(t *testing.T) {
+	_, srv := newGistServer(t)
+	clock := &testClock{now: time.Date(2026, 9, 30, 10, 0, 0, 0, time.Local)}
+	s, _ := newBackupService(t, srv, t.TempDir(), clock)
+
+	call(t, s, "shareLogin", map[string]any{"name": "Hugo"})
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) && (s.State().Share.Owner == nil || !s.State().Share.Owner.Connected) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	// GitHub a révoqué le jeton du partage ; rien n'a encore été publié, le partage l'ignore.
+	s.sharing.mu.Lock()
+	s.sharing.state.Owner.Token = "revoque"
+	s.sharing.mu.Unlock()
+	if o := s.State().Share.Owner; o == nil || !o.Connected {
+		t.Fatalf("partage : %+v", o)
+	}
+
+	r, err := callJSON(t, s, "backupConnect", `{}`)
+	if err != nil {
+		t.Fatalf("connexion bloquée : %v", err)
+	}
+	if r["code"] != "WXYZ-1234" || r["shareUser"] != "hugo" || r["connected"] != nil {
+		t.Fatalf("connexion par code attendue : %v", r)
+	}
+	if o := s.State().Share.Owner; o.Connected || o.Error == "" {
+		t.Errorf("partage toujours affiché connecté : %+v", o)
+	}
+
+	waitBackupGitHub(t, s)
+	if st := s.State().Backup; st.GitHub.Label != "@hugo" || st.Login != nil {
+		t.Errorf("sauvegardes : %+v", st)
+	}
+	// Le partage reprend la nouvelle connexion (même compte).
+	deadline = time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) && !s.State().Share.Owner.Connected {
+		time.Sleep(10 * time.Millisecond)
+	}
+	s.sharing.mu.Lock()
+	token := s.sharing.state.Owner.Token
+	s.sharing.mu.Unlock()
+	if o := s.State().Share.Owner; !o.Connected || o.Error != "" || token != "tok" {
+		t.Errorf("partage non reconnecté : %+v (jeton %q)", o, token)
+	}
+
+	// Ensuite, le compte du partage (valide) est repris directement.
+	call(t, s, "backupDisconnect", nil)
+	if r, err := callJSON(t, s, "backupConnect", `{}`); err != nil || r["connected"] != true {
+		t.Errorf("compte du partage non repris : %v %v", r, err)
+	}
+}

@@ -400,24 +400,35 @@ func (s *Service) backupRemoveFolder() error {
 
 // backupConnect connecte GitHub pour les sauvegardes : compte du partage s'il est connecté sur cet
 // appareil, sinon connexion par code (comme le partage). Le Gist des sauvegardes est retrouvé ou créé.
+// Si GitHub refuse le jeton du partage (expiré ou révoqué), le partage l'oublie et la connexion par
+// code prend le relais : son nouveau jeton servira aussi au partage (même compte), voir shareAdoptToken.
 func (s *Service) backupConnect() (any, error) {
 	b, err := s.requireBackups()
 	if err != nil {
 		return nil, err
 	}
+	var shareUser string // compte du partage à reconnecter par la même occasion
 	if sh := s.sharing; sh != nil {
 		sh.mu.Lock()
 		o := sh.state.Owner
 		var token, user string
-		if o != nil && o.Token != "" && o.User != "" {
+		if o != nil && o.User != "" {
 			token, user = o.Token, o.User
 		}
 		sh.mu.Unlock()
 		if token != "" {
-			if err := s.backupAttach(context.Background(), token, user, nil); err != nil {
+			err := s.backupAttach(context.Background(), token, user, nil)
+			if err == nil {
+				return map[string]any{"connected": true, "user": user}, nil
+			}
+			if !errors.Is(err, share.ErrUnauthorized) {
 				return nil, err
 			}
-			return map[string]any{"connected": true, "user": user}, nil
+			diag.Warn(areaBackup, "jeton GitHub du partage refusé (@%s) : connexion par code", user)
+			s.shareTokenRejected(token, err)
+		}
+		if user != "" {
+			shareUser = user
 		}
 	}
 	gh := b.opts.GitHub
@@ -443,7 +454,11 @@ func (s *Service) backupConnect() (any, error) {
 	s.notify()
 	diag.Info(areaBackup, "connexion GitHub des sauvegardes : code affiché")
 	go s.backupFinishLogin(ctx, login, dc)
-	return map[string]any{"code": dc.UserCode, "uri": dc.VerificationURI}, nil
+	r := map[string]any{"code": dc.UserCode, "uri": dc.VerificationURI}
+	if shareUser != "" {
+		r["shareUser"] = shareUser
+	}
+	return r, nil
 }
 
 func (s *Service) backupFinishLogin(ctx context.Context, login *shareLogin, dc share.DeviceCode) {
@@ -482,7 +497,9 @@ func (s *Service) backupFinishLogin(ctx context.Context, login *shareLogin, dc s
 	}
 	if err := s.backupAttach(ctx, token, user, login); err != nil {
 		fail(err)
+		return
 	}
+	s.shareAdoptToken(token, user)
 }
 
 // backupAttach enregistre le compte GitHub et retrouve (ou crée) le Gist des sauvegardes. La

@@ -65,9 +65,10 @@ import java.util.Locale
 /** Dialogues des sauvegardes automatiques. */
 sealed interface BackupDialog {
     data object Enable : BackupDialog
-    data object Connect : BackupDialog
+    /** Connexion GitHub, puis [then] (dialogue suivant) une fois connecté. */
+    data class Connect(val then: BackupDialog? = null) : BackupDialog
     data object Choose : BackupDialog
-    data object Login : BackupDialog
+    data class Login(val then: BackupDialog? = null) : BackupDialog
     data object GitHub : BackupDialog
     data object Folder : BackupDialog
     data object Disable : BackupDialog
@@ -113,7 +114,7 @@ private fun EnabledItems(
         icon = WolIcons.Cloud,
         title = stringResource(R.string.backup_github),
         text = if (github != null) "${github.label} · ${targetText(github, now)}" else stringResource(R.string.backup_github_off),
-        onClick = { onDialog(if (github != null) BackupDialog.GitHub else BackupDialog.Connect) },
+        onClick = { onDialog(if (github != null) BackupDialog.GitHub else BackupDialog.Connect()) },
     )
     RowDivider()
     val folder = backup.folder
@@ -149,7 +150,7 @@ private fun EnabledItems(
         onClick = {
             onDialog(
                 when {
-                    github == null -> BackupDialog.Connect
+                    github == null -> BackupDialog.Connect(then = BackupDialog.ArchiveEnable)
                     archive.enabled -> BackupDialog.Archive
                     else -> BackupDialog.ArchiveEnable
                 },
@@ -205,7 +206,7 @@ fun BackupDialogHost(
                 toast(R.string.backup_login_reused, user)
                 onDialog(then)
             } else {
-                onDialog(BackupDialog.Login)
+                onDialog(BackupDialog.Login(then))
             }
         } catch (e: CancellationException) {
             throw e
@@ -231,7 +232,7 @@ fun BackupDialogHost(
             },
             onDismiss = close,
         )
-        BackupDialog.Connect -> LaunchedEffect(Unit) { connect() }
+        is BackupDialog.Connect -> LaunchedEffect(dialog) { connect(dialog.then) }
         BackupDialog.Choose -> AlertDialog(
             onDismissRequest = close,
             icon = { Icon(WolIcons.Cloud, contentDescription = null, tint = WolPalette.Blue) },
@@ -248,7 +249,7 @@ fun BackupDialogHost(
             confirmButton = {},
             dismissButton = { TextButton(onClick = close) { Text(stringResource(R.string.later)) } },
         )
-        BackupDialog.Login -> BackupLoginDialog(
+        is BackupDialog.Login -> BackupLoginDialog(
             backup = backup,
             onCopy = ::copy,
             onOpen = {
@@ -256,7 +257,7 @@ fun BackupDialogHost(
                 openUrl(context, GITHUB_DEVICE_URL)
             },
             onDone = {
-                close()
+                onDialog(dialog.then)
                 toast(R.string.backup_login_done)
             },
             onCancel = {
@@ -436,6 +437,9 @@ private fun BackupLoginDialog(backup: BackupUiState, onCopy: (String) -> Unit, o
         title = { Text(stringResource(R.string.share_login_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                backup.loginShareUser?.let {
+                    Text(stringResource(R.string.backup_login_share_rejected, it), color = WolPalette.Text2, style = MaterialTheme.typography.bodySmall)
+                }
                 Text(stringResource(R.string.share_login_text))
                 login?.let { CodeBox(it.code) }
                 val error = login?.error
