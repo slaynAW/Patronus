@@ -414,7 +414,7 @@ func (s *Service) backupConnect() (any, error) {
 		}
 		sh.mu.Unlock()
 		if token != "" {
-			if err := s.backupAttach(context.Background(), token, user); err != nil {
+			if err := s.backupAttach(context.Background(), token, user, nil); err != nil {
 				return nil, err
 			}
 			return map[string]any{"connected": true, "user": user}, nil
@@ -480,18 +480,15 @@ func (s *Service) backupFinishLogin(ctx context.Context, login *shareLogin, dc s
 	if !current {
 		return
 	}
-	if err := s.backupAttach(ctx, token, user); err != nil {
+	if err := s.backupAttach(ctx, token, user, login); err != nil {
 		fail(err)
-		return
 	}
-	b.mu.Lock()
-	b.login = nil
-	b.mu.Unlock()
-	s.notify()
 }
 
-// backupAttach enregistre le compte GitHub et retrouve (ou crée) le Gist des sauvegardes.
-func (s *Service) backupAttach(ctx context.Context, token, user string) error {
+// backupAttach enregistre le compte GitHub et retrouve (ou crée) le Gist des sauvegardes. La
+// connexion par code login (s'il y en a une) se termine en même temps : l'état ne montre jamais le
+// compte connecté avec le code encore affiché.
+func (s *Service) backupAttach(ctx context.Context, token, user string, login *shareLogin) error {
 	b := s.backups
 	gh := b.opts.GitHub
 	ctx, cancel := context.WithTimeout(ctx, backupTimeout)
@@ -517,6 +514,9 @@ func (s *Service) backupAttach(ctx context.Context, token, user string) error {
 	b.st.GitHub = &backup.GitHub{Token: token, User: user, Gist: gist}
 	b.errGH, b.listing = "", nil
 	err = b.saveLocked()
+	if err == nil && login != nil && b.login == login {
+		b.login = nil
+	}
 	b.dirty, b.changed = true, time.Time{}
 	b.mu.Unlock()
 	if err != nil {
