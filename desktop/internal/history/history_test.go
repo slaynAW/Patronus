@@ -211,3 +211,20 @@ func TestStore(t *testing.T) {
 		t.Errorf("après mise de côté : %v", err)
 	}
 }
+
+// Cause d'un arrêt anormal lue par l'agent : conservée ; cause inconnue ou détail démesuré : ignorés.
+func TestFromAgentLostCause(t *testing.T) {
+	e, ok := FromAgent("pc", protocol.HistoryEvent{T: 100, K: protocol.HistoryLost, R: protocol.LostBSOD, D: "0x7E SYSTEM_THREAD_EXCEPTION_NOT_HANDLED"})
+	if !ok || e.Kind != Lost || e.Cause != protocol.LostBSOD || e.Detail != "0x7E SYSTEM_THREAD_EXCEPTION_NOT_HANDLED" || !e.valid() {
+		t.Fatalf("écran bleu : %+v", e)
+	}
+	if e, _ := FromAgent("pc", protocol.HistoryEvent{T: 100, K: protocol.HistoryLost, R: "inconnue", D: "x"}); e.Cause != "" || e.Detail != "" {
+		t.Errorf("cause inconnue : %+v", e)
+	}
+	if e, _ := FromAgent("pc", protocol.HistoryEvent{T: 100, K: protocol.HistoryLost, R: protocol.LostBSOD, D: strings.Repeat("x", 500)}); e.Cause != protocol.LostBSOD || e.Detail != "" {
+		t.Errorf("détail démesuré : %+v", e)
+	}
+	if e, _ := FromAgent("pc", protocol.HistoryEvent{T: 100, K: protocol.HistoryBoot, R: protocol.LostBSOD}); e.Cause != "" {
+		t.Errorf("cause sur un démarrage : %+v", e)
+	}
+}

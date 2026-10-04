@@ -577,7 +577,8 @@ class ArchiveManager(
                 DiagnosticLog.w(AREA, "journal archivé illisible", e)
             }
         }
-        return raw.distinct()
+        // Agent et archives : chaque évènement une fois, avec la cause la plus précise.
+        return AgentHistoryEvent.merged(raw)
             .filter { it.t * 1000 in fromMs until toMs }
             .mapNotNull { HistoryData.fromAgent(d.id, it) }
             .sortedByDescending { it.time }

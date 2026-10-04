@@ -1,7 +1,9 @@
 package disks
 
 import (
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -103,5 +105,32 @@ func TestReaderCachesAndPaces(t *testing.T) {
 	}
 	if d := r.Read(); len(d.Volumes) != 1 || d.Volumes[0].Mount != "C:" {
 		t.Errorf("lecteurs : %+v", d)
+	}
+}
+
+// Même un PC très équipé tient dans une réponse « status ».
+func TestReadFitsInStatus(t *testing.T) {
+	r := &Reader{now: time.Now, read: true}
+	long := strings.Repeat("Disque au nom très long ", 10)
+	v, wear := 45.0, 7
+	n := int64(123456)
+	for i := 0; i < 26; i++ {
+		r.volumes = append(r.volumes, protocol.Volume{Mount: "Z:", Label: long, FS: "NTFS", Total: 1 << 50, Free: 1 << 49})
+	}
+	for i := 0; i < 32; i++ {
+		r.drives = append(r.drives, protocol.Drive{Name: long, Media: protocol.DriveSSD, Bus: "NVMe", Size: 1 << 50, Health: protocol.DriveWarning,
+			Temp: &v, TempMax: &v, Wear: &wear, Hours: &n, ReadErrors: &n, WriteErrors: &n})
+	}
+	r.errors, r.lastErr = 1000, time.Now()
+	temp := 61.5
+	body := protocol.ResponseBody{OK: true, Code: "ok", Hostname: long, OS: "windows", Arch: "amd64", Version: "1.9.0",
+		Temperatures: &protocol.Temperatures{CPU: &temp, GPU: &temp, CPULoad: &temp, GPULoad: &temp, GPUName: long, LHM: "no-sensor"}, Disks: r.Read()}
+	raw, _ := json.Marshal(body)
+	// Marge pour l'enveloppe signée (nonces, signature, encodage).
+	if len(raw) > protocol.MaxLineBytes*3/4 {
+		t.Errorf("réponse trop grande : %d octets (limite %d)", len(raw), protocol.MaxLineBytes)
+	}
+	if len(body.Disks.Volumes) != maxVolumes || len(body.Disks.Drives) != maxDrives || len([]rune(body.Disks.Drives[0].Name)) != maxName {
+		t.Errorf("plafonds : %d lecteurs, %d disques", len(body.Disks.Volumes), len(body.Disks.Drives))
 	}
 }

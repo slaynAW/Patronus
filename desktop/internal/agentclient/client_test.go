@@ -66,6 +66,21 @@ func TestStatusTemperatures(t *testing.T) {
 	}
 }
 
+func TestStatusDisks(t *testing.T) {
+	s, settings := start(t, agenttest.Normal)
+	if st, err := New().Status(context.Background(), "127.0.0.1", settings); err != nil || st.Disks != nil {
+		t.Fatalf("agent sans disques : %+v %v", st.Disks, err)
+	}
+	wear := 3
+	want := &protocol.Disks{Volumes: []protocol.Volume{{Mount: "C:", Label: "Windows", FS: "NTFS", Total: 1 << 40, Free: 1 << 38}},
+		Drives: []protocol.Drive{{Name: "Samsung SSD 980", Media: protocol.DriveSSD, Bus: "NVMe", Health: protocol.DriveHealthy, Wear: &wear}}, Errors: 2, LastError: 1791000000}
+	s.SetDisks(want)
+	st, err := New().Status(context.Background(), "127.0.0.1", settings)
+	if err != nil || !reflect.DeepEqual(st.Disks, want) {
+		t.Fatalf("disques : %+v %v", st.Disks, err)
+	}
+}
+
 func TestHistory(t *testing.T) {
 	s, settings := start(t, agenttest.Normal)
 	// Agent trop ancien : la commande est refusée.

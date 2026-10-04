@@ -51,6 +51,10 @@ type Event struct {
 	Approx bool `json:"x,omitempty"`
 	// Client : pour une demande notée par l'agent, nom de l'appareil qui l'a faite (à défaut, son adresse).
 	Client string `json:"c,omitempty"`
+	// Cause et Detail : cause d'un arrêt anormal lue par l'agent dans le journal d'événements de
+	// Windows (protocol.LostBSOD…) et code de l'écran bleu.
+	Cause  string `json:"r,omitempty"`
+	Detail string `json:"rd,omitempty"`
 }
 
 // Coverage est la période couverte par le journal de l'agent d'un PC (millisecondes).
@@ -253,6 +257,13 @@ func FromAgent(device string, raw protocol.HistoryEvent) (Event, bool) {
 		e.Kind = Off
 	case protocol.HistoryLost:
 		e.Kind = Lost
+		switch raw.R {
+		case protocol.LostBSOD, protocol.LostButton, protocol.LostPower, protocol.LostHardware:
+			e.Cause = raw.R
+			if len(raw.D) <= maxDetail {
+				e.Detail = raw.D
+			}
+		}
 	case protocol.HistorySleep:
 		e.Kind = Sleep
 	case protocol.HistoryResume:
@@ -289,8 +300,11 @@ func (e Event) valid() bool {
 	default:
 		return false
 	}
-	return (e.Source == App || e.Source == Agent) && e.Device != "" && len(e.Client) <= 256
+	return (e.Source == App || e.Source == Agent) && e.Device != "" && len(e.Client) <= 256 && len(e.Detail) <= maxDetail
 }
+
+// maxDetail borne le détail de la cause d'un arrêt anormal.
+const maxDetail = 128
 
 func (d Data) clone() Data {
 	out := Data{Version: version, Events: slices.Clone(d.Events), Coverage: make(map[string]Coverage, len(d.Coverage))}

@@ -306,9 +306,9 @@ data class ArchiveJournal(val month: String, val pcs: List<ArchiveJournalPc> = e
         val all = pc.events.toMutableList()
         var changed = false
         for (e in events) {
-            if (ArchiveCodec.monthOfTime(e.t) != month || e in all) continue
-            all += e
-            changed = true
+            // Même évènement déjà archivé : remplacé si l'agent en a précisé la cause depuis.
+            if (ArchiveCodec.monthOfTime(e.t) != month) continue
+            if (AgentHistoryEvent.merge(all, e)) changed = true
         }
         val newName = name.ifBlank { pc.name }
         if (newName != pc.name) changed = true

@@ -90,6 +90,31 @@ type HistoryEvent struct {
 	D string `json:"d,omitempty"`
 }
 
+// Same indique le même évènement, cause mise à part (l'agent la précise après coup).
+func (e HistoryEvent) Same(o HistoryEvent) bool {
+	return e.T == o.T && e.K == o.K && e.A == o.A && e.C == o.C && e.B == o.B
+}
+
+// Better indique que e (le même évènement que o) en dit plus long sur la cause.
+func (e HistoryEvent) Better(o HistoryEvent) bool {
+	return (o.R == "" && e.R != "") || (o.D == "" && e.D != "")
+}
+
+// MergeEvent ajoute e à events, ou remplace le même évènement s'il en dit plus long ; renvoie vrai
+// si events a changé.
+func MergeEvent(events []HistoryEvent, e HistoryEvent) ([]HistoryEvent, bool) {
+	for i, x := range events {
+		if x.Same(e) {
+			if e.Better(x) {
+				events[i] = e
+				return events, true
+			}
+			return events, false
+		}
+	}
+	return append(events, e), true
+}
+
 // Causes d'un arrêt non enregistré (HistoryEvent.R).
 const (
 	// LostBSOD : plantage du système (écran bleu), D donne le code d'arrêt.

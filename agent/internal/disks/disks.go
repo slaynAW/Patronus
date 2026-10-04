@@ -6,7 +6,6 @@ package disks
 
 import (
 	"context"
-	"slices"
 	"sync"
 	"time"
 
@@ -14,6 +13,10 @@ import (
 )
 
 const (
+	// maxVolumes, maxDrives, maxName : la réponse à « status » doit tenir dans protocol.MaxLineBytes.
+	maxVolumes   = 12
+	maxDrives    = 8
+	maxName      = 64
 	volumesEvery = 30 * time.Second
 	drivesEvery  = 10 * time.Minute
 	errorsEvery  = 30 * time.Minute
@@ -112,11 +115,27 @@ func (r *Reader) Read() *protocol.Disks {
 	if !r.read {
 		return nil
 	}
-	d := &protocol.Disks{Volumes: slices.Clone(r.volumes), Drives: slices.Clone(r.drives), Errors: r.errors}
+	d := &protocol.Disks{Errors: r.errors}
+	for _, v := range r.volumes[:min(len(r.volumes), maxVolumes)] {
+		v.Mount, v.Label, v.FS = short(v.Mount), short(v.Label), short(v.FS)
+		d.Volumes = append(d.Volumes, v)
+	}
+	for _, x := range r.drives[:min(len(r.drives), maxDrives)] {
+		x.Name, x.Bus = short(x.Name), short(x.Bus)
+		d.Drives = append(d.Drives, x)
+	}
 	if r.errors > 0 && !r.lastErr.IsZero() {
 		d.LastError = r.lastErr.Unix()
 	}
 	return d
+}
+
+// short raccourcit un nom trop long.
+func short(s string) string {
+	if r := []rune(s); len(r) > maxName {
+		return string(r[:maxName-1]) + "…"
+	}
+	return s
 }
 
 // ReadNow relève tout de suite (commande « wol-agent status », rapport de diagnostic).
