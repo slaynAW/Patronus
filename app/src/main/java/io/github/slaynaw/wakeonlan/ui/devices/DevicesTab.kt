@@ -56,6 +56,8 @@ import io.github.slaynaw.wakeonlan.ui.common.rememberNow
 import io.github.slaynaw.wakeonlan.ui.common.statusText
 import io.github.slaynaw.wakeonlan.ui.common.statusTextColor
 import io.github.slaynaw.wakeonlan.ui.common.summary
+import io.github.slaynaw.wakeonlan.ui.common.text
+import io.github.slaynaw.wakeonlan.ui.common.color
 import io.github.slaynaw.wakeonlan.ui.common.systemLabel
 import io.github.slaynaw.wakeonlan.ui.common.temperatureColor
 import io.github.slaynaw.wakeonlan.ui.overview.EmptyState
@@ -209,6 +211,15 @@ private fun DeviceCard(
                         Icon(WolIcons.Thermometer, contentDescription = null, tint = color, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(5.dp))
                         Text(temps.summary(), style = MaterialTheme.typography.bodySmall, color = color)
+                    }
+                }
+                // Disque plein, à surveiller ou en panne (agent 1.9.0).
+                agent.disks?.alert()?.let { alert ->
+                    val color = alert.level.color(WolPalette.Text2)
+                    Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(WolIcons.Warning, contentDescription = null, tint = color, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text(alert.text(), style = MaterialTheme.typography.bodySmall, color = color)
                     }
                 }
             }

@@ -14,6 +14,9 @@ import io.github.slaynaw.wakeonlan.R
 import io.github.slaynaw.wakeonlan.core.agent.AgentError
 import io.github.slaynaw.wakeonlan.core.agent.AgentStatus
 import io.github.slaynaw.wakeonlan.core.agent.AgentTemperatures
+import io.github.slaynaw.wakeonlan.core.agent.DiskAlert
+import io.github.slaynaw.wakeonlan.core.agent.DiskLevel
+import io.github.slaynaw.wakeonlan.core.history.HistoryEvent
 import io.github.slaynaw.wakeonlan.core.agent.PowerAction
 import io.github.slaynaw.wakeonlan.core.history.HistoryKind
 import io.github.slaynaw.wakeonlan.core.status.DeviceStatus
@@ -117,6 +120,35 @@ fun temperatureColor(celsius: Double?, normal: Color = WolPalette.Text): Color =
     celsius >= AgentTemperatures.HOT -> WolPalette.DangerText
     celsius >= AgentTemperatures.WARM -> WolPalette.Busy
     else -> normal
+}
+
+/** Taille comme l'Explorateur Windows : « 931 Go », « 1,8 To ». */
+fun formatBytes(bytes: Long): String {
+    val units = listOf("o", "Ko", "Mo", "Go", "To", "Po")
+    var v = bytes.coerceAtLeast(0).toDouble()
+    var i = 0
+    while (v >= 1024 && i < units.size - 1) {
+        v /= 1024
+        i++
+    }
+    val text = if (v >= 100 || i == 0) "${v.roundToInt()}" else String.format(Locale.FRANCE, "%.1f", v)
+    return "$text\u00A0${units[i]}"
+}
+
+/** Couleur d'une gravité de disque : [normal], à surveiller (orange), grave (rouge). */
+fun DiskLevel.color(normal: Color): Color = when (this) {
+    DiskLevel.BAD -> WolPalette.DangerText
+    DiskLevel.WARN -> WolPalette.Busy
+    DiskLevel.NONE -> normal
+}
+
+/** « D: plein à 97 % », « Disque à surveiller »… (liste des PC). */
+@Composable
+fun DiskAlert.text(): String = when (kind) {
+    DiskAlert.Kind.DRIVE_BAD -> stringResource(R.string.disk_alert_bad)
+    DiskAlert.Kind.FULL -> stringResource(R.string.disk_alert_full, volume?.mount.orEmpty(), formatPercent(volume?.usedPercent ?: 0.0))
+    DiskAlert.Kind.DRIVE_WATCH -> stringResource(R.string.disk_alert_watch)
+    DiskAlert.Kind.ERRORS -> stringResource(R.string.disk_alert_errors)
 }
 
 /** Utilisation en % : « 23 % ». */
@@ -230,6 +262,29 @@ fun HistoryKind.label(): Int = when (this) {
     HistoryKind.SLEEP_SENT -> R.string.kind_sleep_req
     HistoryKind.WAKE_TIMEOUT -> R.string.kind_wake_timeout
 }
+
+/** Libellé d'un évènement : cause d'un arrêt anormal quand l'agent l'a lue. */
+@StringRes
+fun HistoryEvent.labelRes(): Int = when (cause.takeIf { kind == HistoryKind.LOST }) {
+    "bsod" -> R.string.kind_lost_bsod
+    "button" -> R.string.kind_lost_button
+    "power" -> R.string.kind_lost_power
+    "hardware" -> R.string.kind_lost_hardware
+    else -> kind.label()
+}
+
+/** Explication d'un arrêt anormal, selon sa cause. */
+@StringRes
+fun HistoryEvent.lostHelp(): Int = when (cause) {
+    "bsod" -> R.string.lost_help_bsod
+    "button" -> R.string.lost_help_button
+    "power" -> R.string.lost_help_power
+    "hardware" -> R.string.lost_help_hardware
+    else -> R.string.history_lost_help
+}
+
+/** Icône d'un évènement : avertissement pour un plantage ou une erreur matérielle. */
+fun HistoryEvent.icon(): ImageVector = if (cause == "bsod" || cause == "hardware") WolIcons.Warning else kind.icon()
 
 fun HistoryKind.icon(): ImageVector = when (this) {
     HistoryKind.ON, HistoryKind.OFF, HistoryKind.SHUTDOWN_SENT -> WolIcons.Power

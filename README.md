@@ -17,6 +17,11 @@ Anciennement **Wake On LAN** (jusqu'à la version 1.5.0).
   minute, 90 jours sur le PC) ; graphiques sur 24 h à 90 jours et **archives chiffrées sur GitHub** (un Gist secret
   par mois, avec le journal des démarrages et arrêts) pour les consulter des mois plus tard
   ([docs/ARCHIVES.md](docs/ARCHIVES.md)).
+- 💽 **Disques** (agent 1.9.0) : espace libre de chaque lecteur, santé de chaque SSD ou disque dur (état donné par
+  Windows, température, usure, heures de fonctionnement, erreurs) et erreurs d'accès signalées par Windows ; un lecteur
+  plein à 90 % ou un disque à surveiller est signalé dans la liste des PC.
+- 💥 **Plantages et arrêts anormaux expliqués** (agent 1.9.0) : écran bleu avec son code, arrêt forcé avec le bouton,
+  coupure de courant ou blocage, erreur matérielle fatale, dans l'historique et les archives.
 - 🕘 **Historique discret** des démarrages et extinctions sur 30 jours (complet grâce au journal de l'agent, même quand
   l'application était fermée).
 - 🌙 **Style sombre et moderne**, identique sur Android et Windows : synthèse en anneau, plan du réseau, fiche de chaque PC.
