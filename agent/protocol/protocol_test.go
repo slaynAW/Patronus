@@ -73,3 +73,21 @@ func TestKeysAndNonces(t *testing.T) {
 		t.Fatal("MAC invalide acceptée")
 	}
 }
+
+func TestMergeEvent(t *testing.T) {
+	lost := HistoryEvent{T: 10, K: HistoryLost}
+	events, changed := MergeEvent(nil, lost)
+	if !changed || len(events) != 1 {
+		t.Fatal("ajout")
+	}
+	precise := HistoryEvent{T: 10, K: HistoryLost, R: LostBSOD, D: "0x7E"}
+	if events, changed = MergeEvent(events, precise); !changed || len(events) != 1 || events[0] != precise {
+		t.Fatalf("précision : %+v", events)
+	}
+	if events, changed = MergeEvent(events, lost); changed || events[0] != precise {
+		t.Fatalf("recul : %+v", events)
+	}
+	if events, changed = MergeEvent(events, HistoryEvent{T: 11, K: HistoryBoot}); !changed || len(events) != 2 {
+		t.Fatalf("autre évènement : %+v", events)
+	}
+}

@@ -81,7 +81,99 @@ data class AgentStatus(
     @SerialName("uptime") val uptimeSeconds: Long = 0,
     /** Températures du PC (agent 1.5.0 ou plus ; `null` : aucun capteur lisible). */
     val temperatures: AgentTemperatures? = null,
+    /** Espace des lecteurs et santé des disques (agent 1.9.0 ou plus). */
+    val disks: AgentDisks? = null,
 )
+
+/** Gravité d'un problème de disque. */
+enum class DiskLevel { NONE, WARN, BAD }
+
+/**
+ * Disques du PC (agent 1.9.0) : [volumes] lecteurs et leur espace, [drives] disques physiques et leur
+ * santé, [errors] erreurs d'accès signalées par Windows sur [ERROR_DAYS] jours, la dernière à [lastError] (s).
+ */
+@Serializable
+data class AgentDisks(
+    val volumes: List<AgentVolume> = emptyList(),
+    val drives: List<AgentDrive> = emptyList(),
+    val errors: Int = 0,
+    val lastError: Long = 0,
+) {
+    val isEmpty: Boolean get() = volumes.isEmpty() && drives.isEmpty() && errors == 0
+
+    /** Alerte la plus grave (liste des PC), ou null : mêmes règles que l'application Windows. */
+    fun alert(): DiskAlert? {
+        if (drives.any { it.level == DiskLevel.BAD }) return DiskAlert(DiskAlert.Kind.DRIVE_BAD, DiskLevel.BAD)
+        val full = volumes.filter { it.level != DiskLevel.NONE }.maxByOrNull { it.usedPercent }
+        if (full != null) return DiskAlert(DiskAlert.Kind.FULL, full.level, full)
+        if (drives.any { it.level == DiskLevel.WARN }) return DiskAlert(DiskAlert.Kind.DRIVE_WATCH, DiskLevel.WARN)
+        if (errors > 0) return DiskAlert(DiskAlert.Kind.ERRORS, DiskLevel.WARN)
+        return null
+    }
+
+    companion object {
+        const val ERROR_DAYS = 30
+    }
+}
+
+/** Alerte disque : [volume] pour un lecteur presque plein. */
+data class DiskAlert(val kind: Kind, val level: DiskLevel, val volume: AgentVolume? = null) {
+    enum class Kind { DRIVE_BAD, FULL, DRIVE_WATCH, ERRORS }
+}
+
+/** Lecteur (« C: ») et son espace en octets. */
+@Serializable
+data class AgentVolume(val mount: String, val label: String = "", val fs: String = "", val total: Long = 0, val free: Long = 0) {
+    val usedPercent: Double get() = if (total > 0) 100.0 * (total - free).coerceAtLeast(0) / total else 0.0
+
+    /** Plein à 95 % ou plus : grave ; 90 % : à surveiller. */
+    val level: DiskLevel
+        get() = when {
+            usedPercent >= 95 -> DiskLevel.BAD
+            usedPercent >= 90 -> DiskLevel.WARN
+            else -> DiskLevel.NONE
+        }
+}
+
+/**
+ * Disque physique : [media] « ssd » ou « hdd », [bus] « NVMe », « SATA »…, [health] état donné par le
+ * système (« ok », « warning », « bad » ; vide : inconnu), températures (°C), [wear] usure (%),
+ * [hours] heures de fonctionnement, erreurs de lecture et d'écriture non corrigées.
+ */
+@Serializable
+data class AgentDrive(
+    val name: String,
+    val media: String = "",
+    val bus: String = "",
+    val size: Long = 0,
+    val health: String = "",
+    val temp: Double? = null,
+    val tempMax: Double? = null,
+    val wear: Int? = null,
+    val hours: Long? = null,
+    val readErrors: Long? = null,
+    val writeErrors: Long? = null,
+) {
+    val uncorrected: Long get() = (readErrors ?: 0) + (writeErrors ?: 0)
+
+    /** Température à partir de laquelle le disque chauffe (plus basse pour un disque dur). */
+    val hotTemp: Double get() = if (media == HDD) 55.0 else 70.0
+
+    val level: DiskLevel
+        get() = when {
+            health == UNHEALTHY || (wear ?: 0) >= 95 -> DiskLevel.BAD
+            health == WARNING || uncorrected > 0 || (wear ?: 0) >= 80 || (temp ?: 0.0) >= hotTemp -> DiskLevel.WARN
+            else -> DiskLevel.NONE
+        }
+
+    companion object {
+        const val SSD = "ssd"
+        const val HDD = "hdd"
+        const val HEALTHY = "ok"
+        const val WARNING = "warning"
+        const val UNHEALTHY = "bad"
+    }
+}
 
 /**
  * Températures du PC en °C et utilisation du processeur et de la carte graphique en % ([cpuLoad],
@@ -135,7 +227,46 @@ data class AgentHistory(val from: Long = 0, val events: List<AgentHistoryEvent> 
  * demande et [b] son nom (agent 1.4.0 ou plus).
  */
 @Serializable
-data class AgentHistoryEvent(val t: Long, val k: String, val a: String? = null, val c: String? = null, val b: String? = null)
+data class AgentHistoryEvent(
+    val t: Long,
+    val k: String,
+    val a: String? = null,
+    val c: String? = null,
+    val b: String? = null,
+    /** Cause d'un arrêt non enregistré (« bsod », « button », « power », « hardware » ; agent 1.9.0). */
+    val r: String? = null,
+    /** Précision de la cause : code de l'écran bleu (« 0x7E SYSTEM_THREAD_EXCEPTION_NOT_HANDLED »)… */
+    val d: String? = null,
+) {
+    /** Même évènement, cause mise à part (l'agent la précise après coup). */
+    fun same(o: AgentHistoryEvent) = t == o.t && k == o.k && a == o.a && c == o.c && b == o.b
+
+    /** Le même évènement que [o], avec une cause plus précise. */
+    fun better(o: AgentHistoryEvent) = (o.r.isNullOrEmpty() && !r.isNullOrEmpty()) || (o.d.isNullOrEmpty() && !d.isNullOrEmpty())
+
+    companion object {
+        const val LOST_BSOD = "bsod"
+        const val LOST_BUTTON = "button"
+        const val LOST_POWER = "power"
+        const val LOST_HARDWARE = "hardware"
+
+        /** Ajoute [e] à [events], ou remplace le même évènement s'il en dit plus long ; vrai si changé. */
+        fun merge(events: MutableList<AgentHistoryEvent>, e: AgentHistoryEvent): Boolean {
+            val i = events.indexOfFirst { it.same(e) }
+            if (i < 0) {
+                events += e
+                return true
+            }
+            if (!e.better(events[i])) return false
+            events[i] = e
+            return true
+        }
+
+        /** Chaque évènement une fois, avec la cause la plus précise. */
+        fun merged(events: List<AgentHistoryEvent>): List<AgentHistoryEvent> =
+            ArrayList<AgentHistoryEvent>().also { out -> events.forEach { merge(out, it) } }
+    }
+}
 
 /**
  * Mesures d'un jour renvoyées par la commande `metrics` (agent 1.8.0) : [day] jour demandé (UTC,
@@ -203,6 +334,7 @@ internal data class ResponseBody(
     val history: AgentHistory? = null,
     val temperatures: AgentTemperatures? = null,
     val metrics: AgentMetrics? = null,
+    val disks: AgentDisks? = null,
 ) {
-    fun toStatus() = AgentStatus(hostname, os, arch, version, uptime, temperatures)
+    fun toStatus() = AgentStatus(hostname, os, arch, version, uptime, temperatures, disks)
 }

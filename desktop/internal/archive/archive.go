@@ -388,11 +388,13 @@ func (j Journal) AddEvents(mac, name string, events []protocol.HistoryEvent) (ou
 	pc := out.PCs[i]
 	pc.Events = slices.Clone(pc.Events)
 	for _, e := range events {
-		if time.Unix(e.T, 0).UTC().Format("2006-01") != j.Month || slices.Contains(pc.Events, e) {
+		if time.Unix(e.T, 0).UTC().Format("2006-01") != j.Month {
 			continue
 		}
-		pc.Events = append(pc.Events, e)
-		changed = true
+		// Même évènement déjà archivé : remplacé si l'agent en a précisé la cause depuis.
+		var c bool
+		pc.Events, c = protocol.MergeEvent(pc.Events, e)
+		changed = changed || c
 	}
 	if name != "" && pc.Name != name {
 		pc.Name = name

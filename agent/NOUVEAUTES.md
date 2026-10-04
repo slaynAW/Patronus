@@ -5,6 +5,11 @@ compilé par la CI. **Ajoutez une section (numéro supérieur) à chaque modific
 numéro que les agents installés comparent au leur pour proposer la mise à jour. Le texte de la section est
 affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
+## 1.9.0
+
+- **Disques** : espace libre de chaque lecteur, et santé de chaque SSD ou disque dur (état donné par Windows, température, usure, heures de fonctionnement, erreurs non corrigées), plus les erreurs d'accès aux disques signalées par Windows sur 30 jours. Les applications 1.10.0 les affichent sur la fiche du PC ; `wol-agent status` aussi.
+- **Plantages et arrêts anormaux expliqués** : le journal du PC précise la cause d'un arrêt non enregistré, lue dans le journal d'événements de Windows : écran bleu (avec son code), arrêt forcé avec le bouton d'alimentation, coupure de courant ou blocage, erreur matérielle fatale.
+
 ## 1.8.0
 
 - **Enregistrement continu des mesures** : températures et utilisation du processeur et de la carte graphique relevées toutes les 10 secondes et résumées chaque minute (moyenne et maximum), gardées 90 jours sur le PC, même quand aucune application n'est ouverte. Les applications 1.8.0 les affichent en graphiques et les archivent chiffrées sur GitHub. `wol-agent status` indique les jours enregistrés ; `"metrics": false` dans la configuration le désactive.

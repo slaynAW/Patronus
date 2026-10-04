@@ -939,15 +939,17 @@ func (s *Service) metricsJournal(id string, fromMs, toMs int64) (any, error) {
 			}
 		}
 	}
-	seen := map[protocol.HistoryEvent]bool{}
-	items := []HistoryItem{}
+	// Agent et archives : chaque évènement une fois, avec la cause la plus précise.
+	var merged []protocol.HistoryEvent
 	for _, e := range raw {
-		if seen[e] || e.T*1000 < fromMs || e.T*1000 >= toMs {
-			continue
+		if e.T*1000 >= fromMs && e.T*1000 < toMs {
+			merged, _ = protocol.MergeEvent(merged, e)
 		}
-		seen[e] = true
+	}
+	items := []HistoryItem{}
+	for _, e := range merged {
 		if ev, ok := history.FromAgent(d.ID, e); ok {
-			items = append(items, HistoryItem{Device: d.ID, Name: d.Name, Time: ev.Time, Kind: ev.Kind, Source: ev.Source, Client: ev.Client})
+			items = append(items, itemOf(ev, d.Name))
 		}
 	}
 	slices.SortStableFunc(items, func(a, b HistoryItem) int { return compareInt(b.Time, a.Time) })

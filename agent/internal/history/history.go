@@ -58,6 +58,12 @@ type Log struct {
 	path string
 	now  func() time.Time
 	st   state
+	// Explain, s'il est renseigné, cherche la cause d'un arrêt non enregistré survenu après since
+	// (SystemCause sous Windows) ; à renseigner avant Started.
+	Explain func(since, now time.Time) Cause
+	// lostAt / lostSince : arrêt non enregistré trouvé par Started et début de la recherche de sa
+	// cause (pour Reexplain).
+	lostAt, lostSince int64
 }
 
 // Open ouvre (ou crée) le journal. Un fichier illisible est remplacé par un journal vide.
@@ -156,19 +162,51 @@ func (l *Log) Started(boot Boot, lastAlive time.Time) error {
 	}
 
 	bootAt := boot.At.Unix()
-	if st.Boot != 0 && !lastAlive.IsZero() && lastAlive.Unix() < bootAt && !st.PendingShutdown {
-		var last *protocol.HistoryEvent
-		if n := len(st.Events); n > 0 {
-			last = &st.Events[n-1]
+	var last *protocol.HistoryEvent
+	if n := len(st.Events); n > 0 {
+		last = &st.Events[n-1]
+	}
+	// Cause d'un éventuel arrêt anormal : événements écrits par Windows depuis le dernier signe de vie.
+	var cause Cause
+	if st.Boot != 0 && l.Explain != nil {
+		seen := time.Unix(st.Boot, 0).Add(10 * time.Minute)
+		if !lastAlive.IsZero() && lastAlive.After(seen) {
+			seen = lastAlive
 		}
-		if last == nil || (last.K != protocol.HistoryShutdown && last.K != protocol.HistorySleep && lastAlive.Unix() >= last.T) {
-			kind := protocol.HistoryLost
-			// Extinction demandée mais arrêt du service non enregistré (arrêt très rapide) : c'est bien un arrêt.
-			if last != nil && last.K == protocol.HistoryCommand && (last.A == "shutdown" || last.A == "reboot") {
-				kind = protocol.HistoryShutdown
-			}
-			l.insert(protocol.HistoryEvent{T: lastAlive.Unix(), K: kind})
+		if last != nil && last.T > seen.Unix() {
+			seen = time.Unix(last.T, 0)
 		}
+		l.lostSince = explainWindow(seen).Unix()
+		cause = l.Explain(time.Unix(l.lostSince, 0), l.now())
+	}
+	l.lostAt = 0
+	lost := func(t int64) {
+		l.insert(protocol.HistoryEvent{T: t, K: protocol.HistoryLost, R: cause.Reason, D: cause.Detail})
+		l.lostAt = t
+	}
+	switch {
+	case st.Boot != 0 && !lastAlive.IsZero() && lastAlive.Unix() < bootAt && !st.PendingShutdown &&
+		(last == nil || (last.K != protocol.HistoryShutdown && last.K != protocol.HistorySleep && lastAlive.Unix() >= last.T)):
+		// Extinction demandée mais arrêt du service non enregistré (arrêt très rapide) : c'est bien un
+		// arrêt, sauf si Windows signale un arrêt anormal.
+		if cause.Reason == "" && last != nil && last.K == protocol.HistoryCommand && (last.A == "shutdown" || last.A == "reboot") {
+			l.insert(protocol.HistoryEvent{T: lastAlive.Unix(), K: protocol.HistoryShutdown})
+		} else {
+			lost(lastAlive.Unix())
+		}
+	case cause.Reason != "" && st.PendingShutdown && last != nil && last.K == protocol.HistoryShutdown:
+		// Arrêt commencé proprement (service arrêté) mais terminé de force : blocage, bouton…
+		last.K, last.R, last.D = protocol.HistoryLost, cause.Reason, cause.Detail
+		l.lostAt = last.T
+	case cause.Reason != "" && (last == nil || last.T < bootAt):
+		// Arrêt anormal pendant la veille, ou dernier signe de vie inconnu.
+		t := bootAt - 1
+		if !lastAlive.IsZero() && lastAlive.Unix() < bootAt && (last == nil || lastAlive.Unix() > last.T) {
+			t = lastAlive.Unix()
+		} else if last != nil && last.T+1 < bootAt {
+			t = last.T + 1
+		}
+		lost(t)
 	}
 	st.PendingShutdown = false
 	l.insert(protocol.HistoryEvent{T: bootAt, K: protocol.HistoryBoot})
@@ -178,6 +216,29 @@ func (l *Log) Started(boot Boot, lastAlive time.Time) error {
 	}
 	l.prune()
 	return l.save()
+}
+
+// Reexplain cherche de nouveau la cause de l'arrêt non enregistré trouvé au démarrage : Windows écrit
+// le code d'un écran bleu quelques minutes après le démarrage. Renvoie vrai si la cause a été précisée.
+func (l *Log) Reexplain() (bool, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.Explain == nil || l.lostAt == 0 {
+		return false, nil
+	}
+	cause := l.Explain(time.Unix(l.lostSince, 0), l.now())
+	for i := len(l.st.Events) - 1; i >= 0; i-- {
+		e := &l.st.Events[i]
+		if e.T != l.lostAt || e.K != protocol.HistoryLost {
+			continue
+		}
+		if cause.rank() <= (Cause{Reason: e.R, Detail: e.D}).rank() {
+			return false, nil
+		}
+		e.R, e.D = cause.Reason, cause.Detail
+		return true, l.save()
+	}
+	return false, nil
 }
 
 // Stopping enregistre l'arrêt du service. Il est provisoire : s'il ne s'agissait que d'un

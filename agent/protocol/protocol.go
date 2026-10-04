@@ -82,7 +82,50 @@ type HistoryEvent struct {
 	C string `json:"c,omitempty"`
 	// B est le nom de l'appareil à l'origine d'une commande, indiqué par l'application (« Pixel 8 »).
 	B string `json:"b,omitempty"`
+	// R est la cause d'un arrêt non enregistré (HistoryLost), lue dans le journal d'événements de
+	// Windows : LostBSOD, LostButton, LostPower ou LostHardware (vide : inconnue ; agent 1.9.0 ou plus).
+	R string `json:"r,omitempty"`
+	// D précise la cause : code et nom de l'écran bleu (« 0x7E SYSTEM_THREAD_EXCEPTION_NOT_HANDLED »),
+	// composant en panne…
+	D string `json:"d,omitempty"`
 }
+
+// Same indique le même évènement, cause mise à part (l'agent la précise après coup).
+func (e HistoryEvent) Same(o HistoryEvent) bool {
+	return e.T == o.T && e.K == o.K && e.A == o.A && e.C == o.C && e.B == o.B
+}
+
+// Better indique que e (le même évènement que o) en dit plus long sur la cause.
+func (e HistoryEvent) Better(o HistoryEvent) bool {
+	return (o.R == "" && e.R != "") || (o.D == "" && e.D != "")
+}
+
+// MergeEvent ajoute e à events, ou remplace le même évènement s'il en dit plus long ; renvoie vrai
+// si events a changé.
+func MergeEvent(events []HistoryEvent, e HistoryEvent) ([]HistoryEvent, bool) {
+	for i, x := range events {
+		if x.Same(e) {
+			if e.Better(x) {
+				events[i] = e
+				return events, true
+			}
+			return events, false
+		}
+	}
+	return append(events, e), true
+}
+
+// Causes d'un arrêt non enregistré (HistoryEvent.R).
+const (
+	// LostBSOD : plantage du système (écran bleu), D donne le code d'arrêt.
+	LostBSOD = "bsod"
+	// LostButton : arrêt forcé avec le bouton d'alimentation.
+	LostButton = "button"
+	// LostPower : coupure de courant ou blocage complet (redémarrage sans arrêt propre).
+	LostPower = "power"
+	// LostHardware : erreur matérielle fatale (processeur, mémoire, bus), D donne le composant.
+	LostHardware = "hardware"
+)
 
 // History est le journal renvoyé par la commande « history ».
 type History struct {
@@ -149,7 +192,65 @@ type ResponseBody struct {
 	// Temperatures n'est renseigné que pour la commande « status » (agent 1.5.0 ou plus) ; il
 	// contient aussi l'utilisation du processeur et de la carte graphique (agent 1.7.0 ou plus).
 	Temperatures *Temperatures `json:"temperatures,omitempty"`
+	// Disks n'est renseigné que pour la commande « status » (agent 1.9.0 ou plus).
+	Disks *Disks `json:"disks,omitempty"`
 }
+
+// Disks décrit les disques du PC : espace des lecteurs, santé des disques physiques et erreurs
+// d'accès signalées par le système. Une valeur illisible est absente.
+type Disks struct {
+	// Volumes : lecteurs locaux (« C: », « D: » ; points de montage sous Linux).
+	Volumes []Volume `json:"volumes,omitempty"`
+	// Drives : disques physiques (SSD, disques durs).
+	Drives []Drive `json:"drives,omitempty"`
+	// Errors : erreurs d'accès aux disques signalées par Windows sur les DiskErrorDays derniers
+	// jours (secteurs illisibles, contrôleur, système de fichiers) ; LastError : la plus récente
+	// (secondes Unix).
+	Errors    int   `json:"errors,omitempty"`
+	LastError int64 `json:"lastError,omitempty"`
+}
+
+// DiskErrorDays : période des erreurs d'accès comptées (Disks.Errors).
+const DiskErrorDays = 30
+
+// Volume est un lecteur et son espace (octets).
+type Volume struct {
+	Mount string `json:"mount"`
+	Label string `json:"label,omitempty"`
+	FS    string `json:"fs,omitempty"`
+	Total uint64 `json:"total"`
+	Free  uint64 `json:"free"`
+}
+
+// Drive est un disque physique et sa santé.
+type Drive struct {
+	Name string `json:"name"`
+	// Media : DriveSSD ou DriveHDD (vide : inconnu) ; Bus : « NVMe », « SATA », « USB »…
+	Media string `json:"media,omitempty"`
+	Bus   string `json:"bus,omitempty"`
+	Size  uint64 `json:"size,omitempty"`
+	// Health : état donné par le système (DriveHealthy, DriveWarning, DriveUnhealthy ; vide : inconnu).
+	Health string `json:"health,omitempty"`
+	// Temp / TempMax : température actuelle et maximale atteinte (°C).
+	Temp    *float64 `json:"temp,omitempty"`
+	TempMax *float64 `json:"tempMax,omitempty"`
+	// Wear : usure en % de la durée de vie prévue (SSD).
+	Wear *int `json:"wear,omitempty"`
+	// Hours : heures de fonctionnement.
+	Hours *int64 `json:"hours,omitempty"`
+	// ReadErrors / WriteErrors : erreurs de lecture / d'écriture non corrigées.
+	ReadErrors  *int64 `json:"readErrors,omitempty"`
+	WriteErrors *int64 `json:"writeErrors,omitempty"`
+}
+
+// Valeurs de Drive.Media et Drive.Health.
+const (
+	DriveSSD       = "ssd"
+	DriveHDD       = "hdd"
+	DriveHealthy   = "ok"
+	DriveWarning   = "warning"
+	DriveUnhealthy = "bad"
+)
 
 // Temperatures donne les températures du PC en °C et l'utilisation du processeur et de la carte
 // graphique en % ; un capteur illisible est absent.

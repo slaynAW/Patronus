@@ -33,6 +33,7 @@ type Server struct {
 	mu       sync.Mutex
 	history  *protocol.History
 	temps    *protocol.Temperatures
+	disks    *protocol.Disks
 	metrics  map[string][]protocol.MetricsRow
 	commands []string
 	requests []protocol.RequestBody
@@ -65,6 +66,13 @@ func (s *Server) SetHistory(h *protocol.History) {
 func (s *Server) SetTemperatures(t *protocol.Temperatures) {
 	s.mu.Lock()
 	s.temps = t
+	s.mu.Unlock()
+}
+
+// SetDisks définit les disques joints à « status » (nil : agent antérieur à 1.9.0).
+func (s *Server) SetDisks(d *protocol.Disks) {
+	s.mu.Lock()
+	s.disks = d
 	s.mu.Unlock()
 }
 
@@ -154,6 +162,7 @@ func (s *Server) handle(conn net.Conn) {
 	if body.Cmd == protocol.CmdStatus {
 		s.mu.Lock()
 		resp.Temperatures = s.temps
+		resp.Disks = s.disks
 		s.mu.Unlock()
 	}
 	if body.Cmd == protocol.CmdHistory || body.Cmd == protocol.CmdWakes {

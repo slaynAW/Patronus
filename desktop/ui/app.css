@@ -336,6 +336,30 @@ canvas.spark { display: block; width: 64px; height: 22px; flex: none; }
 .hist-note { font-size: 12px; line-height: 17px; color: var(--text-3); }
 .side-hist { display: flex; flex-direction: column; gap: 6px; }
 .hist-more { align-self: center; margin-top: 10px; }
+
+/* Disques du PC (panneau de détail) */
+.side-disks { display: flex; flex-direction: column; gap: 6px; }
+.disks { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.vol, .drv { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13px; }
+.disks > :first-child { border-top: none; }
+.vol-line { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-width: 0; }
+.vol-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.vol-name small { color: var(--text-3); }
+.vol-free { color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bar { height: 6px; border-radius: 3px; background: var(--soft); overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: 3px; background: var(--blue); }
+.bar.warn i { background: var(--tr); }
+.bar.bad i { background: var(--off); }
+.vol-free.warn, .drv-facts .warn { color: var(--tr); font-weight: 600; }
+.vol-free.bad, .drv-facts .bad { color: var(--danger-text); font-weight: 600; }
+.drv-facts { display: flex; flex-wrap: wrap; gap: 4px 6px; color: var(--text-2); font-size: 12px; font-variant-numeric: tabular-nums; }
+.drv-facts .sep { color: var(--text-3); }
+.dchip { flex: none; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.dchip.good { color: var(--on); background: color-mix(in srgb, var(--on) 14%, transparent); }
+.dchip.warn { color: var(--tr); background: color-mix(in srgb, var(--tr) 16%, transparent); }
+.dchip.bad { color: var(--danger-text); background: var(--danger-bg); }
+.disk-note { display: flex; gap: 8px; align-items: flex-start; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 12.5px; line-height: 17px; }
+.disk-note.warn { color: var(--tr); }
 .day + .ev { border-top: none; }
 
 /* ---------- Vide / réglages ---------- */

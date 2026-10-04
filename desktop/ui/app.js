@@ -122,6 +122,22 @@
     detail_load_cpu: "Utilisation CPU",
     detail_load_gpu: "Utilisation GPU",
     detail_metrics: "Mesures",
+    disks_title: "Disques",
+    disk_free: "%1$s libres sur %2$s",
+    disk_used: "%1$s utilisés",
+    disk_health_ok: "Bon état",
+    disk_health_warning: "À surveiller",
+    disk_health_bad: "En panne",
+    disk_wear: "usure %1$s",
+    disk_hours: "%1$s h",
+    disk_uncorrected: "%1$s erreur(s) non corrigée(s)",
+    disk_errors_log: "%1$s erreur(s) d’accès aux disques en 30 jours, la dernière %2$s",
+    disk_errors_help: "Secteurs illisibles, erreurs du contrôleur ou du système de fichiers signalées par Windows. Quelques-unes après une coupure de courant sont sans gravité ; si elles se répètent, sauvegardez vos fichiers et surveillez la santé du disque.",
+    disk_health_help: "État donné par Windows à partir des données du disque (S.M.A.R.T.). « À surveiller » : sauvegardez vos fichiers, le disque montre des signes d’usure ou d’erreurs.",
+    disk_alert_full: "%1$s plein à %2$s",
+    disk_alert_watch: "Disque à surveiller",
+    disk_alert_bad: "Disque en panne",
+    disk_alert_errors: "Erreurs de disque",
     metrics_open: "Températures et utilisation dans le temps",
     metrics_title: "Mesures",
     metrics_period: "Période",
@@ -201,6 +217,14 @@
     kind_on: "Allumé",
     kind_off: "Éteint",
     kind_lost: "Arrêt inattendu",
+    kind_lost_bsod: "Plantage (écran bleu)",
+    kind_lost_button: "Arrêt forcé (bouton d’alimentation)",
+    kind_lost_power: "Arrêt brutal (coupure ou blocage)",
+    kind_lost_hardware: "Erreur matérielle fatale",
+    lost_help_bsod: "Windows a planté (écran bleu). Le code d’arrêt indique la cause, le plus souvent un pilote ou la mémoire.",
+    lost_help_button: "Le PC a été éteint en maintenant le bouton d’alimentation.",
+    lost_help_power: "Le PC s’est arrêté sans arrêt propre : coupure de courant, ou blocage complet suivi d’un redémarrage.",
+    lost_help_hardware: "Windows a signalé une erreur matérielle fatale (processeur, mémoire ou carte mère).",
     kind_sleep: "Mis en veille",
     kind_resume: "Sorti de veille",
     kind_wake: "Démarrage demandé",
@@ -786,6 +810,42 @@
     "no-sensor": [S.temperature_cpu_lhm_sensor, S.temperature_cpu_lhm_sensor_help],
   })[state] || [S.temperature_cpu_lhm, S.temperature_cpu_lhm_help];
   const percentText = (value) => `${Math.round(value)}\u00a0%`;
+
+  // --- Disques ---
+  /** Taille comme l'Explorateur Windows (« 931 Go », « 1,8 To »). */
+  function bytesText(n) {
+    const units = ["o", "Ko", "Mo", "Go", "To", "Po"];
+    let v = n || 0;
+    let i = 0;
+    while (v >= 1024 && i < units.length - 1) {
+      v /= 1024;
+      i++;
+    }
+    const digits = v >= 100 || i === 0 ? 0 : 1;
+    return `${v.toLocaleString("fr-FR", { maximumFractionDigits: digits, minimumFractionDigits: digits })}\u00a0${units[i]}`;
+  }
+  const volumeUsed = (v) => (v.total > 0 ? (100 * (v.total - v.free)) / v.total : 0);
+  /** Gravité d'un lecteur : plein à 95 % ou plus (bad), 90 % ou plus (warn). */
+  const volumeLevel = (v) => (volumeUsed(v) >= 95 ? "bad" : volumeUsed(v) >= 90 ? "warn" : null);
+  /** Gravité d'un disque : état Windows, erreurs non corrigées, usure, température. */
+  function driveLevel(d) {
+    const errors = (d.readErrors || 0) + (d.writeErrors || 0);
+    const hot = d.media === "hdd" ? 55 : 70;
+    if (d.health === "bad" || (d.wear ?? 0) >= 95) return "bad";
+    if (d.health === "warning" || errors > 0 || (d.wear ?? 0) >= 80 || (d.temp ?? 0) >= hot) return "warn";
+    return null;
+  }
+  /** Alerte la plus grave sur les disques d'un PC (liste des PC), ou null. */
+  function diskAlert(disks) {
+    if (!disks) return null;
+    const drives = disks.drives || [];
+    if (drives.some((d) => driveLevel(d) === "bad")) return { text: S.disk_alert_bad, cls: "temp-hot" };
+    const full = (disks.volumes || []).filter((v) => volumeLevel(v)).sort((a, b) => volumeUsed(b) - volumeUsed(a))[0];
+    if (full) return { text: fmt(S.disk_alert_full, full.mount, percentText(volumeUsed(full))), cls: volumeLevel(full) === "bad" ? "temp-hot" : "temp-warm" };
+    if (drives.some((d) => driveLevel(d) === "warn")) return { text: S.disk_alert_watch, cls: "temp-warm" };
+    if (disks.errors > 0) return { text: S.disk_alert_errors, cls: "temp-warm" };
+    return null;
+  }
   /** « 54 °C (23 %) », « 54 °C » ou « 23 % » ; texte vide si rien n'est connu. */
   const sensorText = (temp, load) =>
     temp != null && load != null ? `${celsius(temp)} (${percentText(load)})` : temp != null ? celsius(temp) : load != null ? percentText(load) : "";
@@ -904,8 +964,15 @@
     else if (REQUEST_KINDS.has(e.kind)) source = S.history_source_request;
     else source = e.approx ? S.history_source_seen_approx : S.history_source_seen;
     const lines = [fullFmt.format(e.time), source];
-    if (e.kind === "lost") lines.push(S.history_lost_help);
+    if (e.kind === "lost") lines.push((e.cause && S["lost_help_" + e.cause]) || S.history_lost_help);
+    if (e.detail) lines.push(e.detail);
     return lines.join("\n");
+  }
+
+  /** Libellé d'un évènement : cause d'un arrêt anormal quand l'agent l'a lue. */
+  function eventLabel(e) {
+    if (e.kind === "lost" && e.cause && S["kind_lost_" + e.cause]) return S["kind_lost_" + e.cause];
+    return S["kind_" + e.kind] || e.kind;
   }
 
   /** Ligne d'historique : icône, libellé (« · par Pixel 8 » pour une demande venue d'ailleurs), heure. */
@@ -913,8 +980,8 @@
     const by = e.client ? fmt(S.history_by, e.client) : "";
     const when = (e.approx ? "≈ " : "") + (clockOnly ? clockFmt.format(e.time) : eventTime(e.time, now));
     return h("div", { class: "ev k-" + e.kind, title: eventTooltip(e) },
-      h("span", { class: "ic" }, icon(KIND_ICONS[e.kind] || "info")),
-      h("span", { class: "lbl" }, S["kind_" + e.kind] || e.kind, by ? h("small", { text: " · " + by }) : null),
+      h("span", { class: "ic" }, icon(e.cause === "bsod" || e.cause === "hardware" ? "warning" : KIND_ICONS[e.kind] || "info")),
+      h("span", { class: "lbl" }, eventLabel(e), by ? h("small", { text: " · " + by }) : null, e.detail ? h("small", { text: " · " + e.detail }) : null),
       withName ? h("span", { class: "who", text: e.name }) : null,
       h("time", { datetime: new Date(e.time).toISOString(), text: when }));
   }
@@ -1596,6 +1663,12 @@
         setClass(dot, dotClass(st));
         setText(stateText, shortState(s, now));
         const t = temperatureSummary(online && s.agent ? s.agent.temperatures : null);
+        // Alerte disque (plein, à surveiller…) : avant les températures, dans sa couleur.
+        const alert = diskAlert(online && s.agent ? s.agent.disks : null);
+        if (alert) {
+          t.text = alert.text + (t.text ? " · " + t.text : "");
+          if (!t.cls || alert.cls === "temp-hot") t.cls = alert.cls;
+        }
         setText(temps, t.text);
         temps.title = t.text; // texte complet si la colonne est étroite
         setClass(temps, `temps${t.cls ? " " + t.cls : ""}${t.text ? "" : " hidden"}`);
@@ -2040,8 +2113,9 @@
     const hint = h("div", { class: "hint hidden", text: S.hint_no_agent });
     const info = h("div", { class: "info selectable" });
     const latency = latencyCard();
+    const disks = disksCard();
     const recent = sideHistory();
-    const inner = h("div", { class: "side-inner" }, h("div", { class: "side-top" }, more, closeButton), hero, notice, acts, hint, latency.el, info, recent.el);
+    const inner = h("div", { class: "side-inner" }, h("div", { class: "side-top" }, more, closeButton), hero, notice, acts, hint, latency.el, info, disks.el, recent.el);
     const placeholder = h("div", { class: "placeholder" }, h("span", { class: "ni" }, icon("monitor", "", 28)), h("span", { text: S.select_hint }));
     sideEl.append(inner, placeholder);
 
@@ -2092,6 +2166,7 @@
       latency.el.classList.toggle("hidden", !d.host);
       if (d.host) latency.update(d, now);
       renderInfo(d);
+      disks.update(st === "ONLINE" && s.agent ? s.agent.disks : null, now);
       recent.update(d, now);
     }
 
@@ -2181,6 +2256,61 @@
 
     return { update };
   })();
+
+  /** Disques du PC sélectionné : espace de chaque lecteur, santé de chaque disque (agent 1.9.0). */
+  function disksCard() {
+    const body = h("div", { class: "disks" });
+    const el = h("section", { class: "side-disks hidden" }, h("div", { class: "hist-head" }, S.disks_title), body);
+    let sig = "";
+
+    function volumeRow(v) {
+      const used = volumeUsed(v);
+      const level = volumeLevel(v);
+      const name = v.label ? `${v.mount} ${v.label}` : v.mount;
+      return h("div", { class: "vol", title: [v.fs, fmt(S.disk_used, percentText(used))].filter(Boolean).join(" · ") },
+        h("div", { class: "vol-line" }, h("span", { class: "vol-name", text: name }),
+          h("span", { class: "vol-free" + (level ? " " + level : ""), text: fmt(S.disk_free, bytesText(v.free), bytesText(v.total)) })),
+        h("div", { class: "bar" + (level ? " " + level : "") }, h("i", { style: `width:${Math.min(100, Math.max(1, used)).toFixed(1)}%` })));
+    }
+
+    function driveRow(d) {
+      const level = driveLevel(d);
+      const health = d.health === "ok" ? S.disk_health_ok : d.health === "warning" ? S.disk_health_warning : d.health === "bad" ? S.disk_health_bad : "";
+      const kind = [d.media === "ssd" ? "SSD" : d.media === "hdd" ? "HDD" : "", d.bus, d.size ? bytesText(d.size) : ""].filter(Boolean).join(" · ");
+      const facts = kind ? [h("span", { text: kind })] : [];
+      if (d.temp != null) facts.push(h("span", { class: tempLevel(d) || null, text: celsius(d.temp) }));
+      if (d.wear != null) facts.push(h("span", { class: (d.wear >= 95 ? "bad" : d.wear >= 80 ? "warn" : null), text: fmt(S.disk_wear, percentText(d.wear)) }));
+      if (d.hours != null) facts.push(h("span", { text: fmt(S.disk_hours, d.hours.toLocaleString("fr-FR")) }));
+      const errors = (d.readErrors || 0) + (d.writeErrors || 0);
+      if (errors > 0) facts.push(h("span", { class: "bad", text: fmt(S.disk_uncorrected, errors.toLocaleString("fr-FR")) }));
+      const status = health || level ? h("span", { class: "dchip " + (level || "good"), text: health || (level === "bad" ? S.disk_health_bad : S.disk_health_warning) }) : null;
+      return h("div", { class: "drv", title: S.disk_health_help },
+        h("div", { class: "vol-line" }, h("span", { class: "vol-name", text: d.name }), status),
+        facts.length ? h("div", { class: "drv-facts" }, ...facts.flatMap((f, i) => (i ? [h("span", { class: "sep", text: "·" }), f] : [f]))) : null);
+    }
+
+    function tempLevel(d) {
+      const hot = d.media === "hdd" ? 55 : 70;
+      return d.temp >= hot + 10 ? "bad" : d.temp >= hot ? "warn" : null;
+    }
+
+    function update(disks, now) {
+      const empty = !disks || (!(disks.volumes || []).length && !(disks.drives || []).length && !disks.errors);
+      el.classList.toggle("hidden", empty);
+      if (empty) return;
+      const next = JSON.stringify(disks) + "|" + Math.floor(now / 60000);
+      if (next === sig) return;
+      sig = next;
+      const rows = [...(disks.volumes || []).map(volumeRow), ...(disks.drives || []).map(driveRow)];
+      if (disks.errors > 0) {
+        rows.push(h("div", { class: "disk-note warn", title: S.disk_errors_help },
+          icon("warning", "small"), h("span", { text: fmt(S.disk_errors_log, disks.errors.toLocaleString("fr-FR"), eventTime(disks.lastError * 1000, now)) })));
+      }
+      body.replaceChildren(...rows);
+    }
+
+    return { el, update };
+  }
 
   /** Historique discret du panneau de détail : derniers évènements du PC sélectionné. */
   function sideHistory() {

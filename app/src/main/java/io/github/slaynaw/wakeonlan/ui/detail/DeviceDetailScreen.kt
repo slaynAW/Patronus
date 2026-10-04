@@ -238,6 +238,7 @@ fun DeviceDetailContent(
                     KeyValueRow(stringResource(R.string.detail_metrics), stringResource(R.string.metrics_open), valueColor = WolPalette.Blue, icon = WolIcons.Chart)
                 }
             }
+            item.status.agent?.disks?.takeIf { item.status.state == PowerState.ONLINE && !it.isEmpty }?.let { DisksCard(it, now) }
             RecentHistory(history, now, onShowAll = onOpenHistory)
             Spacer(Modifier.height(24.dp))
         }

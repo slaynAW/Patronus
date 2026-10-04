@@ -3,6 +3,11 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.10.0
+
+- **Disques** (avec l'agent 1.9.0) : la fiche d'un PC montre l'espace libre de chaque lecteur et la santé de chaque SSD ou disque dur (état donné par Windows, température, usure, heures de fonctionnement, erreurs non corrigées), ainsi que les erreurs d'accès aux disques signalées par Windows ces 30 derniers jours. Un lecteur plein à 90 % ou plus, ou un disque à surveiller, est signalé dans la liste des PC.
+- **Plantages et arrêts anormaux expliqués** : l'historique précise désormais la cause d'un arrêt inattendu — écran bleu (avec son code), arrêt forcé avec le bouton d'alimentation, coupure de courant ou blocage, erreur matérielle fatale. Elle est conservée dans les archives.
+
 ## 1.9.0
 
 - **Changer le mot de passe des sauvegardes sans rien perdre** : *Réglages* → *Sauvegarde automatique* → *Changer le mot de passe*. Sauvegardes (GitHub et dossier) et archives des mesures sont rechiffrées par le nouveau mot de passe ; sur GitHub, chaque Gist est recopié, vérifié, puis l'ancien est supprimé avec son historique : l'ancien mot de passe n'ouvre plus rien. Un changement interrompu reprend tout seul.

@@ -44,6 +44,15 @@ type HistoryItem struct {
 	Source history.Source `json:"source"`
 	Approx bool           `json:"approx,omitempty"`
 	Client string         `json:"client,omitempty"`
+	// Cause et Detail : cause d'un arrêt anormal (protocol.LostBSOD…) et code de l'écran bleu.
+	Cause  string `json:"cause,omitempty"`
+	Detail string `json:"detail,omitempty"`
+}
+
+// itemOf prépare un évènement pour l'interface.
+func itemOf(e history.Event, name string) HistoryItem {
+	return HistoryItem{Device: e.Device, Name: name, Time: e.Time, Kind: e.Kind, Source: e.Source, Approx: e.Approx,
+		Client: e.Client, Cause: e.Cause, Detail: e.Detail}
 }
 
 // onStatusChange est appelé à chaque relevé : il déduit les allumages / extinctions constatés et
@@ -300,7 +309,7 @@ func (s *Service) historyView(id string) map[string]any {
 		if !ok {
 			continue
 		}
-		items = append(items, HistoryItem{Device: e.Device, Name: name, Time: e.Time, Kind: e.Kind, Source: e.Source, Approx: e.Approx, Client: e.Client})
+		items = append(items, itemOf(e, name))
 	}
 	return map[string]any{"events": items, "hasAgent": hasAgent, "agent": agentStatus, "version": version}
 }

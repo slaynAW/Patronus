@@ -43,6 +43,7 @@ type Server struct {
 	info     func() sysinfo.Info
 	history  *history.Log
 	temps    func() *protocol.Temperatures
+	disks    func() *protocol.Disks
 	metrics  Metrics
 	now      func() time.Time
 
@@ -80,6 +81,10 @@ func (s *Server) SetHistory(l *history.Log) { s.history = l }
 // SetTemperatures branche la lecture des températures, jointes aux réponses à « status » (elle doit
 // répondre tout de suite : voir sensors.Cache).
 func (s *Server) SetTemperatures(read func() *protocol.Temperatures) { s.temps = read }
+
+// SetDisks branche la lecture des disques, jointe aux réponses à « status » (elle doit répondre tout
+// de suite : voir disks.Reader).
+func (s *Server) SetDisks(read func() *protocol.Disks) { s.disks = read }
 
 // Metrics donne les mesures enregistrées en continu (voir metrics.Recorder).
 type Metrics interface {
@@ -277,6 +282,9 @@ func (s *Server) execute(rawBody, ip string) protocol.ResponseBody {
 		resp.OK, resp.Code = true, "ok"
 		if s.temps != nil {
 			resp.Temperatures = s.temps()
+		}
+		if s.disks != nil {
+			resp.Disks = s.disks()
 		}
 		return resp
 	}

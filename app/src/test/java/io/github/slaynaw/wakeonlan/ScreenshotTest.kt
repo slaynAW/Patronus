@@ -14,7 +14,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import io.github.slaynaw.wakeonlan.core.agent.AgentDisks
+import io.github.slaynaw.wakeonlan.core.agent.AgentDrive
 import io.github.slaynaw.wakeonlan.core.agent.AgentStatus
+import io.github.slaynaw.wakeonlan.core.agent.AgentVolume
 import io.github.slaynaw.wakeonlan.core.share.ShareAccess
 import io.github.slaynaw.wakeonlan.core.share.ShareCrypto
 import io.github.slaynaw.wakeonlan.core.share.ShareInvite
@@ -97,7 +100,23 @@ class ScreenshotTest {
                 lastSeen = now,
                 latencyMs = 2,
                 method = ProbeMethod.AGENT,
-                agent = AgentStatus("BUREAU", "windows", "amd64", "1.2.0", 11_520L),
+                agent = AgentStatus(
+                    "BUREAU", "windows", "amd64", "1.9.0", 11_520L,
+                    disks = AgentDisks(
+                        volumes = listOf(
+                            AgentVolume("C:", "Windows", "NTFS", total = 999_000_000_000, free = 312_000_000_000),
+                            AgentVolume("D:", "Jeux", "NTFS", total = 2_000_000_000_000, free = 70_000_000_000),
+                        ),
+                        drives = listOf(
+                            AgentDrive("Samsung SSD 980 PRO 1TB", AgentDrive.SSD, "NVMe", 1_000_204_886_016, AgentDrive.HEALTHY,
+                                temp = 41.0, tempMax = 68.0, wear = 3, hours = 1_234, readErrors = 0, writeErrors = 0),
+                            AgentDrive("WDC WD20EZRZ-00Z5HB0", AgentDrive.HDD, "SATA", 2_000_398_934_016, AgentDrive.WARNING,
+                                temp = 44.0, hours = 31_877, readErrors = 12, writeErrors = 0),
+                        ),
+                        errors = 5,
+                        lastError = now / 1000 - 26 * 3600,
+                    ),
+                ),
             ),
             series(1_000) { i ->
                 when {
@@ -139,8 +158,17 @@ class ScreenshotTest {
         ),
     )
 
-    private fun event(device: String, name: String, minutesAgo: Long, kind: HistoryKind, source: HistorySource, approx: Boolean = false, client: String? = null) =
-        HistoryItem(HistoryEvent(device, now - minutesAgo * 60_000, kind, source, approx, client), name)
+    private fun event(
+        device: String,
+        name: String,
+        minutesAgo: Long,
+        kind: HistoryKind,
+        source: HistorySource,
+        approx: Boolean = false,
+        client: String? = null,
+        cause: String? = null,
+        detail: String? = null,
+    ) = HistoryItem(HistoryEvent(device, now - minutesAgo * 60_000, kind, source, approx, client, cause, detail), name)
 
     private val events = listOf(
         event("nas", "NAS du salon", 0, HistoryKind.WAKE_SENT, HistorySource.APP),
@@ -150,9 +178,11 @@ class ScreenshotTest {
         event("salon", "PC Salon", 241, HistoryKind.SHUTDOWN_SENT, HistorySource.AGENT, client = "192.168.1.37"),
         event("jeux", "Serveur de jeux", 1_130, HistoryKind.RESUME, HistorySource.AGENT),
         event("jeux", "Serveur de jeux", 1_560, HistoryKind.SLEEP, HistorySource.AGENT),
+        event("bureau", "PC Bureau", 1_500, HistoryKind.ON, HistorySource.AGENT),
+        event("bureau", "PC Bureau", 1_510, HistoryKind.LOST, HistorySource.AGENT, cause = "bsod", detail = "0x7E SYSTEM_THREAD_EXCEPTION_NOT_HANDLED"),
         event("bureau", "PC Bureau", 1_700, HistoryKind.OFF, HistorySource.APP, approx = true),
         event("bureau", "PC Bureau", 1_702, HistoryKind.SHUTDOWN_SENT, HistorySource.APP),
-        event("salon", "PC Salon", 3_900, HistoryKind.LOST, HistorySource.AGENT),
+        event("salon", "PC Salon", 3_900, HistoryKind.LOST, HistorySource.AGENT, cause = "power"),
     )
 
     private fun capture(name: String, content: @Composable () -> Unit) {

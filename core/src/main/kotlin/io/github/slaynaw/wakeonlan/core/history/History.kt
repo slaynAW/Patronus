@@ -92,6 +92,10 @@ data class HistoryEvent(
     @SerialName("x") val approx: Boolean = false,
     /** Demande notée par l'agent : nom de l'appareil qui l'a faite (à défaut, son adresse). */
     @SerialName("c") val client: String? = null,
+    /** Arrêt anormal : cause lue par l'agent dans le journal d'événements de Windows (« bsod »…). */
+    @SerialName("r") val cause: String? = null,
+    /** Précision de la cause (code de l'écran bleu). */
+    @SerialName("rd") val detail: String? = null,
 )
 
 /** Période couverte par le journal de l'agent d'un PC (millisecondes). */
@@ -231,6 +235,12 @@ data class HistoryData(
         fun decode(text: String): HistoryData? = runCatching { json.decodeFromString(serializer(), text) }.getOrNull()
 
         /** Convertit un évènement du journal de l'agent (`null` s'il est inconnu de cette version). */
+        /** Causes d'arrêt anormal connues ; longueur maximale de leur précision. */
+        private val LOST_CAUSES = setOf(
+            AgentHistoryEvent.LOST_BSOD, AgentHistoryEvent.LOST_BUTTON, AgentHistoryEvent.LOST_POWER, AgentHistoryEvent.LOST_HARDWARE,
+        )
+        const val MAX_DETAIL = 128
+
         fun fromAgent(device: String, raw: AgentHistoryEvent): HistoryEvent? {
             val kind = when (raw.k) {
                 "boot" -> HistoryKind.ON
@@ -247,12 +257,15 @@ data class HistoryData(
                 "wake" -> HistoryKind.WAKE_SENT
                 else -> return null
             }
+            val cause = raw.r?.takeIf { kind == HistoryKind.LOST && it in LOST_CAUSES }
             return HistoryEvent(
                 device = device,
                 time = raw.t * 1000,
                 kind = kind,
                 source = HistorySource.AGENT,
                 client = if (kind.isRequest) raw.b?.takeIf { it.isNotBlank() } ?: raw.c else null,
+                cause = cause,
+                detail = raw.d?.takeIf { cause != null && it.isNotBlank() && it.length <= MAX_DETAIL },
             )
         }
     }

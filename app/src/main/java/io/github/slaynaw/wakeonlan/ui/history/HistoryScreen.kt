@@ -54,7 +54,8 @@ import io.github.slaynaw.wakeonlan.ui.common.dayKey
 import io.github.slaynaw.wakeonlan.ui.common.dayText
 import io.github.slaynaw.wakeonlan.ui.common.eventTimeText
 import io.github.slaynaw.wakeonlan.ui.common.icon
-import io.github.slaynaw.wakeonlan.ui.common.label
+import io.github.slaynaw.wakeonlan.ui.common.lostHelp
+import io.github.slaynaw.wakeonlan.ui.common.labelRes
 import io.github.slaynaw.wakeonlan.ui.common.rememberNow
 import io.github.slaynaw.wakeonlan.ui.common.tint
 import io.github.slaynaw.wakeonlan.ui.theme.WolPalette
@@ -218,14 +219,14 @@ fun HistoryRow(
 ) {
     val e = item.event
     val time = if (clockOnly) clockText(e.time) else eventTimeText(e.time, now)
-    val label = stringResource(e.kind.label())
+    val label = stringResource(e.labelRes())
     val by = e.client?.let { stringResource(R.string.history_by, it) }
     Row(modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(
             Modifier.size(26.dp).clip(RoundedCornerShape(7.dp)).background(WolPalette.Soft),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(e.kind.icon(), contentDescription = null, tint = e.kind.tint(), modifier = Modifier.size(14.dp))
+            Icon(e.icon(), contentDescription = null, tint = e.kind.tint(), modifier = Modifier.size(14.dp))
         }
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
@@ -233,6 +234,7 @@ fun HistoryRow(
                 buildAnnotatedString {
                     append(label)
                     if (by != null) withStyle(SpanStyle(color = WolPalette.Text3, fontSize = 12.sp)) { append(" · $by") }
+                    e.detail?.let { withStyle(SpanStyle(color = WolPalette.Text3, fontSize = 12.sp)) { append(" · $it") } }
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
@@ -242,7 +244,7 @@ fun HistoryRow(
                 Text(item.deviceName, style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (detailed && e.kind == HistoryKind.LOST) {
-                Text(stringResource(R.string.history_lost_help), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text3)
+                Text(stringResource(e.lostHelp()), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text3)
             }
         }
         Spacer(Modifier.width(10.dp))

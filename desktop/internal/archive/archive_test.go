@@ -221,3 +221,24 @@ func TestReencrypt(t *testing.T) {
 		t.Errorf("journal : %+v %v", gotJournal, err)
 	}
 }
+
+// Arrêt anormal archivé avant que l'agent n'en précise la cause : remplacé, jamais doublé.
+func TestAddEventsUpgradesCause(t *testing.T) {
+	j := Journal{Month: "2026-10"}
+	lost := protocol.HistoryEvent{T: 1790985600, K: protocol.HistoryLost, R: protocol.LostPower}
+	j, changed := j.AddEvents("AA:BB:CC:DD:EE:01", "Bureau", []protocol.HistoryEvent{lost})
+	if !changed || len(j.Events("AA:BB:CC:DD:EE:01")) != 1 {
+		t.Fatal("ajout")
+	}
+	precise := lost
+	precise.R, precise.D = protocol.LostBSOD, "0x7E SYSTEM_THREAD_EXCEPTION_NOT_HANDLED"
+	j, changed = j.AddEvents("AA:BB:CC:DD:EE:01", "Bureau", []protocol.HistoryEvent{precise})
+	if events := j.Events("AA:BB:CC:DD:EE:01"); !changed || len(events) != 1 || events[0] != precise {
+		t.Fatalf("cause précisée : %+v", events)
+	}
+	// Une copie moins précise (autre appareil, ancienne version) ne fait pas reculer la cause.
+	j, changed = j.AddEvents("AA:BB:CC:DD:EE:01", "Bureau", []protocol.HistoryEvent{{T: lost.T, K: protocol.HistoryLost}, lost})
+	if events := j.Events("AA:BB:CC:DD:EE:01"); changed || len(events) != 1 || events[0] != precise {
+		t.Fatalf("cause reculée : %+v", events)
+	}
+}
