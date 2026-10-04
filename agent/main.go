@@ -14,10 +14,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/internal/config"
+	"github.com/slaynaw/wakeonlan/agent/internal/disks"
 	"github.com/slaynaw/wakeonlan/agent/internal/history"
 	"github.com/slaynaw/wakeonlan/agent/internal/metrics"
 	"github.com/slaynaw/wakeonlan/agent/internal/netinfo"
@@ -142,11 +144,33 @@ func cmdRun(args []string) error {
 		} else {
 			srv.SetTemperatures(sensors.NewCache(sensors.Read).Get)
 		}
+		// Disques : relevés en arrière-plan (espace, santé, erreurs), joints à l'état.
+		diskReader := disks.New()
+		diskReader.OnError = onceAnHour(logger, "disques")
+		diskCtx, stopDisks := context.WithCancel(context.Background())
+		defer stopDisks()
+		go diskReader.Run(diskCtx)
+		srv.SetDisks(diskReader.Read)
 		journal := startHistory(*cfgPath, logger)
 		if journal != nil {
 			srv.SetHistory(journal)
 			watch, stopWatch := context.WithCancel(context.Background())
 			defer stopWatch()
+			// Windows écrit le code d'un écran bleu quelques minutes après le démarrage : cause précisée ensuite.
+			go func() {
+				for _, wait := range []time.Duration{3 * time.Minute, 7 * time.Minute} {
+					select {
+					case <-watch.Done():
+						return
+					case <-time.After(wait):
+					}
+					if changed, err := journal.Reexplain(); err != nil {
+						logger.Printf("journal : %v", err)
+					} else if changed {
+						logger.Print("journal : cause de l'arrêt anormal précisée")
+					}
+				}
+			}()
 			watcher := &history.Watcher{
 				Log:       journal,
 				AlivePath: alivePath(*cfgPath),
@@ -198,6 +222,7 @@ func startHistory(cfgPath string, logger *log.Logger) *history.Log {
 		return nil
 	}
 	boot := history.CurrentBoot(sysinfo.Current().Uptime, time.Now())
+	journal.Explain = history.SystemCause
 	if err := journal.Started(boot, history.ReadAlive(alivePath(cfgPath))); err != nil {
 		logger.Printf("journal : %v", err)
 	}
@@ -330,6 +355,14 @@ func cmdStatus(args []string) error {
 	for _, line := range sensors.Details() {
 		fmt.Println("                " + line)
 	}
+	diskInfo, diskProblems := disks.ReadNow()
+	for i, line := range append(describeDisks(diskInfo), diskProblems...) {
+		if i == 0 {
+			fmt.Printf("Disques       : %s\n", line)
+		} else {
+			fmt.Println("                " + line)
+		}
+	}
 	if err != nil {
 		return nil
 	}
@@ -366,7 +399,7 @@ func describeEvent(e protocol.HistoryEvent) string {
 	case protocol.HistoryShutdown:
 		return "arrêt"
 	case protocol.HistoryLost:
-		return "arrêt non enregistré (coupure ?)"
+		return "arrêt anormal : " + lostCause(e)
 	case protocol.HistorySleep:
 		return "mise en veille"
 	case protocol.HistoryResume:
@@ -377,6 +410,115 @@ func describeEvent(e protocol.HistoryEvent) string {
 		return "démarrage demandé par " + eventClient(e)
 	}
 	return e.K
+}
+
+// lostCause décrit la cause d'un arrêt non enregistré.
+func lostCause(e protocol.HistoryEvent) string {
+	switch e.R {
+	case protocol.LostBSOD:
+		if e.D != "" {
+			return "écran bleu (" + e.D + ")"
+		}
+		return "écran bleu"
+	case protocol.LostButton:
+		return "arrêt forcé avec le bouton d'alimentation"
+	case protocol.LostPower:
+		return "coupure de courant ou blocage"
+	case protocol.LostHardware:
+		return "erreur matérielle fatale (processeur, mémoire ou carte mère)"
+	}
+	return "non enregistré (coupure ?)"
+}
+
+// onceAnHour journalise les erreurs d'un relevé au plus une fois par heure et par type.
+func onceAnHour(logger *log.Logger, area string) func(string, error) {
+	var mu sync.Mutex
+	last := map[string]time.Time{}
+	return func(what string, err error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if time.Since(last[what]) < time.Hour {
+			return
+		}
+		last[what] = time.Now()
+		logger.Printf("%s : %s : %v", area, what, err)
+	}
+}
+
+// describeDisks décrit les disques (une ligne par lecteur et par disque).
+func describeDisks(d *protocol.Disks) []string {
+	if d == nil {
+		return []string{"non disponibles sur ce PC"}
+	}
+	var lines []string
+	for _, v := range d.Volumes {
+		name := v.Mount
+		if v.Label != "" || v.FS != "" {
+			name += " (" + strings.Trim(v.Label+", "+v.FS, ", ") + ")"
+		}
+		used := 0.0
+		if v.Total > 0 {
+			used = 100 * float64(v.Total-v.Free) / float64(v.Total)
+		}
+		lines = append(lines, fmt.Sprintf("%s : %s libres sur %s (%.0f %% utilisé)", name, humanBytes(v.Free), humanBytes(v.Total), used))
+	}
+	for _, dr := range d.Drives {
+		kind := strings.TrimSpace(strings.ToUpper(dr.Media) + " " + dr.Bus)
+		var parts []string
+		if health := map[string]string{protocol.DriveHealthy: "bon état", protocol.DriveWarning: "À SURVEILLER", protocol.DriveUnhealthy: "EN PANNE"}[dr.Health]; health != "" {
+			parts = append(parts, health)
+		}
+		if dr.Temp != nil {
+			t := fmt.Sprintf("%.0f °C", *dr.Temp)
+			if dr.TempMax != nil {
+				t += fmt.Sprintf(" (max %.0f °C)", *dr.TempMax)
+			}
+			parts = append(parts, t)
+		}
+		if dr.Wear != nil {
+			parts = append(parts, fmt.Sprintf("usure %d %%", *dr.Wear))
+		}
+		if dr.Hours != nil {
+			parts = append(parts, fmt.Sprintf("%d h de fonctionnement", *dr.Hours))
+		}
+		if dr.ReadErrors != nil || dr.WriteErrors != nil {
+			n := int64(0)
+			for _, v := range []*int64{dr.ReadErrors, dr.WriteErrors} {
+				if v != nil {
+					n += *v
+				}
+			}
+			parts = append(parts, fmt.Sprintf("%d erreur(s) non corrigée(s)", n))
+		}
+		line := fmt.Sprintf("%s [%s]", dr.Name, strings.Trim(kind+", "+humanBytes(dr.Size), ", "))
+		if len(parts) > 0 {
+			line += " : " + strings.Join(parts, ", ")
+		}
+		lines = append(lines, line)
+	}
+	if d.Errors > 0 {
+		lines = append(lines, fmt.Sprintf("%d erreur(s) d'accès aux disques signalée(s) par Windows en %d jours, la dernière le %s",
+			d.Errors, protocol.DiskErrorDays, time.Unix(d.LastError, 0).Format("02/01/2006 15:04")))
+	}
+	if len(lines) == 0 {
+		return []string{"aucun disque lu"}
+	}
+	return lines
+}
+
+// humanBytes écrit une taille comme l'Explorateur Windows (« 931 Go », « 1,8 To »).
+func humanBytes(n uint64) string {
+	units := []string{"o", "Ko", "Mo", "Go", "To", "Po"}
+	v := float64(n)
+	i := 0
+	for v >= 1024 && i < len(units)-1 {
+		v /= 1024
+		i++
+	}
+	if v >= 100 || i == 0 {
+		return fmt.Sprintf("%.0f %s", v, units[i])
+	}
+	return strings.Replace(fmt.Sprintf("%.1f %s", v, units[i]), ".", ",", 1)
 }
 
 func describeTemperatures(t protocol.Temperatures) string {

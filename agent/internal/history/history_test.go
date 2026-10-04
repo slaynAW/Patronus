@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/slaynaw/wakeonlan/agent/internal/eventlog"
 	"github.com/slaynaw/wakeonlan/agent/protocol"
 )
 
@@ -296,5 +297,116 @@ func TestAddWakes(t *testing.T) {
 	l2, err := Open(path, c.Now)
 	if err != nil || len(l2.Snapshot().Events) != 3 {
 		t.Fatalf("relecture : %v", err)
+	}
+}
+
+// Événements Windows rendus pour les tests de cause (heures quelconques : ExplainEvents ne les lit pas).
+func powerEvent(data map[string]string) eventlog.Event {
+	return eventlog.Event{Provider: "Microsoft-Windows-Kernel-Power", ID: 41, Data: data}
+}
+
+func TestExplainEvents(t *testing.T) {
+	cases := []struct {
+		events []eventlog.Event
+		want   Cause
+	}{
+		{nil, Cause{}},
+		{[]eventlog.Event{powerEvent(map[string]string{"BugcheckCode": "0", "PowerButtonTimestamp": "0"})}, Cause{protocol.LostPower, ""}},
+		{[]eventlog.Event{powerEvent(map[string]string{"BugcheckCode": "0", "PowerButtonTimestamp": "133725446100000000"})}, Cause{protocol.LostButton, ""}},
+		{[]eventlog.Event{powerEvent(map[string]string{"BugcheckCode": "0", "LongPowerButtonPressDetected": "true"})}, Cause{protocol.LostButton, ""}},
+		{[]eventlog.Event{powerEvent(map[string]string{"BugcheckCode": "126"})}, Cause{protocol.LostBSOD, "0x7E SYSTEM_THREAD_EXCEPTION_NOT_HANDLED"}},
+		// Le code de l'écran bleu (1001) l'emporte sur un 41 sans code ; code inconnu : sans nom.
+		{[]eventlog.Event{powerEvent(map[string]string{"BugcheckCode": "0"}),
+			{Provider: "Microsoft-Windows-WER-SystemErrorReporting", ID: 1001, Data: map[string]string{"param1": "0x00000133 (0x0000000000000001, 0x0000000000001e00)"}}},
+			Cause{protocol.LostBSOD, "0x133 DPC_WATCHDOG_VIOLATION"}},
+		{[]eventlog.Event{{Provider: "Microsoft-Windows-WER-SystemErrorReporting", ID: 1001, Data: map[string]string{"param1": "0x0000abcd (0, 0)"}}}, Cause{protocol.LostBSOD, "0xABCD"}},
+		// Erreur matérielle fatale : la cause la plus précise.
+		{[]eventlog.Event{powerEvent(map[string]string{"BugcheckCode": "292"}), {Provider: "Microsoft-Windows-WHEA-Logger", ID: 18}}, Cause{protocol.LostHardware, ""}},
+	}
+	for i, c := range cases {
+		if got := ExplainEvents(c.events); got != c.want {
+			t.Errorf("cas %d : %+v, attendu %+v", i, got, c.want)
+		}
+	}
+}
+
+func TestLostShutdownCauses(t *testing.T) {
+	c := newClock()
+	l, _ := Open(filepath.Join(t.TempDir(), "h.json"), c.Now)
+	cause := Cause{protocol.LostPower, ""}
+	var since time.Time
+	l.Explain = func(s, _ time.Time) Cause {
+		since = s
+		return cause
+	}
+	boot1 := Boot{ID: "1", At: c.Now()}
+	if err := l.Started(boot1, time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+	// Écran bleu : Windows écrit d'abord un redémarrage sans arrêt propre (41), puis le code (1001).
+	c.Advance(2 * time.Hour)
+	alive := c.Now()
+	c.Advance(10 * time.Minute)
+	if err := l.Started(Boot{ID: "2", At: c.Now()}, alive); err != nil {
+		t.Fatal(err)
+	}
+	h := l.Snapshot()
+	lost := h.Events[len(h.Events)-2]
+	if lost.K != protocol.HistoryLost || lost.T != alive.Unix() || lost.R != protocol.LostPower || !since.Before(alive) {
+		t.Fatalf("arrêt non enregistré : %+v (recherche depuis %v)", lost, since)
+	}
+	cause = Cause{protocol.LostBSOD, "0x7E SYSTEM_THREAD_EXCEPTION_NOT_HANDLED"}
+	if changed, err := l.Reexplain(); err != nil || !changed {
+		t.Fatalf("cause non précisée : %v %v", changed, err)
+	}
+	if e := l.Snapshot().Events[len(h.Events)-2]; e.R != protocol.LostBSOD || e.D != cause.Detail {
+		t.Errorf("cause précisée : %+v", e)
+	}
+	if changed, _ := l.Reexplain(); changed {
+		t.Error("cause précisée deux fois")
+	}
+
+	// Arrêt commencé proprement (service arrêté) puis forcé avec le bouton.
+	c.Advance(time.Hour)
+	if err := l.Stopping(); err != nil {
+		t.Fatal(err)
+	}
+	cause = Cause{protocol.LostButton, ""}
+	c.Advance(5 * time.Minute)
+	if err := l.Started(Boot{ID: "3", At: c.Now()}, c.Now().Add(-4*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	h = l.Snapshot()
+	if got := kinds(h)[len(h.Events)-2:]; !equal(got, []string{protocol.HistoryLost, protocol.HistoryBoot}) || h.Events[len(h.Events)-2].R != protocol.LostButton {
+		t.Errorf("arrêt forcé : %+v", h.Events[len(h.Events)-2:])
+	}
+
+	// Panne pendant la veille : l'arrêt anormal est ajouté après la mise en veille.
+	c.Advance(time.Hour)
+	if err := l.Add(protocol.HistoryEvent{T: c.Now().Unix(), K: protocol.HistorySleep}); err != nil {
+		t.Fatal(err)
+	}
+	sleepAt := c.Now().Unix()
+	cause = Cause{protocol.LostPower, ""}
+	c.Advance(8 * time.Hour)
+	if err := l.Started(Boot{ID: "4", At: c.Now()}, time.Unix(sleepAt, 0)); err != nil {
+		t.Fatal(err)
+	}
+	h = l.Snapshot()
+	if got := kinds(h)[len(h.Events)-3:]; !equal(got, []string{protocol.HistorySleep, protocol.HistoryLost, protocol.HistoryBoot}) || h.Events[len(h.Events)-2].T != sleepAt+1 {
+		t.Errorf("panne pendant la veille : %+v", h.Events[len(h.Events)-3:])
+	}
+
+	// Arrêt propre, sans événement Windows : rien d'ajouté.
+	cause = Cause{}
+	c.Advance(time.Hour)
+	_ = l.Stopping()
+	c.Advance(time.Minute)
+	if err := l.Started(Boot{ID: "5", At: c.Now()}, c.Now().Add(-time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	h = l.Snapshot()
+	if got := kinds(h)[len(h.Events)-2:]; !equal(got, []string{protocol.HistoryShutdown, protocol.HistoryBoot}) {
+		t.Errorf("arrêt propre : %v", got)
 	}
 }

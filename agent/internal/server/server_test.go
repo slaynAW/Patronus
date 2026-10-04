@@ -330,6 +330,30 @@ func TestStatusTemperatures(t *testing.T) {
 	}
 }
 
+func TestStatusDisks(t *testing.T) {
+	wear := 3
+	cfg, _, addr := startServer(t, nil, func(s *Server) {
+		s.SetDisks(func() *protocol.Disks {
+			return &protocol.Disks{
+				Volumes: []protocol.Volume{{Mount: "C:", Label: "Windows", FS: "NTFS", Total: 1000, Free: 50}},
+				Drives:  []protocol.Drive{{Name: "Samsung SSD 980", Media: protocol.DriveSSD, Bus: "NVMe", Health: protocol.DriveHealthy, Wear: &wear}},
+				Errors:  2, LastError: 1791000000,
+			}
+		})
+	})
+	body := decodeBody(t, first(exchange(t, addr, cfg.Key, `{"cmd":"status"}`)))
+	d := body.Disks
+	if !body.OK || d == nil || len(d.Volumes) != 1 || d.Volumes[0].Free != 50 || len(d.Drives) != 1 || *d.Drives[0].Wear != 3 || d.Errors != 2 {
+		t.Fatalf("disques : %+v", d)
+	}
+	// Pas encore relevés : champ absent.
+	cfg, _, addr = startServer(t, nil, func(s *Server) { s.SetDisks(func() *protocol.Disks { return nil }) })
+	resp, _ := exchange(t, addr, cfg.Key, `{"cmd":"status"}`)
+	if strings.Contains(resp.Body, "disks") {
+		t.Errorf("champ vide envoyé : %s", resp.Body)
+	}
+}
+
 type fakeMetrics struct{ rows []protocol.MetricsRow }
 
 func (f fakeMetrics) Days() []string { return []string{"2026-10-02", "2026-10-03"} }
