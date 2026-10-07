@@ -14,11 +14,13 @@ import (
 	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/protocol"
+	"github.com/slaynaw/wakeonlan/desktop/internal/agentclient"
 	"github.com/slaynaw/wakeonlan/desktop/internal/agentclient/agenttest"
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
 	"github.com/slaynaw/wakeonlan/desktop/internal/history"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 	"github.com/slaynaw/wakeonlan/desktop/internal/netstate"
+	"github.com/slaynaw/wakeonlan/desktop/internal/pcspecs"
 	"github.com/slaynaw/wakeonlan/desktop/internal/status"
 )
 
@@ -426,4 +428,109 @@ func TestLatencyInStateAndLive(t *testing.T) {
 		t.Errorf("mesures : %v", samples)
 	}
 	call(t, s, "setLive", map[string]any{"id": ""})
+}
+
+func TestSpecsAndTempsOfLiveDevice(t *testing.T) {
+	store, err := config.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	specsDir := t.TempDir()
+	specsStore, err := pcspecs.NewStore(specsDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyText, _ := protocol.NewKey()
+	agent, err := agenttest.Start(model.DecodeAgentKey(keyText), agenttest.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer agent.Close()
+	var version atomic.Value
+	version.Store("1.9.0")
+	cpu, gpu := 55.0, 61.5
+	lan := netstate.State{Interfaces: []netstate.Interface{{Name: "eth0", Transport: netstate.Ethernet,
+		Addresses: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/8")}, HasGateway: true}}}
+	options := Options{
+		Version: "test", Store: store, Platform: &fakePlatform{}, Specs: specsStore,
+		Prober: status.ProberFunc(func(context.Context, model.Device) status.ProbeResult {
+			return status.ProbeResult{Reachable: true, LatencyMs: 2, Method: status.MethodAgent,
+				Agent: &agentclient.Status{Version: version.Load().(string), Temperatures: &protocol.Temperatures{CPU: &cpu, GPU: &gpu}}}
+		}),
+		NetState: func() (netstate.State, error) { return lan, nil },
+	}
+	s := New(options)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.Run(ctx)
+
+	form := model.NewForm()
+	form.Name, form.MAC, form.Host = "PC", "aa:bb:cc:dd:ee:01", "127.0.0.1"
+	form.AgentEnabled, form.AgentPort, form.AgentKey = true, strconv.Itoa(agent.Port()), keyText
+	id := call(t, s, "saveDevice", map[string]any{"form": form})["id"].(string)
+	waitState(t, s, id, status.Online)
+	countSpecs := func() int {
+		n := 0
+		for _, c := range agent.Commands() {
+			if c == protocol.CmdSpecs {
+				n++
+			}
+		}
+		return n
+	}
+	// Agent ancien : une seule demande, refusée, jamais répétée pour cette version.
+	waitFor(t, "demande de la fiche", func() bool { return countSpecs() == 1 })
+	s.monitor.Refresh("")
+	time.Sleep(300 * time.Millisecond)
+	if n := countSpecs(); n != 1 {
+		t.Fatalf("%d demandes à un agent ancien", n)
+	}
+
+	// Agent mis à jour : la fiche est lue et gardée sur le disque.
+	agent.SetSpecs(&protocol.Specs{Model: "PC de test", CPU: &protocol.SpecsCPU{Name: "AMD Ryzen 7 5800X", Cores: 8, Threads: 16}})
+	version.Store("1.10.0")
+	s.monitor.Refresh("")
+	waitFor(t, "fiche lue", func() bool { return s.specsView(id) != nil })
+	if saved, err := specsStore.Load(); err != nil || saved[id].Specs.Model != "PC de test" || saved[id].Agent != "1.10.0" {
+		t.Fatalf("fiche enregistrée : %+v %v", saved, err)
+	}
+
+	// Températures et fiche : envoyées pour le PC affiché en détail seulement.
+	device := func() map[string]any { return call(t, s, "getState", nil)["devices"].([]any)[0].(map[string]any) }
+	if d := device(); d["temps"] != nil || d["specs"] != nil {
+		t.Fatalf("PC non affiché : %v %v", d["temps"], d["specs"])
+	}
+	call(t, s, "setLive", map[string]any{"id": id})
+	waitFor(t, "relevés en direct", func() bool { return device()["temps"] != nil })
+	d := device()
+	temps := d["temps"].([]any)
+	first := temps[0].(map[string]any)
+	if first["c"] != 55.0 || first["g"] != 61.5 {
+		t.Errorf("relevé : %v", first)
+	}
+	if spec := d["specs"].(map[string]any); spec["specs"].(map[string]any)["model"] != "PC de test" || spec["fetched"].(float64) <= 0 {
+		t.Errorf("fiche : %v", spec)
+	}
+	call(t, s, "setLive", map[string]any{"id": ""})
+
+	// Au redémarrage de l'application, la fiche est relue sur le disque ; un PC retiré l'efface.
+	again := New(options)
+	if again.specsView(id) == nil {
+		t.Fatal("fiche non relue")
+	}
+	call(t, s, "deleteDevice", map[string]any{"id": id})
+	if saved, _ := specsStore.Load(); len(saved) != 0 {
+		t.Errorf("fiche d'un PC retiré : %v", saved)
+	}
+}
+
+func waitFor(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("délai dépassé : %s", what)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }

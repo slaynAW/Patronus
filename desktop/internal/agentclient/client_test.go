@@ -2,6 +2,7 @@ package agentclient
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"os"
 	"reflect"
@@ -78,6 +79,27 @@ func TestStatusDisks(t *testing.T) {
 	st, err := New().Status(context.Background(), "127.0.0.1", settings)
 	if err != nil || !reflect.DeepEqual(st.Disks, want) {
 		t.Fatalf("disques : %+v %v", st.Disks, err)
+	}
+}
+
+func TestSpecs(t *testing.T) {
+	s, settings := start(t, agenttest.Normal)
+	// Agent antérieur à 1.10.0 : commande refusée.
+	if _, err := New().Specs(context.Background(), "127.0.0.1", settings); CodeOf(err) != Rejected {
+		t.Fatalf("agent ancien : %v", err)
+	}
+	want := &protocol.Specs{
+		Model:  "Dell XPS 15 9520",
+		CPU:    &protocol.SpecsCPU{Name: "Intel Core i7-12700H", Cores: 14, Threads: 20, MHz: 2300},
+		Memory: &protocol.SpecsMemory{Total: 32 << 30, Slots: 2, Modules: []protocol.SpecsModule{{Slot: "DIMM A", Size: 16 << 30, Type: "DDR5", MTs: 4800, Maker: "SK hynix"}}},
+		GPUs:   []protocol.SpecsGPU{{Name: "NVIDIA GeForce RTX 3050 Ti Laptop GPU", VRAM: 4 << 30, Driver: "32.0.15.6094"}, {Name: "Intel Iris Xe Graphics", Integrated: true}},
+		Board:  &protocol.SpecsBoard{Maker: "Dell", Model: "0RH1JY", BIOS: "1.22.0", BIOSDate: "2024-05-14"},
+		OS:     &protocol.SpecsOS{Name: "Windows 11 Pro", Version: "24H2, build 26100.2314"},
+	}
+	s.SetSpecs(want)
+	got, err := New().Specs(context.Background(), "127.0.0.1", settings)
+	if err != nil || !reflect.DeepEqual(&got, want) {
+		t.Fatalf("fiche : %+v %v", got, err)
 	}
 }
 
@@ -188,6 +210,20 @@ func TestEndToEndWithRealAgent(t *testing.T) {
 	if !sawBoot || !sawCmd {
 		t.Errorf("démarrage ou commande absents du journal : %+v", h.Events)
 	}
+	// Fiche du PC lue par le vrai agent (« busy » tant que sa première lecture n'est pas finie).
+	var specs protocol.Specs
+	for try := 0; ; try++ {
+		specs, err = New().Specs(context.Background(), "127.0.0.1", settings)
+		if CodeOf(err) != Rejected || try == 10 {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if err != nil || specs.CPU == nil || specs.Memory == nil || specs.Memory.Total == 0 || specs.OS == nil {
+		t.Fatalf("fiche de l'agent réel : %+v %v", specs, err)
+	}
+	raw, _ := json.Marshal(specs)
+	t.Logf("fiche de l'agent réel : %s", raw)
 	other, _ := protocol.NewKey()
 	if _, err := New().Status(context.Background(), "127.0.0.1", model.AgentSettings{Port: port, Key: other}); CodeOf(err) != Unauthorized {
 		t.Errorf("mauvaise clé : %v", err)

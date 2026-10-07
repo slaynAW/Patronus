@@ -34,6 +34,7 @@ type Server struct {
 	history  *protocol.History
 	temps    *protocol.Temperatures
 	disks    *protocol.Disks
+	specs    *protocol.Specs
 	metrics  map[string][]protocol.MetricsRow
 	commands []string
 	requests []protocol.RequestBody
@@ -73,6 +74,13 @@ func (s *Server) SetTemperatures(t *protocol.Temperatures) {
 func (s *Server) SetDisks(d *protocol.Disks) {
 	s.mu.Lock()
 	s.disks = d
+	s.mu.Unlock()
+}
+
+// SetSpecs définit la fiche renvoyée par « specs » (nil : agent antérieur à 1.10.0).
+func (s *Server) SetSpecs(sp *protocol.Specs) {
+	s.mu.Lock()
+	s.specs = sp
 	s.mu.Unlock()
 }
 
@@ -183,6 +191,16 @@ func (s *Server) handle(conn net.Conn) {
 		} else {
 			resp.History = h
 		}
+	}
+	if body.Cmd == protocol.CmdSpecs {
+		s.mu.Lock()
+		if s.specs == nil {
+			resp = protocol.ResponseBody{OK: false, Code: "forbidden", Message: "commande « specs » désactivée sur ce PC"}
+		} else {
+			sp := *s.specs
+			resp.Specs = &sp
+		}
+		s.mu.Unlock()
 	}
 	if body.Cmd == protocol.CmdMetrics {
 		s.mu.Lock()

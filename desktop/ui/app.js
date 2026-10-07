@@ -184,6 +184,42 @@
     latency_ago: "il y a %1$d s",
     latency_just_now: "à l’instant",
     latency_aria: "Latence de la dernière minute : moyenne %1$s, maximum %2$s, sans réponse %3$d sur %4$d",
+    detail_latency: "Latence",
+    temps_title: "Températures",
+    temps_axis_start: "il y a 5 min",
+    temps_ago_min: "il y a %1$d min",
+    temps_avg_cpu: "Moy. CPU",
+    temps_max_cpu: "Max CPU",
+    temps_avg_gpu: "Moy. GPU",
+    temps_max_gpu: "Max GPU",
+    temps_gpu_shared: "= CPU",
+    temps_waiting: "Relevés en cours…",
+    temps_none: "L’agent ne donne aucune température sur ce PC (voir les informations ci-dessous).",
+    temps_offline: "Les températures s’affichent quand le PC est allumé.",
+    temps_aria: "Températures des 5 dernières minutes : processeur %1$s en moyenne, %2$s au plus ; carte graphique %3$s en moyenne, %4$s au plus",
+    specs_title: "Fiche du PC",
+    specs_model: "Modèle",
+    specs_cpu: "Processeur",
+    specs_ram: "Mémoire",
+    specs_gpu: "Carte graphique",
+    specs_board: "Carte mère",
+    specs_os: "Système",
+    specs_cores_threads: "%1$d cœurs, %2$d threads",
+    specs_threads: "%1$d threads",
+    specs_cpu_count: "%1$d processeurs",
+    specs_ghz: "%1$s GHz",
+    specs_mts: "%1$d MT/s",
+    specs_module: "1 barrette",
+    specs_modules: "%1$d barrettes",
+    specs_modules_slots: "%1$s sur %2$d emplacements",
+    specs_integrated: "intégrée au processeur",
+    specs_vram: "%1$s de mémoire vidéo",
+    specs_driver: "pilote %1$s",
+    specs_bios: "BIOS %1$s",
+    specs_bios_date: "BIOS %1$s du %2$s",
+    specs_read: "Relevée par l’agent : %1$s",
+    specs_loading: "Lecture de la fiche…",
+    specs_old_agent: "Mettez l’agent à jour (%1$s ou plus) pour afficher la fiche de ce PC : processeur, mémoire, carte graphique, carte mère.",
     detail_agent: "Agent",
     detail_not_set: "Non renseignée",
     agent_authenticated: "Authentifié · %1$s",
@@ -1745,6 +1781,7 @@
       const v = (name) => css.getPropertyValue(name).trim();
       traceColors = {
         on: v("--on"), off: v("--off"), grid: v("--line"), label: v("--text-3"), cross: v("--text-2"), surface: v("--surface"),
+        cpu: v("--blue"), gpu: v("--gpu"),
         font: "500 11px " + v("--font"),
       };
     }
@@ -2091,6 +2128,328 @@
   }
 
   // ---------------------------------------------------------------------------------------------
+  // Tracé des températures (processeur et carte graphique) des 5 dernières minutes
+  // ---------------------------------------------------------------------------------------------
+  // Même principe que la latence : la fenêtre défile en continu, avec un léger retard (l'intervalle
+  // entre deux relevés) pour que chaque courbe glisse d'un relevé au suivant au lieu de sauter.
+  const TEMP_WINDOW = 5 * 60_000;
+  const TEMP_SERIES = [
+    { key: "c", label: "CPU", color: "cpu" },
+    { key: "g", label: "GPU", color: "gpu" },
+  ];
+
+  /** Bornes de l'échelle (°C) : dizaines rondes autour des relevés, 20 °C d'écart au moins. */
+  function tempRange(min, max) {
+    const lo = Math.max(0, Math.floor((min - 5) / 10) * 10);
+    return [lo, Math.max(lo + 20, Math.ceil((max + 5) / 10) * 10)];
+  }
+
+  /** Moyenne et maximum d'une série depuis from (null sans relevé). */
+  function tempStats(samples, key, from) {
+    const values = (samples || []).filter((s) => s.t >= from && s[key] != null).map((s) => s[key]);
+    if (!values.length) return null;
+    return { avg: values.reduce((a, b) => a + b, 0) / values.length, max: Math.max(...values) };
+  }
+
+  /** Tracé des températures du panneau de détail : deux courbes, grille, échelle et survol. */
+  function tempTrace(onHover) {
+    const canvas = h("canvas", { class: "trace", "aria-hidden": "true" });
+    const ctx = canvas.getContext("2d");
+    let samples = [];
+    let key = null;
+    let delay = 0;
+    let lo = 0;
+    let hi = 0;
+    let lastFrame = 0;
+    let hoverX = null;
+
+    canvas.addEventListener("pointermove", (e) => {
+      hoverX = e.offsetX;
+      scheduleTraces();
+    });
+    canvas.addEventListener("pointerleave", () => {
+      hoverX = null;
+      onHover?.(null);
+    });
+
+    /** Intervalle habituel entre deux relevés (médiane des derniers écarts). */
+    function expectedGap() {
+      const gaps = [];
+      for (let i = samples.length - 1; i > 0 && gaps.length < 6; i--) gaps.push(samples[i].t - samples[i - 1].t);
+      if (!gaps.length) return 5000;
+      gaps.sort((a, b) => a - b);
+      return Math.min(15_000, Math.max(1000, gaps[gaps.length >> 1]));
+    }
+
+    /** Relevés à tracer ; `id` identifie le PC (l'échelle repart de zéro quand il change). */
+    function set(list, id) {
+      if (id !== key) {
+        key = id;
+        delay = 0;
+        lo = hi = 0;
+        hoverX = null;
+        onHover?.(null);
+      }
+      samples = list || [];
+      traces.add(trace);
+      scheduleTraces();
+    }
+
+    function draw(now) {
+      const w = canvas.clientWidth;
+      const hgt = canvas.clientHeight;
+      if (!w || !hgt) return;
+      const dpr = window.devicePixelRatio || 1;
+      if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(hgt * dpr)) {
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(hgt * dpr);
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, hgt);
+      const c = colors();
+      const dt = lastFrame ? Math.min(250, now - lastFrame) : 1000;
+      lastFrame = now;
+
+      const gap = expectedGap();
+      const targetDelay = gap + 300;
+      delay = delay ? delay + (targetDelay - delay) * Math.min(1, dt / 1500) : targetDelay;
+      const rt = now - delay; // instant tracé au bord droit
+      const gapBreak = Math.max(30_000, gap * 2.5);
+      const top = 18;
+      const bottom = hgt - 6;
+      const right = w - 8;
+      const xOf = (t) => right - ((rt - t) / TEMP_WINDOW) * right;
+
+      // Échelle : relevés visibles (et le prochain, qui entre par la droite).
+      let min = Infinity;
+      let max = -Infinity;
+      for (const s of samples) {
+        if (s.t < rt - TEMP_WINDOW - gapBreak) continue;
+        for (const se of TEMP_SERIES) {
+          if (s[se.key] == null) continue;
+          min = Math.min(min, s[se.key]);
+          max = Math.max(max, s[se.key]);
+        }
+      }
+      const measured = min <= max;
+      const [targetLo, targetHi] = measured ? tempRange(min, max) : [20, 80];
+      const k = hi ? Math.min(1, dt / 400) : 1;
+      lo += (targetLo - lo) * k;
+      hi += (targetHi - hi) * k;
+      const yOf = (v) => bottom - ((Math.min(Math.max(v, lo), hi) - lo) / (hi - lo)) * (bottom - top);
+
+      // Grille : bas, milieu et haut de l'échelle, un trait par minute.
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = c.grid;
+      ctx.beginPath();
+      for (const f of [0, 0.5, 1]) {
+        const y = Math.round(bottom - f * (bottom - top)) + 0.5;
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+      }
+      for (let t = Math.ceil((rt - TEMP_WINDOW) / 60_000) * 60_000; t <= rt; t += 60_000) {
+        const x = Math.round(xOf(t)) + 0.5;
+        ctx.moveTo(x, top);
+        ctx.lineTo(x, bottom);
+      }
+      ctx.stroke();
+      if (measured) {
+        ctx.fillStyle = c.label;
+        ctx.font = c.font;
+        ctx.textBaseline = "alphabetic";
+        ctx.fillText(celsius(hi), 0, top - 5);
+        ctx.fillText(celsius(lo), 2, bottom - 4);
+      }
+
+      for (const se of TEMP_SERIES) drawSeries(se, c[se.color], rt, gapBreak, xOf, yOf, bottom, right);
+      if (hoverX != null) drawHover(rt, xOf, yOf, top, bottom, c);
+    }
+
+    /** Une courbe : segments continus (un relevé manquant ou une longue interruption la coupe). */
+    function drawSeries(se, color, rt, gapBreak, xOf, yOf, bottom, right) {
+      const segments = [];
+      let seg = null;
+      let prev = null;
+      let head = null;
+      for (const s of samples) {
+        const v = s[se.key];
+        if (s.t > rt) {
+          if (seg && prev && v != null && s.t - prev.t <= gapBreak) {
+            const at = prev[se.key] + ((v - prev[se.key]) * (rt - prev.t)) / (s.t - prev.t);
+            seg.push([right, yOf(at)]);
+            head = seg[seg.length - 1];
+          }
+          break;
+        }
+        if (v == null) {
+          seg = null;
+          prev = null;
+          continue;
+        }
+        if (!seg || (prev && s.t - prev.t > gapBreak)) segments.push((seg = []));
+        seg.push([xOf(s.t), yOf(v)]);
+        prev = s;
+      }
+      if (!head && seg && prev && rt - prev.t <= gapBreak) head = seg[seg.length - 1];
+
+      for (const points of segments) {
+        if (points[points.length - 1][0] < -4) continue;
+        ctx.beginPath();
+        ctx.moveTo(points[0][0], bottom);
+        for (const [x, y] of points) ctx.lineTo(x, y);
+        ctx.lineTo(points[points.length - 1][0], bottom);
+        ctx.closePath();
+        const wash = ctx.createLinearGradient(0, 0, 0, bottom);
+        wash.addColorStop(0, withAlpha(color, 0.12));
+        wash.addColorStop(1, withAlpha(color, 0));
+        ctx.fillStyle = wash;
+        ctx.fill();
+
+        ctx.beginPath();
+        points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        if (points.length === 1) ctx.lineTo(points[0][0] + 1, points[0][1]);
+        ctx.lineWidth = 2;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.strokeStyle = color;
+        ctx.shadowColor = withAlpha(color, 0.5);
+        ctx.shadowBlur = 8;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      if (head) {
+        const age = prev ? rt - prev.t : Infinity;
+        if (!reducedMotion.matches && age >= 0 && age < 700) {
+          const k = age / 700;
+          ctx.beginPath();
+          ctx.arc(head[0], head[1], 4 + 10 * k, 0, Math.PI * 2);
+          ctx.fillStyle = withAlpha(color, 0.45 * (1 - k));
+          ctx.fill();
+        }
+        dot(head[0], head[1], 4, color, colors().surface);
+      }
+    }
+
+    function dot(x, y, r, fill, ring) {
+      ctx.beginPath();
+      ctx.arc(x, y, r + 2, 0, Math.PI * 2);
+      ctx.fillStyle = ring;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = fill;
+      ctx.fill();
+    }
+
+    /** Survol : réticule sur le relevé le plus proche, valeurs dans l'infobulle. */
+    function drawHover(rt, xOf, yOf, top, bottom, c) {
+      let best = null;
+      for (const s of samples) {
+        if (s.t > rt || s.t < rt - TEMP_WINDOW) continue;
+        if (!best || Math.abs(xOf(s.t) - hoverX) < Math.abs(xOf(best.t) - hoverX)) best = s;
+      }
+      if (!best || Math.abs(xOf(best.t) - hoverX) > 24) {
+        onHover?.(null);
+        return;
+      }
+      const x = Math.round(xOf(best.t)) + 0.5;
+      ctx.strokeStyle = c.cross;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, top);
+      ctx.lineTo(x, bottom);
+      ctx.stroke();
+      for (const se of TEMP_SERIES) if (best[se.key] != null) dot(x, yOf(best[se.key]), 4, c[se.color], c.surface);
+      onHover?.({ sample: best, x, width: canvas.clientWidth });
+    }
+
+    function stop() {
+      traces.delete(trace);
+    }
+
+    const trace = { canvas, set, draw, stop };
+    return trace;
+  }
+
+  /** Carte « Températures » du panneau de détail : valeurs en direct, tracé des 5 dernières minutes. */
+  function tempsCard() {
+    const legend = (cls, label) => {
+      const value = h("b");
+      return { el: h("div", { class: "tleg " + cls }, h("span", {}, h("i"), label), value), value };
+    };
+    const cpu = legend("s-cpu", "CPU");
+    const gpu = legend("s-gpu", "GPU");
+    const live = h("span", { class: "live" }, h("i"), S.latency_live);
+    const tipCpu = h("b", { class: "s-cpu" });
+    const tipGpu = h("b", { class: "s-gpu" });
+    const tipTime = h("span");
+    const tip = h("div", { class: "lat-tip side-tip hidden" }, h("div", { class: "tip-vals" }, tipCpu, tipGpu), tipTime);
+    const trace = tempTrace((hover) => {
+      tip.classList.toggle("hidden", !hover);
+      if (!hover) return;
+      const { sample, x, width } = hover;
+      setText(tipCpu, sample.c != null ? `CPU ${celsius(sample.c)}` : "");
+      setText(tipGpu, sample.g != null ? `GPU ${celsius(sample.g)}` : "");
+      tipGpu.classList.toggle("hidden", sample.g == null);
+      tipCpu.classList.toggle("hidden", sample.c == null);
+      const ago = Math.round((Date.now() - sample.t) / 1000);
+      setText(tipTime, ago <= 1 ? S.latency_just_now : ago < 120 ? fmt(S.latency_ago, ago) : fmt(S.temps_ago_min, Math.round(ago / 60)));
+      // À côté du réticule, du côté où il reste de la place (les valeurs du haut restent visibles).
+      tip.classList.toggle("before", x > width / 2);
+      tip.style.left = x + "px";
+    });
+    const empty = h("div", { class: "temp-empty hidden" });
+    const plot = h("div", { class: "lat-plot", role: "img" }, trace.canvas, tip, empty);
+    const stat = (label) => {
+      const v = h("b");
+      return { el: h("div", {}, h("span", { text: label }), v), v };
+    };
+    const stats = [stat(S.temps_avg_cpu), stat(S.temps_max_cpu), stat(S.temps_avg_gpu), stat(S.temps_max_gpu)];
+    const el = h("section", { class: "latency tcard" },
+      h("div", { class: "lat-head" },
+        h("div", { class: "lat-title" }, h("span", { class: "hist-head", text: S.temps_title }), live),
+        h("div", { class: "tnow" }, cpu.el, gpu.el)),
+      plot,
+      h("div", { class: "lat-axis" }, h("span", { text: S.temps_axis_start }), h("span", { text: S.latency_axis_end })),
+      h("div", { class: "lat-stats" }, stats.map((s) => s.el)));
+
+    function current(target, value, text) {
+      setClass(target, value != null ? tempClass(value) || "" : "none");
+      setText(target, text ?? (value != null ? celsius(value) : "—"));
+    }
+
+    return {
+      el,
+      update(d, now) {
+        const s = d.status;
+        const online = s.state === "ONLINE";
+        const t = online && s.agent ? s.agent.temperatures : null;
+        live.classList.toggle("hidden", !online || !s.agent);
+        current(cpu.value, t?.cpu);
+        // Puce graphique intégrée sans sonde à part : même température que le processeur.
+        current(gpu.value, t?.gpuShared ? null : t?.gpu, t?.gpuShared ? S.temps_gpu_shared : null);
+        gpu.el.title = t?.gpuShared ? fmt(S.temperature_gpu_shared_help, t.gpuName || "GPU") : t?.gpuName || "";
+        const samples = d.temps || [];
+        trace.set(samples, d.id);
+        const from = now - TEMP_WINDOW;
+        const c = tempStats(samples, "c", from);
+        const g = tempStats(samples, "g", from);
+        const deg = (v) => (v == null ? "—" : celsius(v));
+        setText(stats[0].v, deg(c?.avg));
+        setText(stats[1].v, deg(c?.max));
+        setText(stats[2].v, deg(g?.avg));
+        setText(stats[3].v, deg(g?.max));
+        const visible = samples.some((x) => x.t >= from);
+        empty.classList.toggle("hidden", visible);
+        if (!visible) setText(empty, !online ? S.temps_offline : !s.agent ? S.temps_waiting : t ? S.temps_waiting : S.temps_none);
+        plot.setAttribute("aria-label", visible ? fmt(S.temps_aria, deg(c?.avg), deg(c?.max), deg(g?.avg), deg(g?.max)) : empty.textContent);
+      },
+      stop: trace.stop,
+    };
+  }
+
+  // ---------------------------------------------------------------------------------------------
   // Panneau de détail du PC sélectionné
   // ---------------------------------------------------------------------------------------------
   const side = (() => {
@@ -2113,9 +2472,11 @@
     const hint = h("div", { class: "hint hidden", text: S.hint_no_agent });
     const info = h("div", { class: "info selectable" });
     const latency = latencyCard();
+    const temps = tempsCard();
+    const specs = specsCard();
     const disks = disksCard();
     const recent = sideHistory();
-    const inner = h("div", { class: "side-inner" }, h("div", { class: "side-top" }, more, closeButton), hero, notice, acts, hint, latency.el, info, disks.el, recent.el);
+    const inner = h("div", { class: "side-inner" }, h("div", { class: "side-top" }, more, closeButton), hero, notice, acts, hint, temps.el, latency.el, info, specs.el, disks.el, recent.el);
     const placeholder = h("div", { class: "placeholder" }, h("span", { class: "ni" }, icon("monitor", "", 28)), h("span", { text: S.select_hint }));
     sideEl.append(inner, placeholder);
 
@@ -2163,9 +2524,17 @@
       const offlineAgent = !d.shared && st === "OFFLINE" && d.hasAgent;
       setText(hint, d.shared ? fmt(S.hint_shared, d.shared.ownerName) : offlineAgent ? S.hint_offline_agent : S.hint_no_agent);
       hint.classList.toggle("hidden", !d.shared && !offlineAgent && !(st === "ONLINE" && !d.canShutdown));
-      latency.el.classList.toggle("hidden", !d.host);
-      if (d.host) latency.update(d, now);
+      // Grand tracé : températures du processeur et de la carte graphique si le PC a un agent,
+      // sinon la latence (la latence d'un PC avec agent est dans les informations).
+      const showTemps = !!d.host && d.hasAgent;
+      temps.el.classList.toggle("hidden", !showTemps);
+      if (showTemps) temps.update(d, now);
+      else temps.stop();
+      latency.el.classList.toggle("hidden", !d.host || showTemps);
+      if (d.host && !showTemps) latency.update(d, now);
       renderInfo(d);
+      if (d.hasAgent) specs.update(d, now);
+      else specs.el.classList.add("hidden");
       disks.update(st === "ONLINE" && s.agent ? s.agent.disks : null, now);
       recent.update(d, now);
     }
@@ -2204,6 +2573,11 @@
         { key: "ip", label: S.detail_ip, text: d.host || S.detail_not_set, cls: d.host ? "mono" : "muted" },
         { key: "mac", label: S.detail_mac, text: d.mac, cls: "mono" },
       ];
+      // Latence (le grand tracé montre les températures quand le PC a un agent).
+      if (d.hasAgent && online && s.latencyMs != null) {
+        const method = { AGENT: S.latency_via_agent, TCP: S.latency_via_tcp, PING: S.latency_via_ping }[s.method];
+        rows.push({ key: "lat", label: S.detail_latency, text: [fmt(S.latency_ms, s.latencyMs), method].filter(Boolean).join(" · ") });
+      }
       if (online && s.agent) {
         if (s.agent.hostname) rows.push({ key: "name", label: S.detail_hostname, text: s.agent.hostname });
         rows.push({ key: "sys", label: S.detail_system, text: [osLabel(s.agent.os), archLabel(s.agent.arch)].filter(Boolean).join(" · ") });
@@ -2256,6 +2630,78 @@
 
     return { update };
   })();
+
+  /** Fiche du PC sélectionné (agent 1.10.0) : processeur, mémoire, cartes graphiques, carte mère. */
+  function specsCard() {
+    const body = h("div", { class: "specs selectable" });
+    const foot = h("div", { class: "specs-foot" });
+    const el = h("section", { class: "side-specs hidden" }, h("div", { class: "hist-head" }, S.specs_title), body, foot);
+    let sig = "";
+
+    /** Taille ronde sans décimale inutile (« 32 Go », « 15,7 Go »). */
+    const sizeText = (n) => bytesText(n).replace(/,0(?= )/, "");
+    const ghz = (mhz) => fmt(S.specs_ghz, (mhz / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 }));
+    const join = (parts) => parts.filter(Boolean).join(" · ");
+    const row = (label, main, ...subs) =>
+      h("div", { class: "spec" }, h("span", { class: "spec-k", text: label }),
+        h("div", { class: "spec-v" }, h("b", { text: main }), ...subs.filter(Boolean).map((t) => h("small", { text: t }))));
+
+    function moduleKind(m) {
+      return m.type && m.mts ? `${m.type}-${m.mts}` : m.type || (m.mts ? fmt(S.specs_mts, m.mts) : "");
+    }
+
+    function rows(sp) {
+      const out = [];
+      if (sp.model) out.push(row(S.specs_model, sp.model));
+      const c = sp.cpu;
+      if (c && (c.name || c.threads)) {
+        const cores = c.cores && c.threads ? fmt(S.specs_cores_threads, c.cores, c.threads) : c.threads ? fmt(S.specs_threads, c.threads) : "";
+        out.push(row(S.specs_cpu, c.name || "—", join([c.count > 1 ? fmt(S.specs_cpu_count, c.count) : "", cores, c.mhz ? ghz(c.mhz) : ""])));
+      }
+      const m = sp.memory;
+      if (m && m.total) {
+        const mods = m.modules || [];
+        const kinds = [...new Set(mods.map(moduleKind).filter(Boolean))];
+        const modules = mods.length === 1 ? S.specs_module : fmt(S.specs_modules, mods.length);
+        const count = mods.length ? (m.slots ? fmt(S.specs_modules_slots, modules, m.slots) : modules) : "";
+        // Type et vitesse communs : déjà sur la première ligne.
+        const lines = mods.map((x) => join([x.slot, sizeText(x.size), kinds.length === 1 ? "" : moduleKind(x), [x.maker, x.part].filter(Boolean).join(" ")]));
+        out.push(row(S.specs_ram, join([sizeText(m.total), kinds.length === 1 ? kinds[0] : ""]), count, ...lines));
+      }
+      for (const g of sp.gpus || []) {
+        out.push(row(S.specs_gpu, g.name, join([g.integrated ? S.specs_integrated : "", g.vram ? fmt(S.specs_vram, sizeText(g.vram)) : "", g.driver ? fmt(S.specs_driver, g.driver) : ""])));
+      }
+      const b = sp.board;
+      if (b && (b.maker || b.model || b.bios)) {
+        const date = /^\d{4}-\d{2}-\d{2}$/.test(b.biosDate || "") ? b.biosDate.split("-").reverse().join("/") : "";
+        out.push(row(S.specs_board, [b.maker, b.model].filter(Boolean).join(" ") || "—", b.bios ? fmt(date ? S.specs_bios_date : S.specs_bios, b.bios, date) : ""));
+      }
+      if (sp.os?.name) out.push(row(S.specs_os, sp.os.name, sp.os.version));
+      return out;
+    }
+
+    function update(d, now) {
+      const s = d.status;
+      const online = s.state === "ONLINE" && s.agent;
+      const old = online && compareVersions(s.agent.version, "1.10.0") < 0;
+      const sp = d.specs;
+      el.classList.toggle("hidden", !sp && !online);
+      if (!sp && !online) return;
+      const next = JSON.stringify([sp, old, Math.floor(now / 60000)]);
+      if (next === sig) return;
+      sig = next;
+      if (sp) {
+        body.replaceChildren(...rows(sp.specs));
+        setText(foot, fmt(S.specs_read, eventTime(sp.fetched, now)));
+      } else {
+        body.replaceChildren(h("div", { class: "spec-note", text: old ? fmt(S.specs_old_agent, versionLabel("1.10.0")) : S.specs_loading }));
+        setText(foot, "");
+      }
+      foot.classList.toggle("hidden", !sp);
+    }
+
+    return { el, update };
+  }
 
   /** Disques du PC sélectionné : espace de chaque lecteur, santé de chaque disque (agent 1.9.0). */
   function disksCard() {

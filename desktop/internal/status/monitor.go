@@ -39,6 +39,7 @@ type Monitor struct {
 	signals  map[string]chan struct{}
 	statuses map[string]DeviceStatus
 	latency  map[string][]LatencySample
+	temps    map[string][]TempSample
 	live     string
 	pending  *update
 	wake     chan struct{}
@@ -56,6 +57,7 @@ func NewMonitor(prober Prober, clock func() int64, onChange func()) *Monitor {
 		prober: prober, clock: clock, onChange: onChange,
 		trackers: map[string]*Tracker{}, signals: map[string]chan struct{}{}, statuses: map[string]DeviceStatus{},
 		latency: map[string][]LatencySample{},
+		temps:   map[string][]TempSample{},
 		wake:    make(chan struct{}, 1),
 	}
 }
@@ -136,6 +138,26 @@ func (m *Monitor) Latency(id string, since int64) []LatencySample {
 		}
 	}
 	return out
+}
+
+// Temps renvoie une copie des relevés de températures d'un PC pris depuis since (ms).
+func (m *Monitor) Temps(id string, since int64) []TempSample {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []TempSample
+	for _, s := range m.temps[id] {
+		if s.T >= since {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// Live renvoie le PC affiché en détail ("" : aucun).
+func (m *Monitor) Live() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.live
 }
 
 // SetLive désigne le PC affiché en détail (vide : aucun) : il est sondé toutes les secondes.
@@ -258,6 +280,11 @@ func (m *Monitor) prune(devices []model.Device) {
 			delete(m.latency, id)
 		}
 	}
+	for id := range m.temps {
+		if !keep[id] {
+			delete(m.temps, id)
+		}
+	}
 	m.mu.Unlock()
 	if changed {
 		m.onChange()
@@ -294,6 +321,9 @@ func (m *Monitor) pollLoop(ctx context.Context, d model.Device, settings model.A
 					sample.Ms = &ms
 				}
 				m.latency[d.ID] = AppendLatency(m.latency[d.ID], sample)
+				if temp, ok := TempOf(sample.T, result.Agent); ok {
+					m.temps[d.ID] = AppendTemp(m.temps[d.ID], temp)
+				}
 				return t.OnProbe(result)
 			})
 		}

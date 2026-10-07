@@ -26,6 +26,7 @@ import (
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
 	"github.com/slaynaw/wakeonlan/desktop/internal/diag"
 	"github.com/slaynaw/wakeonlan/desktop/internal/history"
+	"github.com/slaynaw/wakeonlan/desktop/internal/pcspecs"
 )
 
 type devPlatform struct{}
@@ -80,7 +81,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	svc := app.New(app.Options{Version: version, Store: store, Platform: devPlatform{}, History: histStore,
+	specsStore, err := pcspecs.NewStore(*dataDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	svc := app.New(app.Options{Version: version, Store: store, Platform: devPlatform{}, History: histStore, Specs: specsStore,
 		Share: shareOptions(*dataDir), Backup: backupOptions(*dataDir)})
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()

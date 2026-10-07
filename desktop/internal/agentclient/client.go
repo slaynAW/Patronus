@@ -47,6 +47,8 @@ const (
 type Error struct {
 	Code   Code
 	Detail string
+	// Reason : code renvoyé par l'agent pour une commande refusée (« forbidden », « busy »…).
+	Reason string
 }
 
 func (e *Error) Error() string {
@@ -63,6 +65,15 @@ func CodeOf(err error) Code {
 		return e.Code
 	}
 	return Protocol
+}
+
+// ReasonOf renvoie le code donné par l'agent pour une commande refusée ("" sinon).
+func ReasonOf(err error) string {
+	var e *Error
+	if errors.As(err, &e) {
+		return e.Reason
+	}
+	return ""
 }
 
 // HostAnswered indique qu'un échec prouve malgré tout que la machine est allumée (elle a répondu).
@@ -167,6 +178,19 @@ func (c *Client) Metrics(ctx context.Context, host string, agent model.AgentSett
 	return *body.Metrics, nil
 }
 
+// Specs lit la fiche du PC (processeur, mémoire, cartes graphiques, carte mère, système). Un agent
+// antérieur à 1.10.0 répond Rejected ; un agent qui la lit encore aussi (code « busy »), à redemander.
+func (c *Client) Specs(ctx context.Context, host string, agent model.AgentSettings) (protocol.Specs, error) {
+	body, err := c.exchange(ctx, host, agent, protocol.RequestBody{Cmd: protocol.CmdSpecs}, protocol.MaxSpecsBytes)
+	if err != nil {
+		return protocol.Specs{}, err
+	}
+	if body.Specs == nil {
+		return protocol.Specs{}, &Error{Code: Protocol, Detail: "fiche absente de la réponse"}
+	}
+	return *body.Specs, nil
+}
+
 // ReportWakes signale au journal du PC les démarrages demandés depuis cet appareil (heures en secondes)
 // et renvoie le journal à jour. Un agent antérieur à 1.4.0 répond Rejected.
 func (c *Client) ReportWakes(ctx context.Context, host string, agent model.AgentSettings, times []int64) (protocol.History, error) {
@@ -203,6 +227,8 @@ type responseBody struct {
 	Temperatures *protocol.Temperatures `json:"temperatures"`
 	// Disks : réponse à « status » d'un agent 1.9.0 ou plus.
 	Disks *protocol.Disks `json:"disks"`
+	// Specs : réponse à « specs » d'un agent 1.10.0 ou plus.
+	Specs *protocol.Specs `json:"specs"`
 }
 
 func (c *Client) exchange(ctx context.Context, host string, agent model.AgentSettings, request protocol.RequestBody, maxResponse int) (*responseBody, error) {
@@ -303,7 +329,7 @@ func (c *Client) converse(conn net.Conn, key []byte, request protocol.RequestBod
 		return nil, protocolError("contenu de réponse illisible")
 	}
 	if !*body.OK {
-		return nil, &Error{Code: Rejected, Detail: body.Message}
+		return nil, &Error{Code: Rejected, Detail: body.Message, Reason: *body.Code}
 	}
 	return &body, nil
 }

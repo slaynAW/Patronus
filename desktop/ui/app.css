@@ -21,6 +21,7 @@
   --blue: #4a94ff;
   --blue-2: #3d82f0;
   --blue-soft: #14233b;
+  --gpu: #c084fc;
   --focus: #1e3a66;
   --on: #2fd27a;
   --off: #ff5f6b;
@@ -314,6 +315,36 @@ svg.icon.small { width: 16px; height: 16px; }
 .lat-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .lat-cell > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 canvas.spark { display: block; width: 64px; height: 22px; flex: none; }
+
+/* Températures en direct (processeur en bleu, carte graphique en violet, comme l'écran Mesures) */
+.tnow { display: flex; gap: 18px; align-items: flex-start; min-width: 0; }
+.tleg { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; }
+.tleg > span { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--text-2); }
+.tleg > span i { width: 10px; height: 3px; border-radius: 2px; background: var(--blue); }
+.tleg.s-gpu > span i { background: var(--gpu); }
+.tleg b { font-size: 24px; line-height: 28px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tleg b.none { color: var(--text-3); }
+.tleg b.temp-warm { color: var(--tr); }
+.tleg b.temp-hot { color: var(--danger-text); }
+.tcard .lat-plot { height: 128px; }
+.tip-vals { display: flex; flex-direction: column; align-items: flex-start; }
+.lat-tip.side-tip { top: 50%; transform: translate(10px, -50%); align-items: flex-start; }
+.lat-tip.side-tip.before { transform: translate(calc(-100% - 10px), -50%); }
+.lat-tip b.s-cpu { color: var(--blue); }
+.lat-tip b.s-gpu { color: var(--gpu); }
+.temp-empty { position: absolute; inset: 18px 0 6px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 24px; font-size: 12.5px; line-height: 18px; color: var(--text-3); pointer-events: none; }
+
+/* Fiche du PC */
+.side-specs { display: flex; flex-direction: column; gap: 6px; }
+.specs { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.spec { display: flex; flex-direction: column; gap: 3px; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13px; }
+.specs > :first-child { border-top: none; }
+.spec-k { font-size: 11.5px; color: var(--text-3); }
+.spec-v { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.spec-v b { font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.spec-v small { font-size: 12px; line-height: 16px; color: var(--text-3); overflow-wrap: anywhere; }
+.spec-note { padding: 12px 14px; font-size: 12.5px; line-height: 18px; color: var(--text-2); }
+.specs-foot { font-size: 11.5px; color: var(--text-3); padding: 0 2px; }
 @media (prefers-reduced-motion: reduce) {
   .live i { animation: none; }
 }
@@ -603,7 +634,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); width: 
 .mchart .mline.avg { stroke-width: 1.8; }
 .mchart .mline.max { stroke-width: 1; opacity: 0.4; }
 .mchart .s-cpu { stroke: var(--blue); }
-.mchart .s-gpu { stroke: #c084fc; }
+.mchart .s-gpu { stroke: var(--gpu); }
 .mchart .cursor { stroke: var(--text-3); stroke-width: 1; stroke-dasharray: 3 3; }
 .mchart .hidden { display: none; }
 .mtip { position: absolute; top: -6px; transform: translateY(-100%); background: var(--surface-3); border: 1px solid var(--line-2); border-radius: 8px; padding: 6px 9px; font-size: 12px; line-height: 17px; white-space: nowrap; pointer-events: none; box-shadow: var(--shadow); }
@@ -611,6 +642,6 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); width: 
 .mtip small { color: var(--text-3); }
 .mtip i, .mleg i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
 .mtip i.s-cpu, .mleg i.s-cpu { background: var(--blue); }
-.mtip i.s-gpu, .mleg i.s-gpu { background: #c084fc; }
+.mtip i.s-gpu, .mleg i.s-gpu { background: var(--gpu); }
 .mlegend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--text-2); }
 .mleg b { color: var(--text); font-weight: 600; margin-right: 6px; }
