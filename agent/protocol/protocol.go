@@ -33,6 +33,9 @@ const (
 	MaxHistoryBytes = 512 * 1024
 	// MaxMetricsBytes borne la taille de la réponse à la commande « metrics » (une journée de mesures).
 	MaxMetricsBytes = 512 * 1024
+	// MaxSpecsBytes borne la taille de la réponse à la commande « specs » (fiche du PC : quelques
+	// Ko en pratique, bornée par SpecsMaxModules, SpecsMaxGPUs et SpecsMaxText).
+	MaxSpecsBytes = 64 * 1024
 	// MetricsDays : nombre de jours de mesures gardés par l'agent.
 	MetricsDays = 90
 	// MaxWakes borne le nombre de démarrages signalés en une fois (commande « wakes »).
@@ -51,6 +54,9 @@ const (
 	// CmdMetrics : mesures enregistrées en continu, une ligne par minute (agent 1.8.0) ; RequestBody.Day
 	// choisit le jour (UTC), la réponse donne aussi la liste des jours disponibles.
 	CmdMetrics = "metrics"
+	// CmdSpecs : fiche du PC (processeur, mémoire, cartes graphiques, carte mère, système), agent
+	// 1.10.0 ; ne change qu'avec le matériel, les applications la gardent.
+	CmdSpecs = "specs"
 )
 
 // Types d'évènements du journal de l'agent (commande « history »).
@@ -194,7 +200,90 @@ type ResponseBody struct {
 	Temperatures *Temperatures `json:"temperatures,omitempty"`
 	// Disks n'est renseigné que pour la commande « status » (agent 1.9.0 ou plus).
 	Disks *Disks `json:"disks,omitempty"`
+	// Specs n'est renseigné que pour la commande « specs » (agent 1.10.0 ou plus).
+	Specs *Specs `json:"specs,omitempty"`
 }
+
+// Specs est la fiche du PC. Une information illisible est absente ; aucun numéro de série n'y figure.
+type Specs struct {
+	// Model : fabricant et modèle du PC (« Dell XPS 15 9520 »), absent pour un PC monté soi-même.
+	Model  string       `json:"model,omitempty"`
+	CPU    *SpecsCPU    `json:"cpu,omitempty"`
+	Memory *SpecsMemory `json:"memory,omitempty"`
+	GPUs   []SpecsGPU   `json:"gpus,omitempty"`
+	Board  *SpecsBoard  `json:"board,omitempty"`
+	OS     *SpecsOS     `json:"os,omitempty"`
+}
+
+// SpecsCPU décrit le processeur.
+type SpecsCPU struct {
+	Name string `json:"name"`
+	// Cores / Threads : cœurs physiques et processeurs logiques (tous processeurs confondus).
+	Cores   int `json:"cores,omitempty"`
+	Threads int `json:"threads,omitempty"`
+	// MHz : fréquence de base.
+	MHz int `json:"mhz,omitempty"`
+	// Count : nombre de processeurs (absent pour un seul).
+	Count int `json:"count,omitempty"`
+}
+
+// SpecsMemory décrit la mémoire vive.
+type SpecsMemory struct {
+	// Total : mémoire installée (octets).
+	Total uint64 `json:"total"`
+	// Slots : emplacements de barrettes de la carte mère (absent si inconnu).
+	Slots int `json:"slots,omitempty"`
+	// Modules : barrettes installées (SpecsMaxModules au plus).
+	Modules []SpecsModule `json:"modules,omitempty"`
+}
+
+// SpecsModule est une barrette de mémoire.
+type SpecsModule struct {
+	// Slot : emplacement (« DIMM_A2 »).
+	Slot string `json:"slot,omitempty"`
+	Size uint64 `json:"size"`
+	// Type : « DDR4 », « DDR5 »…
+	Type string `json:"type,omitempty"`
+	// MTs : vitesse configurée (MT/s, « 3200 » pour de la DDR4-3200).
+	MTs   int    `json:"mts,omitempty"`
+	Maker string `json:"maker,omitempty"`
+	Part  string `json:"part,omitempty"`
+}
+
+// SpecsGPU est une carte graphique.
+type SpecsGPU struct {
+	Name string `json:"name"`
+	// VRAM : mémoire vidéo dédiée (octets), absente pour une puce intégrée sans mémoire propre.
+	VRAM   uint64 `json:"vram,omitempty"`
+	Driver string `json:"driver,omitempty"`
+	// Integrated : puce graphique intégrée au processeur.
+	Integrated bool `json:"integrated,omitempty"`
+}
+
+// SpecsBoard décrit la carte mère et son BIOS (ou UEFI).
+type SpecsBoard struct {
+	Maker string `json:"maker,omitempty"`
+	Model string `json:"model,omitempty"`
+	BIOS  string `json:"bios,omitempty"`
+	// BIOSDate : date du BIOS (« 2024-03-12 »).
+	BIOSDate string `json:"biosDate,omitempty"`
+}
+
+// SpecsOS décrit le système d'exploitation.
+type SpecsOS struct {
+	// Name : « Windows 11 Professionnel », « Ubuntu 24.04.1 LTS », « macOS 15.1 ».
+	Name string `json:"name"`
+	// Version : version détaillée (« 24H2, build 26100.2314 », noyau Linux…).
+	Version string `json:"version,omitempty"`
+}
+
+// Limites de la fiche (taille de la réponse).
+const (
+	SpecsMaxModules = 16
+	SpecsMaxGPUs    = 4
+	// SpecsMaxText borne chaque texte (en caractères).
+	SpecsMaxText = 80
+)
 
 // Disks décrit les disques du PC : espace des lecteurs, santé des disques physiques et erreurs
 // d'accès signalées par le système. Une valeur illisible est absente.

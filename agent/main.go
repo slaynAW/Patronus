@@ -28,6 +28,7 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/internal/sensors"
 	"github.com/slaynaw/wakeonlan/agent/internal/server"
 	"github.com/slaynaw/wakeonlan/agent/internal/service"
+	"github.com/slaynaw/wakeonlan/agent/internal/specs"
 	"github.com/slaynaw/wakeonlan/agent/internal/sysinfo"
 	"github.com/slaynaw/wakeonlan/agent/internal/terminal"
 	"github.com/slaynaw/wakeonlan/agent/protocol"
@@ -151,6 +152,10 @@ func cmdRun(args []string) error {
 		defer stopDisks()
 		go diskReader.Run(diskCtx)
 		srv.SetDisks(diskReader.Read)
+		// Fiche du PC : lue une fois au démarrage, puis toutes les quelques heures.
+		specsCache := specs.NewCache(specs.Read)
+		specsCache.Warm()
+		srv.SetSpecs(specsCache.Get)
 		journal := startHistory(*cfgPath, logger)
 		if journal != nil {
 			srv.SetHistory(journal)
@@ -363,6 +368,13 @@ func cmdStatus(args []string) error {
 			fmt.Println("                " + line)
 		}
 	}
+	for i, line := range describeSpecs(specs.Read()) {
+		if i == 0 {
+			fmt.Printf("Fiche du PC   : %s\n", line)
+		} else {
+			fmt.Println("                " + line)
+		}
+	}
 	if err != nil {
 		return nil
 	}
@@ -504,6 +516,87 @@ func describeDisks(d *protocol.Disks) []string {
 		return []string{"aucun disque lu"}
 	}
 	return lines
+}
+
+// describeSpecs décrit la fiche du PC (une ligne par élément).
+func describeSpecs(s protocol.Specs) []string {
+	var lines []string
+	if s.Model != "" {
+		lines = append(lines, "Modèle : "+s.Model)
+	}
+	if c := s.CPU; c != nil {
+		var parts []string
+		if c.Count > 1 {
+			parts = append(parts, fmt.Sprintf("%d processeurs", c.Count))
+		}
+		if c.Cores > 0 {
+			parts = append(parts, fmt.Sprintf("%d cœurs", c.Cores))
+		}
+		if c.Threads > 0 {
+			parts = append(parts, fmt.Sprintf("%d threads", c.Threads))
+		}
+		if c.MHz > 0 {
+			parts = append(parts, fmt.Sprintf("%d MHz", c.MHz))
+		}
+		lines = append(lines, strings.TrimSuffix(fmt.Sprintf("Processeur : %s (%s)", c.Name, strings.Join(parts, ", ")), " ()"))
+	}
+	if m := s.Memory; m != nil {
+		line := "Mémoire : " + humanBytes(m.Total)
+		if len(m.Modules) > 0 {
+			line += fmt.Sprintf(", %d barrette(s)", len(m.Modules))
+			if m.Slots > 0 {
+				line += fmt.Sprintf(" sur %d emplacements", m.Slots)
+			}
+		}
+		lines = append(lines, line)
+		for _, mod := range m.Modules {
+			kind := mod.Type
+			if mod.MTs > 0 {
+				kind = strings.TrimPrefix(fmt.Sprintf("%s-%d", kind, mod.MTs), "-")
+			}
+			lines = append(lines, "  "+strings.Join(nonEmpty(mod.Slot, humanBytes(mod.Size), kind, mod.Maker, mod.Part), " · "))
+		}
+	}
+	for _, g := range s.GPUs {
+		var parts []string
+		if g.Integrated {
+			parts = append(parts, "intégrée")
+		}
+		if g.VRAM > 0 {
+			parts = append(parts, humanBytes(g.VRAM))
+		}
+		if g.Driver != "" {
+			parts = append(parts, "pilote "+g.Driver)
+		}
+		lines = append(lines, strings.TrimSuffix(fmt.Sprintf("Carte graphique : %s (%s)", g.Name, strings.Join(parts, ", ")), " ()"))
+	}
+	if b := s.Board; b != nil {
+		line := "Carte mère : " + strings.Join(nonEmpty(b.Maker, b.Model), " ")
+		if b.BIOS != "" {
+			line += ", BIOS " + b.BIOS
+			if b.BIOSDate != "" {
+				line += " du " + b.BIOSDate
+			}
+		}
+		lines = append(lines, line)
+	}
+	if o := s.OS; o != nil {
+		lines = append(lines, strings.TrimSuffix(fmt.Sprintf("Système : %s (%s)", o.Name, o.Version), " ()"))
+	}
+	if len(lines) == 0 {
+		lines = append(lines, "illisible")
+	}
+	return lines
+}
+
+func nonEmpty(values ...string) []string {
+	var out []string
+	for _, v := range values {
+		if v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // humanBytes écrit une taille comme l'Explorateur Windows (« 931 Go », « 1,8 To »).

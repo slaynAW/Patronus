@@ -21,6 +21,7 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/internal/netinfo"
 	"github.com/slaynaw/wakeonlan/agent/internal/sensors"
 	"github.com/slaynaw/wakeonlan/agent/internal/service"
+	"github.com/slaynaw/wakeonlan/agent/internal/specs"
 	"github.com/slaynaw/wakeonlan/agent/internal/terminal"
 )
 
@@ -125,6 +126,10 @@ func agentReport(cfgPath string, now time.Time) string {
 	diskInfo, diskProblems := disks.ReadNow()
 	line("Disques :")
 	for _, d := range append(describeDisks(diskInfo), diskProblems...) {
+		line("- %s", d)
+	}
+	line("Fiche du PC :")
+	for _, d := range describeSpecs(specs.Read()) {
 		line("- %s", d)
 	}
 
