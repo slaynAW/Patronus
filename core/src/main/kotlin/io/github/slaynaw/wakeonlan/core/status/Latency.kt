@@ -1,5 +1,7 @@
 package io.github.slaynaw.wakeonlan.core.status
 
+import io.github.slaynaw.wakeonlan.core.agent.AgentStatus
+
 /** Une mesure de latence ; [latencyMs] est nul si le terminal n'a pas répondu à cette sonde. */
 data class LatencySample(val time: Long, val latencyMs: Long?)
 
@@ -48,5 +50,67 @@ object LatencyLog {
     fun scaleMax(max: Long): Long {
         val target = max + (max + 5) / 6
         return SCALES.firstOrNull { it >= target } ?: SCALES.last()
+    }
+}
+
+/** Relevé de températures (°C) d'un terminal ; une valeur absente n'a pas été lue. */
+data class TempSample(val time: Long, val cpu: Double?, val gpu: Double?)
+
+/** Moyenne et maximum d'une série de températures. */
+data class TempStats(val average: Double, val max: Double)
+
+/**
+ * Relevés de températures récents de chaque terminal (agent 1.5.0 ou plus), pour le grand tracé du
+ * détail (mêmes règles que l'application Windows) : conservés [WINDOW_MS] en mémoire seulement.
+ */
+object TempLog {
+    /** Durée des relevés conservés (et tracés). */
+    const val WINDOW_MS = 5 * 60_000L
+
+    /**
+     * Un relevé identique au précédent n'est gardé qu'après ce délai : l'agent renouvelle ses mesures
+     * toutes les 5 à 10 s alors que le terminal affiché est sondé chaque seconde.
+     */
+    const val REPEAT_MS = 10_000L
+
+    /** Nombre maximal de relevés conservés par terminal. */
+    const val MAX_SAMPLES = 400
+
+    /** Ajoute un relevé en oubliant ceux de plus de [WINDOW_MS] (un relevé répété est ignoré). */
+    fun append(samples: List<TempSample>, sample: TempSample): List<TempSample> {
+        val last = samples.lastOrNull()
+        if (last != null && last.cpu == sample.cpu && last.gpu == sample.gpu &&
+            sample.time >= last.time && sample.time - last.time < REPEAT_MS
+        ) {
+            return samples
+        }
+        val from = sample.time - WINDOW_MS
+        val kept = samples.filter { it.time in from..sample.time }
+        return (kept + sample).takeLast(MAX_SAMPLES)
+    }
+
+    /**
+     * Relevé tiré d'une réponse de l'agent (`null` sans aucune température). La puce graphique
+     * intégrée sans sonde à part ([AgentTemperatures.gpuShared]) reprend la température du
+     * processeur : elle n'est pas tracée deux fois.
+     */
+    fun sampleOf(time: Long, agent: AgentStatus?): TempSample? {
+        val t = agent?.temperatures ?: return null
+        val gpu = if (t.gpuShared) null else t.gpu
+        if (t.cpu == null && gpu == null) return null
+        return TempSample(time, t.cpu, gpu)
+    }
+
+    /** Moyenne et maximum d'une série depuis [from] (ms), ou `null` sans relevé. */
+    fun stats(samples: List<TempSample>, from: Long, value: (TempSample) -> Double?): TempStats? {
+        val values = samples.filter { it.time >= from }.mapNotNull(value)
+        if (values.isEmpty()) return null
+        return TempStats(values.average(), values.max())
+    }
+
+    /** Bornes de l'échelle (°C) : dizaines rondes autour des relevés, 20 °C d'écart au moins. */
+    fun range(min: Double, max: Double): Pair<Double, Double> {
+        val lo = maxOf(0.0, kotlin.math.floor((min - 5) / 10) * 10)
+        return lo to maxOf(lo + 20, kotlin.math.ceil((max + 5) / 10) * 10)
     }
 }

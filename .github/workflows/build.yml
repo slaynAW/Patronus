@@ -129,6 +129,9 @@ jobs:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
       - run: go test ./...
+      # Fiche du PC lue sur une vraie machine Windows (SMBIOS, registre, WMI), affichée en détail.
+      - name: Fiche du PC sous Windows
+        run: go test -count=1 -v -run 'TestWindowsFirmwareTable|TestReadReal' ./internal/specs/
       # Service réellement installé, puis mis à jour par lui-même depuis un faux serveur de versions
       # (manifeste signé par une clé de test) : recherche, téléchargement, remplacement, redémarrage.
       - name: Mise à jour de bout en bout
@@ -312,7 +315,7 @@ jobs:
 
       - name: Vérification du test de bout en bout
         run: |
-          grep -q 'tests="3" skipped="0" failures="0" errors="0"' \
+          grep -q 'tests="4" skipped="0" failures="0" errors="0"' \
             core/build/test-results/test/TEST-io.github.slaynaw.wakeonlan.core.AgentEndToEndTest.xml
           cat "$RUNNER_TEMP/agent.log"
 

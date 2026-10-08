@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/netip"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -359,4 +360,84 @@ func TestAppendLatency(t *testing.T) {
 	if len(samples) != LatencyMaxSamples {
 		t.Errorf("nombre borné attendu : %d", len(samples))
 	}
+}
+
+func TestAppendTemp(t *testing.T) {
+	v := func(x float64) *float64 { return &x }
+	var samples []TempSample
+	// Sondé chaque seconde, mesures renouvelées par l'agent toutes les 5 s : seuls les changements
+	// (et une répétition toutes les 10 s) sont gardés.
+	for i := range 30 {
+		cpu := 50 + float64(i/5)
+		if i >= 20 {
+			cpu = 53
+		}
+		samples = AppendTemp(samples, TempSample{T: int64(i) * 1000, CPU: v(cpu), GPU: v(60)})
+	}
+	var times []int64
+	for _, s := range samples {
+		times = append(times, s.T/1000)
+	}
+	if want := []int64{0, 5, 10, 15, 25}; !reflect.DeepEqual(times, want) {
+		t.Fatalf("relevés gardés à %v s, attendu %v", times, want)
+	}
+	// Une valeur qui disparaît (ou apparaît) est un changement.
+	samples = AppendTemp(samples, TempSample{T: 26_000, CPU: v(53)})
+	if len(samples) != 6 || samples[5].GPU != nil {
+		t.Fatalf("%+v", samples[len(samples)-1])
+	}
+	// Fenêtre de 5 minutes, nombre borné.
+	samples = AppendTemp(samples, TempSample{T: 26_000 + TempWindow.Milliseconds(), CPU: v(40)})
+	if len(samples) != 2 || samples[0].T != 26_000 {
+		t.Fatalf("fenêtre : %+v", samples)
+	}
+	for i := range 1000 {
+		samples = AppendTemp(samples, TempSample{T: 400_000 + int64(i), CPU: v(float64(i))})
+	}
+	if len(samples) != TempMaxSamples {
+		t.Errorf("nombre borné attendu : %d", len(samples))
+	}
+}
+
+func TestTempOf(t *testing.T) {
+	v := func(x float64) *float64 { return &x }
+	if _, ok := TempOf(1, nil); ok {
+		t.Error("sans agent")
+	}
+	if _, ok := TempOf(1, &agentclient.Status{Temperatures: &protocol.Temperatures{CPULoad: v(5)}}); ok {
+		t.Error("utilisation seule : pas de relevé de température")
+	}
+	s, ok := TempOf(7, &agentclient.Status{Temperatures: &protocol.Temperatures{CPU: v(55), GPU: v(55), GPUShared: true}})
+	if !ok || s.T != 7 || *s.CPU != 55 || s.GPU != nil {
+		t.Errorf("puce intégrée : %+v", s)
+	}
+	s, ok = TempOf(8, &agentclient.Status{Temperatures: &protocol.Temperatures{GPU: v(70)}})
+	if !ok || s.CPU != nil || *s.GPU != 70 {
+		t.Errorf("carte graphique seule : %+v", s)
+	}
+}
+
+func TestMonitorTemps(t *testing.T) {
+	cpu := 61.0
+	prober := ProberFunc(func(context.Context, model.Device) ProbeResult {
+		return ProbeResult{Reachable: true, LatencyMs: 2, Method: MethodAgent,
+			Agent: &agentclient.Status{Temperatures: &protocol.Temperatures{CPU: &cpu}}}
+	})
+	m := NewMonitor(prober, nil, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go m.Run(ctx)
+	cfg := model.NewConfig()
+	cfg.Devices = []model.Device{device(nil, "10.0.0.2", nil)}
+	m.Update(cfg, Availability{CanProbe: true}, true)
+	waitFor(t, "relevé de températures", func() bool { return len(m.Temps("x", 0)) == 1 })
+	if s := m.Temps("x", 0)[0]; *s.CPU != 61 || s.GPU != nil {
+		t.Errorf("%+v", s)
+	}
+	m.SetLive("x")
+	if m.Live() != "x" {
+		t.Error("PC affiché en détail")
+	}
+	m.Update(model.NewConfig(), Availability{CanProbe: true}, true)
+	waitFor(t, "relevés du PC supprimé oubliés", func() bool { return len(m.Temps("x", 0)) == 0 })
 }

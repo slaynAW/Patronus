@@ -43,7 +43,8 @@ enum class AgentError {
 
 sealed interface AgentResult<out T> {
     data class Success<T>(val value: T) : AgentResult<T>
-    data class Failure(val error: AgentError, val detail: String? = null) : AgentResult<Nothing>
+    /** [code] : code donné par l'agent pour une commande refusée (« forbidden », « busy »…). */
+    data class Failure(val error: AgentError, val detail: String? = null, val code: String? = null) : AgentResult<Nothing>
 
     /** Vrai si l'échec prouve malgré tout que la machine est allumée (elle a répondu). */
     val hostAnswered: Boolean
@@ -118,6 +119,18 @@ class AgentClient(
         }
 
     /**
+     * Lit la fiche du PC (processeur, mémoire, cartes graphiques, carte mère, système). Un agent
+     * antérieur à 1.10.0 répond [AgentError.REJECTED] ; un agent qui la lit encore aussi, avec le code
+     * « busy » (à redemander).
+     */
+    suspend fun specs(host: String, agent: AgentSettings): AgentResult<AgentSpecs> =
+        when (val r = exchange(host, agent, RequestBody(cmd = "specs"), AgentProtocol.MAX_SPECS_BYTES)) {
+            is AgentResult.Success ->
+                r.value.specs?.let { AgentResult.Success(it) } ?: protocolError("fiche absente de la réponse")
+            is AgentResult.Failure -> r
+        }
+
+    /**
      * Signale au journal du PC les démarrages demandés depuis cet appareil ([times] en secondes), et
      * renvoie le journal à jour. Un agent antérieur à 1.4.0 répond [AgentError.REJECTED].
      */
@@ -187,7 +200,7 @@ class AgentClient(
         if (!AgentProtocol.macEquals(expected, responseMac)) return protocolError("signature de la réponse invalide")
 
         val parsed = decode<ResponseBody>(responseBody) ?: return protocolError("contenu de réponse illisible")
-        return if (parsed.ok) AgentResult.Success(parsed) else AgentResult.Failure(AgentError.REJECTED, parsed.message)
+        return if (parsed.ok) AgentResult.Success(parsed) else AgentResult.Failure(AgentError.REJECTED, parsed.message, parsed.code)
     }
 
     private fun earlyError(line: String?): AgentResult.Failure =

@@ -23,6 +23,7 @@ import (
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 	"github.com/slaynaw/wakeonlan/desktop/internal/netstate"
 	"github.com/slaynaw/wakeonlan/desktop/internal/pairing"
+	"github.com/slaynaw/wakeonlan/desktop/internal/pcspecs"
 	"github.com/slaynaw/wakeonlan/desktop/internal/share"
 	"github.com/slaynaw/wakeonlan/desktop/internal/status"
 	"github.com/slaynaw/wakeonlan/desktop/internal/wol"
@@ -72,6 +73,8 @@ type Options struct {
 	NetPoll time.Duration
 	// History enregistre l'historique (nil : en mémoire seulement, pour les tests).
 	History *history.Store
+	// Specs enregistre la fiche des PC (nil : en mémoire seulement, pour les tests).
+	Specs *pcspecs.Store
 	// Now est l'horloge (remplaçable pour les tests).
 	Now func() time.Time
 	// Updates active les mises à jour intégrées (nil : désactivées).
@@ -123,6 +126,11 @@ type Service struct {
 	clientLog clientLogLimit
 	// Sauvegardes automatiques (verrou propre) ; nil si indisponibles.
 	backups *backups
+	// Fiche des PC (verrou propre, jamais pris en tenant un autre).
+	specsMu    sync.Mutex
+	specsStore *pcspecs.Store
+	specs      map[string]pcspecs.Entry
+	specsFetch map[string]*specsFetchState
 	// Archives des mesures et du journal sur GitHub (verrou propre, jamais pris en tenant celui
 	// des sauvegardes) ; nil si les sauvegardes sont indisponibles.
 	archives *archiver
@@ -172,6 +180,7 @@ func New(opts Options) *Service {
 			s.pauseBackups("historique illisible au démarrage")
 		}
 	}
+	s.loadSpecs(opts.Specs)
 	if s.netState == nil {
 		s.netState = netstate.Current
 	}
@@ -311,6 +320,10 @@ type DeviceView struct {
 	Status      status.DeviceStatus `json:"status"`
 	// Latency contient les mesures récentes (latencyView), pour le tracé en direct.
 	Latency []status.LatencySample `json:"latency,omitempty"`
+	// Temps (relevés de températures des 5 dernières minutes) et Specs (fiche du PC) ne sont
+	// envoyés que pour le PC affiché en détail.
+	Temps []status.TempSample `json:"temps,omitempty"`
+	Specs *SpecsView          `json:"specs,omitempty"`
 	// Shared est présent pour un PC reçu d'une autre personne (non modifiable).
 	Shared *SharedView `json:"shared,omitempty"`
 }
@@ -355,16 +368,22 @@ func (s *Service) State() UIState {
 		st.Network.Transport = string(p.Transport)
 	}
 	since := s.now().Add(-latencyView).UnixMilli()
+	live := s.monitor.Live()
 	view := func(d model.Device) DeviceView {
 		ds, ok := statuses[d.ID]
 		if !ok {
 			ds = status.DeviceStatus{State: status.Unknown}
 		}
-		return DeviceView{
+		v := DeviceView{
 			ID: d.ID, Name: d.Name, MAC: d.MAC.String(), Host: d.Host,
 			HasAgent: d.Agent != nil, CanShutdown: d.CanShutdown(), Status: ds,
 			Latency: s.monitor.Latency(d.ID, since),
 		}
+		if d.ID == live {
+			v.Temps = s.monitor.Temps(d.ID, s.now().Add(-status.TempWindow).UnixMilli())
+			v.Specs = s.specsView(d.ID)
+		}
+		return v
 	}
 	for _, d := range s.cfg.Devices {
 		st.Devices = append(st.Devices, view(d))

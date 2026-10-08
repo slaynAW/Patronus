@@ -47,7 +47,7 @@ et comparées en temps constant.
 
 | Champ | Description |
 |---|---|
-| `cmd` | `status`, `history` (journal, voir plus bas), `wakes` (démarrages demandés, agent 1.4.0 ou plus), `metrics` (mesures minute par minute, agent 1.8.0), `shutdown`, `reboot` ou `sleep` |
+| `cmd` | `status`, `history` (journal, voir plus bas), `wakes` (démarrages demandés, agent 1.4.0 ou plus), `metrics` (mesures minute par minute, agent 1.8.0), `specs` (fiche du PC, agent 1.10.0), `shutdown`, `reboot` ou `sleep` |
 | `delay` | secondes avant l'action (0 – 3600). L'agent attend au minimum 1,5 s pour que la réponse parte d'abord. |
 | `force` | fermer les applications sans attendre (Windows `/f`, Linux `--ignore-inhibitors`) |
 | `by` | facultatif : nom de l'appareil qui envoie la demande (40 caractères au plus), noté au journal (agent 1.4.0 ou plus ; ignoré avant) |
@@ -62,13 +62,14 @@ et comparées en temps constant.
 
 | Champ | Description |
 |---|---|
-| `ok` / `code` | `ok`, ou erreur : `forbidden` (commande désactivée), `unsupported`, `bad_request` |
+| `ok` / `code` | `ok`, ou erreur : `forbidden` (commande désactivée), `unsupported`, `bad_request`, `busy` (fiche du PC pas encore lue, à redemander quelques secondes plus tard) |
 | `message` | texte lisible |
 | `hostname`, `os`, `arch`, `version` | informations sur le PC et l'agent (`os` = `windows`, `linux`, `darwin`) |
 | `uptime` | secondes depuis le démarrage du système |
 | `metrics` | réponse à `metrics` (agent 1.8.0) : `day` (jour demandé, UTC, « 2026-10-03 », vide pour la seule liste), `days` (jours enregistrés sur le PC, 90 au plus, du plus ancien au plus récent), `rows` : une ligne par minute `{t, n, ct, ctx, gt, gtx, cl, clx, gl, glx}` (début de la minute en secondes, nombre de relevés, puis moyenne et maximum de la température du processeur et de la carte graphique en °C, de l'utilisation du processeur et de la carte graphique en % ; absents si non lus). Réponse de 512 Kio au plus. |
 | `temperatures` | réponse à `status`, agent 1.5.0 ou plus, absent si aucun capteur n'est lisible : `cpu` et `gpu` en °C (arrondis au dixième, absents si illisibles), `cpuLoad` et `gpuLoad` : utilisation en % de 0 à 100, mesurée sur une seconde comme le Gestionnaire des tâches (agent 1.7.0 ; `gpuLoad` est celle de la carte `gpuName`), `gpuName` (nom de la carte), `gpuShared` = `true` quand la carte graphique est intégrée au processeur sans sonde à part et que `gpu` est la température de la puce, celle du processeur (agent 1.6.1), `cpuHint` = `lhm` quand la température du processeur manque parce que LibreHardwareMonitor ne la fournit pas (Windows), précisé par `lhm` (agent 1.6.0) : `not-running` (ne tourne pas), `web-off` (serveur web désactivé), `auth` (serveur web protégé par mot de passe), `no-sensor` (pas de capteur du processeur : pilote PawnIO absent…) |
 | `disks` | réponse à `status`, agent 1.9.0 ou plus, absent tant qu'aucun relevé n'a réussi : `volumes` (lecteurs fixes : `mount` « C: », `label`, `fs`, `total` et `free` en octets ; 12 au plus), `drives` (disques physiques, 8 au plus : `name`, `media` `ssd` / `hdd`, `bus` « NVMe », « SATA »…, `size` en octets, `health` donné par le système : `ok`, `warning`, `bad` ou absent, `temp` / `tempMax` en °C, `wear` usure en %, `hours` heures de fonctionnement, `readErrors` / `writeErrors` erreurs non corrigées), `errors` : erreurs d'accès aux disques signalées par Windows sur 30 jours et `lastError` la plus récente (secondes Unix). Relevés en arrière-plan (lecteurs toutes les 30 s, santé toutes les 10 min, erreurs toutes les 30 min) : la réponse reste immédiate |
+| `specs` | réponse à `specs` (agent 1.10.0), lecture seule autorisée dès que `status` l'est ; jamais jointe à `status` (elle ne change qu'avec le matériel : les applications la gardent et la relisent au plus une fois par jour). `model` (fabricant et modèle d'un PC de marque ou d'un portable, absent pour un PC monté soi-même), `cpu` : `name`, `cores`, `threads` (tous processeurs confondus), `mhz` (fréquence de base), `count` (nombre de processeurs, absent pour un seul) ; `memory` : `total` (mémoire installée, octets), `slots` (emplacements), `modules` (16 au plus : `slot` « DIMM_A2 », `size` en octets, `type` « DDR4 », `mts` vitesse en MT/s, `maker`, `part`) ; `gpus` (4 au plus, carte dédiée d'abord : `name`, `vram` mémoire dédiée en octets, `driver`, `integrated` = `true` pour une puce intégrée au processeur) ; `board` : `maker`, `model`, `bios`, `biosDate` (« 2024-03-12 ») ; `os` : `name` (« Windows 11 Pro »), `version` (« 24H2, build 26100.2314 »). Chaque texte fait 80 caractères au plus ; une information illisible est absente. Lue dans les tables SMBIOS du micrologiciel (Windows et Linux), le registre et WMI (Windows), `/proc` et `/sys` (Linux), `sysctl` (macOS) ; **aucun numéro de série ni identifiant unique n'est lu**. Réponse de 64 Kio au plus. |
 | `history` | réponse à `history` uniquement (voir ci-dessous) |
 
 ### Journal du PC (`history`)

@@ -135,6 +135,15 @@ func integratedGPU(name string, addr *pciAddress) bool {
 	return false
 }
 
+// IntegratedGPU indique si la carte graphique name, à l'emplacement PCI bus:device.function (bus
+// négatif : inconnu), est la puce intégrée au processeur.
+func IntegratedGPU(name string, bus, device, function int) bool {
+	if bus < 0 || device < 0 || function < 0 {
+		return integratedGPU(name, nil)
+	}
+	return integratedGPU(name, &pciAddress{uint32(bus), uint32(device), uint32(function)})
+}
+
 // shareCPU complète t quand aucune carte graphique ne donne sa température mais qu'une puce
 // graphique intégrée au processeur est présente : elle n'a pas de sonde lisible à part et partage
 // la puce du processeur, dont la température est reprise (GPUShared).

@@ -2,17 +2,14 @@ package disks
 
 import (
 	"errors"
-	"fmt"
-	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-ole/go-ole"
-	"github.com/go-ole/go-ole/oleutil"
 	"golang.org/x/sys/windows"
 
 	"github.com/slaynaw/wakeonlan/agent/internal/eventlog"
+	"github.com/slaynaw/wakeonlan/agent/internal/wmi"
 	"github.com/slaynaw/wakeonlan/agent/protocol"
 )
 
@@ -51,20 +48,20 @@ func volumes() ([]protocol.Volume, error) {
 
 // drives lit la santé des disques physiques (WMI, espace de noms root\Microsoft\Windows\Storage).
 func drives() (out []protocol.Drive, err error) {
-	err = withCOM(func() error {
-		service, release, err := connect(`root\Microsoft\Windows\Storage`)
+	err = wmi.WithCOM(func() error {
+		service, release, err := wmi.Connect(`root\Microsoft\Windows\Storage`)
 		if err != nil {
 			return err
 		}
 		defer release()
 		var disks []physicalDisk
-		err = each(service, "SELECT DeviceId, FriendlyName, MediaType, BusType, HealthStatus, Size FROM MSFT_PhysicalDisk", func(item *ole.IDispatch) error {
+		err = wmi.Each(service, "SELECT DeviceId, FriendlyName, MediaType, BusType, HealthStatus, Size FROM MSFT_PhysicalDisk", func(item *ole.IDispatch) error {
 			p := physicalDisk{
-				DeviceID: stringProp(item, "DeviceId"), Name: strings.TrimSpace(stringProp(item, "FriendlyName")),
-				MediaType: int(intProp(item, "MediaType")), BusType: int(intProp(item, "BusType")),
-				HealthStatus: int(intProp(item, "HealthStatus")),
+				DeviceID: wmi.String(item, "DeviceId"), Name: strings.TrimSpace(wmi.String(item, "FriendlyName")),
+				MediaType: int(wmi.Int(item, "MediaType")), BusType: int(wmi.Int(item, "BusType")),
+				HealthStatus: int(wmi.Int(item, "HealthStatus")),
 			}
-			if size := intProp(item, "Size"); size > 0 {
+			if size := wmi.Int(item, "Size"); size > 0 {
 				p.Size = uint64(size)
 			}
 			disks = append(disks, p)
@@ -75,11 +72,11 @@ func drives() (out []protocol.Drive, err error) {
 		}
 		counters := map[string]*reliability{}
 		// Compteurs de fiabilité (droits d'administrateur : l'agent est un service système).
-		_ = each(service, "SELECT DeviceId, Temperature, TemperatureMax, Wear, PowerOnHours, ReadErrorsUncorrected, WriteErrorsUncorrected FROM MSFT_StorageReliabilityCounter", func(item *ole.IDispatch) error {
-			counters[stringProp(item, "DeviceId")] = &reliability{
-				Temperature: int(intProp(item, "Temperature")), TemperatureMax: int(intProp(item, "TemperatureMax")),
-				Wear: int(intProp(item, "Wear")), PowerOnHours: intProp(item, "PowerOnHours"),
-				ReadErrors: intProp(item, "ReadErrorsUncorrected"), WriteErrors: intProp(item, "WriteErrorsUncorrected"),
+		_ = wmi.Each(service, "SELECT DeviceId, Temperature, TemperatureMax, Wear, PowerOnHours, ReadErrorsUncorrected, WriteErrorsUncorrected FROM MSFT_StorageReliabilityCounter", func(item *ole.IDispatch) error {
+			counters[wmi.String(item, "DeviceId")] = &reliability{
+				Temperature: int(wmi.Int(item, "Temperature")), TemperatureMax: int(wmi.Int(item, "TemperatureMax")),
+				Wear: int(wmi.Int(item, "Wear")), PowerOnHours: wmi.Int(item, "PowerOnHours"),
+				ReadErrors: wmi.Int(item, "ReadErrorsUncorrected"), WriteErrors: wmi.Int(item, "WriteErrorsUncorrected"),
 			}
 			return nil
 		})
@@ -111,109 +108,4 @@ func diskErrors(since time.Time) (int, time.Time, error) {
 		}
 	}
 	return len(events), last, nil
-}
-
-// --- WMI ---
-
-// withCOM exécute f sur un fil système fixe, initialisé pour COM.
-func withCOM(f func() error) error {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	if err := ole.CoInitializeEx(0, ole.COINIT_MULTITHREADED); err != nil {
-		var oleErr *ole.OleError
-		if !errors.As(err, &oleErr) || oleErr.Code() != 1 { // S_FALSE : déjà initialisé
-			return err
-		}
-	}
-	defer ole.CoUninitialize()
-	return f()
-}
-
-func connect(namespace string) (*ole.IDispatch, func(), error) {
-	unknown, err := oleutil.CreateObject("WbemScripting.SWbemLocator")
-	if err != nil {
-		return nil, nil, err
-	}
-	locator, err := unknown.QueryInterface(ole.IID_IDispatch)
-	unknown.Release()
-	if err != nil {
-		return nil, nil, err
-	}
-	serviceRaw, err := oleutil.CallMethod(locator, "ConnectServer", nil, namespace)
-	if err != nil {
-		locator.Release()
-		return nil, nil, fmt.Errorf("WMI %s : %w", namespace, err)
-	}
-	return serviceRaw.ToIDispatch(), func() { _ = serviceRaw.Clear(); locator.Release() }, nil
-}
-
-func each(service *ole.IDispatch, query string, f func(*ole.IDispatch) error) error {
-	resultRaw, err := oleutil.CallMethod(service, "ExecQuery", query)
-	if err != nil {
-		return err
-	}
-	defer resultRaw.Clear()
-	result := resultRaw.ToIDispatch()
-	countRaw, err := oleutil.GetProperty(result, "Count")
-	if err != nil {
-		return err
-	}
-	count := int(countRaw.Val)
-	_ = countRaw.Clear()
-	for i := 0; i < count && i < 32; i++ {
-		itemRaw, err := oleutil.CallMethod(result, "ItemIndex", i)
-		if err != nil {
-			continue
-		}
-		err = f(itemRaw.ToIDispatch())
-		_ = itemRaw.Clear()
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func stringProp(item *ole.IDispatch, name string) string {
-	v, err := oleutil.GetProperty(item, name)
-	if err != nil {
-		return ""
-	}
-	defer v.Clear()
-	s, _ := v.Value().(string)
-	return s
-}
-
-// intProp lit un nombre (les entiers 64 bits arrivent en texte par WMI) ; -1 s'il est absent.
-func intProp(item *ole.IDispatch, name string) int64 {
-	v, err := oleutil.GetProperty(item, name)
-	if err != nil {
-		return -1
-	}
-	defer v.Clear()
-	switch x := v.Value().(type) {
-	case uint8:
-		return int64(x)
-	case int8:
-		return int64(x)
-	case uint16:
-		return int64(x)
-	case int16:
-		return int64(x)
-	case uint32:
-		return int64(x)
-	case int32:
-		return int64(x)
-	case int64:
-		return x
-	case uint64:
-		return int64(x)
-	case int:
-		return int64(x)
-	case string:
-		if n, err := strconv.ParseInt(strings.TrimSpace(x), 10, 64); err == nil {
-			return n
-		}
-	}
-	return -1
 }

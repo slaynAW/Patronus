@@ -83,7 +83,7 @@ import kotlin.math.floor
 
 /** Couleurs des séries, comme l'application Windows. */
 private val CpuColor = WolPalette.Blue
-private val GpuColor = Color(0xFFC084FC)
+private val GpuColor = WolPalette.Gpu
 
 /** Série d'un graphique : moyenne (trait plein) et maximum (trait fin). */
 private data class Series(

@@ -54,6 +54,20 @@ class AgentEndToEndTest {
     }
 
     @Test
+    fun `fiche du PC lue par le vrai agent`() = runBlocking {
+        // « busy » tant que la première lecture de l'agent n'est pas finie.
+        var specs = AgentClient().specs("127.0.0.1", settings)
+        repeat(10) {
+            if ((specs as? AgentResult.Failure)?.code != "busy") return@repeat
+            Thread.sleep(1_000)
+            specs = AgentClient().specs("127.0.0.1", settings)
+        }
+        assertTrue(specs is AgentResult.Success, "$specs")
+        val sheet = (specs as AgentResult.Success).value
+        assertTrue(sheet.cpu != null && (sheet.memory?.total ?: 0) > 0 && sheet.os != null, "$sheet")
+    }
+
+    @Test
     fun `mauvaise cle refusee`() = runBlocking {
         val result = AgentClient().status("127.0.0.1", settings.copy(key = AgentKey.generate()))
         assertEquals(AgentError.UNAUTHORIZED, (result as AgentResult.Failure).error)

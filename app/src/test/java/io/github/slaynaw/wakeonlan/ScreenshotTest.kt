@@ -7,6 +7,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import com.github.takahirom.roborazzi.captureRoboImage
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -16,8 +18,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.slaynaw.wakeonlan.core.agent.AgentDisks
 import io.github.slaynaw.wakeonlan.core.agent.AgentDrive
+import io.github.slaynaw.wakeonlan.core.agent.AgentSpecs
 import io.github.slaynaw.wakeonlan.core.agent.AgentStatus
+import io.github.slaynaw.wakeonlan.core.agent.AgentTemperatures
 import io.github.slaynaw.wakeonlan.core.agent.AgentVolume
+import io.github.slaynaw.wakeonlan.core.agent.SpecsBoard
+import io.github.slaynaw.wakeonlan.core.agent.SpecsCpu
+import io.github.slaynaw.wakeonlan.core.agent.SpecsGpu
+import io.github.slaynaw.wakeonlan.core.agent.SpecsMemory
+import io.github.slaynaw.wakeonlan.core.agent.SpecsModule
+import io.github.slaynaw.wakeonlan.core.agent.SpecsOs
 import io.github.slaynaw.wakeonlan.core.share.ShareAccess
 import io.github.slaynaw.wakeonlan.core.share.ShareCrypto
 import io.github.slaynaw.wakeonlan.core.share.ShareInvite
@@ -36,11 +46,15 @@ import io.github.slaynaw.wakeonlan.core.status.DeviceStatus
 import io.github.slaynaw.wakeonlan.core.status.LatencySample
 import io.github.slaynaw.wakeonlan.core.status.PowerState
 import io.github.slaynaw.wakeonlan.core.status.ProbeMethod
+import io.github.slaynaw.wakeonlan.core.status.TempSample
 import io.github.slaynaw.wakeonlan.core.status.UnknownReason
 import io.github.slaynaw.wakeonlan.core.wol.InterfaceAddress4
+import io.github.slaynaw.wakeonlan.data.StoredSpecs
 import io.github.slaynaw.wakeonlan.network.LanState
 import io.github.slaynaw.wakeonlan.network.LanTransport
 import io.github.slaynaw.wakeonlan.ui.detail.DeviceDetailContent
+import io.github.slaynaw.wakeonlan.ui.detail.SpecsCard
+import io.github.slaynaw.wakeonlan.ui.detail.TempsCard
 import io.github.slaynaw.wakeonlan.ui.devices.DeviceItem
 import io.github.slaynaw.wakeonlan.ui.devices.DevicesTab
 import io.github.slaynaw.wakeonlan.ui.devices.DevicesUiState
@@ -53,6 +67,7 @@ import io.github.slaynaw.wakeonlan.ui.overview.OverviewTab
 import io.github.slaynaw.wakeonlan.ui.settings.QrImage
 import io.github.slaynaw.wakeonlan.ui.settings.SettingsContent
 import io.github.slaynaw.wakeonlan.ui.settings.ShareSections
+import io.github.slaynaw.wakeonlan.ui.theme.WolPalette
 import io.github.slaynaw.wakeonlan.ui.theme.WolTheme
 import org.junit.Rule
 import org.junit.Test
@@ -63,6 +78,7 @@ import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowNetwork
 import java.net.Inet4Address
 import java.net.InetAddress
+import kotlin.math.sin
 
 /**
  * Captures d'écran des principaux écrans, rendues sur la JVM (Robolectric, rendu natif) avec des
@@ -91,6 +107,30 @@ class ScreenshotTest {
     private fun series(stepMs: Long, value: (Int) -> Long?) =
         (0..(75_000 / stepMs).toInt()).map { i -> LatencySample(now - 75_000 + i * stepMs, value(i)) }
 
+    /** Relevés de températures d'exemple sur 5 min, un toutes les 5 s (processeur et carte graphique). */
+    private val temps = (0..60).map { i ->
+        TempSample(now - 300_000 + i * 5_000L, 52.0 + 9 * sin(i / 9.0) + i % 3, 61.0 + 6 * sin(i / 14.0 + 1))
+    }
+
+    private val specs = StoredSpecs(
+        AgentSpecs(
+            cpu = SpecsCpu("AMD Ryzen 7 5800X", cores = 8, threads = 16, mhz = 3_800),
+            memory = SpecsMemory(
+                total = 32L shl 30,
+                slots = 4,
+                modules = listOf(
+                    SpecsModule("DIMM_A2", 16L shl 30, "DDR4", 3_200, "G.Skill", "F4-3200C16-16GVK"),
+                    SpecsModule("DIMM_B2", 16L shl 30, "DDR4", 3_200, "G.Skill", "F4-3200C16-16GVK"),
+                ),
+            ),
+            gpus = listOf(SpecsGpu("NVIDIA GeForce RTX 4070", 12L shl 30, "32.0.15.6094")),
+            board = SpecsBoard("MSI", "MAG B550 TOMAHAWK (MS-7C91)", "1.A0", "2024-03-12"),
+            os = SpecsOs("Windows 11 Pro", "24H2, build 26100.2314"),
+        ),
+        fetched = now - 3_600_000,
+        agent = "1.10.0",
+    )
+
     private val items = listOf(
         DeviceItem(
             bureau,
@@ -101,7 +141,8 @@ class ScreenshotTest {
                 latencyMs = 2,
                 method = ProbeMethod.AGENT,
                 agent = AgentStatus(
-                    "BUREAU", "windows", "amd64", "1.9.0", 11_520L,
+                    "BUREAU", "windows", "amd64", "1.10.0", 11_520L,
+                    temperatures = AgentTemperatures(cpu = 58.0, gpu = 64.0, cpuLoad = 37.0, gpuLoad = 12.0, gpuName = "NVIDIA GeForce RTX 4070"),
                     disks = AgentDisks(
                         volumes = listOf(
                             AgentVolume("C:", "Windows", "NTFS", total = 999_000_000_000, free = 312_000_000_000),
@@ -125,6 +166,8 @@ class ScreenshotTest {
                     else -> 2L + (i * 7) % 3
                 }
             },
+            temps = temps,
+            specs = specs,
         ),
         DeviceItem(
             Device("jeux", "Serveur de jeux", MacAddress.parse("AA:BB:CC:DD:EE:02"), host = "192.168.1.30", agent = AgentSettings(key = key)),
@@ -229,6 +272,17 @@ class ScreenshotTest {
             onDelete = {},
             onClearNotice = {},
         )
+    }
+
+    @Test
+    fun temperaturesEtFiche() = capture("3c-temperatures-et-fiche-pc") {
+        Column(
+            Modifier.background(WolPalette.Background).verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            TempsCard(items.first(), now)
+            SpecsCard(items.first(), now)
+        }
     }
 
     @Test

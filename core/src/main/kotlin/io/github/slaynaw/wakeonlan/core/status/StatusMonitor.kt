@@ -41,6 +41,7 @@ class StatusMonitor(
     private val refreshSignals = ConcurrentHashMap<String, Channel<Unit>>()
     private val _statuses = MutableStateFlow<Map<String, DeviceStatus>>(emptyMap())
     private val _latency = MutableStateFlow<Map<String, List<LatencySample>>>(emptyMap())
+    private val _temps = MutableStateFlow<Map<String, List<TempSample>>>(emptyMap())
     private val watchers = HashMap<String, Int>()
 
     /** État courant de chaque terminal, par identifiant. */
@@ -48,6 +49,9 @@ class StatusMonitor(
 
     /** Mesures de latence des dernières minutes de chaque terminal (voir [LatencyLog]). */
     val latency: StateFlow<Map<String, List<LatencySample>>> = _latency.asStateFlow()
+
+    /** Relevés de températures des dernières minutes de chaque terminal (voir [TempLog]). */
+    val temps: StateFlow<Map<String, List<TempSample>>> = _temps.asStateFlow()
 
     suspend fun run(config: Flow<AppConfig>, availability: Flow<ProbeAvailability>) {
         combine(config.distinctUntilChanged(), availability.distinctUntilChanged()) { c, a -> c to a }
@@ -110,7 +114,9 @@ class StatusMonitor(
                 !availability.canProbe -> tracker.onUnavailable(availability.reason ?: UnknownReason.NO_NETWORK)
                 else -> {
                     val result = prober.probe(device)
-                    record(device.id, LatencySample(clock(), result.latencyMs.takeIf { result.reachable }))
+                    val now = clock()
+                    record(device.id, LatencySample(now, result.latencyMs.takeIf { result.reachable }))
+                    TempLog.sampleOf(now, result.agent)?.let { recordTemp(device.id, it) }
                     tracker.onProbe(result)
                 }
             }
@@ -128,11 +134,15 @@ class StatusMonitor(
     private fun record(id: String, sample: LatencySample) =
         _latency.update { it + (id to LatencyLog.append(it[id].orEmpty(), sample)) }
 
+    private fun recordTemp(id: String, sample: TempSample) =
+        _temps.update { it + (id to TempLog.append(it[id].orEmpty(), sample)) }
+
     private fun prune(ids: Set<String>) {
         trackers.keys.retainAll(ids)
         refreshSignals.keys.retainAll(ids)
         _statuses.update { map -> map.filterKeys { it in ids } }
         _latency.update { map -> map.filterKeys { it in ids } }
+        _temps.update { map -> map.filterKeys { it in ids } }
     }
 
     companion object {

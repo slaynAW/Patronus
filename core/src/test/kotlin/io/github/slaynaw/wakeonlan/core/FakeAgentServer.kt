@@ -2,6 +2,7 @@ package io.github.slaynaw.wakeonlan.core
 
 import io.github.slaynaw.wakeonlan.core.agent.AgentHistory
 import io.github.slaynaw.wakeonlan.core.agent.AgentProtocol
+import io.github.slaynaw.wakeonlan.core.agent.AgentSpecs
 import io.github.slaynaw.wakeonlan.core.agent.AgentTemperatures
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -37,6 +38,14 @@ class FakeAgentServer(
     /** Températures jointes à `status` ; `null` : agent antérieur à 1.5.0. */
     @Volatile
     var temperatures: AgentTemperatures? = null
+
+    /** Fiche renvoyée par `specs` ; `null` : agent antérieur à 1.10.0 (commande refusée). */
+    @Volatile
+    var specs: AgentSpecs? = null
+
+    /** La fiche est encore en cours de lecture (code « busy »). */
+    @Volatile
+    var specsBusy = false
 
     init {
         thread(isDaemon = true) {
@@ -76,10 +85,12 @@ class FakeAgentServer(
         val cmd = Json.parseToJsonElement(body).jsonObject.str("cmd")
         synchronized(commands) { commands += cmd }
         val journal = history
-        val ok = behavior != Behavior.REJECT && (cmd != "history" || journal != null)
+        val sheet = specs
+        val busy = cmd == "specs" && specsBusy
+        val ok = behavior != Behavior.REJECT && (cmd != "history" || journal != null) && (cmd != "specs" || sheet != null) && !busy
         val responseBody = buildJsonObject {
             put("ok", ok)
-            put("code", if (ok) "ok" else "error")
+            put("code", if (ok) "ok" else if (busy) "busy" else "error")
             put("message", if (ok) "OK $cmd" else "refusé")
             put("hostname", "PC-TEST")
             put("os", "linux")
@@ -87,6 +98,7 @@ class FakeAgentServer(
             put("version", "1.0.0")
             put("uptime", 3600)
             if (ok && cmd == "history") put("history", Json.encodeToJsonElement(journal))
+            if (ok && cmd == "specs") put("specs", Json.encodeToJsonElement(sheet))
             temperatures?.let { if (ok && cmd == "status") put("temperatures", Json.encodeToJsonElement(it)) }
         }.toString()
         var mac = AgentProtocol.responseMac(key, nonce, cnonce, responseBody)

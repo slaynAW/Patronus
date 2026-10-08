@@ -22,6 +22,7 @@ import (
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
 	"github.com/slaynaw/wakeonlan/desktop/internal/diag"
 	"github.com/slaynaw/wakeonlan/desktop/internal/history"
+	"github.com/slaynaw/wakeonlan/desktop/internal/pcspecs"
 )
 
 const (
@@ -157,8 +158,12 @@ func main() {
 	if err != nil {
 		fatal("Impossible de créer le dossier de l'historique :\n" + err.Error())
 	}
+	specsStore, err := pcspecs.NewStore(dataDir)
+	if err != nil {
+		fatal("Impossible de créer le dossier des fiches des PC :\n" + err.Error())
+	}
 	svc := app.New(app.Options{
-		Version: version, System: systemInfo(), Store: store, Platform: platform, History: histStore,
+		Version: version, System: systemInfo(), Store: store, Platform: platform, History: histStore, Specs: specsStore,
 		Updates: updateOptions(exe), Share: shareOptions(dataDir), Agent: agentOptions(), Backup: backupOptions(dataDir),
 	})
 	ctx, cancel := context.WithCancel(context.Background())

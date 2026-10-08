@@ -354,6 +354,37 @@ func TestStatusDisks(t *testing.T) {
 	}
 }
 
+func TestSpecsCommand(t *testing.T) {
+	specs := &protocol.Specs{
+		CPU:    &protocol.SpecsCPU{Name: "AMD Ryzen 7 5800X", Cores: 8, Threads: 16},
+		Memory: &protocol.SpecsMemory{Total: 32 << 30, Slots: 4, Modules: []protocol.SpecsModule{{Slot: "DIMM_A2", Size: 16 << 30, Type: "DDR4", MTs: 3200}}},
+		GPUs:   []protocol.SpecsGPU{{Name: "NVIDIA GeForce RTX 4070", VRAM: 12 << 30}},
+		Board:  &protocol.SpecsBoard{Maker: "MSI", Model: "MAG B550 TOMAHAWK"},
+	}
+	cfg, _, addr := startServer(t, func(c *config.Config) { c.Commands = []string{"status"} }, func(s *Server) { s.SetSpecs(func() *protocol.Specs { return specs }) })
+	body := decodeBody(t, first(exchange(t, addr, cfg.Key, `{"cmd":"specs"}`)))
+	if !body.OK || body.Specs == nil || body.Specs.CPU.Cores != 8 || body.Specs.Memory.Modules[0].MTs != 3200 || body.Specs.GPUs[0].VRAM != 12<<30 {
+		t.Fatalf("fiche : %+v", body.Specs)
+	}
+	// La fiche n'est jamais jointe à l'état.
+	if resp, _ := exchange(t, addr, cfg.Key, `{"cmd":"status"}`); strings.Contains(resp.Body, "specs") {
+		t.Errorf("fiche jointe à l'état : %s", resp.Body)
+	}
+	// Sans « status » : refusée ; pas encore lue : « busy » ; agent sans fiche : non prise en charge.
+	cfg, _, addr = startServer(t, func(c *config.Config) { c.Commands = []string{"shutdown"} }, func(s *Server) { s.SetSpecs(func() *protocol.Specs { return specs }) })
+	if body := decodeBody(t, first(exchange(t, addr, cfg.Key, `{"cmd":"specs"}`))); body.OK || body.Code != "forbidden" {
+		t.Fatalf("fiche sans status : %+v", body)
+	}
+	cfg, _, addr = startServer(t, nil, func(s *Server) { s.SetSpecs(func() *protocol.Specs { return nil }) })
+	if body := decodeBody(t, first(exchange(t, addr, cfg.Key, `{"cmd":"specs"}`))); body.OK || body.Code != "busy" {
+		t.Fatalf("fiche en cours : %+v", body)
+	}
+	cfg, _, addr = start(t, nil)
+	if body := decodeBody(t, first(exchange(t, addr, cfg.Key, `{"cmd":"specs"}`))); body.OK || body.Code != "unsupported" {
+		t.Fatalf("fiche absente : %+v", body)
+	}
+}
+
 type fakeMetrics struct{ rows []protocol.MetricsRow }
 
 func (f fakeMetrics) Days() []string { return []string{"2026-10-02", "2026-10-03"} }

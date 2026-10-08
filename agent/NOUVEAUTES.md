@@ -5,6 +5,10 @@ compilé par la CI. **Ajoutez une section (numéro supérieur) à chaque modific
 numéro que les agents installés comparent au leur pour proposer la mise à jour. Le texte de la section est
 affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
+## 1.10.0
+
+- **Fiche du PC** : processeur (cœurs, threads, fréquence), mémoire vive (barrettes, type, vitesse, emplacements), cartes graphiques (mémoire vidéo, pilote), carte mère et BIOS, modèle du PC et version du système, lus dans le micrologiciel (SMBIOS) et auprès de Windows ou Linux. Les applications 1.11.0 l'affichent sur la fiche du PC ; `wol-agent status` aussi. Aucun numéro de série n'est lu.
+
 ## 1.9.0
 
 - **Disques** : espace libre de chaque lecteur, et santé de chaque SSD ou disque dur (état donné par Windows, température, usure, heures de fonctionnement, erreurs non corrigées), plus les erreurs d'accès aux disques signalées par Windows sur 30 jours. Les applications 1.10.0 les affichent sur la fiche du PC ; `wol-agent status` aussi.

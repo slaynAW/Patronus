@@ -230,7 +230,10 @@ fun DeviceDetailContent(
                 // Allumé mais sans réponse : le plus souvent un réseau « Public » sous Windows.
                 Text(stringResource(R.string.hint_offline_agent), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
             }
-            if (item.device.hasHost) LatencyCard(item, now)
+            // Grand tracé : températures du processeur et de la carte graphique si le PC a un agent,
+            // sinon la latence (celle d'un PC avec agent est dans les informations).
+            val hasAgent = item.device.agent?.hasKey == true
+            if (item.device.hasHost && hasAgent) TempsCard(item, now) else if (item.device.hasHost) LatencyCard(item, now)
             InfoCard(item)
             if (item.device.agent?.hasKey == true) {
                 // Températures et utilisation dans le temps (agent et archives).
@@ -238,6 +241,7 @@ fun DeviceDetailContent(
                     KeyValueRow(stringResource(R.string.detail_metrics), stringResource(R.string.metrics_open), valueColor = WolPalette.Blue, icon = WolIcons.Chart)
                 }
             }
+            if (hasAgent) SpecsCard(item, now)
             item.status.agent?.disks?.takeIf { item.status.state == PowerState.ONLINE && !it.isEmpty }?.let { DisksCard(it, now) }
             RecentHistory(history, now, onShowAll = onOpenHistory)
             Spacer(Modifier.height(24.dp))
@@ -331,6 +335,13 @@ private fun InfoCard(item: DeviceItem) {
         )
         RowDivider()
         KeyValueRow(stringResource(R.string.detail_mac), device.mac.toString(), mono = true)
+        // Latence d'un PC avec agent (le grand tracé montre ses températures).
+        val latency = status.latencyMs
+        if (device.agent?.hasKey == true && online && latency != null) {
+            val via = status.method?.let { stringResource(it.viaLabel()) }
+            RowDivider()
+            KeyValueRow(stringResource(R.string.detail_latency), listOfNotNull(stringResource(R.string.latency_ms, latency), via).joinToString(" · "))
+        }
         if (online && agent != null) {
             if (agent.hostname.isNotBlank()) {
                 RowDivider()

@@ -73,6 +73,9 @@ func (s *Service) onStatusChange() {
 			}
 		}
 	}
+	for id, st := range statuses {
+		s.refreshSpecs(id, st)
+	}
 	s.statusMu.Unlock()
 	s.notify()
 }
@@ -150,6 +153,7 @@ func (s *Service) saveHistoryLocked() {
 }
 
 func (s *Service) keepHistory(ids map[string]bool) {
+	s.keepSpecs(ids)
 	s.histMu.Lock()
 	defer s.histMu.Unlock()
 	s.hist = s.hist.Keep(ids)

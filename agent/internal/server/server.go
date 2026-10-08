@@ -44,6 +44,7 @@ type Server struct {
 	history  *history.Log
 	temps    func() *protocol.Temperatures
 	disks    func() *protocol.Disks
+	specs    func() *protocol.Specs
 	metrics  Metrics
 	now      func() time.Time
 
@@ -85,6 +86,9 @@ func (s *Server) SetTemperatures(read func() *protocol.Temperatures) { s.temps =
 // SetDisks branche la lecture des disques, jointe aux réponses à « status » (elle doit répondre tout
 // de suite : voir disks.Reader).
 func (s *Server) SetDisks(read func() *protocol.Disks) { s.disks = read }
+
+// SetSpecs branche la fiche du PC (commande « specs » ; voir specs.Cache).
+func (s *Server) SetSpecs(read func() *protocol.Specs) { s.specs = read }
 
 // Metrics donne les mesures enregistrées en continu (voir metrics.Recorder).
 type Metrics interface {
@@ -272,6 +276,22 @@ func (s *Server) execute(rawBody, ip string) protocol.ResponseBody {
 			m.Rows = rows
 		}
 		resp.Metrics = &m
+		resp.OK, resp.Code = true, "ok"
+		return resp
+	}
+	// La fiche est en lecture seule, comme l'état : autorisée dès que « status » l'est.
+	if body.Cmd == protocol.CmdSpecs {
+		if !s.cfg.Allows(protocol.CmdStatus) && !s.cfg.Allows(protocol.CmdHistory) {
+			return fail("forbidden", "commande « specs » désactivée sur ce PC")
+		}
+		if s.specs == nil {
+			return fail("unsupported", "fiche indisponible sur ce PC")
+		}
+		specs := s.specs()
+		if specs == nil {
+			return fail("busy", "fiche en cours de lecture, réessayez dans un instant")
+		}
+		resp.Specs = specs
 		resp.OK, resp.Code = true, "ok"
 		return resp
 	}

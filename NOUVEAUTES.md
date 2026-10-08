@@ -3,6 +3,11 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.11.0
+
+- **Températures en grand** : sur la fiche d'un PC équipé de l'agent, le grand graphique montre désormais la température du processeur (en bleu) et de la carte graphique (en violet) des 5 dernières minutes, en direct, avec leur moyenne et leur maximum. La latence reste affichée dans les informations du PC (et en grand pour un PC sans agent).
+- **Fiche du PC** (avec l'agent 1.10.0) : processeur (cœurs, threads, fréquence), mémoire vive (barrettes, type, vitesse, emplacements), carte graphique (mémoire vidéo, pilote), carte mère et BIOS, modèle du PC et version du système. Elle est gardée sur l'appareil et reste visible PC éteint ; aucun numéro de série n'est lu.
+
 ## 1.10.0
 
 - **Disques** (avec l'agent 1.9.0) : la fiche d'un PC montre l'espace libre de chaque lecteur et la santé de chaque SSD ou disque dur (état donné par Windows, température, usure, heures de fonctionnement, erreurs non corrigées), ainsi que les erreurs d'accès aux disques signalées par Windows ces 30 derniers jours. Un lecteur plein à 90 % ou plus, ou un disque à surveiller, est signalé dans la liste des PC.

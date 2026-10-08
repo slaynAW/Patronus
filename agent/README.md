@@ -73,7 +73,7 @@ une nouvelle version des applications ne provoque pas de mise à jour de l'agent
 |---|---|
 | `wol-agent install [--port 9770] [--name "PC Bureau"] [--ip 192.168.1.20] [--no-firewall] [--firewall-public]` | Installe / met à jour le service |
 | `wol-agent pair [--ip …] [--png qr.png] [--invert]` | Réaffiche le QR code (ou l'enregistre en PNG) et le lien d'appairage |
-| `wol-agent status` | État du service, configuration, carte réseau détectée, type des réseaux Windows (alerte si « Public »), températures, disques (espace, santé, erreurs), derniers évènements du journal (avec la cause des arrêts anormaux) |
+| `wol-agent status` | État du service, configuration, carte réseau détectée, type des réseaux Windows (alerte si « Public »), températures, disques (espace, santé, erreurs), fiche du PC (processeur, mémoire, cartes graphiques, carte mère, système), derniers évènements du journal (avec la cause des arrêts anormaux) |
 | `wol-agent diagnostic` | Rapport de diagnostic chiffré par un mot de passe (état, configuration sans la clé, journaux), à transmettre pour analyser un problème ([docs/DIAGNOSTIC.md](../docs/DIAGNOSTIC.md)). Terminal administrateur recommandé. |
 | `wol-agent rotate-key` | Nouvelle clé ; l'ancienne est immédiatement refusée (ré-appairer) |
 | `wol-agent update [--check] [--yes] [--auto on\|off]` | Recherche et installe une nouvelle version (Windows) ; `--auto` : recherche quotidienne |
@@ -99,8 +99,8 @@ afin que le QR code contienne la bonne adresse MAC.
 - `metrics` (facultatif) : `false` désactive l'enregistrement continu des mesures (90 jours, dossier `metrics/`).
 
 - `allow` : réseaux autorisés à se connecter (par défaut uniquement des adresses privées).
-- `commands` : retirez par exemple `"shutdown"` pour n'autoriser que la veille. La lecture du journal (`history`) est
-  autorisée dès que `status` l'est.
+- `commands` : retirez par exemple `"shutdown"` pour n'autoriser que la veille. La lecture du journal (`history`), des
+  mesures (`metrics`) et de la fiche du PC (`specs`) est autorisée dès que `status` l'est.
 - Après modification : redémarrez le service (`wol-agent install` le fait, ou `systemctl restart wol-agent`,
   ou *Services* → *Patronus - Agent* → *Redémarrer* sous Windows).
 
