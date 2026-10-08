@@ -198,7 +198,7 @@
     <string name="temps_max_cpu">Max CPU</string>
     <string name="temps_avg_gpu">Moy. GPU</string>
     <string name="temps_max_gpu">Max GPU</string>
-    <string name="temps_gpu_shared">= CPU</string>
+    <string name="temps_gpu_integrated">GPU intégré</string>
     <string name="temps_waiting">Relevés en cours…</string>
     <string name="temps_none">L’agent ne donne aucune température sur ce PC (voir les informations ci-dessous).</string>
     <string name="temps_offline">Les températures s’affichent quand le PC est allumé.</string>

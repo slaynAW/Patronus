@@ -51,11 +51,14 @@ const (
 	TempMaxSamples = 400
 )
 
-// TempSample est un relevé de températures (°C) ; une valeur absente n'a pas été lue.
+// TempSample est un relevé de températures (°C) ; une valeur absente n'a pas été lue. Shared : la
+// carte graphique est intégrée au processeur, sans sonde à part, et GPU est la température de la puce
+// (celle du processeur).
 type TempSample struct {
-	T   int64    `json:"t"`
-	CPU *float64 `json:"c,omitempty"`
-	GPU *float64 `json:"g,omitempty"`
+	T      int64    `json:"t"`
+	CPU    *float64 `json:"c,omitempty"`
+	GPU    *float64 `json:"g,omitempty"`
+	Shared bool     `json:"s,omitempty"`
 }
 
 func sameValue(a, b *float64) bool { return (a == nil) == (b == nil) && (a == nil || *a == *b) }
@@ -65,7 +68,7 @@ func sameValue(a, b *float64) bool { return (a == nil) == (b == nil) && (a == ni
 func AppendTemp(samples []TempSample, s TempSample) []TempSample {
 	if n := len(samples); n > 0 {
 		last := samples[n-1]
-		if sameValue(last.CPU, s.CPU) && sameValue(last.GPU, s.GPU) && s.T >= last.T && s.T-last.T < TempRepeat.Milliseconds() {
+		if sameValue(last.CPU, s.CPU) && sameValue(last.GPU, s.GPU) && last.Shared == s.Shared && s.T >= last.T && s.T-last.T < TempRepeat.Milliseconds() {
 			return samples
 		}
 	}
@@ -84,16 +87,13 @@ func AppendTemp(samples []TempSample, s TempSample) []TempSample {
 }
 
 // TempOf extrait le relevé d'une réponse de l'agent (ok faux sans aucune température). La puce
-// graphique intégrée sans sonde à part (GPUShared) reprend la température du processeur : elle
-// n'est pas tracée deux fois.
+// graphique intégrée sans sonde à part (GPUShared) a la température du processeur : elle est gardée,
+// marquée Shared (tracée en pointillés).
 func TempOf(t int64, agent *agentclient.Status) (TempSample, bool) {
 	if agent == nil || agent.Temperatures == nil {
 		return TempSample{}, false
 	}
 	temps := agent.Temperatures
-	s := TempSample{T: t, CPU: temps.CPU}
-	if !temps.GPUShared {
-		s.GPU = temps.GPU
-	}
+	s := TempSample{T: t, CPU: temps.CPU, GPU: temps.GPU, Shared: temps.GPUShared && temps.GPU != nil}
 	return s, s.CPU != nil || s.GPU != nil
 }

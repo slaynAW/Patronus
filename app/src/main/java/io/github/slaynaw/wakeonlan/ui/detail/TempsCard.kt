@@ -29,6 +29,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -103,8 +104,9 @@ fun TempsCard(item: DeviceItem, now: Long) {
                 }
                 CurrentTemp("CPU", WolPalette.Blue, temps?.cpu)
                 Spacer(Modifier.width(18.dp))
-                // Puce graphique intégrée sans sonde à part : même température que le processeur.
-                CurrentTemp("GPU", WolPalette.Gpu, temps?.takeIf { !it.gpuShared }?.gpu, shared = temps?.gpuShared == true)
+                // Puce graphique intégrée sans sonde à part : température de la puce, celle du processeur.
+                val integrated = temps?.gpuShared == true
+                CurrentTemp(if (integrated) stringResource(R.string.temps_gpu_integrated) else "GPU", WolPalette.Gpu, temps?.gpu, dashed = integrated)
             }
             Spacer(Modifier.height(6.dp))
             Box(
@@ -142,27 +144,25 @@ fun TempsCard(item: DeviceItem, now: Long) {
     }
 }
 
-/** Valeur en direct d'une courbe, avec son repère de couleur. */
+/** Valeur en direct d'une courbe, avec son repère de couleur ([dashed] : courbe en pointillés). */
 @Composable
-private fun CurrentTemp(label: String, color: Color, value: Double?, shared: Boolean = false) {
+private fun CurrentTemp(label: String, color: Color, value: Double?, dashed: Boolean = false) {
     Column(horizontalAlignment = Alignment.End) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(width = 10.dp, height = 3.dp).background(color, RoundedCornerShape(2.dp)))
+            if (dashed) {
+                Box(Modifier.size(width = 4.dp, height = 3.dp).background(color, RoundedCornerShape(1.dp)))
+                Spacer(Modifier.width(2.dp))
+                Box(Modifier.size(width = 4.dp, height = 3.dp).background(color, RoundedCornerShape(1.dp)))
+            } else {
+                Box(Modifier.size(width = 10.dp, height = 3.dp).background(color, RoundedCornerShape(2.dp)))
+            }
             Spacer(Modifier.width(6.dp))
             Text(label, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = WolPalette.Text2)
         }
         Text(
-            when {
-                shared -> stringResource(R.string.temps_gpu_shared)
-                value != null -> formatCelsius(value)
-                else -> "—"
-            },
+            value?.let(::formatCelsius) ?: "—",
             style = MaterialTheme.typography.headlineSmall.copy(fontSize = 24.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold),
-            color = when {
-                shared -> WolPalette.Text2
-                value != null -> temperatureColor(value)
-                else -> WolPalette.Text3
-            },
+            color = if (value != null) temperatureColor(value) else WolPalette.Text3,
             maxLines = 1,
         )
     }
@@ -215,7 +215,7 @@ private fun TempTrace(samples: List<TempSample>, modifier: Modifier = Modifier) 
         drawGrid(geometry)
         if (scale.measured) drawScale(hiLabel, loLabel, geometry)
         drawSeries(samples, { it.cpu }, WolPalette.Blue, geometry, animate)
-        drawSeries(samples, { it.gpu }, WolPalette.Gpu, geometry, animate)
+        drawSeries(samples, { it.gpu }, WolPalette.Gpu, geometry, animate, dashedWhen = { it.gpuShared })
     }
 }
 
@@ -246,43 +246,68 @@ private fun DrawScope.drawScale(hiLabel: TextLayoutResult, loLabel: TextLayoutRe
     drawText(loLabel, topLeft = Offset(2.dp.toPx(), g.bottom - loLabel.size.height - 2.dp.toPx()))
 }
 
-/** Une courbe : segments continus (un relevé manquant ou une longue interruption la coupe). */
-private fun DrawScope.drawSeries(samples: List<TempSample>, value: (TempSample) -> Double?, color: Color, g: TempGeometry, animate: Boolean) {
-    val segments = mutableListOf<MutableList<Offset>>()
-    var segment: MutableList<Offset>? = null
+/** Partie continue d'une courbe ; [dashed] : puce graphique intégrée, tracée en pointillés. */
+private class Segment(val points: MutableList<Offset>, val dashed: Boolean)
+
+/**
+ * Une courbe : seuls les relevés de la série comptent (un relevé manquant est sauté), une longue
+ * interruption la coupe. Puce graphique intégrée (même température que le processeur) : en
+ * pointillés, pour laisser voir la courbe du processeur dessous.
+ */
+private fun DrawScope.drawSeries(
+    samples: List<TempSample>,
+    value: (TempSample) -> Double?,
+    color: Color,
+    g: TempGeometry,
+    animate: Boolean,
+    dashedWhen: (TempSample) -> Boolean = { false },
+) {
+    val segments = mutableListOf<Segment>()
+    var segment: Segment? = null
     var previous: TempSample? = null
     var head: Offset? = null
     for (s in samples) {
-        val v = value(s)
+        val v = value(s) ?: continue
         val p = previous
         if (s.time > g.rt) {
             val open = segment
             val pv = p?.let(value)
-            if (open != null && p != null && pv != null && v != null && s.time - p.time <= g.gapBreak) {
+            if (open != null && p != null && pv != null && s.time - p.time <= g.gapBreak) {
                 val at = pv + (v - pv) * (g.rt - p.time).toDouble() / (s.time - p.time)
                 val pen = Offset(g.right, g.y(at))
-                open.add(pen)
+                open.points.add(pen)
                 head = pen
             }
             break
         }
-        if (v == null) {
-            segment = null
-            previous = null
-            continue
+        val point = Offset(g.x(s.time), g.y(v))
+        val dashed = dashedWhen(s)
+        val open = segment
+        segment = when {
+            open == null || (p != null && s.time - p.time > g.gapBreak) -> Segment(mutableListOf(point), dashed).also { segments += it }
+            // Puce intégrée ↔ carte dédiée : la courbe continue, en pointillés ou non.
+            open.dashed != dashed -> Segment(mutableListOf(open.points.last(), point), dashed).also { segments += it }
+            else -> open.also { it.points.add(point) }
         }
-        val current = segment?.takeIf { p == null || s.time - p.time <= g.gapBreak }
-            ?: mutableListOf<Offset>().also { segments += it }
-        current.add(Offset(g.x(s.time), g.y(v)))
-        segment = current
         previous = s
     }
     val last = previous
-    if (head == null && last != null && g.rt - last.time <= g.gapBreak) head = segment?.lastOrNull()
+    if (head == null && last != null && g.rt - last.time <= g.gapBreak) head = segment?.points?.lastOrNull()
 
     val lineWidth = 2.dp.toPx()
-    for (points in segments) {
+    val dash = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 5.dp.toPx()))
+    for (seg in segments) {
+        val points = seg.points
         if (points.last().x < -4f) continue
+        val line = Path().apply {
+            moveTo(points.first().x, points.first().y)
+            points.drop(1).forEach { lineTo(it.x, it.y) }
+            if (points.size == 1) lineTo(points.first().x + 1f, points.first().y)
+        }
+        if (seg.dashed) {
+            drawPath(line, color, style = Stroke(lineWidth, cap = StrokeCap.Butt, join = StrokeJoin.Round, pathEffect = dash))
+            continue
+        }
         val area = Path().apply {
             moveTo(points.first().x, g.bottom)
             points.forEach { lineTo(it.x, it.y) }
@@ -290,11 +315,6 @@ private fun DrawScope.drawSeries(samples: List<TempSample>, value: (TempSample) 
             close()
         }
         drawPath(area, Brush.verticalGradient(listOf(color.copy(alpha = 0.12f), color.copy(alpha = 0f)), g.top, g.bottom))
-        val line = Path().apply {
-            moveTo(points.first().x, points.first().y)
-            points.drop(1).forEach { lineTo(it.x, it.y) }
-            if (points.size == 1) lineTo(points.first().x + 1f, points.first().y)
-        }
         drawPath(line, color.copy(alpha = 0.18f), style = Stroke(lineWidth * 3, cap = StrokeCap.Round, join = StrokeJoin.Round))
         drawPath(line, color, style = Stroke(lineWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
     }

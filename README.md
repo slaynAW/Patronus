@@ -9,7 +9,8 @@ Anciennement **Wake On LAN** (jusqu'à la version 1.5.0).
 - ⚡ **Démarrage** des PC par Wake-on-LAN (paquet magique), fiabilisé (envois répétés, bonne adresse de diffusion, bon réseau).
 - 🟢 **État en temps réel** de chaque PC : allumé / éteint / en cours de démarrage / en cours d'arrêt, avec latence et « vu il y a… ».
 - 📈 **Températures en direct** : sur la fiche d'un PC équipé de l'agent, le grand tracé montre la température du
-  processeur (bleu) et de la carte graphique (violet) des 5 dernières minutes, avec moyenne et maximum.
+  processeur (bleu) et de la carte graphique (violet, en pointillés pour une puce intégrée au processeur) des 5
+  dernières minutes, avec moyenne et maximum.
 - 📈 **Latence en direct façon électrocardiogramme** : la valeur actuelle et le tracé de la dernière minute (une mesure
   par seconde), en grand sur la fiche d'un PC sans agent, avec min / moyenne / max et sondes restées sans réponse ;
   mini-tracés dans les listes.

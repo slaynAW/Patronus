@@ -285,6 +285,20 @@ class ScreenshotTest {
         }
     }
 
+    /** Puce graphique intégrée : même température que le processeur, courbe GPU en pointillés. */
+    @Test
+    fun temperaturesGpuIntegre() = capture("3d-temperatures-gpu-integre") {
+        val base = items.first()
+        val integrated = AgentTemperatures(cpu = 58.0, gpu = 58.0, gpuShared = true, gpuName = "Intel(R) UHD Graphics 770")
+        val item = base.copy(
+            status = base.status.copy(agent = base.status.agent?.copy(temperatures = integrated)),
+            temps = temps.map { it.copy(gpu = it.cpu, gpuShared = true) },
+        )
+        Column(Modifier.background(WolPalette.Background).padding(16.dp)) {
+            TempsCard(item, now)
+        }
+    }
+
     @Test
     fun ficheEteinte() = capture("3b-fiche-pc-eteint") {
         DeviceDetailContent(

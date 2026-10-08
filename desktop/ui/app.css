@@ -322,6 +322,7 @@ canvas.spark { display: block; width: 64px; height: 22px; flex: none; }
 .tleg > span { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--text-2); }
 .tleg > span i { width: 10px; height: 3px; border-radius: 2px; background: var(--blue); }
 .tleg.s-gpu > span i { background: var(--gpu); }
+.tleg.s-gpu.shared > span i { background: repeating-linear-gradient(90deg, var(--gpu) 0 4px, transparent 4px 6px); }
 .tleg b { font-size: 24px; line-height: 28px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .tleg b.none { color: var(--text-3); }
 .tleg b.temp-warm { color: var(--tr); }

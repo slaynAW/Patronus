@@ -3,6 +3,11 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.11.1
+
+- **Température GPU sur le grand graphique** : une puce graphique intégrée au processeur (Intel UHD, Iris Xe, Radeon intégrée) a désormais sa courbe, sa valeur et sa moyenne. N'ayant pas de sonde à part, elle a la température du processeur : sa courbe est tracée en pointillés violets par-dessus celle du processeur.
+- Une courbe n'est plus hachée quand la carte graphique ne donne pas sa température à chaque relevé (carte en veille…) : elle relie les relevés obtenus.
+
 ## 1.11.0
 
 - **Températures en grand** : sur la fiche d'un PC équipé de l'agent, le grand graphique montre désormais la température du processeur (en bleu) et de la carte graphique (en violet) des 5 dernières minutes, en direct, avec leur moyenne et leur maximum. La latence reste affichée dans les informations du PC (et en grand pour un PC sans agent).
