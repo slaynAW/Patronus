@@ -31,6 +31,9 @@ object AgentProtocol {
     /** Taille maximale de la réponse à la commande `metrics` (une journée de mesures). */
     const val MAX_METRICS_BYTES = 512 * 1024
 
+    /** Taille maximale de la réponse à la commande `specs` (fiche du PC, quelques Ko en pratique). */
+    const val MAX_SPECS_BYTES = 64 * 1024
+
     /** Démarrages signalés en une fois (commande « wakes »). */
     const val MAX_WAKES = 50
 
@@ -295,6 +298,61 @@ data class MetricsRow(
     val glx: Double? = null,
 )
 
+/**
+ * Fiche du PC renvoyée par la commande `specs` (agent 1.10.0) : [model] fabricant et modèle d'un PC de
+ * marque ou d'un portable, puis processeur, mémoire, cartes graphiques, carte mère et système. Une
+ * information illisible est absente ; aucun numéro de série n'y figure.
+ */
+@Serializable
+data class AgentSpecs(
+    val model: String = "",
+    val cpu: SpecsCpu? = null,
+    val memory: SpecsMemory? = null,
+    val gpus: List<SpecsGpu> = emptyList(),
+    val board: SpecsBoard? = null,
+    val os: SpecsOs? = null,
+)
+
+/** Processeur : [cores] cœurs et [threads] processeurs logiques, [mhz] fréquence de base, [count] processeurs (> 1). */
+@Serializable
+data class SpecsCpu(val name: String = "", val cores: Int = 0, val threads: Int = 0, val mhz: Int = 0, val count: Int = 0)
+
+/** Mémoire vive : [total] installée (octets), [slots] emplacements (0 : inconnu), [modules] barrettes. */
+@Serializable
+data class SpecsMemory(val total: Long = 0, val slots: Int = 0, val modules: List<SpecsModule> = emptyList())
+
+/** Barrette : [slot] emplacement, [size] octets, [type] « DDR4 », [mts] vitesse (MT/s). */
+@Serializable
+data class SpecsModule(
+    val slot: String = "",
+    val size: Long = 0,
+    val type: String = "",
+    val mts: Int = 0,
+    val maker: String = "",
+    val part: String = "",
+) {
+    /** « DDR4-3200 », « DDR5 », « 4800 MT/s » ou vide. */
+    val kind: String
+        get() = when {
+            type.isNotEmpty() && mts > 0 -> "$type-$mts"
+            type.isNotEmpty() -> type
+            mts > 0 -> "$mts MT/s"
+            else -> ""
+        }
+}
+
+/** Carte graphique : [vram] mémoire dédiée (octets, 0 : aucune ou inconnue), [integrated] puce intégrée au processeur. */
+@Serializable
+data class SpecsGpu(val name: String = "", val vram: Long = 0, val driver: String = "", val integrated: Boolean = false)
+
+/** Carte mère et BIOS ([biosDate] : « 2024-03-12 »). */
+@Serializable
+data class SpecsBoard(val maker: String = "", val model: String = "", val bios: String = "", val biosDate: String = "")
+
+/** Système d'exploitation : « Windows 11 Pro », « 24H2, build 26100.2314 ». */
+@Serializable
+data class SpecsOs(val name: String = "", val version: String = "")
+
 @Serializable
 internal data class HelloMessage(val proto: String, val nonce: String)
 
@@ -335,6 +393,7 @@ internal data class ResponseBody(
     val temperatures: AgentTemperatures? = null,
     val metrics: AgentMetrics? = null,
     val disks: AgentDisks? = null,
+    val specs: AgentSpecs? = null,
 ) {
     fun toStatus() = AgentStatus(hostname, os, arch, version, uptime, temperatures, disks)
 }
