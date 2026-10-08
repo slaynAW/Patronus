@@ -129,6 +129,9 @@ jobs:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
       - run: go test ./...
+      # Fiche du PC lue sur une vraie machine Windows (SMBIOS, registre, WMI), affichée en détail.
+      - name: Fiche du PC sous Windows
+        run: go test -count=1 -v -run 'TestWindowsFirmwareTable|TestReadReal' ./internal/specs/
       # Service réellement installé, puis mis à jour par lui-même depuis un faux serveur de versions
       # (manifeste signé par une clé de test) : recherche, téléchargement, remplacement, redémarrage.
       - name: Mise à jour de bout en bout
