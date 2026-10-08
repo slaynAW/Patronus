@@ -14,6 +14,7 @@ import io.github.slaynaw.wakeonlan.core.status.UnknownReason
 import io.github.slaynaw.wakeonlan.core.wol.WakeOnLanSender
 import io.github.slaynaw.wakeonlan.data.ConfigRepository
 import io.github.slaynaw.wakeonlan.data.HistoryRepository
+import io.github.slaynaw.wakeonlan.data.SpecsRepository
 import io.github.slaynaw.wakeonlan.diagnostics.DiagnosticLog
 import io.github.slaynaw.wakeonlan.network.LanNetworkMonitor
 import io.github.slaynaw.wakeonlan.network.LocalNetworkAccess
@@ -61,6 +62,10 @@ class AppContainer(private val context: Context) {
     val statusMonitor = StatusMonitor(prober = HostProber(binder = network, agentClient = agentClient))
     val history = HistoryRepository(context, scope)
     val historyTracker = HistoryTracker(allDevices, statusMonitor.statuses, agentClient, history, scope)
+
+    /** Fiche de chaque PC (agent 1.10.0), gardée pour l'afficher PC éteint. */
+    val specs = SpecsRepository(context, scope)
+    val specsTracker = SpecsTracker(allDevices, statusMonitor.statuses, agentClient, specs, scope)
     val actions = DeviceActions(network, WakeOnLanSender(binder = network), agentClient, statusMonitor, historyTracker)
 
     /** Sauvegardes automatiques (GitHub et dossier), chiffrées par un mot de passe dédié. */

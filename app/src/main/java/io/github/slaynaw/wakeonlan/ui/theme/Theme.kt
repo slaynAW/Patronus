@@ -34,6 +34,9 @@ object WolPalette {
     val Text2 = Color(0xFF8A93A0)
     val Text3 = Color(0xFF6B7380)
     val Blue = Color(0xFF4A94FF)
+
+    /** Carte graphique dans les tracés (le processeur est en [Blue]). */
+    val Gpu = Color(0xFFC084FC)
     val BlueSoft = Color(0xFF14233B)
     val On = Color(0xFF2FD27A)
     val Off = Color(0xFFFF5F6B)

@@ -30,6 +30,7 @@ class MainActivity : ComponentActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 container.updater.checkIfDue()
                 launch { container.historyTracker.run() }
+                launch { container.specsTracker.run() }
                 launch { container.share.run() }
                 launch { container.backups.run() }
                 launch { container.archives.run() }

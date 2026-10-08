@@ -12,6 +12,8 @@ import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.status.DeviceStatus
 import io.github.slaynaw.wakeonlan.core.status.LatencySample
 import io.github.slaynaw.wakeonlan.core.status.ProbeAvailability
+import io.github.slaynaw.wakeonlan.core.status.TempSample
+import io.github.slaynaw.wakeonlan.data.StoredSpecs
 import io.github.slaynaw.wakeonlan.network.LanState
 import io.github.slaynaw.wakeonlan.ui.common.label
 import io.github.slaynaw.wakeonlan.ui.common.sentMessage
@@ -33,6 +35,9 @@ data class DeviceItem(
     val status: DeviceStatus,
     val latency: List<LatencySample> = emptyList(),
     val sharedBy: String? = null,
+    /** Températures des 5 dernières minutes (agent) et fiche du PC (agent 1.10.0), si connues. */
+    val temps: List<TempSample> = emptyList(),
+    val specs: StoredSpecs? = null,
 ) {
     val editable: Boolean get() = sharedBy == null
 }
@@ -58,13 +63,14 @@ class DevicesViewModel(private val container: AppContainer) : ViewModel() {
     val messages: Flow<UiMessage> = _messages.receiveAsFlow()
 
     val state: StateFlow<DevicesUiState> = combine(
-        container.repository.config.combine(container.share.sharedDevices) { c, shared -> c to shared },
-        container.statusMonitor.statuses.combine(container.statusMonitor.latency) { s, l -> s to l },
+        combine(container.repository.config, container.share.sharedDevices, container.specs.data) { c, shared, specs -> Triple(c, shared, specs) },
+        combine(container.statusMonitor.statuses, container.statusMonitor.latency, container.statusMonitor.temps) { s, l, t -> Triple(s, l, t) },
         container.network.state,
         container.probeAvailability,
         container.localNetworkGranted,
-    ) { (config, shared), (statuses, latency), lan, availability, granted ->
-        fun item(d: Device, sharedBy: String? = null) = DeviceItem(d, statuses[d.id] ?: DeviceStatus(), latency[d.id].orEmpty(), sharedBy)
+    ) { (config, shared, specs), (statuses, latency, temps), lan, availability, granted ->
+        fun item(d: Device, sharedBy: String? = null) =
+            DeviceItem(d, statuses[d.id] ?: DeviceStatus(), latency[d.id].orEmpty(), sharedBy, temps[d.id].orEmpty(), specs[d.id])
         DevicesUiState(
             loaded = true,
             items = config.devices.map { item(it) } + shared.map { item(it.device, it.ownerName) },

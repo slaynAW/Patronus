@@ -135,7 +135,7 @@ fun LatencyCard(item: DeviceItem, now: Long) {
 @Composable
 private fun msText(value: Long): String = stringResource(R.string.latency_ms, value)
 
-private fun ProbeMethod.viaLabel(): Int = when (this) {
+internal fun ProbeMethod.viaLabel(): Int = when (this) {
     ProbeMethod.AGENT -> R.string.latency_via_agent
     ProbeMethod.TCP -> R.string.latency_via_tcp
     ProbeMethod.PING -> R.string.latency_via_ping
@@ -143,7 +143,7 @@ private fun ProbeMethod.viaLabel(): Int = when (this) {
 
 /** « En direct » : point vert qui bat au rythme des mesures (une par seconde). */
 @Composable
-private fun LiveBadge() {
+internal fun LiveBadge() {
     val beat by rememberInfiniteTransition(label = "live").animateFloat(
         initialValue = 0f,
         targetValue = 1f,
@@ -169,12 +169,12 @@ private fun LiveBadge() {
 }
 
 @Composable
-private fun AxisLabel(text: String) {
+internal fun AxisLabel(text: String) {
     Text(text, style = MaterialTheme.typography.labelSmall, color = WolPalette.Text3)
 }
 
 @Composable
-private fun RowScope.Stat(label: String, value: String) {
+internal fun RowScope.Stat(label: String, value: String) {
     Column(Modifier.weight(1f)) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = WolPalette.Text3, maxLines = 1)
         Text(
