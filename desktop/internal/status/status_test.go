@@ -407,9 +407,15 @@ func TestTempOf(t *testing.T) {
 	if _, ok := TempOf(1, &agentclient.Status{Temperatures: &protocol.Temperatures{CPULoad: v(5)}}); ok {
 		t.Error("utilisation seule : pas de relevé de température")
 	}
+	// Puce graphique intégrée : sa température (celle de la puce) est gardée, marquée.
 	s, ok := TempOf(7, &agentclient.Status{Temperatures: &protocol.Temperatures{CPU: v(55), GPU: v(55), GPUShared: true}})
-	if !ok || s.T != 7 || *s.CPU != 55 || s.GPU != nil {
+	if !ok || s.T != 7 || *s.CPU != 55 || s.GPU == nil || *s.GPU != 55 || !s.Shared {
 		t.Errorf("puce intégrée : %+v", s)
+	}
+	// Passage de la puce intégrée à la carte dédiée (même valeur) : nouveau relevé.
+	samples := AppendTemp([]TempSample{s}, TempSample{T: 8, CPU: v(55), GPU: v(55)})
+	if len(samples) != 2 || samples[1].Shared {
+		t.Errorf("changement de carte ignoré : %+v", samples)
 	}
 	s, ok = TempOf(8, &agentclient.Status{Temperatures: &protocol.Temperatures{GPU: v(70)}})
 	if !ok || s.CPU != nil || *s.GPU != 70 {

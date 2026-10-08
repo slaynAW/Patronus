@@ -53,8 +53,12 @@ object LatencyLog {
     }
 }
 
-/** Relevé de températures (°C) d'un terminal ; une valeur absente n'a pas été lue. */
-data class TempSample(val time: Long, val cpu: Double?, val gpu: Double?)
+/**
+ * Relevé de températures (°C) d'un terminal ; une valeur absente n'a pas été lue. [gpuShared] : la
+ * carte graphique est intégrée au processeur, sans sonde à part, et [gpu] est la température de la
+ * puce (celle du processeur).
+ */
+data class TempSample(val time: Long, val cpu: Double?, val gpu: Double?, val gpuShared: Boolean = false)
 
 /** Moyenne et maximum d'une série de températures. */
 data class TempStats(val average: Double, val max: Double)
@@ -79,7 +83,7 @@ object TempLog {
     /** Ajoute un relevé en oubliant ceux de plus de [WINDOW_MS] (un relevé répété est ignoré). */
     fun append(samples: List<TempSample>, sample: TempSample): List<TempSample> {
         val last = samples.lastOrNull()
-        if (last != null && last.cpu == sample.cpu && last.gpu == sample.gpu &&
+        if (last != null && last.cpu == sample.cpu && last.gpu == sample.gpu && last.gpuShared == sample.gpuShared &&
             sample.time >= last.time && sample.time - last.time < REPEAT_MS
         ) {
             return samples
@@ -91,14 +95,13 @@ object TempLog {
 
     /**
      * Relevé tiré d'une réponse de l'agent (`null` sans aucune température). La puce graphique
-     * intégrée sans sonde à part ([AgentTemperatures.gpuShared]) reprend la température du
-     * processeur : elle n'est pas tracée deux fois.
+     * intégrée sans sonde à part ([AgentTemperatures.gpuShared]) a la température du processeur :
+     * elle est gardée, marquée (tracée en pointillés).
      */
     fun sampleOf(time: Long, agent: AgentStatus?): TempSample? {
         val t = agent?.temperatures ?: return null
-        val gpu = if (t.gpuShared) null else t.gpu
-        if (t.cpu == null && gpu == null) return null
-        return TempSample(time, t.cpu, gpu)
+        if (t.cpu == null && t.gpu == null) return null
+        return TempSample(time, t.cpu, t.gpu, t.gpuShared && t.gpu != null)
     }
 
     /** Moyenne et maximum d'une série depuis [from] (ms), ou `null` sans relevé. */

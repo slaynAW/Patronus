@@ -85,9 +85,12 @@ class SpecsTest {
         for (i in 0 until 1_000) samples = TempLog.append(samples, TempSample(400_000L + i, i.toDouble(), null))
         assertEquals(TempLog.MAX_SAMPLES, samples.size)
 
-        // Puce graphique intégrée : même température que le processeur, non tracée deux fois.
+        // Puce graphique intégrée : sa température (celle de la puce) est gardée, marquée.
         val shared = AgentStatus(temperatures = AgentTemperatures(cpu = 55.0, gpu = 55.0, gpuShared = true))
-        assertEquals(TempSample(7, 55.0, null), TempLog.sampleOf(7, shared))
+        val sample = TempLog.sampleOf(7, shared)
+        assertEquals(TempSample(7, 55.0, 55.0, gpuShared = true), sample)
+        // Passage de la puce intégrée à la carte dédiée (même valeur) : nouveau relevé.
+        assertEquals(2, TempLog.append(listOfNotNull(sample), TempSample(8, 55.0, 55.0)).size)
         assertNull(TempLog.sampleOf(7, AgentStatus(temperatures = AgentTemperatures(cpuLoad = 5.0))))
         assertNull(TempLog.sampleOf(7, null))
 

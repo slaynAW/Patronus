@@ -192,7 +192,7 @@
     temps_max_cpu: "Max CPU",
     temps_avg_gpu: "Moy. GPU",
     temps_max_gpu: "Max GPU",
-    temps_gpu_shared: "= CPU",
+    temps_gpu_integrated: "GPU intégré",
     temps_waiting: "Relevés en cours…",
     temps_none: "L’agent ne donne aucune température sur ce PC (voir les informations ci-dessous).",
     temps_offline: "Les températures s’affichent quand le PC est allumé.",
@@ -2265,7 +2265,11 @@
       if (hoverX != null) drawHover(rt, xOf, yOf, top, bottom, c);
     }
 
-    /** Une courbe : segments continus (un relevé manquant ou une longue interruption la coupe). */
+    /**
+     * Une courbe : seuls les relevés de la série comptent (un relevé manquant est sauté), une longue
+     * interruption la coupe. Puce graphique intégrée (même température que le processeur) : en
+     * pointillés, pour laisser voir la courbe du processeur dessous.
+     */
     function drawSeries(se, color, rt, gapBreak, xOf, yOf, bottom, right) {
       const segments = [];
       let seg = null;
@@ -2273,49 +2277,59 @@
       let head = null;
       for (const s of samples) {
         const v = s[se.key];
+        if (v == null) continue;
         if (s.t > rt) {
-          if (seg && prev && v != null && s.t - prev.t <= gapBreak) {
+          if (seg && prev && s.t - prev.t <= gapBreak) {
             const at = prev[se.key] + ((v - prev[se.key]) * (rt - prev.t)) / (s.t - prev.t);
             seg.push([right, yOf(at)]);
             head = seg[seg.length - 1];
           }
           break;
         }
-        if (v == null) {
-          seg = null;
-          prev = null;
-          continue;
+        const point = [xOf(s.t), yOf(v)];
+        const dashed = se.key === "g" && !!s.s;
+        if (!seg || (prev && s.t - prev.t > gapBreak)) {
+          segments.push((seg = [point]));
+          seg.dashed = dashed;
+        } else if (dashed !== seg.dashed) {
+          // Puce intégrée ↔ carte dédiée : la courbe continue, en pointillés ou non.
+          segments.push((seg = [seg[seg.length - 1], point]));
+          seg.dashed = dashed;
+        } else {
+          seg.push(point);
         }
-        if (!seg || (prev && s.t - prev.t > gapBreak)) segments.push((seg = []));
-        seg.push([xOf(s.t), yOf(v)]);
         prev = s;
       }
       if (!head && seg && prev && rt - prev.t <= gapBreak) head = seg[seg.length - 1];
 
       for (const points of segments) {
         if (points[points.length - 1][0] < -4) continue;
-        ctx.beginPath();
-        ctx.moveTo(points[0][0], bottom);
-        for (const [x, y] of points) ctx.lineTo(x, y);
-        ctx.lineTo(points[points.length - 1][0], bottom);
-        ctx.closePath();
-        const wash = ctx.createLinearGradient(0, 0, 0, bottom);
-        wash.addColorStop(0, withAlpha(color, 0.12));
-        wash.addColorStop(1, withAlpha(color, 0));
-        ctx.fillStyle = wash;
-        ctx.fill();
+        if (!points.dashed) {
+          ctx.beginPath();
+          ctx.moveTo(points[0][0], bottom);
+          for (const [x, y] of points) ctx.lineTo(x, y);
+          ctx.lineTo(points[points.length - 1][0], bottom);
+          ctx.closePath();
+          const wash = ctx.createLinearGradient(0, 0, 0, bottom);
+          wash.addColorStop(0, withAlpha(color, 0.12));
+          wash.addColorStop(1, withAlpha(color, 0));
+          ctx.fillStyle = wash;
+          ctx.fill();
+        }
 
         ctx.beginPath();
         points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
         if (points.length === 1) ctx.lineTo(points[0][0] + 1, points[0][1]);
         ctx.lineWidth = 2;
         ctx.lineJoin = "round";
-        ctx.lineCap = "round";
+        ctx.lineCap = points.dashed ? "butt" : "round";
+        ctx.setLineDash(points.dashed ? [6, 5] : []);
         ctx.strokeStyle = color;
         ctx.shadowColor = withAlpha(color, 0.5);
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = points.dashed ? 0 : 8;
         ctx.stroke();
         ctx.shadowBlur = 0;
+        ctx.setLineDash([]);
       }
 
       if (head) {
@@ -2374,9 +2388,10 @@
 
   /** Carte « Températures » du panneau de détail : valeurs en direct, tracé des 5 dernières minutes. */
   function tempsCard() {
-    const legend = (cls, label) => {
+    const legend = (cls, text) => {
       const value = h("b");
-      return { el: h("div", { class: "tleg " + cls }, h("span", {}, h("i"), label), value), value };
+      const label = h("span", { text });
+      return { el: h("div", { class: "tleg " + cls }, h("span", {}, h("i"), label), value), value, label };
     };
     const cpu = legend("s-cpu", "CPU");
     const gpu = legend("s-gpu", "GPU");
@@ -2414,9 +2429,9 @@
       h("div", { class: "lat-axis" }, h("span", { text: S.temps_axis_start }), h("span", { text: S.latency_axis_end })),
       h("div", { class: "lat-stats" }, stats.map((s) => s.el)));
 
-    function current(target, value, text) {
+    function current(target, value) {
       setClass(target, value != null ? tempClass(value) || "" : "none");
-      setText(target, text ?? (value != null ? celsius(value) : "—"));
+      setText(target, value != null ? celsius(value) : "—");
     }
 
     return {
@@ -2427,8 +2442,10 @@
         const t = online && s.agent ? s.agent.temperatures : null;
         live.classList.toggle("hidden", !online || !s.agent);
         current(cpu.value, t?.cpu);
-        // Puce graphique intégrée sans sonde à part : même température que le processeur.
-        current(gpu.value, t?.gpuShared ? null : t?.gpu, t?.gpuShared ? S.temps_gpu_shared : null);
+        // Puce graphique intégrée sans sonde à part : température de la puce, celle du processeur.
+        current(gpu.value, t?.gpu);
+        setText(gpu.label, t?.gpuShared ? S.temps_gpu_integrated : "GPU");
+        gpu.el.classList.toggle("shared", !!t?.gpuShared);
         gpu.el.title = t?.gpuShared ? fmt(S.temperature_gpu_shared_help, t.gpuName || "GPU") : t?.gpuName || "";
         const samples = d.temps || [];
         trace.set(samples, d.id);
