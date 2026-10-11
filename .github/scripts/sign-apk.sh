@@ -30,7 +30,7 @@ echo "Outils : $tools"
   --out "$out" "$in"
 
 report=$("$tools/apksigner" verify --verbose --print-certs "$out")
-grep -E '^(Verified using v[23] |Number of signers|Signer #1 certificate (DN|SHA-256))' <<< "$report" || true
+grep -E '^(Verified using v[23] |Number of signers|Signer.* certificate (DN|SHA-256))' <<< "$report" || true
 for line in 'Verified using v2 scheme (APK Signature Scheme v2): true' \
             'Verified using v3 scheme (APK Signature Scheme v3): true' \
             'Number of signers: 1'; do
@@ -40,7 +40,9 @@ for line in 'Verified using v2 scheme (APK Signature Scheme v2): true' \
   fi
 done
 
-signer=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' <<< "$report")
+# Empreinte du certificat de chaque signataire affiché (« Signer #1 … » ou, selon la version
+# d'apksigner, « Signer (minSdkVersion=…, maxSdkVersion=…) … ») : toutes doivent être celle de la clé.
+signer=$(sed -n -E 's/^Signer.* certificate SHA-256 digest: ([0-9a-fA-F]{64})$/\1/p' <<< "$report" | tr 'A-F' 'a-f' | sort -u)
 if ! expected=$(openssl pkcs12 -in "$keystore" -clcerts -nokeys -passin env:KEYSTORE_PASSWORD 2>/dev/null \
     | openssl x509 -outform DER | sha256sum | cut -d' ' -f1); then
   echo "::error title=Signature::Certificat illisible dans le magasin de clés (mot de passe ?)."
@@ -48,6 +50,7 @@ if ! expected=$(openssl pkcs12 -in "$keystore" -clcerts -nokeys -passin env:KEYS
 fi
 if [[ -z "$signer" || "$signer" != "$expected" ]]; then
   echo "::error title=Signature::L'APK n'est pas signé par le certificat de la clé fournie."
+  echo "$report" # informations publiques (certificats), pour le diagnostic
   exit 1
 fi
 
