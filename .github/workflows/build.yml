@@ -1,9 +1,15 @@
 # Compile, teste et publie l'application Android, l'application Windows et l'agent PC.
 #
-# - Chaque push / pull request : tests, lint, APK, application Windows et binaires de l'agent (onglet « Actions »).
-# - Push sur une branche : la pré-version « dev » est remplacée (APK téléchargeable depuis le téléphone).
+# - Chaque push / pull request : tests, lint, APK, application Windows, binaires de l'agent, failles
+#   connues des dépendances et inventaire des composants (onglet « Actions »).
+# - Push sur une branche : la pré-version « dev » est remplacée (APK signé avec une clé de test).
 # - Version officielle : onglet Actions → Build → « Run workflow » en indiquant le numéro (ex. 1.0.0),
-#   ou push d'un tag « vX.Y.Z ». Le tag et la Release GitHub sont créés automatiquement.
+#   ou push d'un tag « vX.Y.Z ». Le job « Publication officielle » attend ta validation
+#   (environnement « publication ») : lui seul reçoit la clé de signature. Il signe l'APK et le
+#   manifeste de mise à jour, atteste la provenance de chaque fichier, puis crée le tag et la Release.
+#
+# Chaîne de production : actions épinglées par empreinte de commit (tenues à jour par Dependabot),
+# jeton en lecture seule par défaut, aucun secret hors du job de publication. Voir SECURITY.md.
 name: Build
 
 on:
@@ -23,7 +29,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-${{ github.ref }}
+  # Une publication officielle a son propre groupe : un push sur la branche ne l'annule pas pendant
+  # qu'elle attend ta validation.
+  group: build-${{ github.ref }}-${{ inputs.release }}
   cancel-in-progress: true
 
 env:
@@ -39,7 +47,9 @@ jobs:
       official: ${{ steps.v.outputs.official }}
       agent: ${{ steps.v.outputs.agent }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
       - id: v
         env:
           RELEASE_INPUT: ${{ inputs.release }}
@@ -79,11 +89,15 @@ jobs:
       run:
         working-directory: agent
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
+          # Version officielle compilée sans cache : rien d'un build précédent ne peut s'y glisser.
+          cache: ${{ needs.version.outputs.official != 'true' }}
       - name: Format
         run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
       - name: Analyse statique (tous les systèmes)
@@ -109,7 +123,7 @@ jobs:
           build darwin amd64
           build darwin arm64
           ls -l ../dist
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: agent
           path: dist/
@@ -123,8 +137,10 @@ jobs:
       run:
         working-directory: agent
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
@@ -146,11 +162,15 @@ jobs:
       run:
         working-directory: desktop
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: desktop/go.mod
           cache-dependency-path: desktop/go.sum
+          # Version officielle compilée sans cache : rien d'un build précédent ne peut s'y glisser.
+          cache: ${{ needs.version.outputs.official != 'true' }}
       - name: Format
         run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
       - name: Analyse statique (Windows x64 / ARM64, Linux)
@@ -193,7 +213,7 @@ jobs:
               -o "../dist/Patronus-Windows-${VERSION}-${label}.exe" .
           done
           ls -l ../dist
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: desktop
           path: dist/
@@ -205,8 +225,10 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: desktop/go.mod
           cache-dependency-path: desktop/go.sum
@@ -214,7 +236,7 @@ jobs:
       - name: Tests
         working-directory: desktop
         run: go test -count=1 ./...
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: desktop
           path: dist
@@ -245,20 +267,26 @@ jobs:
     env:
       WOL_VERSION_NAME: ${{ needs.version.outputs.name }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
           java-version: 21
 
       # Valide aussi la somme de contrôle du gradle-wrapper.jar (protection de la chaîne de build).
-      - uses: gradle/actions/setup-gradle@v6
+      # Version officielle compilée sans cache : rien d'un build précédent ne peut s'y glisser.
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-disabled: ${{ needs.version.outputs.official == 'true' }}
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
+          cache: ${{ needs.version.outputs.official != 'true' }}
 
       # Le vrai agent tourne en mode simulation pour le test de bout en bout (AgentEndToEndTest).
       - name: Agent de test (simulation)
@@ -273,36 +301,9 @@ jobs:
           echo "WOL_E2E_PORT=19770" >> "$GITHUB_ENV"
           echo "WOL_E2E_KEY=$key" >> "$GITHUB_ENV"
 
-      - name: Clé de signature (secrets du dépôt)
-        env:
-          KEYSTORE_BASE64: ${{ secrets.WOL_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.WOL_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ vars.WOL_KEY_ALIAS }}
-        run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            # Tolère les espaces / retours à la ligne ajoutés par un copier-coller.
-            printf '%s' "$KEYSTORE_BASE64" | tr -d ' \t\r\n' | base64 -d > "$RUNNER_TEMP/release.p12" || {
-              echo "::error title=Signature::Le secret WOL_KEYSTORE_BASE64 n'est pas un contenu Base64 valide (recopiez tout le fichier WOL_KEYSTORE_BASE64.txt)."
-              exit 1
-            }
-            password=$(printf '%s' "$KEYSTORE_PASSWORD" | tr -d ' \t\r\n')
-            if ! keytool -list -keystore "$RUNNER_TEMP/release.p12" -storetype PKCS12 -storepass "$password" \
-                 -alias "${KEY_ALIAS:-wakeonlan}" > /dev/null 2>&1; then
-              echo "::error title=Signature::Clé illisible : vérifiez le secret WOL_KEYSTORE_PASSWORD (contenu exact de WOL_KEYSTORE_PASSWORD.txt)."
-              exit 1
-            fi
-            echo "WOL_KEYSTORE_FILE=$RUNNER_TEMP/release.p12" >> "$GITHUB_ENV"
-            echo "SIGNING=release" >> "$GITHUB_ENV"
-            echo "Clé de signature définitive chargée."
-          else
-            echo "::warning title=Signature::Secret WOL_KEYSTORE_BASE64 absent : APK signé avec une clé temporaire. Voir docs/SIGNATURE.md"
-            echo "SIGNING=temporaire" >> "$GITHUB_ENV"
-          fi
-
+      # Aucune clé de signature ici : l'APK est signé avec une clé de test. Seul le job « Publication
+      # officielle » reçoit la clé définitive, après validation (docs/SIGNATURE.md).
       - name: Tests, lint et APK
-        env:
-          WOL_KEYSTORE_PASSWORD: ${{ secrets.WOL_KEYSTORE_PASSWORD }}
-          WOL_KEY_ALIAS: ${{ vars.WOL_KEY_ALIAS }}
         # --rerun : le test de bout en bout doit vraiment interroger l'agent (pas de résultat en cache).
         run: ./gradlew --stacktrace :core:test --rerun :app:lintRelease :app:assembleRelease
 
@@ -319,14 +320,25 @@ jobs:
             core/build/test-results/test/TEST-io.github.slaynaw.wakeonlan.core.AgentEndToEndTest.xml
           cat "$RUNNER_TEMP/agent.log"
 
+      # Rejoue la signature de publication (même script, même outil) avec une clé jetable : un
+      # problème de signature se voit à chaque build, pas le jour d'une version officielle.
+      - name: Signature de publication (essai avec une clé jetable)
+        run: |
+          KEYSTORE_PASSWORD=$(openssl rand -hex 24)
+          export KEYSTORE_PASSWORD
+          keytool -genkeypair -keystore "$RUNNER_TEMP/essai.p12" -storetype PKCS12 -alias essai \
+            -storepass "$KEYSTORE_PASSWORD" -keypass "$KEYSTORE_PASSWORD" \
+            -keyalg RSA -keysize 2048 -validity 1 -dname "CN=Essai" 2>/dev/null
+          bash .github/scripts/sign-apk.sh app/build/outputs/apk/release/app-release.apk \
+            "$RUNNER_TEMP/essai.apk" "$RUNNER_TEMP/essai.p12" essai
+
       - name: Préparation de l'APK
         run: |
           mkdir -p dist
           cp app/build/outputs/apk/release/app-release.apk "dist/Patronus-${WOL_VERSION_NAME}.apk"
-          echo "$SIGNING" > dist/signing.txt
           ls -l dist
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: apk
           path: dist/
@@ -338,7 +350,7 @@ jobs:
         continue-on-error: true
         run: ./gradlew --stacktrace :app:testDebugUnitTest --tests '*ScreenshotTest*'
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always()
         with:
           name: captures-android
@@ -349,7 +361,7 @@ jobs:
 
       - name: Rapports (en cas d'échec)
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: rapports
           path: |
@@ -357,85 +369,206 @@ jobs:
             app/build/reports/
           if-no-files-found: ignore
 
-  release:
-    name: Publication
-    needs: [version, agent, agent-windows, desktop, desktop-windows, android]
-    # Push ou lancement manuel (« Run workflow ») ; jamais pour une pull request.
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+  # Outils tiers d'analyse et d'inventaire, à l'écart des jobs qui produisent les fichiers publiés :
+  # ils ne peuvent pas les modifier, et les caches restent en lecture seule (pas de cache empoisonné
+  # pour les builds suivants).
+  deps:
+    name: Dépendances (failles connues, inventaire)
+    needs: version
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERSION: ${{ needs.version.outputs.name }}
+      AGENT_VERSION: ${{ needs.version.outputs.agent }}
+      WOL_VERSION_NAME: ${{ needs.version.outputs.name }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: agent/go.mod
+          cache: false
+      - name: Outils (versions épinglées)
+        run: |
+          GOBIN="$RUNNER_TEMP/bin" go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          GOBIN="$RUNNER_TEMP/bin" go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      # Failles publiées dans la base de Go et réellement atteignables depuis le code, pour chaque
+      # système visé. Une faille de la bibliothèque standard se corrige en relevant la ligne
+      # « toolchain » des deux go.mod.
+      - name: Failles connues (govulncheck)
+        run: |
+          for os in linux windows darwin; do
+            echo "::group::Agent ($os)"
+            (cd agent && GOOS=$os govulncheck ./...)
+            echo "::endgroup::"
+          done
+          echo "::group::Application Windows"
+          (cd desktop && GOOS=windows govulncheck ./...)
+          echo "::endgroup::"
+      - name: Inventaire des composants (agent et application Windows)
+        run: |
+          mkdir -p dist
+          bash .github/scripts/sbom-go.sh agent "dist/wol-agent-${AGENT_VERSION}.cdx.json" \
+            "github.com/slaynaw/wakeonlan/agent=${AGENT_VERSION}"
+          bash .github/scripts/sbom-go.sh desktop "dist/Patronus-Windows-${VERSION}.cdx.json" \
+            "github.com/slaynaw/wakeonlan/desktop=${VERSION}" "github.com/slaynaw/wakeonlan/agent=${AGENT_VERSION}"
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: true
+          cache-disabled: ${{ needs.version.outputs.official == 'true' }}
+      - name: Inventaire des composants (application Android)
+        run: |
+          ./gradlew --stacktrace --init-script .github/scripts/sbom-android.init.gradle.kts :app:cyclonedxDirectBom
+          jq -r '"\(.metadata.component.name) \(.metadata.component.version) : \(.components | length) composants"' \
+            app/build/reports/sbom/android.cdx.json
+          cp app/build/reports/sbom/android.cdx.json "dist/Patronus-${VERSION}-android.cdx.json"
+          ls -l dist
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: sbom
+          path: dist/
+          if-no-files-found: error
+
+  prerelease:
+    name: Pré-version de développement
+    needs: [version, agent, agent-windows, desktop, desktop-windows, android, deps]
+    # Push sur une branche ou lancement manuel sans numéro ; jamais pour une pull request, ni pour
+    # Dependabot (jeton en lecture seule). Aucun secret : l'APK garde sa clé de test.
+    if: >-
+      needs.version.outputs.official != 'true' && startsWith(github.ref, 'refs/heads/') &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
-      contents: write
+      contents: write # pré-version « dev » (Release et tag)
     env:
       GH_TOKEN: ${{ github.token }}
       VERSION: ${{ needs.version.outputs.name }}
       AGENT_VERSION: ${{ needs.version.outputs.agent }}
+      OFFICIAL: "false"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
       # Uniquement les fichiers publiés (pas les captures d'écran ni les rapports de test).
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: apk
           path: dist
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: desktop
           path: dist
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: agent
           path: dist
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: sbom
+          path: dist
       - name: Notes de version
-        run: |
-          signing=$(cat dist/signing.txt); rm dist/signing.txt
-          (cd dist && sha256sum * > SHA256SUMS.txt)
-          {
-            echo "## 📱 Installer l'application"
-            echo "Depuis le téléphone, téléchargez **Patronus-${VERSION}.apk** ci-dessous puis ouvrez-le"
-            echo "(autorisez l'installation depuis le navigateur si Android le demande)."
-            echo
-            if [ "$signing" != "release" ]; then
-              echo "> ⚠️ APK signé avec une **clé temporaire** (secrets de signature non configurés) :"
-              echo "> pour installer une version suivante, il faudra désinstaller celle-ci (exportez d'abord votre configuration)."
-              echo "> Voir [docs/SIGNATURE.md](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/docs/SIGNATURE.md)."
-              echo
-            fi
-            echo "## 🖥️ Application Windows (mêmes fonctions que l'application Android)"
-            echo "Téléchargez **Patronus-Windows-${VERSION}-x64.exe** (ou \`-arm64.exe\` pour un PC ARM) et lancez-le :"
-            echo "aucune installation, un seul fichier. Windows 10/11 (composant WebView2, déjà présent)."
-            echo "Au premier lancement, SmartScreen peut afficher « Windows a protégé votre ordinateur » :"
-            echo "*Informations complémentaires* → *Exécuter quand même*."
-            echo
-            echo "## 💻 Agent PC ${AGENT_VERSION} (facultatif, pour éteindre à distance)"
-            echo "- **Windows** : \`wol-agent-windows-amd64.exe\` → double-clic → accepter l'invite administrateur → scanner le QR code."
-            echo "- **Linux** : \`chmod +x wol-agent-linux-amd64 && sudo ./wol-agent-linux-amd64 install\`"
-            echo "- **macOS** : \`chmod +x wol-agent-darwin-arm64 && sudo ./wol-agent-darwin-arm64 install\`"
-            echo
-            echo "Sommes de contrôle : \`SHA256SUMS.txt\`. Commit : ${GITHUB_SHA}."
-          } > notes.md
-          ls -l dist
-      # Manifeste des mises à jour intégrées (nouveautés + empreintes), signé avec la clé de l'APK ;
-      # joint aux versions officielles seulement. Voir docs/MISES-A-JOUR.md.
-      - name: Manifeste de mise à jour
-        env:
-          OFFICIAL: ${{ needs.version.outputs.official }}
-          KEYSTORE_BASE64: ${{ secrets.WOL_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.WOL_KEYSTORE_PASSWORD }}
+        run: bash .github/scripts/release-notes.sh
+      - name: Nouveautés
         run: bash .github/scripts/update-manifest.sh
-      - name: Version officielle (tag)
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "Patronus $VERSION" --notes-file notes.md
-      - name: Version officielle (lancement manuel)
-        if: github.event_name == 'workflow_dispatch' && needs.version.outputs.official == 'true'
+      - name: Publication de la pré-version
+        run: |
+          gh release delete dev --cleanup-tag --yes || true
+          gh release create dev dist/* --prerelease --target "$GITHUB_SHA" \
+            --title "Version de développement ${VERSION} (${GITHUB_REF_NAME})" --notes-file notes.md
+
+  release:
+    name: Publication officielle
+    needs: [version, agent, agent-windows, desktop, desktop-windows, android, deps]
+    if: needs.version.outputs.official == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Seul job qui reçoit la clé de signature : l'environnement « publication » attend ta validation
+    # (Settings → Environments → publication : Required reviewers) avant de lui remettre ses secrets.
+    environment: publication
+    permissions:
+      contents: write # tag et Release
+      id-token: write # attestation de provenance (Sigstore)
+      attestations: write # enregistrement des attestations dans le dépôt
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.version.outputs.name }}
+      AGENT_VERSION: ${{ needs.version.outputs.agent }}
+      OFFICIAL: "true"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - name: Numéro de version libre
         run: |
           if gh release view "v$VERSION" > /dev/null 2>&1; then
             echo "::error title=Version::La version v$VERSION existe déjà : choisissez un autre numéro."
             exit 1
           fi
-          # Crée le tag vX.Y.Z sur le commit compilé, puis la Release avec l'APK et les agents.
-          gh release create "v$VERSION" dist/* --target "$GITHUB_SHA" --title "Patronus $VERSION" --notes-file notes.md
-      - name: Pré-version de développement
-        if: startsWith(github.ref, 'refs/heads/') && needs.version.outputs.official != 'true'
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: apk
+          path: dist
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: desktop
+          path: dist
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: agent
+          path: dist
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: sbom
+          path: dist
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Signature de l'APK (clé définitive)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.WOL_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.WOL_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ vars.WOL_KEY_ALIAS }}
         run: |
-          gh release delete dev --cleanup-tag --yes || true
-          gh release create dev dist/* --prerelease --target "$GITHUB_SHA" \
-            --title "Version de développement ${VERSION} (${GITHUB_REF_NAME})" --notes-file notes.md
+          if [[ -z "$KEYSTORE_BASE64" || -z "$KEYSTORE_PASSWORD" ]]; then
+            echo "::error title=Signature::Secrets WOL_KEYSTORE_BASE64 / WOL_KEYSTORE_PASSWORD absents (environnement « publication » ou dépôt). Voir docs/SIGNATURE.md."
+            exit 1
+          fi
+          keystore="$RUNNER_TEMP/release.p12"
+          trap 'rm -f "$keystore"' EXIT
+          # Tolère les espaces / retours à la ligne ajoutés par un copier-coller.
+          printf '%s' "$KEYSTORE_BASE64" | tr -d ' \t\r\n' | base64 -d > "$keystore"
+          apk="dist/Patronus-${VERSION}.apk"
+          bash .github/scripts/sign-apk.sh "$apk" "$RUNNER_TEMP/signed.apk" "$keystore" "${KEY_ALIAS:-wakeonlan}"
+          mv "$RUNNER_TEMP/signed.apk" "$apk"
+      - name: Notes de version
+        run: bash .github/scripts/release-notes.sh
+      # Manifeste des mises à jour intégrées (nouveautés + empreintes), signé avec la clé de l'APK.
+      # Voir docs/MISES-A-JOUR.md.
+      - name: Manifeste de mise à jour
+        env:
+          KEYSTORE_BASE64: ${{ secrets.WOL_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.WOL_KEYSTORE_PASSWORD }}
+        run: bash .github/scripts/update-manifest.sh
+      # Provenance signée (Sigstore) de chaque fichier publié : dépôt, workflow et commit qui l'ont
+      # produit. Vérifiable par tous : gh attestation verify <fichier> --repo slaynAW/Patronus.
+      - name: Attestation de provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
+      - name: Release
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "Patronus $VERSION" --notes-file notes.md
+          else
+            # Crée le tag vX.Y.Z sur le commit compilé, puis la Release.
+            gh release create "v$VERSION" dist/* --target "$GITHUB_SHA" --title "Patronus $VERSION" --notes-file notes.md
+          fi

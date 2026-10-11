@@ -65,8 +65,9 @@ compilations de test.
 
 - `update.json` contient le numéro de version, le code de build, les nouveautés, et pour chaque
   plateforme le nom, la taille et l'empreinte **SHA-256** du fichier.
-- Il est **signé par la CI avec la clé de signature de l'APK** (secrets `WOL_KEYSTORE_*`,
-  RSA / SHA-256). Aucun nouveau secret n'est nécessaire.
+- Il est **signé avec la clé de signature de l'APK** (secrets `WOL_KEYSTORE_*`, RSA / SHA-256) par
+  le job « Publication officielle » de la CI, le seul à recevoir la clé, après validation
+  ([SIGNATURE.md](SIGNATURE.md)). Aucun nouveau secret n'est nécessaire.
 - **Android** vérifie la signature avec le certificat de l'application installée ; **Windows** et
   **l'agent** avec le certificat `agent/update/release-cert.pem` qui leur est intégré. Un manifeste
   non signé ou modifié est refusé.
@@ -79,9 +80,9 @@ compilations de test.
 ### Certificat de l'application Windows et de l'agent
 
 `agent/update/release-cert.pem` contient le certificat **public** de la clé de signature.
-À chaque build, la CI vérifie qu'il correspond à la clé des secrets : sinon elle affiche le
-certificat attendu dans le journal (étape « Manifeste de mise à jour ») et refuse de publier une
-version officielle. Tant qu'il est absent, les mises à jour intégrées de l'application Windows sont
+À chaque version officielle, la CI vérifie qu'il correspond à la clé des secrets : sinon elle
+affiche le certificat attendu dans le journal (étape « Manifeste de mise à jour ») et refuse de
+publier. Tant qu'il est absent, les mises à jour intégrées de l'application Windows sont
 désactivées (elle l'indique dans ses réglages).
 
 ## Dépannage

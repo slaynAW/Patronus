@@ -3,6 +3,11 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.11.2
+
+- **Correctifs de sécurité** : l'application Windows est compilée avec Go 1.26.9, qui corrige 26 failles de sa bibliothèque standard atteignables depuis l'application (connexions HTTPS à GitHub, vérification des certificats, analyse des adresses). Il s'agit surtout de blocages ou de plantages que pourraient provoquer un serveur ou des données malveillants.
+- **Versions vérifiables** : chaque version officielle n'est signée qu'après une validation manuelle, et elle est accompagnée d'une attestation de provenance (preuve qu'elle a été compilée par GitHub à partir du code publié, vérifiable avec `gh attestation verify`) et de l'inventaire de ses composants. Voir SECURITY.md.
+
 ## 1.11.1
 
 - **Température GPU sur le grand graphique** : une puce graphique intégrée au processeur (Intel UHD, Iris Xe, Radeon intégrée) a désormais sa courbe, sa valeur et sa moyenne. N'ayant pas de sonde à part, elle a la température du processeur : sa courbe est tracée en pointillés violets par-dessus celle du processeur.
