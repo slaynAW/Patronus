@@ -30,7 +30,7 @@ echo "Outils : $tools"
   --out "$out" "$in"
 
 report=$("$tools/apksigner" verify --verbose --print-certs "$out")
-grep -E '^(Verified using v[23] |Number of signers|Signer.* certificate (DN|SHA-256))' <<< "$report" || true
+grep -E '^(Verified using v[23] |Number of signers)|Signer.* certificate (DN|SHA-256)' <<< "$report" || true
 for line in 'Verified using v2 scheme (APK Signature Scheme v2): true' \
             'Verified using v3 scheme (APK Signature Scheme v3): true' \
             'Number of signers: 1'; do
@@ -40,9 +40,11 @@ for line in 'Verified using v2 scheme (APK Signature Scheme v2): true' \
   fi
 done
 
-# Empreinte du certificat de chaque signataire affiché (« Signer #1 … » ou, selon la version
-# d'apksigner, « Signer (minSdkVersion=…, maxSdkVersion=…) … ») : toutes doivent être celle de la clé.
-signer=$(sed -n -E 's/^Signer.* certificate SHA-256 digest: ([0-9a-fA-F]{64})$/\1/p' <<< "$report" | tr 'A-F' 'a-f' | sort -u)
+# Empreinte du certificat de chaque signataire affiché, quel que soit le format de la version
+# d'apksigner (« Signer #1 … », « Signer (minSdkVersion=…) … », « V3.0 Signer: … ») ; les lignes
+# du tampon de source (SourceStamp) sont ignorées. Toutes doivent être l'empreinte de la clé.
+signer=$(sed -n -E '/[Ss]tamp/d; s/.*Signer.* certificate SHA-256 digest: ([0-9a-fA-F]{64})$/\1/p' <<< "$report" \
+  | tr 'A-F' 'a-f' | sort -u)
 if ! expected=$(openssl pkcs12 -in "$keystore" -clcerts -nokeys -passin env:KEYSTORE_PASSWORD 2>/dev/null \
     | openssl x509 -outform DER | sha256sum | cut -d' ' -f1); then
   echo "::error title=Signature::Certificat illisible dans le magasin de clés (mot de passe ?)."
