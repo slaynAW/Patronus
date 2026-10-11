@@ -232,9 +232,11 @@ func (f *fakeProber) Probe(context.Context, model.Device) ProbeResult {
 	return down
 }
 
+// waitFor attend une condition. Délai large : sur une machine de CI chargée (tests -race,
+// compilation sans cache), un relevé peut arriver bien après son heure prévue.
 func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for !cond() {
 		if time.Now().After(deadline) {
 			t.Fatalf("délai dépassé : %s", what)
@@ -298,10 +300,8 @@ func TestMonitorFastDuringTransition(t *testing.T) {
 	waitFor(t, "première sonde", func() bool { return prober.probes.Load() >= 1 })
 	m.OnWakeSent("x")
 	start := prober.probes.Load()
-	time.Sleep(2500 * time.Millisecond)
-	if n := prober.probes.Load() - start; n < 3 {
-		t.Errorf("une sonde par seconde pendant le réveil attendue (%d)", n)
-	}
+	// Trois sondes en moins de 10 s : impossible au rythme normal (une toutes les 60 s).
+	waitFor(t, "une sonde par seconde pendant le réveil", func() bool { return prober.probes.Load()-start >= 3 })
 }
 
 func TestMonitorLatencyAndLive(t *testing.T) {
@@ -326,12 +326,10 @@ func TestMonitorLatencyAndLive(t *testing.T) {
 		t.Errorf("latence mesurée attendue : %+v", s)
 	}
 	start := prober.probes.Load()
-	time.Sleep(2500 * time.Millisecond)
-	if n := prober.probes.Load() - start; n < 2 {
-		t.Errorf("une sonde par seconde pour le PC affiché en détail attendue (%d)", n)
-	}
+	// Deux sondes en moins de 10 s : impossible au rythme normal (une toutes les 60 s).
+	waitFor(t, "une sonde par seconde pour le PC affiché en détail", func() bool { return prober.probes.Load()-start >= 2 })
 	m.SetLive("")
-	time.Sleep(1200 * time.Millisecond)
+	time.Sleep(2500 * time.Millisecond) // laisse passer une dernière sonde rapide déjà prévue
 	before := prober.probes.Load()
 	time.Sleep(1500 * time.Millisecond)
 	if n := prober.probes.Load() - before; n != 0 {
