@@ -8,8 +8,11 @@
 # La section « agent » décrit l'agent joint (numéro propre AGENT_VERSION, nouveautés de
 # agent/NOUVEAUTES.md, binaires Windows) : les agents installés s'en servent pour se mettre à jour.
 #
-# Variables : VERSION, AGENT_VERSION, OFFICIAL (true/false), WOL_VERSION_CODE, KEYSTORE_BASE64,
-# KEYSTORE_PASSWORD.
+# Signé et joint aux versions officielles seulement (les applications ne lisent que la dernière
+# d'entre elles) : la clé n'est remise qu'au job « Publication officielle », après validation.
+#
+# Variables : VERSION, AGENT_VERSION, OFFICIAL (true/false), WOL_VERSION_CODE ; pour une version
+# officielle, KEYSTORE_BASE64 et KEYSTORE_PASSWORD.
 set -euo pipefail
 
 base_version="${VERSION%%-*}"
@@ -58,13 +61,13 @@ jq -n --arg v "$VERSION" --argjson code "$WOL_VERSION_CODE" --arg d "$(date -u +
   '{format: 1, version: $v, code: $code, date: $d, notes: $notes, files: $files} + (if $agent == null then {} else {agent: $agent} end)' > update.json
 cat update.json
 
-if [[ -z "${KEYSTORE_BASE64:-}" || -z "${KEYSTORE_PASSWORD:-}" ]]; then
-  if [[ "$OFFICIAL" == true ]]; then
-    echo "::error title=Mises à jour::Secrets de signature absents : impossible de signer le manifeste de mise à jour."
-    exit 1
-  fi
-  echo "::warning title=Mises à jour::Secrets de signature absents : pas de manifeste de mise à jour."
+if [[ "$OFFICIAL" != true ]]; then
+  echo "Version de développement : manifeste ni signé ni joint."
   exit 0
+fi
+if [[ -z "${KEYSTORE_BASE64:-}" || -z "${KEYSTORE_PASSWORD:-}" ]]; then
+  echo "::error title=Mises à jour::Secrets de signature absents : impossible de signer le manifeste de mise à jour."
+  exit 1
 fi
 
 work=$(mktemp -d)
@@ -75,18 +78,13 @@ openssl pkcs12 -in "$work/release.p12" -clcerts -nokeys -passin env:KEYSTORE_PAS
 openssl dgst -sha256 -sign "$work/key.pem" -out "$work/update.sig" update.json
 openssl dgst -sha256 -verify <(openssl x509 -in "$work/cert.pem" -pubkey -noout) -signature "$work/update.sig" update.json
 
-# Le certificat intégré à l'application Windows doit être celui de la clé de signature.
-committed=agent/update/release-cert.pem # application Windows et agent
+# Le certificat intégré à l'application Windows et à l'agent doit être celui de la clé de signature.
+committed=agent/update/release-cert.pem
 if ! cmp -s <(openssl x509 -in "$committed" -outform DER 2>/dev/null) <(openssl x509 -in "$work/cert.pem" -outform DER); then
-  echo "::warning title=Mises à jour::$committed ne correspond pas à la clé de signature de l'APK : l'application Windows refuserait les mises à jour. Certificat (public) à y placer :"
+  echo "::error title=Mises à jour::$committed ne correspond pas à la clé de signature de l'APK : l'application Windows et l'agent refuseraient les mises à jour. Certificat (public) à y placer :"
   cat "$work/cert.pem"
-  if [[ "$OFFICIAL" == true ]]; then
-    exit 1
-  fi
+  exit 1
 fi
 
-# Joints seulement aux versions officielles (les applications ne lisent que la dernière d'entre elles).
-if [[ "$OFFICIAL" == true ]]; then
-  cp update.json dist/update.json
-  base64 -w0 "$work/update.sig" > dist/update.json.sig
-fi
+cp update.json dist/update.json
+base64 -w0 "$work/update.sig" > dist/update.json.sig

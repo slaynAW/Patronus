@@ -10,8 +10,9 @@ val appVersionName = providers.environmentVariable("WOL_VERSION_NAME").orNull
     ?: providers.gradleProperty("wol.versionName").get()
 val appVersionCode = providers.environmentVariable("WOL_VERSION_CODE").orNull?.toIntOrNull() ?: 1
 
-// Signature : la clé n'est JAMAIS dans le dépôt. La CI la reconstitue depuis les secrets GitHub
-// (voir docs/SIGNATURE.md). Sans clé, l'APK de release est signé avec la clé de debug locale.
+// Signature : la clé n'est JAMAIS dans le dépôt. Ces variables servent à signer un APK de publication
+// en local. La CI ne les définit pas : elle compile avec la clé de debug, puis seul le job « Publication
+// officielle » re-signe l'APK avec la clé définitive (docs/SIGNATURE.md).
 val keystorePath = providers.environmentVariable("WOL_KEYSTORE_FILE").orNull
 val keystorePassword = providers.environmentVariable("WOL_KEYSTORE_PASSWORD").orNull?.trim()?.takeIf { it.isNotEmpty() }
 val keyAliasName = providers.environmentVariable("WOL_KEY_ALIAS").orNull?.takeIf { it.isNotBlank() } ?: "wakeonlan"

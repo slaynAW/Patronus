@@ -81,7 +81,7 @@
 | Températures et utilisation | Lecture seule des capteurs et des compteurs de performance de Windows (utilisation du processeur et des cartes graphiques, sans détail par programme transmis), jointe à `status` (donc réservée aux détenteurs de la clé). L'agent n'installe aucun pilote : les cartes graphiques sont lues par l'interface du noyau graphique de Windows (comme le Gestionnaire des tâches) et, pour NVIDIA, par la bibliothèque de son pilote (`nvml.dll`, dossier système) ; le processeur par LibreHardwareMonitor s'il tourne (WMI local, ou son serveur web : `127.0.0.1`, ou l'adresse choisie dans LHM si c'est l'une de celles du PC ; jamais d'autre machine, ni proxy ni redirection), ou par les capteurs du noyau sous Linux. Le serveur web de LibreHardwareMonitor n'a pas de mot de passe par défaut et permet de piloter les ventilateurs : ne l'ouvrez pas dans le pare-feu, l'agent le lit en local. Relevés limités à un toutes les 5 s. |
 | Fichier de configuration | Lisible uniquement par root (Linux/macOS, `0600`) ou SYSTEM/Administrateurs (Windows, ACL posées via les SID). |
 | Linux | Service systemd durci (`NoNewPrivileges`, `ProtectSystem`, `ProtectHome`, `PrivateTmp`…). |
-| Chaîne de production | Binaires compilés par la CI (`-trimpath`, sans CGO), sommes SHA-256 publiées ; somme du wrapper Gradle vérifiée. |
+| Chaîne de production | Binaires compilés par la CI (`-trimpath`, sans CGO) avec une version de Go épinglée et sans faille connue atteignable (`govulncheck` à chaque build) ; versions officielles compilées sans cache, sommes SHA-256, provenance attestée et inventaire des composants publiés ; somme du wrapper Gradle vérifiée. Voir [SECURITY.md](../SECURITY.md). |
 
 ## Limites connues (et parades)
 
@@ -92,7 +92,8 @@
   ni lire la clé ni forger de commande.
 - **Le QR code d'appairage contient la clé** : ne le partagez pas, ne le photographiez pas avec un autre appareil. En cas de doute :
   `wol-agent rotate-key`.
-- **APK hors Play Store** : vérifiez que vous téléchargez l'APK depuis les Releases de votre dépôt. Configurez la clé de signature
-  ([SIGNATURE.md](SIGNATURE.md)) pour qu'Android refuse toute « mise à jour » signée par quelqu'un d'autre.
+- **APK hors Play Store** : téléchargez l'APK depuis les Releases du dépôt ; sa provenance et l'empreinte de son certificat
+  se vérifient ([SECURITY.md](../SECURITY.md)). Android refuse toute « mise à jour » signée par une autre clé
+  ([SIGNATURE.md](SIGNATURE.md)).
 - **Accès à distance** : n'ouvrez **jamais** le port de l'agent sur Internet (redirection de port). Utilisez un VPN (voir
   [AMELIORATIONS.md](AMELIORATIONS.md)).

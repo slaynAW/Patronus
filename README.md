@@ -79,9 +79,9 @@ L'APK est produit automatiquement par GitHub à chaque modification du code.
 4. Au premier lancement sous Android 17, acceptez l'autorisation **« Appareils à proximité / réseau local »** : sans elle, Android bloque tout accès au réseau local.
 
 > **Mises à jour** : à partir de la version 1.2.0, l'application les propose elle-même (*Mettre à jour*, voir
-> [docs/MISES-A-JOUR.md](docs/MISES-A-JOUR.md)). On peut aussi installer le nouvel APK par-dessus l'ancien. Cela fonctionne tant que les APK sont signés avec la même clé :
-> configurez une fois la clé de signature en suivant **[docs/SIGNATURE.md](docs/SIGNATURE.md)** (5 minutes). Sans cette étape, chaque build
-> est signé avec une clé temporaire et il faut désinstaller avant de réinstaller (pensez à exporter la configuration).
+> [docs/MISES-A-JOUR.md](docs/MISES-A-JOUR.md)). On peut aussi installer le nouvel APK par-dessus l'ancien : les versions officielles
+> sont toutes signées avec la même clé ([docs/SIGNATURE.md](docs/SIGNATURE.md)). La pré-version `dev` est signée avec une clé de test :
+> elle ne s'installe qu'après avoir désinstallé l'application (pensez à exporter la configuration).
 
 ## 2. Installer l'application Windows
 
@@ -231,7 +231,8 @@ Détails : **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** et **[docs/PROTOCOLE
 | Fuite d'une sauvegarde automatique | Chiffrée comme l'export complet par un mot de passe dédié ; Gist secret ; mot de passe et jeton gardés chiffrés sur l'appareil ([docs/SAUVEGARDE.md](docs/SAUVEGARDE.md)). |
 | Fuite des archives des mesures | Chiffrées par le mot de passe des sauvegardes (AES-256-GCM, PBKDF2 600 000) ; seules les dates sont en clair ; Gists secrets ([docs/ARCHIVES.md](docs/ARCHIVES.md)). |
 | Partage des PC | Accès chiffré pour la clé d'un seul appareil (ECDH P-256 + AES-256-GCM) et signé par la personne qui partage (ECDSA P-256) ; code de vérification ; aucun accès aux dépôts GitHub ([docs/PARTAGE.md](docs/PARTAGE.md)). |
-| APK modifié | Signature de l'APK avec une clé privée stockée uniquement dans les secrets GitHub ; somme de contrôle de Gradle vérifiée. |
+| APK modifié | Signature de l'APK avec une clé privée remise uniquement à la publication officielle, après validation manuelle ; somme de contrôle de Gradle vérifiée. |
+| Version piégée (chaîne de production) | Actions épinglées par empreinte, failles connues vérifiées à chaque build, versions officielles compilées sans cache, provenance attestée (`gh attestation verify`) et inventaire des composants joints ([SECURITY.md](SECURITY.md)). |
 
 Détails et limites : **[docs/SECURITE.md](docs/SECURITE.md)**.
 
@@ -257,11 +258,14 @@ Détails et limites : **[docs/SECURITE.md](docs/SECURITE.md)**.
 | `cd desktop && go test ./...` | Tests de l'application Windows |
 | `cd desktop && go run .` | Application Windows en mode développement (navigateur, sous Linux / macOS) |
 
-Versions : AGP 9.4, Kotlin 2.4, Gradle 9.7, compileSdk/targetSdk 37, minSdk 26, Go 1.26.
+Versions : AGP 9.4, Kotlin 2.4, Gradle 9.7, compileSdk/targetSdk 37, minSdk 26, Go 1.26 (version exacte : ligne
+`toolchain` des `go.mod`).
 Publier une version officielle : onglet **Actions → Build → Run workflow**, branche `main`, champ
-« Version officielle à publier » (ex. `1.2.0`). La CI crée le tag `v1.2.0` et la Release avec l'APK et les agents
-(pousser un tag `vX.Y.Z` fonctionne aussi). Sans numéro, le build met simplement à jour la pré-version `dev`.
-Chaque Release contient l'APK, l'application Windows (x64 et ARM64) et les agents.
+« Version officielle à publier » (ex. `1.2.0`). Une fois les builds terminés, le job « Publication officielle » attend
+ta validation (**Review deployments**, voir [docs/SIGNATURE.md](docs/SIGNATURE.md)), puis crée le tag `v1.2.0` et la
+Release (pousser un tag `vX.Y.Z` fonctionne aussi). Sans numéro, le build met simplement à jour la pré-version `dev`.
+Chaque Release contient l'APK, l'application Windows (x64 et ARM64), les agents, leurs sommes de contrôle et
+l'inventaire de leurs composants ; la provenance de chaque fichier est attestée ([SECURITY.md](SECURITY.md)).
 
 ## 9. Pistes d'amélioration
 

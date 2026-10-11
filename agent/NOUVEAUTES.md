@@ -5,6 +5,10 @@ compilé par la CI. **Ajoutez une section (numéro supérieur) à chaque modific
 numéro que les agents installés comparent au leur pour proposer la mise à jour. Le texte de la section est
 affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
+## 1.10.1
+
+- **Correctifs de sécurité** : agent compilé avec Go 1.26.9, qui corrige 27 failles de sa bibliothèque standard atteignables depuis l'agent (connexions HTTPS des mises à jour, vérification des certificats, analyse des adresses). Il s'agit surtout de blocages ou de plantages que pourraient provoquer un serveur ou des données malveillants.
+
 ## 1.10.0
 
 - **Fiche du PC** : processeur (cœurs, threads, fréquence), mémoire vive (barrettes, type, vitesse, emplacements), cartes graphiques (mémoire vidéo, pilote), carte mère et BIOS, modèle du PC et version du système, lus dans le micrologiciel (SMBIOS) et auprès de Windows ou Linux. Les applications 1.11.0 l'affichent sur la fiche du PC ; `wol-agent status` aussi. Aucun numéro de série n'est lu.
