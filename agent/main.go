@@ -46,6 +46,8 @@ Commandes :
                Options : --port 9770, --name "PC Bureau", --ip 192.168.1.20, --no-firewall, --firewall-public
   pair         Réaffiche le QR code / lien d'appairage.  Options : --ip, --png fichier.png, --invert
   rotate-key   Génère une nouvelle clé (l'ancienne ne fonctionne plus : ré-appairez le téléphone).
+  devices      Appareils autorisés en wolagent/2, le protocole chiffré des prochaines applications :
+               liste, retrait, rôle, nom (« wol-agent devices help »).
   status       Affiche l'état du service et la configuration.
   diagnostic   Crée un rapport de diagnostic chiffré par un mot de passe (état, journal), à transmettre
                pour analyser un problème. Options : --out fichier.diag
@@ -56,7 +58,7 @@ Commandes :
   run          Lance l'agent au premier plan (utilisé par le service).  Options : --config, --dry-run
   version      Affiche la version.
 
-Les commandes install, pair, rotate-key, update et uninstall nécessitent les droits administrateur
+Les commandes install, pair, rotate-key, devices, update et uninstall nécessitent les droits administrateur
 (Windows : invite de commandes « Exécuter en tant qu'administrateur » ; Linux/macOS : sudo).
 `
 
@@ -81,6 +83,8 @@ func main() {
 		err = cmdPair(args[1:])
 	case "rotate-key":
 		err = cmdRotateKey(args[1:])
+	case "devices":
+		err = cmdDevices(args[1:])
 	case "status":
 		err = cmdStatus(args[1:])
 	case "diagnostic":
@@ -132,6 +136,7 @@ func cmdRun(args []string) error {
 		if err != nil {
 			return err
 		}
+		enableV2(srv, cfg, *cfgPath, logger)
 		if cfg.RecordsMetrics() {
 			// Relevés continus : l'état renvoie le dernier, les applications lisent les minutes enregistrées.
 			recorder := metrics.New(metricsDir(*cfgPath), sensors.Read, time.Now)
@@ -380,6 +385,7 @@ func cmdStatus(args []string) error {
 	}
 	fmt.Printf("Nom           : %s\nPort          : %d\nCommandes     : %v\nRéseaux       : %v\n", cfg.Name, cfg.Port, cfg.Commands, cfg.Allow)
 	fmt.Printf("Mesures       : %s\n", describeMetrics(cfg, *cfgPath))
+	fmt.Printf("Protocoles    : %s\n", describeV2(cfg, *cfgPath))
 	if runtime.GOOS == "windows" {
 		if cfg.AutoUpdates() {
 			fmt.Println("Mises à jour  : recherche quotidienne, installées après accord de l'utilisateur connecté")

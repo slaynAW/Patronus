@@ -75,6 +75,17 @@ const (
 	HistoryCommand = "cmd"
 	// HistoryWake : démarrage demandé par une application (C = adresse, B = nom de l'appareil).
 	HistoryWake = "wake"
+	// HistoryDevice : changement dans les appareils autorisés en wolagent/2 (A = DeviceAdded…,
+	// B = nom de l'appareil, I = son empreinte courte, X = son rôle ; agent 1.11.0 ou plus).
+	HistoryDevice = "device"
+)
+
+// Changements notés par les évènements HistoryDevice (HistoryEvent.A).
+const (
+	DeviceAdded   = "added"
+	DeviceRevoked = "revoked"
+	DeviceRole    = "role"
+	DeviceRenamed = "renamed"
 )
 
 // HistoryEvent est un évènement du journal de l'agent.
@@ -94,6 +105,11 @@ type HistoryEvent struct {
 	// D précise la cause : code et nom de l'écran bleu (« 0x7E SYSTEM_THREAD_EXCEPTION_NOT_HANDLED »),
 	// composant en panne…
 	D string `json:"d,omitempty"`
+	// I est l'empreinte courte de l'appareil authentifié en wolagent/2 (commandes, démarrages et
+	// évènements HistoryDevice ; agent 1.11.0 ou plus).
+	I string `json:"i,omitempty"`
+	// X est le rôle de l'appareil dans un évènement HistoryDevice.
+	X string `json:"x,omitempty"`
 }
 
 // Same indique le même évènement, cause mise à part (l'agent la précise après coup).
@@ -202,6 +218,9 @@ type ResponseBody struct {
 	Disks *Disks `json:"disks,omitempty"`
 	// Specs n'est renseigné que pour la commande « specs » (agent 1.10.0 ou plus).
 	Specs *Specs `json:"specs,omitempty"`
+	// Protocols liste les protocoles acceptés par l'agent (agent 1.11.0 ou plus) : la présence de
+	// « wolagent/2 » permet aux applications de migrer (docs/PROTOCOLE-V2.md, §9).
+	Protocols []string `json:"protocols,omitempty"`
 }
 
 // Specs est la fiche du PC. Une information illisible est absente ; aucun numéro de série n'y figure.

@@ -107,6 +107,7 @@ func agentReport(cfgPath string, now time.Time) string {
 		line("Nom « %s », port %d, clé %s, commandes %v, réseaux autorisés %v, mises à jour automatiques %t",
 			cfg.Name, cfg.Port, pick(cfg.Key != "", "présente", "absente"), cfg.Commands, cfg.Allow, cfg.AutoUpdates())
 		line("Mesures : %s", describeMetrics(cfg, cfgPath))
+		line("Protocoles : %s", describeV2(cfg, cfgPath))
 	}
 	if iface, err := netinfo.Detect(""); err == nil {
 		line("Carte réseau : %s, IP %s, MAC %s", iface.Name, iface.IP, iface.MAC)

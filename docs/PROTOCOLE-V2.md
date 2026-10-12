@@ -38,6 +38,7 @@ Conventions :
 ```
 Application (identité D)                                   Agent (identité A)
   │── TCP vers le port 9770 ────────────────────────────────▶│ adresse dans un réseau autorisé ?
+  │◀─ ligne de salut (comme en wolagent/1) ──────────────────│
   │── ClientHello (TLS 1.3, ALPN wolagent/2) ───────────────▶│ premier octet 0x16 : wolagent/2
   │◀─ certificat de A ── empreinte(A) = celle épinglée ? ────│
   │── certificat de D ──────────────────────────────────────▶│ D enregistré ? avec quel rôle ?
@@ -109,13 +110,16 @@ utile qu'en cas de doute sur la clé.
 
 - Même port TCP que `wolagent/1` (**9770** par défaut). La liste des réseaux autorisés (`allow`) est vérifiée en
   premier, comme aujourd'hui.
-- `wolagent/1` fait parler l'agent en premier, TLS le client. L'agent attend donc le premier octet pendant **250 ms**
-  au plus :
-  - `0x16` (début d'un `ClientHello` TLS) : `wolagent/2` ;
-  - aucun octet : salut `wolagent/1`, si `wolagent/1` est activé ;
-  - tout autre octet : fermeture.
-- Quand `wolagent/1` est désactivé, l'agent attend le `ClientHello` jusqu'à 10 s.
-- Un client `wolagent/2` envoie son `ClientHello` dès la connexion établie : la détection ne lui coûte rien.
+- L'agent envoie toujours sa **ligne de salut** en premier, comme en `wolagent/1` :
+  - `{"proto":"wolagent/1","nonce":"…"}` si `wolagent/1` est accepté, sinon `{"proto":"wolagent/2"}` ;
+  - `{"error":"rate_limited"}` à une adresse bloquée (§3.3), puis fermeture.
+- Le **premier octet** du client choisit ensuite le protocole, sans délai d'attente : `{` (requête `wolagent/1`) ou
+  `0x16` (début d'un `ClientHello` TLS : `wolagent/2`). Un autre octet, ou une requête `wolagent/1` quand celui-ci est
+  désactivé : fermeture. Une simple sonde TCP (connexion puis fermeture) n'est pas un échec.
+- Un client `wolagent/2` lit la ligne de salut (256 octets au plus, sans rien lire au-delà), puis ouvre TLS. Si c'est
+  une erreur, il s'arrête et l'affiche. La ligne n'est pas authentifiée : elle ne sert qu'à cela.
+- Pourquoi le salut d'abord : les clients `wolagent/1` attendent la parole de l'agent. Attendre de leur part un premier
+  octet qui ne viendra pas ajouterait ce délai à chaque échange, et à la latence affichée par les applications.
 
 ### 3.2 TLS
 
@@ -125,7 +129,7 @@ utile qu'en cas de doute sur la clé.
 | Suites | `TLS_AES_128_GCM_SHA256`, `TLS_AES_256_GCM_SHA384`, `TLS_CHACHA20_POLY1305_SHA256` |
 | Échange de clés | `X25519MLKEM768` (hybride post-quantique) si les deux côtés le connaissent, sinon `X25519`, `secp256r1` |
 | Signatures | `ecdsa_secp256r1_sha256` uniquement |
-| ALPN | Le client propose exactement `wolagent/2` ; l'agent l'exige (sinon alerte `no_application_protocol`) |
+| ALPN | Le client propose exactement `wolagent/2` ; l'agent l'exige (sinon poignée de main refusée) |
 | SNI | Non envoyé (agents désignés par leur adresse) ; ignoré s'il est présent |
 | Certificat du client | Obligatoire. L'agent accepte au niveau TLS toute identité P-256, puis décide au niveau des commandes (§5). |
 | Reprise de session, tickets | Désactivés : chaque connexion s'authentifie complètement, une révocation s'applique tout de suite |
@@ -143,10 +147,10 @@ Vérifications, avant tout envoi de données :
 | Limite | Valeur |
 |---|---|
 | Établissement de TLS | 10 s au plus |
-| Inactivité | Fermeture par l'agent après 30 s sans requête |
+| Inactivité | Fermeture par l'agent après 30 s sans requête ; 10 s pour une identité inconnue |
 | Requêtes par connexion | 100 au plus |
 | Connexions simultanées | 16, partagées avec `wolagent/1` |
-| Échecs par adresse | 5 en une minute (TLS refusé, identité inconnue hors appairage, `pair` ou `migrate` refusé) : blocage de l'adresse 5 min |
+| Échecs par adresse | 5 en une minute (TLS refusé par l'agent, identité inconnue hors appairage, `pair` ou `migrate` refusé), partagés avec `wolagent/1` : blocage de l'adresse 5 min. Un refus du client (empreinte différente) n'est pas compté. |
 | Échecs d'appairage, toutes adresses | Plus de 20 `pair` refusés en 10 min : invitations en attente annulées et appairage suspendu 10 min (noté au journal) |
 
 ## 4. Trames et messages
@@ -171,7 +175,9 @@ Une longueur nulle, une longueur au-delà du maximum ou une trame tronquée ferm
 {"id":3,"cmd":"metrics","day":"2026-10-03"}
 ```
 
-- `id` : entier de 1 à 2 147 483 647, **strictement croissant** sur la connexion. Sinon : `bad_request` et fermeture.
+- `id` : entier de 1 à 2 147 483 647, **strictement croissant** sur la connexion. Une requête illisible (JSON invalide
+  ou qui n'est pas un objet) ou dont l'`id` est invalide reçoit `bad_request` (avec l'`id` 0 si elle est illisible),
+  puis la connexion est fermée.
 - `cmd` et les champs propres à chaque commande : ceux de `wolagent/1` (`delay`, `force`, `wakes`, `day`) et ceux des
   nouvelles commandes (§6).
 - `by` est ignoré : le nom de l'appareil vient du registre de l'agent.
@@ -197,7 +203,7 @@ Une longueur nulle, une longueur au-delà du maximum ou une trame tronquée ferm
 | `code` | Sens | Connexion |
 |---|---|---|
 | `ok` | Succès | Gardée |
-| `bad_request` | Requête illisible ou invalide | Gardée (fermée si `id` invalide) |
+| `bad_request` | Paramètre invalide (empreinte, rôle, durée…), appareil ou invitation introuvable ; requête illisible ou `id` invalide | Gardée ; fermée si la requête est illisible ou son `id` invalide |
 | `unsupported` | Commande inconnue ou indisponible sur ce PC | Gardée |
 | `busy` | À redemander dans un instant (fiche du PC pas encore lue) | Gardée |
 | `forbidden` | Commande désactivée sur ce PC (liste blanche `commands`) | Gardée |
@@ -207,7 +213,7 @@ Une longueur nulle, une longueur au-delà du maximum ou une trame tronquée ferm
 | `unknown_device` | Identité non enregistrée (jamais appairée, ou révoquée) | Fermée après la réponse |
 | `pairing_failed` | Code invalide, expiré, déjà utilisé ou réservé à un autre appareil (même réponse dans tous les cas) | Fermée |
 | `migration_failed` | Preuve invalide ou migration indisponible | Fermée |
-| `rate_limited` | Trop d'échecs depuis cette adresse | Fermée |
+| `rate_limited` | Trop d'échecs depuis cette adresse : envoyé à la place du salut, avant TLS (§3.1) | Fermée |
 
 ## 5. Rôles
 
@@ -234,8 +240,8 @@ Ordre des vérifications de l'agent :
    `pair` ou `migrate` reçoit `already_paired`.
 2. Commande connue (nom exact, casse comprise) ? Sinon `unsupported`.
 3. Rôle suffisant ? Sinon `insufficient_role`.
-4. Commande permise par la liste blanche du PC (`commands`) ? Sinon `forbidden`. Comme en `wolagent/1`, les commandes
-   en lecture seule sont permises dès que `status` l'est.
+4. Commande permise par la liste blanche du PC (`commands`) ? Sinon `forbidden`. Elle ne concerne que les commandes de
+   `wolagent/1` ; comme avant, celles en lecture seule sont permises dès que `status` l'est.
 5. Exécution.
 
 Rôles par défaut :
@@ -288,6 +294,7 @@ Rétrograder le dernier administrateur est refusé (`last_admin`).
 - `role` : celui qui sera donné, `admin` au plus.
 - `ttl` : durée de validité en secondes, de 60 à 604 800 (7 jours) ; 600 par défaut.
 - `device` (facultatif) : réserve l'invitation à cette identité, qui seule pourra l'utiliser.
+- `name` (facultatif) : le nom que portera l'appareil invité ; à défaut, celui qu'il donne en s'appairant.
 - 10 invitations en attente au plus.
 - L'agent ne garde que le **condensé SHA-256** du code. Le code n'apparaît que dans cette réponse.
 
@@ -298,7 +305,7 @@ Rétrograder le dernier administrateur est refusé (`last_admin`).
 
 **`pair`** `{"code":"7KQ29MXP","name":"Pixel 8"}`. L'agent normalise le code (§7.2), puis vérifie l'invitation : elle
 existe, n'est ni utilisée ni expirée, et n'est pas réservée à une autre identité. Il enregistre alors l'appareil avec
-le rôle prévu, consomme l'invitation et répond :
+le rôle et le nom prévus (sinon le nom donné ici), consomme l'invitation et répond :
 
 ```json
 {"id":1,"ok":true,"code":"ok","role":"admin","device":"<empreinte de l'appareil>","hostname":"PC-BUREAU","os":"windows","arch":"amd64","version":"1.12.0","uptime":3600}
@@ -402,13 +409,21 @@ contient :
 | `role` | Rôle |
 | `added`, `via` | Date et moyen de l'ajout |
 | `by` | Empreinte de l'administrateur à l'origine de l'invitation, ou `local` |
-| `seen` | Dernière connexion |
+| `seen` | Dernière connexion (écrite sur le disque au plus toutes les 10 minutes) |
+
+Le même fichier garde les invitations en attente : `id`, condensé SHA-256 du code (`digest`), `role`, `name`,
+`expires`, `device` et `by`. Un registre illisible n'est jamais remplacé en silence : `wolagent/2` reste désactivé
+jusqu'à sa réparation (l'agent continue en `wolagent/1`).
 
 - **Révocation** : l'entrée est retirée. Les connexions ouvertes de cette identité sont fermées immédiatement, et ses
   requêtes suivantes reçoivent `unknown_device`. Aucune autre clé ne change.
 - **Dernier administrateur** : par le réseau, impossible de le retirer ou de le rétrograder (`last_admin`). Sur le PC,
   c'est possible après confirmation.
-- **Sur le PC**, avec les droits d'administrateur :
+- **Sur le PC**, avec les droits d'administrateur. `wol-agent` se connecte alors au service depuis l'adresse de
+  bouclage, avec **l'identité de l'agent lui-même** : seul un administrateur du PC peut lire sa clé, et l'agent ne
+  l'accepte que depuis l'adresse de bouclage. Cette session a le rôle `admin` et peut, après confirmation
+  (`"force":true`), retirer ou rétrograder le dernier administrateur. Service arrêté, la commande modifie directement
+  le registre, relu au démarrage.
   - `wol-agent devices` : liste, avec les empreintes courtes ;
   - `wol-agent devices revoke <début d'empreinte>` ;
   - `wol-agent devices role <début d'empreinte> <rôle>` ;
@@ -512,7 +527,8 @@ Cas négatifs à couvrir par des tests automatisés (étape 3), côté Go et cô
    cas. Puis blocage par adresse et suspension globale (§3.3).
 9. Preuve de migration fausse : `migration_failed`. Homme du milieu simulé (empreintes différentes) : détecté par
    l'application.
-10. Trame de longueur nulle, trop longue ou tronquée : fermeture. JSON invalide ou qui n'est pas un objet : `bad_request`.
+10. Trame de longueur nulle, trop longue ou tronquée : fermeture. JSON invalide ou qui n'est pas un objet : `bad_request`
+    et fermeture.
 11. `id` non croissant : `bad_request` et fermeture.
 12. Rétrogradation : une application qui connaît l'empreinte d'un PC ne tente jamais `wolagent/1` avec lui.
 13. Dernier administrateur protégé.

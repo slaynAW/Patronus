@@ -100,8 +100,8 @@ func (l *Log) Add(e protocol.HistoryEvent) error {
 
 // AddWakes ajoute les démarrages demandés par une application (heures en secondes Unix), en ignorant
 // ceux hors de la période couverte (à WakeLead près), dans le futur ou déjà connus. Renvoie le
-// nombre d'ajouts.
-func (l *Log) AddWakes(times []int64, client, by string) (int, error) {
+// nombre d'ajouts. id est l'empreinte courte de l'appareil en wolagent/2 (vide en wolagent/1).
+func (l *Log) AddWakes(times []int64, client, by, id string) (int, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.prune()
@@ -111,7 +111,7 @@ func (l *Log) AddWakes(times []int64, client, by string) (int, error) {
 		if t < l.st.Since-int64(WakeLead.Seconds()) || t > now+60 || l.hasWake(t) {
 			continue
 		}
-		l.insert(protocol.HistoryEvent{T: t, K: protocol.HistoryWake, C: client, B: by})
+		l.insert(protocol.HistoryEvent{T: t, K: protocol.HistoryWake, C: client, B: by, I: id})
 		added++
 	}
 	if added == 0 {

@@ -278,7 +278,7 @@ func TestAddWakes(t *testing.T) {
 		now + 3600,       // dans le futur : ignoré
 		now - 40*24*3600, // hors de la période couverte : ignoré
 		now - 10*60,      // autre démarrage demandé, PC déjà allumé
-	}, "192.168.1.37", "Pixel 8")
+	}, "192.168.1.37", "Pixel 8", "7KQ2-9MXP-4D1Z")
 	if err != nil || added != 2 {
 		t.Fatalf("ajouts : %d, %v", added, err)
 	}
@@ -286,11 +286,11 @@ func TestAddWakes(t *testing.T) {
 	if !equal(kinds(h), []string{protocol.HistoryWake, protocol.HistoryBoot, protocol.HistoryWake}) {
 		t.Fatalf("ordre chronologique : %v", kinds(h))
 	}
-	if e := h.Events[0]; e.T != wake || e.C != "192.168.1.37" || e.B != "Pixel 8" {
+	if e := h.Events[0]; e.T != wake || e.C != "192.168.1.37" || e.B != "Pixel 8" || e.I != "7KQ2-9MXP-4D1Z" {
 		t.Errorf("démarrage noté : %+v", e)
 	}
 	// Déjà connus : rien à ajouter, rien à écrire.
-	if added, err := l.AddWakes([]int64{wake}, "192.168.1.37", "Pixel 8"); added != 0 || err != nil {
+	if added, err := l.AddWakes([]int64{wake}, "192.168.1.37", "Pixel 8", ""); added != 0 || err != nil {
 		t.Errorf("doublon : %d, %v", added, err)
 	}
 	// Conservé au redémarrage de l'agent.

@@ -44,6 +44,23 @@ type Config struct {
 	// Metrics : enregistrement continu des températures et de l'utilisation, une ligne par minute
 	// gardée 90 jours et lue par les applications (absent = activé).
 	Metrics *bool `json:"metrics,omitempty"`
+	// Protocols liste les protocoles acceptés (absent : les deux, docs/PROTOCOLE-V2.md §11). Sans
+	// « wolagent/1 », la clé n'est plus nécessaire.
+	Protocols []string `json:"protocols,omitempty"`
+}
+
+// Protocoles de l'agent (Config.Protocols).
+const (
+	ProtocolV1 = "wolagent/1"
+	ProtocolV2 = "wolagent/2"
+)
+
+// Accepts indique si l'agent accepte le protocole proto.
+func (c *Config) Accepts(proto string) bool {
+	if c.Protocols == nil {
+		return proto == ProtocolV1 || proto == ProtocolV2
+	}
+	return contains(c.Protocols, proto)
 }
 
 // RecordsMetrics indique si les mesures (températures, utilisation) sont enregistrées en continu.
@@ -78,8 +95,20 @@ func (c *Config) Validate() error {
 	if c.Port < 1 || c.Port > 65535 {
 		return fmt.Errorf("port invalide : %d", c.Port)
 	}
-	if _, err := protocol.DecodeKey(c.Key); err != nil {
-		return err
+	if c.Protocols != nil {
+		if len(c.Protocols) == 0 {
+			return errors.New("aucun protocole accepté")
+		}
+		for _, p := range c.Protocols {
+			if p != ProtocolV1 && p != ProtocolV2 {
+				return fmt.Errorf("protocole inconnu : %q", p)
+			}
+		}
+	}
+	if c.Accepts(ProtocolV1) || c.Key != "" {
+		if _, err := protocol.DecodeKey(c.Key); err != nil {
+			return err
+		}
 	}
 	if _, err := c.Networks(); err != nil {
 		return err
