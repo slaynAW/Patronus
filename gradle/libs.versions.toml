@@ -1,7 +1,7 @@
 # Catalogue centralisé des versions : une seule source de vérité pour tout le projet.
 [versions]
 agp = "9.4.0"
-kotlin = "2.4.10"
+kotlin = "2.4.20"
 coroutines = "1.11.0"
 serialization = "1.11.0"
 
