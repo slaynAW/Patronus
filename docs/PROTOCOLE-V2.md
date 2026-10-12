@@ -1,8 +1,8 @@
 # Protocole `wolagent/2` (spécification)
 
-> **Statut : brouillon, étape 2 de la feuille de route.** Aucun agent ni aucune application ne parle encore
-> `wolagent/2` : son implémentation est l'étape 3. Il remplacera [`wolagent/1`](PROTOCOLE.md) après une période de
-> transition.
+> **Statut : spécification adoptée (étape 2 de la feuille de route), décisions prises (§13).** Aucun agent ni aucune
+> application ne parle encore `wolagent/2` : son implémentation est l'étape 3, qui pourra encore préciser ce document
+> (toujours avec les vecteurs de test). Il remplacera [`wolagent/1`](PROTOCOLE.md) après une période de transition.
 
 `wolagent/2` chiffre tous les échanges entre les applications et l'agent. Il donne à chaque appareil sa propre
 identité, des droits (rôles) et une révocation individuelle. Il répond aux exigences R1 à R12 du
@@ -493,7 +493,7 @@ et éteindre ». C'est cohérent avec leurs droits en `wolagent/1`. Chaque migra
 |---|---|---|
 | 3 (première version `wolagent/2`) | `wolagent/1` et `wolagent/2` sur le même port ; `"protocols":["wolagent/1","wolagent/2"]` par défaut | `wolagent/2` pour les PC dont elles connaissent l'empreinte ; migration automatique des autres quand l'agent le permet ; `wolagent/1` pour les agents pas encore à jour |
 | 2.0 | `wolagent/1` désactivé par défaut sur les nouvelles installations | Refus de `wolagent/1` pour tout PC passé en `wolagent/2` |
-| Ensuite | `wolagent/1` retiré | — |
+| Ensuite | `wolagent/1` retiré | Android 10 au minimum (§13) |
 
 Les agents se mettent à jour d'eux-mêmes (mises à jour intégrées), ce qui raccourcit la transition.
 
@@ -520,20 +520,19 @@ Cas négatifs à couvrir par des tests automatisés (étape 3), côté Go et cô
     normalisation des codes. Les cibles Go des fonctions pures existent déjà (`agent/protocol2`, `FuzzReadFrame`,
     `FuzzParseLink`, `FuzzNormalizeCode`, `FuzzParsePin`).
 
-## 13. Questions ouvertes
+## 13. Décisions
 
-Décisions à prendre avant ou pendant l'étape 3 :
+Prises le 12/10/2026, avant l'étape 3 :
 
-1. **Android 8 et 9** (API 26 à 28) n'ont pas TLS 1.3 natif. Trois options :
-   - **(a) recommandée** : passer la version minimale à Android 10 (API 29, sorti en 2019) quand `wolagent/2` devient
-     obligatoire ;
-   - (b) embarquer Conscrypt, soit environ 3 Mo et des bibliothèques natives en plus ;
-   - (c) garder `wolagent/1` sur ces appareils jusqu'à son retrait.
-2. **Rôle des appareils migrés** : `control` est proposé. L'alternative serait `admin` pour le premier appareil migré,
-   au risque qu'une simple clé `wolagent/1` suffise à devenir administrateur.
-3. **Durée maximale d'une invitation de partage** : 7 jours proposés.
-4. **Clés Windows dans le TPM** (CNG) : dès l'étape 3, ou plus tard.
-5. **Rôle par défaut de `wol-agent pair`** : `admin` proposé.
+1. **Android 8 et 9** (API 26 à 28) n'ont pas TLS 1.3 natif. Aucune bibliothèque TLS n'est embarquée (Conscrypt :
+   environ 3 Mo et des bibliothèques natives en plus). Ces appareils restent en `wolagent/1` avec les PC qui l'acceptent ;
+   la version minimale de l'application passera à Android 10 (API 29, sorti en 2019) quand `wolagent/2` deviendra
+   obligatoire, au retrait de `wolagent/1` (§11).
+2. **Rôle des appareils migrés** : `control`, les droits qu'avait leur clé (§9). Donner `admin` au premier appareil
+   migré aurait permis à une simple clé `wolagent/1` de faire de son détenteur un administrateur.
+3. **Durée maximale d'une invitation** : 7 jours (§6.2), pour le partage comme pour toute autre invitation.
+4. **Clés Windows** : chiffrées par DPAPI à l'étape 3 (§2.3) ; le passage au TPM (CNG) viendra plus tard.
+5. **Rôle par défaut de `wol-agent pair`** : `admin`, la personne devant le PC en étant l'administrateur (§5).
 
 ## 14. Vecteurs de test
 

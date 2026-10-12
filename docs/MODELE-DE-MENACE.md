@@ -154,8 +154,9 @@ Flux étudiés :
 - **Métadonnées réseau** : un observateur du réseau local voit qu'un appareil parle à un PC, quand, et combien.
 - **Exécutable Windows non signé par un éditeur** jusqu'à l'étape 2.3 (avertissement SmartScreen).
 - **Code source public** : aucune sécurité ne repose sur le secret du code.
-- **Android 8 et 9** : sans TLS 1.3 natif, ils ne pourront pas utiliser `wolagent/2` (décision à prendre à l'étape 3,
-  voir [PROTOCOLE-V2.md](PROTOCOLE-V2.md#13-questions-ouvertes)).
+- **Android 8 et 9** : sans TLS 1.3 natif, ils ne pourront pas utiliser `wolagent/2`. Ils restent en `wolagent/1`
+  (authentifié, non chiffré) avec les PC qui l'acceptent ; l'application exigera Android 10 quand `wolagent/2` deviendra
+  obligatoire ([PROTOCOLE-V2.md](PROTOCOLE-V2.md#13-décisions)).
 
 ## 7. Exigences de sécurité
 
