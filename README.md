@@ -234,7 +234,9 @@ Détails : **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** et **[docs/PROTOCOLE
 | APK modifié | Signature de l'APK avec une clé privée remise uniquement à la publication officielle, après validation manuelle ; somme de contrôle de Gradle vérifiée. |
 | Version piégée (chaîne de production) | Actions épinglées par empreinte, failles connues vérifiées à chaque build, versions officielles compilées sans cache, provenance attestée (`gh attestation verify`) et inventaire des composants joints ([SECURITY.md](SECURITY.md)). |
 
-Détails et limites : **[docs/SECURITE.md](docs/SECURITE.md)**.
+Détails et limites : **[docs/SECURITE.md](docs/SECURITE.md)**. Prochaine étape : le protocole chiffré `wolagent/2`
+(TLS 1.3, une identité par appareil, rôles et révocation), conçu à partir d'un
+**[modèle de menace](docs/MODELE-DE-MENACE.md)** et spécifié dans **[docs/PROTOCOLE-V2.md](docs/PROTOCOLE-V2.md)**.
 
 ## 8. Développement
 

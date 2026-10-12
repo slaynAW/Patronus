@@ -105,6 +105,8 @@ jobs:
           for os in linux windows darwin; do GOOS=$os go vet ./...; done
       - name: Tests
         run: go test -race ./...
+      - name: Vecteurs wolagent/2 (recalcul indépendant, Python et OpenSSL)
+        run: python3 -I ../.github/scripts/check-v2-vectors.py ../protocol/v2-vectors.json
       - name: Binaires
         env:
           VERSION: ${{ needs.version.outputs.agent }}
