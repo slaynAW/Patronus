@@ -152,6 +152,8 @@ flowchart LR
 - `server` : écoute TCP, filtrage des adresses, limitation des tentatives, exécution différée de l'action (la réponse part d'abord).
 - `power` : une implémentation par système (build tags) ; `DryRun` pour les tests.
 - `service` : installation service Windows (API SCM), systemd, launchd ; `pairing` : lien + QR code (terminal ANSI ou PNG).
+- `protocol2` : implémentation de référence des fonctions pures du futur protocole `wolagent/2`
+  ([PROTOCOLE-V2.md](PROTOCOLE-V2.md)) : empreintes, codes et liens d'appairage, rôles, preuves de migration, trames.
 - Binaire statique unique (CGO désactivé), dépendances : `golang.org/x/sys` et `rsc.io/qr`.
 
 ## Application Windows (Go + WebView2)
@@ -185,6 +187,7 @@ flowchart LR
 | Test de bout en bout app ↔ agent réel | CI (`AgentEndToEndTest`) |
 | Tests de l'agent (protocole, serveur, rejeu, force brute, config) sous Linux **et** Windows, détecteur de courses | CI |
 | Vecteurs cryptographiques communs, calculés indépendamment | `protocol/test-vectors.json` |
+| Vecteurs de `wolagent/2`, vérifiés à chaque build par une seconde implémentation (Python, OpenSSL), et fuzzing des analyseurs | `protocol/v2-vectors.json`, `.github/scripts/check-v2-vectors.py` |
 | Scénario d'historique commun Kotlin ↔ Go (fusion, doublons, conservation) | `protocol/history-vectors.json` |
 | Tests de l'application Windows (Linux + Windows : DPAPI, ping, cartes réseau), test de bout en bout contre l'agent | CI |
 | Démarrage réel de l'application Windows (fenêtre WebView2, interface, pont Go ↔ JS) | CI (`WOL_SELFTEST`) |

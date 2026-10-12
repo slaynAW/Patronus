@@ -85,13 +85,16 @@
 
 ## Limites connues (et parades)
 
+Les menaces prises en compte, leur protection actuelle et celle prévue sont détaillées dans le
+[modèle de menace](MODELE-DE-MENACE.md).
+
 - **Le paquet magique n'est pas authentifié** (norme Wake-on-LAN) : n'importe qui sur votre réseau local peut allumer vos PC.
   C'est sans risque en soi (il ne fait qu'allumer). Le mot de passe SecureOn n'offre qu'une protection symbolique (transmis en clair).
 - **Le trafic avec l'agent n'est pas chiffré**, seulement authentifié : quelqu'un sur votre réseau peut voir qu'un PC s'appelle
   « PC-BUREAU », depuis quand il est allumé et, lors d'une lecture du journal, ses heures de démarrage et d'arrêt ; il ne peut
-  ni lire la clé ni forger de commande.
+  ni lire la clé ni forger de commande. Le protocole `wolagent/2` ([PROTOCOLE-V2.md](PROTOCOLE-V2.md)) chiffrera tout.
 - **Le QR code d'appairage contient la clé** : ne le partagez pas, ne le photographiez pas avec un autre appareil. En cas de doute :
-  `wol-agent rotate-key`.
+  `wol-agent rotate-key`. En `wolagent/2`, le QR code ne contiendra plus qu'un code à usage unique.
 - **APK hors Play Store** : téléchargez l'APK depuis les Releases du dépôt ; sa provenance et l'empreinte de son certificat
   se vérifient ([SECURITY.md](../SECURITY.md)). Android refuse toute « mise à jour » signée par une autre clé
   ([SIGNATURE.md](SIGNATURE.md)).

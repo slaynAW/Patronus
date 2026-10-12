@@ -1,0 +1,1060 @@
+{
+  "description": "Vecteurs de test du protocole wolagent/2 (docs/PROTOCOLE-V2.md, §14), partagés par l'agent (Go) et les applications (Kotlin). Produits par agent/protocol2 (go test ./protocol2 -run TestVectors -update), recalculés indépendamment par .github/scripts/check-v2-vectors.py (Python et OpenSSL). Ne pas modifier à la main. B64 : Base64 URL sans remplissage.",
+  "protocol": "wolagent/2",
+  "pins": {
+    "valid": [
+      {
+        "name": "agent : certificat créé le 12/10/2026",
+        "certificate": "MIIBODCB3qADAgECAhBUkAZrd4k1sLtJJePbFRxbMAoGCCqGSM49BAMCMBMxETAPBgNVBAMTCHdvbGFnZW50MCAXDTI2MTAxMTAwMDAwMFoYDzk5OTkxMjMxMjM1OTU5WjATMREwDwYDVQQDEwh3b2xhZ2VudDBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABFdMQlqfEnFedXx2nwv6kodtD7IwomEuBtxJzk7eSneMaKCk39bwo2-1MFfbayf2gKRuyfPGyPXegewl-OB9JaejEjAQMA4GA1UdDwEB_wQEAwIHgDAKBggqhkjOPQQDAgNJADBGAiEA6mPfaFGQBzOFXvgIzN1ysN1S1X1yxDCpiw-Cjav7tg4CIQCVhk4fbb8eR6ArKVgfCiB9Z4GNttLOJ3kroyxcVBpNTw",
+        "pin": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+        "short": "J39G-Q9P7-P9XA"
+      },
+      {
+        "name": "agent : certificat recréé le 12/01/2027 (autre certificat, même clé, même empreinte)",
+        "certificate": "MIIBNzCB3qADAgECAhB6G9TAx4dH9_ktoXfvbjxmMAoGCCqGSM49BAMCMBMxETAPBgNVBAMTCHdvbGFnZW50MCAXDTI3MDExMTAwMDAwMFoYDzk5OTkxMjMxMjM1OTU5WjATMREwDwYDVQQDEwh3b2xhZ2VudDBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABFdMQlqfEnFedXx2nwv6kodtD7IwomEuBtxJzk7eSneMaKCk39bwo2-1MFfbayf2gKRuyfPGyPXegewl-OB9JaejEjAQMA4GA1UdDwEB_wQEAwIHgDAKBggqhkjOPQQDAgNIADBFAiEAiVIKewLY4Ec0Lu5o0CGrdhrzc-E7UXHa7scAEhZjmOACIB0Z-uUnl2wM6Py4Ji2La3hWehLKmy11pMVZZ3PjYkTe",
+        "pin": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+        "short": "J39G-Q9P7-P9XA"
+      },
+      {
+        "name": "appareil",
+        "certificate": "MIIBNzCB3qADAgECAhB3yfW2PVSAFHoY8rsv6qIaMAoGCCqGSM49BAMCMBMxETAPBgNVBAMTCHdvbGFnZW50MCAXDTI2MTAxMTAwMDAwMFoYDzk5OTkxMjMxMjM1OTU5WjATMREwDwYDVQQDEwh3b2xhZ2VudDBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABKgBIjol9jH1dJo2yw-jyq_rBlQbWLU194YHj_AtWuJW6K847Q2MzIpUvD7LMwDmW1XjftdbhYQu1h9a2DYckSajEjAQMA4GA1UdDwEB_wQEAwIHgDAKBggqhkjOPQQDAgNIADBFAiEAthIbyDHm7W5RrvqNyEa4stBDEBQVbm2_NeP_DFrc7RgCIEsFrb1X83_YJooHGre3PizlL6NEvpzKoBlv9zbeNI2K",
+        "pin": "CYIIh0S-tn2JwFAFegVdZ0z0vkTnb5-4nKIiOkpEXaU",
+        "short": "1610-H1T4-QTV7"
+      },
+      {
+        "name": "appareil : autre profil (sujet, émetteur, dates dépassées, extensions, signature d'une autre clé), ignoré",
+        "certificate": "MIIBiTCCATCgAwIBAgIBATAKBggqhkjOPQQDAjAaMRgwFgYDVQQDDA9hdXRyZSDDqW1ldHRldXIwHhcNNzAwMTAxMDAwMDAwWhcNMDAwMTAxMDAwMDAwWjAqMREwDwYDVQQKEwhWZWN0ZXVyczEVMBMGA1UEAxMMYXV0cmUgcHJvZmlsMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEqAEiOiX2MfV0mjbLD6PKr-sGVBtYtTX3hgeP8C1a4lborzjtDYzMilS8PsszAOZbVeN-11uFhC7WH1rYNhyRJqNXMFUwDgYDVR0PAQH_BAQDAgIEMBMGA1UdJQQMMAoGCCsGAQUFBwMBMA8GA1UdEwEB_wQFMAMBAf8wHQYDVR0OBBYEFCjnFg3CdbjZxqdUtoE3GsFKtqCMMAoGCCqGSM49BAMCA0cAMEQCIBxQpo7SYawymOsk8rIE61-EhukNwx1SKq3aYjmOkddsAiBgz198P5Gs55OPr_8LZHm7TMR-eI24NMvSe3vofiK5Rg",
+        "pin": "CYIIh0S-tn2JwFAFegVdZ0z0vkTnb5-4nKIiOkpEXaU",
+        "short": "1610-H1T4-QTV7"
+      }
+    ],
+    "invalid": [
+      {
+        "name": "clé RSA 2048",
+        "certificate": "MIICoTCCAYmgAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDEwh3b2xhZ2VudDAgFw0yNjEwMTEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowEzERMA8GA1UEAxMId29sYWdlbnQwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCtKqxv8an2Yiw6MOZOwSy908LRtxoy3aVvDyj03iRfCSe4ri9cLB-H5ZF73Tz23fLuSCJVKyvU0uFadLqV2bEt5VUFlTfr5GyNAA5eyxU2-JCcAnCmNBLkx3T4mCuNDO_FjX8KSZCE8x639mPctdLoh1Namje8cyEpCvBLoe37dYQgQRBjVdfOpUTCJOz9YSk4oD0shwCFMoO3Cc3SqKvtW3WSUi8kahW1IR62Bbd-BYY1BmGtsmmEdiG9aMXL9iQiRzxnXCzXI8X39ombpeZa3MIubcMF2OTZhNIcFyTb9sti7PyyAAmorV6pdJZL7LVUBNVvk5XrsK84oDwHDVFhAgMBAAEwDQYJKoZIhvcNAQELBQADggEBAFjNT1lRY4gWKpA60N2HOyw2iV7YSpjiEYuIp4ADhdc1mFteVKIu-M56j7_T-Qkf9D-QLWXOnEJqfowRMSswZq-VR3v8gV5XXCmo3sGfJ7gURvAvVndb0SKhUDRwEIX_sxag3ku-uPalcLP2AVrRLH8fDbm-4r1OvfNh1H0J5MV7PfQhWtQXN7AHhqeob918xQlCDcbvajpWN_d5HV6EUM5QmfUwt3Wy4DPNSggFE2PPMdEq2EW292_5TJ7EpD8v20uqOvBQoXAsznAIs8xRgG53R3KlVUKL-vWRb0fGRVwkIL4Pp3b9DIuVeN0Utt13i3DeSwld3NSXoFCQzX6spSs",
+        "error": "key_type"
+      },
+      {
+        "name": "clé ECDSA P-384",
+        "certificate": "MIIBUTCB2KADAgECAgECMAoGCCqGSM49BAMDMBMxETAPBgNVBAMTCHdvbGFnZW50MCAXDTI2MTAxMTAwMDAwMFoYDzk5OTkxMjMxMjM1OTU5WjATMREwDwYDVQQDEwh3b2xhZ2VudDB2MBAGByqGSM49AgEGBSuBBAAiA2IABE2qB1iBKVV9h2qO-6d-9JWTy5SA-8XXkV1buMW-8iUFjy3opATzQSgYWxVyqKVMpOfGjdJhcgUDW9ZtuQVoyALv77K5plMBdidXUipxrDkj3jGkGo9JPHpzyE2qdEAZbTAKBggqhkjOPQQDAwNoADBlAjAaa6U0QjRx2zGGMOpuJ3W4B2yImOhCXO3khSQJFAl5ihmiGyYCbw2XQpG6wyTKgNsCMQDbn2MFIiXkTCCwH1O7LoPVG4_bINNwN49lhfTCJM9CinoKREIcN4sDuoUz2VZqvgo",
+        "error": "key_type"
+      },
+      {
+        "name": "clé Ed25519",
+        "certificate": "MIHUMIGHoAMCAQICAQIwBQYDK2VwMBMxETAPBgNVBAMTCHdvbGFnZW50MCAXDTI2MTAxMTAwMDAwMFoYDzk5OTkxMjMxMjM1OTU5WjATMREwDwYDVQQDEwh3b2xhZ2VudDAqMAUGAytlcAMhAIpQQQCAP0N2vvdcFYXfvekI2Tyb2jLlLYQOQxd7BhLMMAUGAytlcANBAHTR4Xc2EJorlQq_UBSS1Mvh6JQeVNHfAU8CbZ_2KSoX8i_svWdP2jAVJBTBpt9yy20YIV0rd5SuR7yu798-iQA",
+        "error": "key_type"
+      },
+      {
+        "name": "pas un certificat",
+        "certificate": "d29sYWdlbnQvMg",
+        "error": "certificate"
+      },
+      {
+        "name": "certificat tronqué",
+        "certificate": "MIIBODCB3qADAgECAhBUkAZrd4k1sLtJJePbFRxbMAoGCCqGSM49BAMCMBMxETAPBgNVBAMTCHdvbGFnZW50MCAXDTI2MTAxMTAwMDAwMFoYDzk5OTkxMjMxMjM1OTU5WjATMREwDwYDVQQDEwh3b2xhZ2VudDBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABFdMQlqfEnFedXx2nws",
+        "error": "certificate"
+      }
+    ]
+  },
+  "codes": {
+    "encode": [
+      {
+        "bytes": "0000000000",
+        "code": "00000000"
+      },
+      {
+        "bytes": "ffffffffff",
+        "code": "ZZZZZZZZ"
+      },
+      {
+        "bytes": "0123456789",
+        "code": "04HMASW9"
+      },
+      {
+        "bytes": "8421084210",
+        "code": "GGGGGGGG"
+      },
+      {
+        "bytes": "deadbeef42",
+        "code": "VTPVXVT2"
+      }
+    ],
+    "normalize": [
+      {
+        "input": "7KQ29MXP",
+        "code": "7KQ29MXP",
+        "display": "7KQ2-9MXP"
+      },
+      {
+        "input": "7kq2-9mxp",
+        "code": "7KQ29MXP",
+        "display": "7KQ2-9MXP"
+      },
+      {
+        "input": " 7KQ2 9MXP ",
+        "code": "7KQ29MXP",
+        "display": "7KQ2-9MXP"
+      },
+      {
+        "input": "7KQ2--9MXP",
+        "code": "7KQ29MXP",
+        "display": "7KQ2-9MXP"
+      },
+      {
+        "input": "oil0-OIL0",
+        "code": "01100110",
+        "display": "0110-0110"
+      },
+      {
+        "input": "abcd efgh",
+        "code": "ABCDEFGH",
+        "display": "ABCD-EFGH"
+      },
+      {
+        "input": "JKMN-PQRS",
+        "code": "JKMNPQRS",
+        "display": "JKMN-PQRS"
+      },
+      {
+        "input": "tvwx-yz00",
+        "code": "TVWXYZ00",
+        "display": "TVWX-YZ00"
+      }
+    ],
+    "invalid": [
+      {
+        "name": "vide",
+        "input": ""
+      },
+      {
+        "name": "7 caractères",
+        "input": "7KQ2-9MX"
+      },
+      {
+        "name": "9 caractères",
+        "input": "7KQ2-9MXPA"
+      },
+      {
+        "name": "U, absent de l'alphabet",
+        "input": "7KQ2-9MXU"
+      },
+      {
+        "name": "tiret bas",
+        "input": "7KQ2_9MXP"
+      },
+      {
+        "name": "signe plus",
+        "input": "7KQ2+9MXP"
+      },
+      {
+        "name": "tabulation",
+        "input": "7KQ2\t9MXP"
+      },
+      {
+        "name": "espace insécable",
+        "input": "7KQ2\u00a09MXP"
+      },
+      {
+        "name": "tiret demi-cadratin",
+        "input": "7KQ2–9MXP"
+      },
+      {
+        "name": "chiffre pleine largeur",
+        "input": "７KQ29MXP"
+      },
+      {
+        "name": "i sans point (I une fois en majuscule, hors ASCII)",
+        "input": "7KQ29MXı"
+      },
+      {
+        "name": "s long (S une fois en majuscule, hors ASCII)",
+        "input": "7KQ29MXſ"
+      }
+    ]
+  },
+  "links": {
+    "valid": [
+      {
+        "name": "écrit par l'agent : tous les paramètres",
+        "link": "wolagent://pair?v=2&n=PC+de+Salon+%26+Jeux&h=192.168.1.20&p=9770&m=AA:BB:CC:DD:EE:FF&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&r=admin&e=1791763800",
+        "canonical": true,
+        "expect": {
+          "name": "PC de Salon & Jeux",
+          "host": "192.168.1.20",
+          "port": 9770,
+          "mac": "AA:BB:CC:DD:EE:FF",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "7KQ29MXP",
+          "role": "admin",
+          "expires": 1791763800
+        }
+      },
+      {
+        "name": "écrit par l'agent : port 9771, sans MAC, rôle ni expiration",
+        "link": "wolagent://pair?v=2&n=serveur&h=serveur.local&p=9771&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=0123ABCD",
+        "canonical": true,
+        "expect": {
+          "name": "serveur",
+          "host": "serveur.local",
+          "port": 9771,
+          "mac": "",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "0123ABCD",
+          "role": "",
+          "expires": 0
+        }
+      },
+      {
+        "name": "écrit par l'agent : nom accentué, IPv6 avec zone",
+        "link": "wolagent://pair?v=2&n=PC+de+L%C3%A9a&h=fe80::1%25eth0&p=9770&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=ZZZZ0000&r=view&e=1791763800",
+        "canonical": true,
+        "expect": {
+          "name": "PC de Léa",
+          "host": "fe80::1%eth0",
+          "port": 9770,
+          "mac": "",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "ZZZZ0000",
+          "role": "view",
+          "expires": 1791763800
+        }
+      },
+      {
+        "name": "minimal : nom, port, MAC, rôle et expiration absents",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "canonical": false,
+        "expect": {
+          "name": "pc-bureau.local",
+          "host": "pc-bureau.local",
+          "port": 9770,
+          "mac": "",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "7KQ29MXP",
+          "role": "",
+          "expires": 0
+        }
+      },
+      {
+        "name": "préfixe en majuscules, espaces autour, paramètres vides ou inconnus, code en minuscules, MAC avec tirets",
+        "link": "  WOLAGENT://PAIR?v=2&&h=192.168.1.20&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7kq2-9mxp&x=1&y=&m=aa-bb-cc-dd-ee-ff\n",
+        "canonical": false,
+        "expect": {
+          "name": "192.168.1.20",
+          "host": "192.168.1.20",
+          "port": 9770,
+          "mac": "AA:BB:CC:DD:EE:FF",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "7KQ29MXP",
+          "role": "",
+          "expires": 0
+        }
+      },
+      {
+        "name": "nom : caractères de contrôle et espaces retirés",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&n=%20%20Bureau%09%0A%20",
+        "canonical": false,
+        "expect": {
+          "name": "Bureau",
+          "host": "pc-bureau.local",
+          "port": 9770,
+          "mac": "",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "7KQ29MXP",
+          "role": "",
+          "expires": 0
+        }
+      },
+      {
+        "name": "nom : U+0085 (contrôle) retiré, espace insécable gardée",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&n=%C2%85Nom%C2%A0",
+        "canonical": false,
+        "expect": {
+          "name": "Nom\u00a0",
+          "host": "pc-bureau.local",
+          "port": 9770,
+          "mac": "",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "7KQ29MXP",
+          "role": "",
+          "expires": 0
+        }
+      },
+      {
+        "name": "nom : « + » lu comme une espace",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&n=PC+de+L%C3%A9a",
+        "canonical": false,
+        "expect": {
+          "name": "PC de Léa",
+          "host": "pc-bureau.local",
+          "port": 9770,
+          "mac": "",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "7KQ29MXP",
+          "role": "",
+          "expires": 0
+        }
+      },
+      {
+        "name": "nom : UTF-8 non encodé",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&n=Léa",
+        "canonical": false,
+        "expect": {
+          "name": "Léa",
+          "host": "pc-bureau.local",
+          "port": 9770,
+          "mac": "",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "7KQ29MXP",
+          "role": "",
+          "expires": 0
+        }
+      },
+      {
+        "name": "nom vide : l'hôte",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&n=",
+        "canonical": false,
+        "expect": {
+          "name": "pc-bureau.local",
+          "host": "pc-bureau.local",
+          "port": 9770,
+          "mac": "",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "7KQ29MXP",
+          "role": "",
+          "expires": 0
+        }
+      },
+      {
+        "name": "nom de 64 unités UTF-16 : gardé entier",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&n=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa%F0%9F%98%80",
+        "canonical": false,
+        "expect": {
+          "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa😀",
+          "host": "pc-bureau.local",
+          "port": 9770,
+          "mac": "",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "7KQ29MXP",
+          "role": "",
+          "expires": 0
+        }
+      },
+      {
+        "name": "nom de 65 unités UTF-16 : coupé avant l'émoji",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&n=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa%F0%9F%98%80",
+        "canonical": false,
+        "expect": {
+          "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "host": "pc-bureau.local",
+          "port": 9770,
+          "mac": "",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "7KQ29MXP",
+          "role": "",
+          "expires": 0
+        }
+      },
+      {
+        "name": "hôte de 68 caractères sans nom : ses 64 premiers caractères",
+        "link": "wolagent://pair?v=2&h=poste-de-travail-du-bureau-principal.salle-informatique.maison.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "canonical": false,
+        "expect": {
+          "name": "poste-de-travail-du-bureau-principal.salle-informatique.maison.l",
+          "host": "poste-de-travail-du-bureau-principal.salle-informatique.maison.local",
+          "port": 9770,
+          "mac": "",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "7KQ29MXP",
+          "role": "",
+          "expires": 0
+        }
+      },
+      {
+        "name": "empreinte en partie encodée (%XX)",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=%6BNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "canonical": false,
+        "expect": {
+          "name": "pc-bureau.local",
+          "host": "pc-bureau.local",
+          "port": 9770,
+          "mac": "",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "7KQ29MXP",
+          "role": "",
+          "expires": 0
+        }
+      },
+      {
+        "name": "port avec un zéro initial",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&p=09770",
+        "canonical": false,
+        "expect": {
+          "name": "pc-bureau.local",
+          "host": "pc-bureau.local",
+          "port": 9770,
+          "mac": "",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "7KQ29MXP",
+          "role": "",
+          "expires": 0
+        }
+      },
+      {
+        "name": "rôle wake, expiration maximale",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&r=wake&e=253402300799",
+        "canonical": false,
+        "expect": {
+          "name": "pc-bureau.local",
+          "host": "pc-bureau.local",
+          "port": 9770,
+          "mac": "",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "7KQ29MXP",
+          "role": "wake",
+          "expires": 253402300799
+        }
+      },
+      {
+        "name": "lien de 2 048 octets",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&x=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "canonical": false,
+        "expect": {
+          "name": "pc-bureau.local",
+          "host": "pc-bureau.local",
+          "port": 9770,
+          "mac": "",
+          "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+          "code": "7KQ29MXP",
+          "role": "",
+          "expires": 0
+        }
+      }
+    ],
+    "invalid": [
+      {
+        "name": "autre schéma",
+        "link": "https://example.com/pair?v=2&h=pc&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "field": "format"
+      },
+      {
+        "name": "préfixe incomplet",
+        "link": "wolagent://pair",
+        "field": "format"
+      },
+      {
+        "name": "préfixe avec un i sans point",
+        "link": "wolagent://paır?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "field": "format"
+      },
+      {
+        "name": "paramètre sans nom",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&=x",
+        "field": "format"
+      },
+      {
+        "name": "paramètre sans « = »",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&x",
+        "field": "format"
+      },
+      {
+        "name": "encodage %zz",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&n=%zz",
+        "field": "format"
+      },
+      {
+        "name": "encodage incomplet",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&x=%4",
+        "field": "format"
+      },
+      {
+        "name": "UTF-8 tronqué",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&n=%C3",
+        "field": "format"
+      },
+      {
+        "name": "octets hors UTF-8",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&n=%FF%FE",
+        "field": "format"
+      },
+      {
+        "name": "lien de 2 049 octets",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&x=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "field": "format"
+      },
+      {
+        "name": "version absente",
+        "link": "wolagent://pair?h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "field": "v"
+      },
+      {
+        "name": "version 1",
+        "link": "wolagent://pair?v=1&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "field": "v"
+      },
+      {
+        "name": "version 02",
+        "link": "wolagent://pair?v=02&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "field": "v"
+      },
+      {
+        "name": "version en double",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&v=2",
+        "field": "duplicate"
+      },
+      {
+        "name": "paramètre inconnu en double",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&x=1&x=1",
+        "field": "duplicate"
+      },
+      {
+        "name": "hôte absent",
+        "link": "wolagent://pair?v=2&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "field": "h"
+      },
+      {
+        "name": "hôte vide",
+        "link": "wolagent://pair?v=2&h=&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "field": "h"
+      },
+      {
+        "name": "hôte : IPv4 incomplète",
+        "link": "wolagent://pair?v=2&h=192.168.1&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "field": "h"
+      },
+      {
+        "name": "hôte : 256.1.1.1",
+        "link": "wolagent://pair?v=2&h=256.1.1.1&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "field": "h"
+      },
+      {
+        "name": "hôte : tiret bas",
+        "link": "wolagent://pair?v=2&h=pc_bureau&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "field": "h"
+      },
+      {
+        "name": "hôte : label commençant par un tiret",
+        "link": "wolagent://pair?v=2&h=-pc.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "field": "h"
+      },
+      {
+        "name": "hôte : espace",
+        "link": "wolagent://pair?v=2&h=pc%20bureau&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "field": "h"
+      },
+      {
+        "name": "empreinte absente",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&c=7KQ29MXP",
+        "field": "a"
+      },
+      {
+        "name": "empreinte trop courte",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3&c=7KQ29MXP",
+        "field": "a"
+      },
+      {
+        "name": "empreinte avec remplissage",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y%3D&c=7KQ29MXP",
+        "field": "a"
+      },
+      {
+        "name": "empreinte non canonique (bits de fin non nuls)",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Z&c=7KQ29MXP",
+        "field": "a"
+      },
+      {
+        "name": "empreinte en Base64 standard (+)",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=%2BNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "field": "a"
+      },
+      {
+        "name": "code absent",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+        "field": "c"
+      },
+      {
+        "name": "code invalide",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ2-9MXU",
+        "field": "c"
+      },
+      {
+        "name": "port 0",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&p=0",
+        "field": "p"
+      },
+      {
+        "name": "port 65536",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&p=65536",
+        "field": "p"
+      },
+      {
+        "name": "port vide",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&p=",
+        "field": "p"
+      },
+      {
+        "name": "port « +80 » (+ lu comme une espace)",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&p=+80",
+        "field": "p"
+      },
+      {
+        "name": "port %2B80",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&p=%2B80",
+        "field": "p"
+      },
+      {
+        "name": "port de 6 chiffres",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&p=009770",
+        "field": "p"
+      },
+      {
+        "name": "MAC nulle",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&m=00:00:00:00:00:00",
+        "field": "m"
+      },
+      {
+        "name": "MAC de broadcast",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&m=ff:ff:ff:ff:ff:ff",
+        "field": "m"
+      },
+      {
+        "name": "MAC incomplète",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&m=AA:BB:CC:DD:EE",
+        "field": "m"
+      },
+      {
+        "name": "MAC à séparateurs mélangés",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&m=AA:BB-CC:DD:EE:FF",
+        "field": "m"
+      },
+      {
+        "name": "MAC sans séparateur",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&m=AABBCCDDEEFF",
+        "field": "m"
+      },
+      {
+        "name": "MAC non hexadécimale",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&m=GG:BB:CC:DD:EE:FF",
+        "field": "m"
+      },
+      {
+        "name": "MAC vide",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&m=",
+        "field": "m"
+      },
+      {
+        "name": "rôle inconnu",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&r=owner",
+        "field": "r"
+      },
+      {
+        "name": "rôle en majuscules",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&r=Admin",
+        "field": "r"
+      },
+      {
+        "name": "rôle vide",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&r=",
+        "field": "r"
+      },
+      {
+        "name": "expiration 0",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&e=0",
+        "field": "e"
+      },
+      {
+        "name": "expiration après l'an 9999",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&e=253402300800",
+        "field": "e"
+      },
+      {
+        "name": "expiration négative",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&e=-1",
+        "field": "e"
+      },
+      {
+        "name": "expiration décimale",
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&e=1.5",
+        "field": "e"
+      }
+    ],
+    "expiry": [
+      {
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&e=1791763800",
+        "now": 1791763799,
+        "expired": false
+      },
+      {
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&e=1791763800",
+        "now": 1791763800,
+        "expired": true
+      },
+      {
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP&e=1791763800",
+        "now": 1791850200,
+        "expired": true
+      },
+      {
+        "link": "wolagent://pair?v=2&h=pc-bureau.local&a=kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y&c=7KQ29MXP",
+        "now": 253402300799,
+        "expired": false
+      }
+    ]
+  },
+  "migration": [
+    {
+      "name": "octets successifs",
+      "key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+      "device": "CYIIh0S-tn2JwFAFegVdZ0z0vkTnb5-4nKIiOkpEXaU",
+      "nc": "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8",
+      "na": "gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp8",
+      "agentProof": "qldlOg-zJUE51MYyukFiQ0LsIW575wrzU3AXwbf8ynY",
+      "deviceProof": "B3Fc7TGD9JITWRv-pJHgvEj2bn-tqio8EFAeKHng5H4"
+    },
+    {
+      "name": "valeurs dérivées",
+      "key": "3xsasKrsKYSf9ZLb0Vq778E3g6jblrU19ds6tcZnoes",
+      "agent": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+      "device": "CYIIh0S-tn2JwFAFegVdZ0z0vkTnb5-4nKIiOkpEXaU",
+      "nc": "Nab34MNsHWOfuG2ldB0cSSr6QEALnmvkjTjMGdyqKLI",
+      "na": "9nNvAaJolDdEPkzNGQxn8CiCoqUCwo9tSfpTAuYKUjk",
+      "agentProof": "2hqAPzHisoVIB-3pDQ6GzA7_oFf0QAvJPLhl_1KYx5Q",
+      "deviceProof": "TOUy3t5XCvx1amTuTlU_-wk0cvn7RtdR8zMgkFCQH5k"
+    },
+    {
+      "name": "empreintes inversées, comme vues par un intermédiaire : autres preuves",
+      "key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "agent": "CYIIh0S-tn2JwFAFegVdZ0z0vkTnb5-4nKIiOkpEXaU",
+      "device": "kNMLpseyeqovYci_9HbWXkOto_Ru3yn4XxseSEjnX3Y",
+      "nc": "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8",
+      "na": "gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp8",
+      "agentProof": "xXPTQCLMHSOEg400OSxpz25jHfa63YdFgD32mmTudXA",
+      "deviceProof": "i84a-pGzVRsTF-EA3M0WE8ad-3V7PYPppuRvByrDWJI"
+    }
+  ],
+  "roles": {
+    "order": [
+      "view",
+      "wake",
+      "control",
+      "admin"
+    ],
+    "authorize": [
+      {
+        "cmd": "status",
+        "minRole": "view",
+        "unregistered": "unknown_device",
+        "view": "ok",
+        "wake": "ok",
+        "control": "ok",
+        "admin": "ok"
+      },
+      {
+        "cmd": "history",
+        "minRole": "view",
+        "unregistered": "unknown_device",
+        "view": "ok",
+        "wake": "ok",
+        "control": "ok",
+        "admin": "ok"
+      },
+      {
+        "cmd": "metrics",
+        "minRole": "view",
+        "unregistered": "unknown_device",
+        "view": "ok",
+        "wake": "ok",
+        "control": "ok",
+        "admin": "ok"
+      },
+      {
+        "cmd": "specs",
+        "minRole": "view",
+        "unregistered": "unknown_device",
+        "view": "ok",
+        "wake": "ok",
+        "control": "ok",
+        "admin": "ok"
+      },
+      {
+        "cmd": "wakes",
+        "minRole": "wake",
+        "unregistered": "unknown_device",
+        "view": "insufficient_role",
+        "wake": "ok",
+        "control": "ok",
+        "admin": "ok"
+      },
+      {
+        "cmd": "shutdown",
+        "minRole": "control",
+        "unregistered": "unknown_device",
+        "view": "insufficient_role",
+        "wake": "insufficient_role",
+        "control": "ok",
+        "admin": "ok"
+      },
+      {
+        "cmd": "reboot",
+        "minRole": "control",
+        "unregistered": "unknown_device",
+        "view": "insufficient_role",
+        "wake": "insufficient_role",
+        "control": "ok",
+        "admin": "ok"
+      },
+      {
+        "cmd": "sleep",
+        "minRole": "control",
+        "unregistered": "unknown_device",
+        "view": "insufficient_role",
+        "wake": "insufficient_role",
+        "control": "ok",
+        "admin": "ok"
+      },
+      {
+        "cmd": "devices",
+        "minRole": "admin",
+        "unregistered": "unknown_device",
+        "view": "insufficient_role",
+        "wake": "insufficient_role",
+        "control": "insufficient_role",
+        "admin": "ok"
+      },
+      {
+        "cmd": "devices.revoke",
+        "minRole": "admin",
+        "unregistered": "unknown_device",
+        "view": "insufficient_role",
+        "wake": "insufficient_role",
+        "control": "insufficient_role",
+        "admin": "ok"
+      },
+      {
+        "cmd": "devices.role",
+        "minRole": "admin",
+        "unregistered": "unknown_device",
+        "view": "insufficient_role",
+        "wake": "insufficient_role",
+        "control": "insufficient_role",
+        "admin": "ok"
+      },
+      {
+        "cmd": "devices.rename",
+        "minRole": "admin",
+        "unregistered": "unknown_device",
+        "view": "insufficient_role",
+        "wake": "insufficient_role",
+        "control": "insufficient_role",
+        "admin": "ok"
+      },
+      {
+        "cmd": "invite",
+        "minRole": "admin",
+        "unregistered": "unknown_device",
+        "view": "insufficient_role",
+        "wake": "insufficient_role",
+        "control": "insufficient_role",
+        "admin": "ok"
+      },
+      {
+        "cmd": "invites",
+        "minRole": "admin",
+        "unregistered": "unknown_device",
+        "view": "insufficient_role",
+        "wake": "insufficient_role",
+        "control": "insufficient_role",
+        "admin": "ok"
+      },
+      {
+        "cmd": "invites.cancel",
+        "minRole": "admin",
+        "unregistered": "unknown_device",
+        "view": "insufficient_role",
+        "wake": "insufficient_role",
+        "control": "insufficient_role",
+        "admin": "ok"
+      },
+      {
+        "cmd": "pair",
+        "minRole": "pairing",
+        "unregistered": "ok",
+        "view": "already_paired",
+        "wake": "already_paired",
+        "control": "already_paired",
+        "admin": "already_paired"
+      },
+      {
+        "cmd": "migrate",
+        "minRole": "pairing",
+        "unregistered": "ok",
+        "view": "already_paired",
+        "wake": "already_paired",
+        "control": "already_paired",
+        "admin": "already_paired"
+      },
+      {
+        "cmd": "",
+        "minRole": "unknown",
+        "unregistered": "unknown_device",
+        "view": "unsupported",
+        "wake": "unsupported",
+        "control": "unsupported",
+        "admin": "unsupported"
+      },
+      {
+        "cmd": "STATUS",
+        "minRole": "unknown",
+        "unregistered": "unknown_device",
+        "view": "unsupported",
+        "wake": "unsupported",
+        "control": "unsupported",
+        "admin": "unsupported"
+      },
+      {
+        "cmd": "status ",
+        "minRole": "unknown",
+        "unregistered": "unknown_device",
+        "view": "unsupported",
+        "wake": "unsupported",
+        "control": "unsupported",
+        "admin": "unsupported"
+      },
+      {
+        "cmd": "devices.",
+        "minRole": "unknown",
+        "unregistered": "unknown_device",
+        "view": "unsupported",
+        "wake": "unsupported",
+        "control": "unsupported",
+        "admin": "unsupported"
+      },
+      {
+        "cmd": "update",
+        "minRole": "unknown",
+        "unregistered": "unknown_device",
+        "view": "unsupported",
+        "wake": "unsupported",
+        "control": "unsupported",
+        "admin": "unsupported"
+      }
+    ]
+  },
+  "frames": {
+    "maxRequest": 16384,
+    "maxResponse": 4194304,
+    "streams": [
+      {
+        "name": "requête",
+        "stream": "000000177b226964223a312c22636d64223a22737461747573227d",
+        "limit": 16384,
+        "payloads": [
+          "{\"id\":1,\"cmd\":\"status\"}"
+        ],
+        "end": "eof"
+      },
+      {
+        "name": "deux requêtes à la suite",
+        "stream": "000000177b226964223a312c22636d64223a22737461747573227d000000317b226964223a322c22636d64223a2273687574646f776e222c2264656c6179223a302c22666f726365223a66616c73657d",
+        "limit": 16384,
+        "payloads": [
+          "{\"id\":1,\"cmd\":\"status\"}",
+          "{\"id\":2,\"cmd\":\"shutdown\",\"delay\":0,\"force\":false}"
+        ],
+        "end": "eof"
+      },
+      {
+        "name": "réponse en UTF-8",
+        "stream": "000000577b226964223a312c226f6b223a747275652c22636f6465223a226f6b222c226d657373616765223a22457874696e6374696f6e2064616e7320302073222c22686f73746e616d65223a2250432d53414c4f4e2dc389227d",
+        "limit": 4194304,
+        "payloads": [
+          "{\"id\":1,\"ok\":true,\"code\":\"ok\",\"message\":\"Extinction dans 0 s\",\"hostname\":\"PC-SALON-É\"}"
+        ],
+        "end": "eof"
+      },
+      {
+        "name": "flux vide",
+        "stream": "",
+        "limit": 16384,
+        "payloads": [],
+        "end": "eof"
+      },
+      {
+        "name": "message à la limite (limite réduite à 23 octets)",
+        "stream": "000000177b226964223a312c22636d64223a22737461747573227d",
+        "limit": 23,
+        "payloads": [
+          "{\"id\":1,\"cmd\":\"status\"}"
+        ],
+        "end": "eof"
+      },
+      {
+        "name": "message d'un octet de trop (limite réduite à 22 octets)",
+        "stream": "000000177b226964223a312c22636d64223a22737461747573227d",
+        "limit": 22,
+        "payloads": [],
+        "end": "too_large"
+      },
+      {
+        "name": "longueur nulle",
+        "stream": "00000000",
+        "limit": 16384,
+        "payloads": [],
+        "end": "empty"
+      },
+      {
+        "name": "requête trop longue (16 385 octets annoncés)",
+        "stream": "00004001",
+        "limit": 16384,
+        "payloads": [],
+        "end": "too_large"
+      },
+      {
+        "name": "réponse trop longue (4 194 305 octets annoncés)",
+        "stream": "00400001",
+        "limit": 4194304,
+        "payloads": [],
+        "end": "too_large"
+      },
+      {
+        "name": "longueur 0xFFFFFFFF",
+        "stream": "ffffffff",
+        "limit": 4194304,
+        "payloads": [],
+        "end": "too_large"
+      },
+      {
+        "name": "longueur tronquée",
+        "stream": "0000",
+        "limit": 16384,
+        "payloads": [],
+        "end": "truncated"
+      },
+      {
+        "name": "message tronqué",
+        "stream": "0000000a7b22696422",
+        "limit": 16384,
+        "payloads": [],
+        "end": "truncated"
+      },
+      {
+        "name": "trame puis trame tronquée",
+        "stream": "000000177b226964223a312c22636d64223a22737461747573227d000000107b2269",
+        "limit": 16384,
+        "payloads": [
+          "{\"id\":1,\"cmd\":\"status\"}"
+        ],
+        "end": "truncated"
+      },
+      {
+        "name": "trame puis longueur nulle",
+        "stream": "000000177b226964223a312c22636d64223a22737461747573227d00000000",
+        "limit": 16384,
+        "payloads": [
+          "{\"id\":1,\"cmd\":\"status\"}"
+        ],
+        "end": "empty"
+      }
+    ]
+  }
+}

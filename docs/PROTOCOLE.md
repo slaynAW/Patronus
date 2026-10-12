@@ -138,3 +138,7 @@ Le lien contient la clé : il ne doit pas être partagé.
 
 Toute modification incompatible passera par un nouvel identifiant (`wolagent/2`) ; l'agent pourra accepter plusieurs versions
 pendant une transition. Les champs JSON inconnus sont ignorés des deux côtés (ajouts compatibles possibles).
+
+`wolagent/2` est spécifié dans [PROTOCOLE-V2.md](PROTOCOLE-V2.md) : échanges chiffrés (TLS 1.3), une identité par
+appareil, rôles, révocation, et migration des appareils déjà appairés sans rescanner. Il répond au
+[modèle de menace](MODELE-DE-MENACE.md).
