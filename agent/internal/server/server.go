@@ -1,4 +1,5 @@
-// Package server implémente le serveur TCP de l'agent (protocole « wolagent/1 »).
+// Package server implémente le serveur TCP de l'agent : « wolagent/1 » et, sur le même port,
+// « wolagent/2 » (docs/PROTOCOLE-V2.md, voir v2.go).
 package server
 
 import (
@@ -19,6 +20,7 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/internal/power"
 	"github.com/slaynaw/wakeonlan/agent/internal/sysinfo"
 	"github.com/slaynaw/wakeonlan/agent/protocol"
+	"github.com/slaynaw/wakeonlan/agent/protocol2"
 )
 
 const (
@@ -32,8 +34,11 @@ var minActionDelay = 1500 * time.Millisecond
 
 // Server répond aux demandes de l'application.
 type Server struct {
-	cfg      *config.Config
+	cfg *config.Config
+	// key est la clé de wolagent/1 (nil si wolagent/1 est désactivé : v1 faux).
 	key      []byte
+	v1       bool
+	v2       *v2Server // nil : wolagent/2 désactivé (voir EnableV2)
 	networks []*net.IPNet
 	power    power.Controller
 	version  string
@@ -54,9 +59,13 @@ type Server struct {
 
 // New prépare un serveur à partir d'une configuration validée.
 func New(cfg *config.Config, controller power.Controller, version string, logger *log.Logger) (*Server, error) {
-	key, err := cfg.KeyBytes()
-	if err != nil {
-		return nil, err
+	v1 := cfg.Accepts(config.ProtocolV1)
+	var key []byte
+	if v1 {
+		var err error
+		if key, err = cfg.KeyBytes(); err != nil {
+			return nil, err
+		}
 	}
 	networks, err := cfg.Networks()
 	if err != nil {
@@ -65,6 +74,7 @@ func New(cfg *config.Config, controller power.Controller, version string, logger
 	return &Server{
 		cfg:      cfg,
 		key:      key,
+		v1:       v1,
 		networks: networks,
 		power:    controller,
 		version:  version,
@@ -171,13 +181,35 @@ func (s *Server) handle(conn net.Conn) {
 		return
 	}
 
-	nonce, err := protocol.NewNonce(protocol.ServerNonceBytes)
+	// Salut, toujours envoyé en premier : un client wolagent/1 l'attend, un client wolagent/2 le lit
+	// puis ouvre TLS. Le premier octet reçu choisit le protocole (docs/PROTOCOLE-V2.md, §3.1).
+	var nonce string
+	if s.v1 {
+		var err error
+		if nonce, err = protocol.NewNonce(protocol.ServerNonceBytes); err != nil {
+			return
+		}
+		send(protocol.Hello{Proto: protocol.Proto, Nonce: nonce})
+	} else {
+		send(struct {
+			Proto string `json:"proto"`
+		}{protocol2.ALPN})
+	}
+	reader := bufio.NewReaderSize(conn, protocol.MaxLineBytes)
+	first, err := reader.Peek(1)
 	if err != nil {
+		return // délai dépassé ou connexion fermée (simple sonde TCP)
+	}
+	if first[0] == protocol2.TLSHandshakeRecord {
+		if s.v2 != nil {
+			s.v2.serve(s, conn, reader, ip)
+		}
 		return
 	}
-	send(protocol.Hello{Proto: protocol.Proto, Nonce: nonce})
+	if !s.v1 {
+		return
+	}
 
-	reader := bufio.NewReaderSize(conn, protocol.MaxLineBytes)
 	line, err := reader.ReadSlice('\n')
 	if err != nil {
 		return // délai dépassé, message trop long ou connexion fermée (simple sonde TCP)
@@ -203,26 +235,67 @@ func (s *Server) handle(conn net.Conn) {
 	send(protocol.Response{Body: string(raw), Mac: protocol.ResponseMAC(s.key, nonce, req.CNonce, string(raw))})
 }
 
-// execute traite une requête authentifiée.
-func (s *Server) execute(rawBody, ip string) protocol.ResponseBody {
-	info := s.info()
-	resp := protocol.ResponseBody{
-		Hostname: info.Hostname,
-		OS:       info.OS,
-		Arch:     info.Arch,
-		Version:  s.version,
-		Uptime:   int64(info.Uptime.Seconds()),
+// requester décrit l'auteur d'une requête, tel que noté au journal.
+type requester struct {
+	ip   string
+	name string // nom indiqué par l'application (wolagent/1) ou enregistré par l'agent (wolagent/2)
+	id   string // empreinte courte de l'appareil (wolagent/2)
+}
+
+func (r requester) String() string {
+	switch {
+	case r.name == "":
+		return r.ip
+	case r.id == "":
+		return r.name + " (" + r.ip + ")"
 	}
+	return r.name + " [" + r.id + "] (" + r.ip + ")"
+}
+
+// protocols liste les protocoles servis, annoncés dans chaque réponse (docs/PROTOCOLE-V2.md, §9).
+func (s *Server) protocols() []string {
+	var list []string
+	if s.v1 {
+		list = append(list, config.ProtocolV1)
+	}
+	if s.v2 != nil {
+		list = append(list, config.ProtocolV2)
+	}
+	return list
+}
+
+// newResponse prépare une réponse avec la description du PC.
+func (s *Server) newResponse() protocol.ResponseBody {
+	info := s.info()
+	return protocol.ResponseBody{
+		Hostname:  info.Hostname,
+		OS:        info.OS,
+		Arch:      info.Arch,
+		Version:   s.version,
+		Uptime:    int64(info.Uptime.Seconds()),
+		Protocols: s.protocols(),
+	}
+}
+
+// execute traite une requête wolagent/1 authentifiée.
+func (s *Server) execute(rawBody, ip string) protocol.ResponseBody {
+	var body protocol.RequestBody
+	if err := json.Unmarshal([]byte(rawBody), &body); err != nil {
+		resp := s.newResponse()
+		resp.Code, resp.Message = "bad_request", "requête illisible"
+		return resp
+	}
+	return s.run(body, requester{ip: ip, name: CleanName(body.By)})
+}
+
+// run exécute une commande de wolagent/1, reçue par l'un ou l'autre protocole.
+func (s *Server) run(body protocol.RequestBody, who requester) protocol.ResponseBody {
+	resp := s.newResponse()
 	fail := func(code, message string) protocol.ResponseBody {
 		resp.Code, resp.Message = code, message
 		return resp
 	}
-
-	var body protocol.RequestBody
-	if err := json.Unmarshal([]byte(rawBody), &body); err != nil {
-		return fail("bad_request", "requête illisible")
-	}
-	by := CleanName(body.By)
+	ip := who.ip
 	// Démarrages demandés par l'application : simple ajout au journal, comme sa lecture.
 	if body.Cmd == protocol.CmdWakes {
 		if !s.cfg.Allows(protocol.CmdStatus) && !s.cfg.Allows(protocol.CmdHistory) {
@@ -234,12 +307,12 @@ func (s *Server) execute(rawBody, ip string) protocol.ResponseBody {
 		if len(body.Wakes) == 0 || len(body.Wakes) > protocol.MaxWakes {
 			return fail("bad_request", "liste de démarrages invalide")
 		}
-		added, err := s.history.AddWakes(body.Wakes, ip, by)
+		added, err := s.history.AddWakes(body.Wakes, ip, who.name, who.id)
 		if err != nil {
 			s.logger.Printf("journal : %v", err)
 		}
 		if added > 0 {
-			s.logger.Printf("%d démarrage(s) demandé(s) par %s noté(s) au journal", added, describeClient(by, ip))
+			s.logger.Printf("%d démarrage(s) demandé(s) par %s noté(s) au journal", added, who)
 		}
 		snapshot := s.history.Snapshot()
 		resp.History = &snapshot
@@ -322,9 +395,9 @@ func (s *Server) execute(rawBody, ip string) protocol.ResponseBody {
 	force := body.Force != nil && *body.Force
 
 	s.schedule(action, force, time.Duration(delay)*time.Second)
-	s.logger.Printf("%s demandée par %s (délai %d s, forcer=%v)", action.Label(), describeClient(by, ip), delay, force)
+	s.logger.Printf("%s demandée par %s (délai %d s, forcer=%v)", action.Label(), who, delay, force)
 	if s.history != nil {
-		event := protocol.HistoryEvent{T: s.now().Unix(), K: protocol.HistoryCommand, A: string(action), C: ip, B: by}
+		event := protocol.HistoryEvent{T: s.now().Unix(), K: protocol.HistoryCommand, A: string(action), C: ip, B: who.name, I: who.id}
 		if err := s.history.Add(event); err != nil {
 			s.logger.Printf("journal : %v", err)
 		}
@@ -350,13 +423,6 @@ func CleanName(name string) string {
 		n++
 	}
 	return strings.TrimSpace(b.String())
-}
-
-func describeClient(by, ip string) string {
-	if by == "" {
-		return ip
-	}
-	return by + " (" + ip + ")"
 }
 
 // schedule programme l'action ; une nouvelle demande remplace la précédente.

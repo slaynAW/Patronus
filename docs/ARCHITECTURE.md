@@ -152,8 +152,11 @@ flowchart LR
 - `server` : écoute TCP, filtrage des adresses, limitation des tentatives, exécution différée de l'action (la réponse part d'abord).
 - `power` : une implémentation par système (build tags) ; `DryRun` pour les tests.
 - `service` : installation service Windows (API SCM), systemd, launchd ; `pairing` : lien + QR code (terminal ANSI ou PNG).
-- `protocol2` : implémentation de référence des fonctions pures du futur protocole `wolagent/2`
-  ([PROTOCOLE-V2.md](PROTOCOLE-V2.md)) : empreintes, codes et liens d'appairage, rôles, preuves de migration, trames.
+- `protocol2` : implémentation de référence des fonctions pures du protocole `wolagent/2`
+  ([PROTOCOLE-V2.md](PROTOCOLE-V2.md)) : empreintes, codes et liens d'appairage, rôles, preuves de migration, trames,
+  messages ; `protocol2/client` : session côté application (salut, TLS épinglé, migration).
+- `server` sert aussi `wolagent/2` sur le même port (`v2.go`) ; `identity` garde la clé de l'agent, `devices` le
+  registre des appareils autorisés et des invitations.
 - Binaire statique unique (CGO désactivé), dépendances : `golang.org/x/sys` et `rsc.io/qr`.
 
 ## Application Windows (Go + WebView2)

@@ -5,6 +5,11 @@ compilé par la CI. **Ajoutez une section (numéro supérieur) à chaque modific
 numéro que les agents installés comparent au leur pour proposer la mise à jour. Le texte de la section est
 affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
+## 1.11.0
+
+- **Protocole chiffré wolagent/2** : l'agent l'accepte désormais sur le même port, à côté du protocole actuel. Les prochaines versions des applications l'utiliseront : tous les échanges seront chiffrés, chaque téléphone ou PC aura sa propre identité et ses droits (consulter, démarrer, éteindre, administrer), et pourra être retiré seul. Les appareils déjà appairés y passeront d'eux-mêmes, sans rescanner le QR code. Rien ne change pour les applications actuelles.
+- **`wol-agent devices`** : liste des appareils autorisés en wolagent/2, retrait, rôle et nom.
+
 ## 1.10.1
 
 - **Correctifs de sécurité** : agent compilé avec Go 1.26.9, qui corrige 27 failles de sa bibliothèque standard atteignables depuis l'agent (connexions HTTPS des mises à jour, vérification des certificats, analyse des adresses). Il s'agit surtout de blocages ou de plantages que pourraient provoquer un serveur ou des données malveillants.

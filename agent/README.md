@@ -76,6 +76,7 @@ une nouvelle version des applications ne provoque pas de mise à jour de l'agent
 | `wol-agent status` | État du service, configuration, carte réseau détectée, type des réseaux Windows (alerte si « Public »), températures, disques (espace, santé, erreurs), fiche du PC (processeur, mémoire, cartes graphiques, carte mère, système), derniers évènements du journal (avec la cause des arrêts anormaux) |
 | `wol-agent diagnostic` | Rapport de diagnostic chiffré par un mot de passe (état, configuration sans la clé, journaux), à transmettre pour analyser un problème ([docs/DIAGNOSTIC.md](../docs/DIAGNOSTIC.md)). Terminal administrateur recommandé. |
 | `wol-agent rotate-key` | Nouvelle clé ; l'ancienne est immédiatement refusée (ré-appairer) |
+| `wol-agent devices [revoke\|role\|rename] <empreinte> [rôle\|nom]` | Appareils autorisés en `wolagent/2` (voir ci-dessous) : liste, retrait, rôle (`view`, `wake`, `control`, `admin`), nom |
 | `wol-agent update [--check] [--yes] [--auto on\|off]` | Recherche et installe une nouvelle version (Windows) ; `--auto` : recherche quotidienne |
 | `wol-agent uninstall [--purge]` | Désinstalle (`--purge` supprime aussi la configuration) |
 | `wol-agent run [--config …] [--dry-run]` | Lance l'agent au premier plan ; `--dry-run` n'éteint rien (test) |
@@ -96,6 +97,8 @@ afin que le QR code contienne la bonne adresse MAC.
 ```
 
 - `autoUpdate` (facultatif, Windows) : `false` désactive la recherche quotidienne des mises à jour.
+- `protocols` (facultatif) : protocoles acceptés, `["wolagent/1", "wolagent/2"]` par défaut. Ne retirez pas `wolagent/1`
+  tant que toutes vos applications ne sont pas passées en `wolagent/2`.
 - `metrics` (facultatif) : `false` désactive l'enregistrement continu des mesures (90 jours, dossier `metrics/`).
 
 - `allow` : réseaux autorisés à se connecter (par défaut uniquement des adresses privées).
@@ -103,6 +106,25 @@ afin que le QR code contienne la bonne adresse MAC.
   mesures (`metrics`) et de la fiche du PC (`specs`) est autorisée dès que `status` l'est.
 - Après modification : redémarrez le service (`wol-agent install` le fait, ou `systemctl restart wol-agent`,
   ou *Services* → *Patronus - Agent* → *Redémarrer* sous Windows).
+
+## Protocole chiffré `wolagent/2` (agent 1.11.0)
+
+L'agent sert aussi, sur le même port, [`wolagent/2`](../docs/PROTOCOLE-V2.md) : échanges chiffrés (TLS 1.3), une
+identité par appareil, des rôles et une révocation appareil par appareil. Les applications l'utiliseront dans leurs
+prochaines versions, et y feront passer d'elles-mêmes les appareils déjà appairés. En attendant, rien ne change pour
+elles.
+
+- **Identité de l'agent** : `identity.key`, créée au premier démarrage à côté de `config.json` (réservée à `root`, ou à
+  SYSTEM et aux Administrateurs, et chiffrée par DPAPI sous Windows). Son empreinte courte s'affiche dans
+  `wol-agent status`.
+- **Appareils autorisés** : `devices.json` (appareils, rôles, invitations en attente ; des invitations, seul le condensé
+  du code est gardé).
+- **`wol-agent devices`** liste les appareils avec leur empreinte courte. `wol-agent devices revoke <début de
+  l'empreinte>` en retire un : ses connexions ouvertes sont fermées sur-le-champ. `role` et `rename` changent son rôle et
+  son nom. Le dernier administrateur ne peut être retiré ou rétrogradé que sur le PC, après confirmation. La commande
+  passe par le service s'il tourne (effet immédiat), sinon elle modifie directement le registre.
+- Chaque ajout, retrait ou changement est noté au journal du PC, et chaque commande y est attribuée à l'appareil qui l'a
+  envoyée.
 
 ## Comportement des actions
 
