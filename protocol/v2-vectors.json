@@ -53,6 +53,11 @@
         "name": "certificat tronqué",
         "certificate": "MIIBODCB3qADAgECAhBUkAZrd4k1sLtJJePbFRxbMAoGCCqGSM49BAMCMBMxETAPBgNVBAMTCHdvbGFnZW50MCAXDTI2MTAxMTAwMDAwMFoYDzk5OTkxMjMxMjM1OTU5WjATMREwDwYDVQQDEwh3b2xhZ2VudDBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABFdMQlqfEnFedXx2nws",
         "error": "certificate"
+      },
+      {
+        "name": "point de la clé hors de la courbe P-256",
+        "certificate": "MIIBNzCB3qADAgECAhB3yfW2PVSAFHoY8rsv6qIaMAoGCCqGSM49BAMCMBMxETAPBgNVBAMTCHdvbGFnZW50MCAXDTI2MTAxMTAwMDAwMFoYDzk5OTkxMjMxMjM1OTU5WjATMREwDwYDVQQDEwh3b2xhZ2VudDBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABKgBIjol9jH1dJo2yw-jyq_rBlQbWLU194YHj_AtWuJW6K847Q2MzIpUvD7LMwDmW1XjftdbhYQu1h9a2DYckSejEjAQMA4GA1UdDwEB_wQEAwIHgDAKBggqhkjOPQQDAgNIADBFAiEAthIbyDHm7W5RrvqNyEa4stBDEBQVbm2_NeP_DFrc7RgCIEsFrb1X83_YJooHGre3PizlL6NEvpzKoBlv9zbeNI2K",
+        "error": "certificate"
       }
     ]
   },

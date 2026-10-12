@@ -20,6 +20,9 @@ CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 B64_CHARS = re.compile(r"[A-Za-z0-9_-]*")
 # SubjectPublicKeyInfo P-256 standard : id-ecPublicKey, prime256v1, point non compressé (§2.2).
 P256_SPKI_PREFIX = bytes.fromhex("3059" "3013" "06072a8648ce3d0201" "06082a8648ce3d030107" "034200" "04")
+# Courbe P-256 (FIPS 186-4) : y² = x³ − 3x + b modulo p.
+P256_P = 2**256 - 2**224 + 2**192 + 2**96 - 1
+P256_B = 0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B
 LINK_PREFIX = "wolagent://pair?"
 ROLES = ["view", "wake", "control", "admin"]
 # Tableau du §5 : rôle minimal de chaque commande ; pair et migrate sont réservées à l'appairage.
@@ -104,6 +107,15 @@ def openssl_spki(der):
     return base64.b64decode("".join(line for line in lines if line and not line.startswith("-----")))
 
 
+def is_p256(spki):
+    return len(spki) == 91 and spki.startswith(P256_SPKI_PREFIX)
+
+
+def on_p256(spki):
+    x, y = int.from_bytes(spki[27:59], "big"), int.from_bytes(spki[59:91], "big")
+    return x < P256_P and y < P256_P and (y * y - (x * x * x - 3 * x + P256_B)) % P256_P == 0
+
+
 def short_pin(pin):
     bits = "".join(f"{byte:08b}" for byte in pin)[:60]
     chars = "".join(CROCKFORD[int(bits[i:i + 5], 2)] for i in range(0, 60, 5))
@@ -115,7 +127,7 @@ def check_pins(pins):
     for case in pins["valid"]:
         der = b64_decode(case["certificate"])
         spki = certificate_spki(der)
-        check(len(spki) == 91 and spki.startswith(P256_SPKI_PREFIX), f"empreintes : {case['name']} : pas une clé P-256")
+        check(is_p256(spki) and on_p256(spki), f"empreintes : {case['name']} : pas une clé P-256")
         check(openssl_spki(der) == spki, f"empreintes : {case['name']} : OpenSSL lit une autre clé")
         pin = hashlib.sha256(spki).digest()
         check(b64_encode(pin) == case["pin"], f"empreintes : {case['name']} : {b64_encode(pin)}")
@@ -130,9 +142,12 @@ def check_pins(pins):
             check(case["error"] == "certificate", f"empreintes : {case['name']} : illisible")
             check(openssl_spki(der) is None, f"empreintes : {case['name']} : lu par OpenSSL")
             continue
+        if is_p256(spki):  # forme P-256, mais point hors de la courbe : certificat illisible
+            check(not on_p256(spki) and case["error"] == "certificate", f"empreintes : {case['name']} : clé P-256 valide")
+            check(openssl_spki(der) is None, f"empreintes : {case['name']} : lu par OpenSSL")
+            continue
         check(case["error"] == "key_type", f"empreintes : {case['name']} : certificat lisible")
         check(openssl_spki(der) == spki, f"empreintes : {case['name']} : OpenSSL lit une autre clé")
-        check(not (len(spki) == 91 and spki.startswith(P256_SPKI_PREFIX)), f"empreintes : {case['name']} : clé P-256")
 
 
 # --- Codes d'appairage (§7.2) --------------------------------------------------------------------
