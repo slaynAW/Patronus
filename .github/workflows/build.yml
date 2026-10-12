@@ -292,7 +292,8 @@ jobs:
           cache-dependency-path: agent/go.sum
           cache: ${{ needs.version.outputs.official != 'true' }}
 
-      # Le vrai agent tourne en mode simulation pour le test de bout en bout (AgentEndToEndTest).
+      # Le vrai agent tourne en mode simulation pour les tests de bout en bout (AgentEndToEndTest,
+      # Wolagent2EndToEndTest).
       - name: Agent de test (simulation)
         run: |
           (cd agent && go build -o "$RUNNER_TEMP/wol-agent" .)
@@ -304,6 +305,8 @@ jobs:
           nohup "$RUNNER_TEMP/wol-agent" run --config "$RUNNER_TEMP/agent.json" --dry-run > "$RUNNER_TEMP/agent.log" 2>&1 &
           echo "WOL_E2E_PORT=19770" >> "$GITHUB_ENV"
           echo "WOL_E2E_KEY=$key" >> "$GITHUB_ENV"
+          # Identité de l'agent (créée à son démarrage) : wolagent/2 administré comme par wol-agent sur le PC.
+          echo "WOL_E2E_IDENTITY=$RUNNER_TEMP/identity.key" >> "$GITHUB_ENV"
 
       # Aucune clé de signature ici : l'APK est signé avec une clé de test. Seul le job « Publication
       # officielle » reçoit la clé définitive, après validation (docs/SIGNATURE.md).
