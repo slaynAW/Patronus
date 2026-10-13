@@ -522,10 +522,26 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Numéro de version libre
+      - name: Numéro de version libre et plus récent
         run: |
           if gh release view "v$VERSION" > /dev/null 2>&1; then
             echo "::error title=Version::La version v$VERSION existe déjà : choisissez un autre numéro."
+            exit 1
+          fi
+          # Jamais plus ancienne que la dernière version publiée : elle deviendrait la « dernière
+          # version » de GitHub, celle que proposent les mises à jour intégrées (cas d'une publication
+          # validée après une autre plus récente).
+          if ! latest=$(gh release view --json tagName --jq .tagName 2> "$RUNNER_TEMP/latest.err"); then
+            if ! grep -q "release not found" "$RUNNER_TEMP/latest.err"; then
+              cat "$RUNNER_TEMP/latest.err"
+              echo "::error title=Version::Dernière version publiée illisible : relancez le job."
+              exit 1
+            fi
+            latest="" # aucune version publiée
+          fi
+          latest=${latest#v}
+          if [[ -n "$latest" && "$(printf '%s\n' "$latest" "$VERSION" | sort -V | tail -n 1)" != "$VERSION" ]]; then
+            echo "::error title=Version::v$VERSION est plus ancienne que la dernière version publiée (v$latest) : choisissez un numéro plus récent."
             exit 1
           fi
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
