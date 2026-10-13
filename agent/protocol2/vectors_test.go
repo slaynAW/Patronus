@@ -490,6 +490,7 @@ func generatePins(t *testing.T, agentKey, deviceKey *ecdsa.PrivateKey, agentCert
 			{Name: "clé Ed25519", Certificate: selfSigned(edKey.Public(), edKey), Error: "key_type"},
 			{Name: "pas un certificat", Certificate: b64.EncodeToString([]byte(ALPN)), Error: "certificate"},
 			{Name: "certificat tronqué", Certificate: b64.EncodeToString(agentCert[:len(agentCert)/2]), Error: "certificate"},
+			{Name: "point de la clé hors de la courbe P-256", Certificate: b64.EncodeToString(offCurve(t, deviceCert)), Error: "certificate"},
 		},
 	}
 }
@@ -722,6 +723,21 @@ func generateFrames(t *testing.T) frameVectors {
 		v.Streams = append(v.Streams, frameStream{Name: c.name, Stream: c.stream, Limit: c.limit, Payloads: payloads, End: end})
 	}
 	return v
+}
+
+// offCurve modifie le dernier octet de la coordonnée Y de la clé du certificat : le point n'est plus
+// sur la courbe, et le certificat est illisible (signature, ignorée, comprise).
+func offCurve(t *testing.T, der []byte) []byte {
+	out := slices.Clone(der)
+	i := bytes.Index(out, p256SPKIPrefix)
+	if i < 0 {
+		t.Fatal("clé P-256 introuvable")
+	}
+	out[i+p256SPKILength-1] ^= 1
+	if _, err := PinFromCertificate(out); !errors.Is(err, ErrCertificate) {
+		t.Fatalf("point hors de la courbe : %v", err)
+	}
+	return out
 }
 
 // vectorKey dérive une clé P-256 fixe d'un libellé.

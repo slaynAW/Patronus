@@ -190,7 +190,7 @@ flowchart LR
 | Test de bout en bout app ↔ agent réel | CI (`AgentEndToEndTest`) |
 | Tests de l'agent (protocole, serveur, rejeu, force brute, config) sous Linux **et** Windows, détecteur de courses | CI |
 | Vecteurs cryptographiques communs, calculés indépendamment | `protocol/test-vectors.json` |
-| Vecteurs de `wolagent/2`, vérifiés à chaque build par une seconde implémentation (Python, OpenSSL), et fuzzing des analyseurs | `protocol/v2-vectors.json`, `.github/scripts/check-v2-vectors.py` |
+| Vecteurs de `wolagent/2` : agent (Go), application Android (`core`, `Wolagent2Test`) et une troisième implémentation indépendante (Python, OpenSSL), à chaque build ; fuzzing des analyseurs | `protocol/v2-vectors.json`, `.github/scripts/check-v2-vectors.py` |
 | Scénario d'historique commun Kotlin ↔ Go (fusion, doublons, conservation) | `protocol/history-vectors.json` |
 | Tests de l'application Windows (Linux + Windows : DPAPI, ping, cartes réseau), test de bout en bout contre l'agent | CI |
 | Démarrage réel de l'application Windows (fenêtre WebView2, interface, pont Go ↔ JS) | CI (`WOL_SELFTEST`) |

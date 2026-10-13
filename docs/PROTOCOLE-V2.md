@@ -9,7 +9,8 @@ identité, des droits (rôles) et une révocation individuelle. Il répond aux e
 [modèle de menace](MODELE-DE-MENACE.md#7-exigences-de-sécurité).
 
 - **Implémentation de référence** des fonctions pures (empreintes, codes, liens, preuves, rôles, trames) : paquet Go
-  [`agent/protocol2`](../agent/protocol2).
+  [`agent/protocol2`](../agent/protocol2) ; en Kotlin pour Android :
+  [`core/…/agent2`](../core/src/main/kotlin/io/github/slaynaw/wakeonlan/core/agent2).
 - **Vecteurs de test** communs Go et Kotlin : [`protocol/v2-vectors.json`](../protocol/v2-vectors.json).
 
 Conventions :
@@ -564,14 +565,15 @@ Il couvre :
 
 | Section | Contenu |
 |---|---|
-| `pins` | Certificats P-256 avec leur empreinte et leur empreinte courte, dont deux certificats différents d'une même clé (même empreinte) ; certificats RSA, P-384 et Ed25519 refusés |
+| `pins` | Certificats P-256 avec leur empreinte et leur empreinte courte, dont deux certificats différents d'une même clé (même empreinte) ; certificats RSA, P-384 et Ed25519 refusés (`key_type`) ; certificat illisible, tronqué, ou dont le point de la clé n'est pas sur la courbe (`certificate`) |
 | `codes` | Normalisation des codes saisis, affichage, codes invalides |
 | `links` | Liens `v=2` valides (champs attendus ; `canonical` : écrit par l'agent, le réécrire redonne le même texte), invalides (cause), expiration à une date donnée |
 | `migration` | Preuves `Pa` et `Pd` pour des clés, empreintes et nonces donnés |
 | `roles` | Rôle minimal de chaque commande, et la réponse pour chaque rôle et pour une identité inconnue, commandes inconnues comprises |
 | `frames` | Flux de trames : messages lus puis fin du flux (`eof`, `empty`, `too_large`, `truncated`) |
 
-L'implémentation Kotlin (étape 3) sera vérifiée contre les mêmes vecteurs, comme pour `wolagent/1`.
+L'implémentation Kotlin (`core`, paquet `agent2`) est vérifiée contre les mêmes vecteurs (`Wolagent2Test`), comme
+pour `wolagent/1`.
 
 ## Annexe : pourquoi ces choix
 

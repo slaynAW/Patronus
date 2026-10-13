@@ -240,6 +240,10 @@ data class AgentHistoryEvent(
     val r: String? = null,
     /** Précision de la cause : code de l'écran bleu (« 0x7E SYSTEM_THREAD_EXCEPTION_NOT_HANDLED »)… */
     val d: String? = null,
+    /** Empreinte courte de l'appareil authentifié en wolagent/2 (agent 1.11.0 ou plus). */
+    val i: String? = null,
+    /** Rôle de l'appareil dans un évènement `device` (wolagent/2). */
+    val x: String? = null,
 ) {
     /** Même évènement, cause mise à part (l'agent la précise après coup). */
     fun same(o: AgentHistoryEvent) = t == o.t && k == o.k && a == o.a && c == o.c && b == o.b
