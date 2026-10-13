@@ -8,8 +8,9 @@ Version Windows de l'application : **mêmes fonctions et même style** que l'app
 - 🟢 État en temps réel (allumé / éteint / démarrage / arrêt en cours, latence, « vu il y a… »).
 - 📈 Latence en direct façon électrocardiogramme dans le panneau de détail (tracé de la dernière minute, une mesure par
   seconde, survol pour lire chaque mesure) et mini-tracés dans les listes.
-- 🤝 Partage des PC avec d'autres personnes, PC par PC (démarrer, ou aussi éteindre), chiffré et signé ; invitation par
-  QR code ou lien. Voir [docs/PARTAGE.md](../docs/PARTAGE.md).
+- 🤝 Partage des PC avec d'autres personnes, PC par PC (démarrer, consulter, ou aussi éteindre), chiffré et signé ;
+  invitation par QR code ou lien. Un PC en connexion chiffrée enregistre lui-même l'appareil de la personne, sans
+  transmettre de clé. Voir [docs/PARTAGE.md](../docs/PARTAGE.md).
 - 🔄 Mises à jour intégrées : nouvelle version proposée avec ses nouveautés, installée en un clic (l'application se
   remplace puis redémarre ; configuration et historique conservés). Voir [docs/MISES-A-JOUR.md](../docs/MISES-A-JOUR.md).
 - ⏻ Éteindre, redémarrer, mettre en veille (avec l'[agent](../agent/README.md) installé sur les PC).
@@ -53,8 +54,9 @@ Avec l'agent 1.11.0 ou plus, l'application passe d'elle-même au protocole chiff
   auprès de lui avec sa propre identité (rôle « contrôle », les droits qu'avait la clé) ;
 - tous les échanges sont ensuite **chiffrés** (TLS 1.3), et l'application vérifie l'empreinte du PC à chaque connexion :
   une autre machine à la même adresse est refusée avant tout envoi. Elle ne revient jamais à l'ancien protocole avec ce PC ;
-- la **clé de l'agent est effacée** de l'application, qui n'en a plus besoin. Seule exception : un PC partagé avec le
-  droit « démarrer et éteindre » la garde, car ce partage la transmet (jusqu'à la prochaine version du partage) ;
+- la **clé de l'agent est effacée** de l'application, qui n'en a plus besoin. Seule exception : un PC partagé par clé
+  (droit « démarrer et éteindre » donné à une personne dont l'application est antérieure à 1.13) la garde tant que ce
+  partage la transmet ;
 - la fiche du PC affiche *Chiffré et authentifié* et son **empreinte** (`7KQ2-9MXP-4D1Z`), à comparer avec celle de
   `wol-agent status` sur le PC. `wol-agent devices` y liste les appareils autorisés, et retire celui qu'on veut ;
 - si cet ordinateur est **administrateur** du PC (appairé avec le QR code de `wol-agent pair`), la ligne *Droits de cet

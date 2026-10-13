@@ -3,6 +3,14 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.13.0
+
+- **Partage sans clé** (avec l'agent 1.11.0) : un PC en connexion chiffrée se partage désormais sans transmettre sa clé. Le PC enregistre lui-même l'appareil de la personne, avec ses seuls droits, grâce à une invitation à usage unique réservée à cet appareil ; tout se fait seul dès que le PC répond. Il suffit que votre téléphone ou votre ordinateur en soit administrateur (c'est le cas s'il a été appairé avec le QR code de « wol-agent pair »).
+- **Nouveau droit « démarrer et consulter »** : la personne voit l'état du PC, son historique, ses mesures et sa fiche, sans pouvoir l'éteindre. « Démarrer et éteindre » est de nouveau possible pour les PC en connexion chiffrée.
+- **Retrait appliqué par le PC** : retirer l'accès d'une personne retire aussi son appareil des PC partagés sans clé, dès que votre appareil les joint. Plus de clé à changer.
+- **Pour la personne qui reçoit l'accès**, rien à faire : le PC apparaît d'abord en « démarrer », puis avec ses droits dès qu'il a enregistré son appareil (Android 10 ou plus). Si l'application indique « Demande modifiée en route », quittez ce partage et refaites la demande.
+- Une personne dont l'application est plus ancienne reste en partage par clé : demandez-lui de mettre à jour son application, puis de vous renvoyer une demande.
+
 ## 1.12.0
 
 - **Connexion chiffrée avec vos PC** (avec l'agent 1.11.0) : tous les échanges avec l'agent sont désormais chiffrés (TLS 1.3), et chaque téléphone ou ordinateur a sa propre identité, gardée dans le Keystore Android (ou chiffrée par Windows) et jamais exportée. Les PC déjà appairés y passent d'eux-mêmes, sans rien rescanner : leur fiche affiche « Chiffré et authentifié » et l'empreinte du PC, vérifiée à chaque connexion. Il faut Android 10 ou plus ; un téléphone sous Android 8 ou 9 continue comme avant.

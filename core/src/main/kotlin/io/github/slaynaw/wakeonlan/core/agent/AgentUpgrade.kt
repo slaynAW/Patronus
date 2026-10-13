@@ -18,8 +18,9 @@ import io.github.slaynaw.wakeonlan.core.status.DeviceStatus
  *    wolagent/2 à ce PC.
  *
  * Une interruption à n'importe quelle étape laisse le PC en wolagent/1 ; l'essai suivant reprend (l'étape 2 reconnaît
- * un enregistrement déjà fait). Un PC partagé avec le droit « démarrer et éteindre » garde sa clé, que ce partage
- * transmet, jusqu'au partage v2 (§10). Les PC reçus d'une autre personne ne sont pas concernés.
+ * un enregistrement déjà fait). Un PC partagé en v1 avec le droit « démarrer et éteindre » (personne sans partage v2,
+ * §10) garde sa clé, que ce partage transmet, tant qu'il en a besoin. Les PC reçus d'une autre personne ne sont pas
+ * concernés.
  */
 object AgentUpgrade {
     /** Résultat d'un passage. */

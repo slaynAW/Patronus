@@ -66,8 +66,9 @@ la clé de l'agent n'est plus transmise : le PC **enregistre l'appareil de la pe
 Du côté de la personne qui reçoit l'accès, rien à faire : sa demande porte l'empreinte de son appareil (sur Android,
 à partir d'Android 10). Le PC apparaît d'abord en « démarrer » ; dès qu'il répond, son appareil utilise l'invitation
 et le PC lui donne ses droits : état, historique et mesures pour « démarrer et consulter », extinction en plus pour
-« démarrer et éteindre ». Si l'application indique « Demande modifiée en route », supprimez ce partage et refaites la
-demande : l'empreinte reçue n'était pas celle de l'appareil, et aucune invitation n'est utilisée.
+« démarrer et éteindre ». Si l'application indique « Demande modifiée en route », quittez ce partage (*Quitter ce
+partage*) et refaites la demande : l'empreinte reçue n'était pas celle de l'appareil, et aucune invitation n'est
+utilisée.
 
 ### Retirer un accès
 

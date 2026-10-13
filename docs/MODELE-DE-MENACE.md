@@ -4,8 +4,8 @@ Ce document décrit ce que Patronus protège, contre qui, et comment. Il sert de
 `wolagent/2` ([PROTOCOLE-V2.md](PROTOCOLE-V2.md)) et sera relu à chaque étape de la feuille de route (hub sur le NAS,
 notifications, accès à distance).
 
-- **État couvert** : Patronus 1.12.0 et agent 1.11.0 : `wolagent/2` en service, `wolagent/1` gardé pendant la
-  transition (applications et agents plus anciens, téléphones sous Android 8 ou 9).
+- **État couvert** : Patronus 1.13.0 et agent 1.11.0 : `wolagent/2` en service, partage v2 compris, `wolagent/1`
+  gardé pendant la transition (applications et agents plus anciens, téléphones sous Android 8 ou 9).
 - **Signaler une faille** : [SECURITY.md](../SECURITY.md). Détail des mesures actuelles : [SECURITE.md](SECURITE.md).
 
 ## 1. Système étudié
@@ -78,8 +78,8 @@ Flux étudiés :
 ## 5. Menaces et protections
 
 « Actuel » désigne `wolagent/1` (Patronus 1.11, et les appareils pas encore passés en `wolagent/2`) ; « Prévu »
-`wolagent/2`, **en service depuis Patronus 1.12.0 et l'agent 1.11.0**, sauf ce qui est marqué *(à venir)* ou attribué
-à une étape suivante.
+`wolagent/2`, **en service depuis Patronus 1.12.0 et l'agent 1.11.0** (partage v2 : Patronus 1.13.0), sauf ce qui est
+marqué *(à venir)* ou attribué à une étape suivante.
 
 ### F1 · Application ↔ agent
 
@@ -108,7 +108,7 @@ Flux étudiés :
 
 | Id | Menace | Adv. | Actuel | Prévu | Résiduel |
 |---|---|---|---|---|---|
-| T14 | Lecture des Gists | M2, M4 | Chiffrement de bout en bout : pour la clé d'un appareil (partage), par mot de passe (sauvegardes, archives) | Partage v2 *(à venir, 1.13)* : plus de clé d'agent dans les fichiers, seulement une invitation à usage unique, liée à l'appareil destinataire | GitHub voit l'existence, la taille et les dates des Gists |
+| T14 | Lecture des Gists | M2, M4 | Chiffrement de bout en bout : pour la clé d'un appareil (partage), par mot de passe (sauvegardes, archives) | Partage v2 (1.13.0) : plus de clé d'agent dans les fichiers, seulement une invitation à usage unique, réservée à l'appareil destinataire | GitHub voit l'existence, la taille et les dates des Gists ; clé encore transmise en partage v1 (application antérieure à 1.13 chez la personne) |
 | T15 | Faux fichier d'accès, fausse invitation, fausse demande | M3, M4 | Signature ECDSA du propriétaire, code de vérification comparé de vive voix | Inchangé | Utilisateur qui ne compare pas le code (H3) |
 | T16 | Retour à une ancienne révision d'un accès | M4 | Numéro de révision croissant | Inchangé ; et révocation sur l'agent lui-même | — |
 | T17 | Vol du jeton GitHub | M6, M9 | Droit `gist` seulement, chiffré sur l'appareil, jamais exporté | Inchangé | Lecture et suppression des Gists (contenu chiffré) |
@@ -164,15 +164,15 @@ Flux étudiés :
 ## 7. Exigences de sécurité
 
 Exigences tirées des menaces ci-dessus. La spécification `wolagent/2` indique comment elle répond à chacune ; la
-dernière colonne donne leur état dans Patronus 1.12.0 et l'agent 1.11.0.
+dernière colonne donne leur état dans Patronus 1.13.0 et l'agent 1.11.0.
 
-| Id | Exigence | Menaces | 1.12.0 |
+| Id | Exigence | Menaces | 1.13.0 |
 |---|---|---|---|
 | R1 | Tout échange application ↔ agent est chiffré et authentifié (TLS 1.3 uniquement, AEAD, confidentialité persistante). | T1, T2, T3 | Oui en `wolagent/2` ; Android 8 et 9 restent en `wolagent/1` |
 | R2 | Authentification mutuelle par clés publiques épinglées, sans autorité de certification. | T4, T5 | Oui |
 | R3 | Une identité par appareil, agent et hub ; clé privée générée sur place, non exportable quand la plateforme le permet. | T7, T26, T28 | Oui : Keystore Android (StrongBox si présent), DPAPI sous Windows ; TPM à venir |
-| R4 | Autorisation par rôle, au plus juste par défaut ; la liste blanche de commandes du PC reste appliquée par-dessus. | T8, T30 | Oui ; le partage par rôle viendra avec le partage v2 |
-| R5 | Révocation individuelle, effective immédiatement et vérifiée par l'agent lui-même. | T7, T16, T27 | Oui : sur le PC ou depuis un appareil administrateur |
+| R4 | Autorisation par rôle, au plus juste par défaut ; la liste blanche de commandes du PC reste appliquée par-dessus. | T8, T30 | Oui, partage compris : « démarrer et consulter » donne le rôle `wake`, « démarrer et éteindre » le rôle `control` |
+| R5 | Révocation individuelle, effective immédiatement et vérifiée par l'agent lui-même. | T7, T16, T27 | Oui : sur le PC ou depuis un appareil administrateur ; un accès partagé retiré l'est aussi sur les PC (partage v2) |
 | R6 | Appairage sans secret durable dans le QR code ou le lien : code à usage unique, expirant, limité en tentatives. | T5, T6 | Oui ; l'ancien QR code reste possible sur demande (`--v1`) |
 | R7 | Migration depuis `wolagent/1` sans rescanner, résistante à l'homme du milieu, sans élargir les droits. | T12 | Oui |
 | R8 | Aucune rétrogradation silencieuse vers `wolagent/1` une fois `wolagent/2` établi avec un PC. | T11 | Oui |
