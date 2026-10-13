@@ -1,7 +1,7 @@
 # Protocole `wolagent/2` (spécification)
 
-> **Statut : en service depuis l'agent 1.11.0 et les applications 1.12.0 (étape 3 de la feuille de route), sauf le
-> partage v2 (§10), prévu pour les applications 1.13.** Toute évolution de ce document s'accompagne des vecteurs de
+> **Statut : en service depuis l'agent 1.11.0 et les applications 1.12.0 (étape 3 de la feuille de route), partage v2
+> (§10) compris depuis les applications 1.13.0.** Toute évolution de ce document s'accompagne des vecteurs de
 > test. `wolagent/2` remplacera [`wolagent/1`](PROTOCOLE.md) après une période de transition (§11).
 
 `wolagent/2` chiffre tous les échanges entre les applications et l'agent. Il donne à chaque appareil sa propre
@@ -500,17 +500,19 @@ en temps constant.
 **Ensuite :**
 
 - l'application garde l'empreinte de l'agent et ne parle plus jamais `wolagent/1` à ce PC (R8). Elle efface `K` de sa
-  configuration, **sauf** tant qu'elle partage ce PC avec le droit « démarrer et éteindre » : ce partage
-  (`wolagent/1`) transmet `K` aux personnes autorisées. `K` ne sert alors plus qu'à ce partage, jusqu'au partage v2
-  (§10), et elle est effacée dès que le partage est retiré.
+  configuration, **sauf** tant qu'elle partage ce PC en partage v1 avec le droit « démarrer et éteindre » (personne
+  dont l'application ne connaît pas le partage v2, §10) : ce partage transmet `K` aux personnes autorisées. `K` ne sert
+  alors plus qu'à ce partage, et elle est effacée dès qu'il n'en a plus besoin (accès retiré, ou personne passée au
+  partage v2).
 - L'appareil migré reçoit le rôle `control` : les droits qu'avait sa clé. Le rôle `admin` ne s'obtient jamais par
   migration, seulement sur le PC (`wol-agent pair` ou `wol-agent devices role`).
 - Une application qui n'a plus `K` et que l'agent ne reconnaît plus (`unknown_device` : appareil retiré) ne se
   réenregistre jamais d'elle-même : il faut l'appairer à nouveau.
 - Une nouvelle clé saisie pour ce PC (lien d'appairage collé après une réinstallation de l'agent) fait oublier
   l'empreinte : le passage reprend depuis cette clé, qui authentifie l'empreinte de l'agent réinstallé.
-- Une application ne migre que ses propres PC. Ceux qu'elle a reçus d'une autre personne restent en `wolagent/1`
-  (leur clé vient du partage, sans l'empreinte de l'agent) jusqu'au partage v2.
+- Une application ne migre que ses propres PC. Ceux qu'elle a reçus d'une autre personne en partage v1 restent en
+  `wolagent/1` (leur clé vient du partage, sans l'empreinte de l'agent) ; en partage v2, ils sont joints en
+  `wolagent/2` dès que le PC a enregistré l'appareil (§10).
 
 **Qui peut migrer.** Tout détenteur de `K` : les appareils du propriétaire, et les personnes ayant un partage « démarrer
 et éteindre ». C'est cohérent avec leurs droits en `wolagent/1`. Chaque migration est notée au journal et visible dans
@@ -530,8 +532,10 @@ Format exact et règles des deux côtés : [PARTAGE.md, « Partage v2 »](PARTAG
 - L'application du propriétaire (administrateur du PC) la crée par `invite`, **réservée à l'identité `wolagent/2` du
   destinataire** (`device`), valable 7 jours et renouvelée tant qu'elle n'a pas servi. L'empreinte du destinataire
   arrive par sa demande d'accès, qui gagne un paramètre `id` : `wolshare://request?…&id=<empreinte>`.
-- L'application du destinataire utilise l'invitation (`pair`) dès qu'elle joint le PC. Elle ne garde ensuite que
-  l'adresse, le port, la MAC et l'empreinte de l'agent.
+- L'application du destinataire utilise l'invitation (`pair`) dès qu'elle joint le PC, une seule fois. Elle ne garde
+  ensuite que l'adresse, le port, la MAC et l'empreinte de l'agent. Avant cela, elle ne joint pas l'agent (une identité
+  inconnue, hors appairage, compterait comme un échec, §3.3) : elle traite le PC comme un PC « démarrer », et ne sonde
+  le port de l'agent que par une simple connexion TCP.
 - Réservée à une identité, une invitation divulguée ne sert à personne d'autre.
 - **Retirer l'accès** : l'application du propriétaire envoie `devices.revoke` aux PC concernés, et supprime le fichier
   d'accès. La révocation prend effet dès qu'un appareil administrateur joint le PC, ou tout de suite avec

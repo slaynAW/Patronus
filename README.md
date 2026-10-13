@@ -31,9 +31,10 @@ Anciennement **Wake On LAN** (jusqu'à la version 1.5.0).
 - 🕘 **Historique discret** des démarrages et extinctions sur 30 jours (complet grâce au journal de l'agent, même quand
   l'application était fermée).
 - 🌙 **Style sombre et moderne**, identique sur Android et Windows : synthèse en anneau, plan du réseau, fiche de chaque PC.
-- 🤝 **Partage des PC** avec les personnes de votre choix, PC par PC (démarrer seulement, ou aussi éteindre) :
-  invitation par QR code ou lien, accès chiffré pour le seul appareil de la personne et signé par vous, mis à jour
-  automatiquement, retirable à tout moment ([docs/PARTAGE.md](docs/PARTAGE.md)).
+- 🤝 **Partage des PC** avec les personnes de votre choix, PC par PC (démarrer seulement, consulter, ou aussi
+  éteindre) : invitation par QR code ou lien, accès chiffré pour le seul appareil de la personne et signé par vous, mis
+  à jour automatiquement, retirable à tout moment. Un PC en connexion chiffrée enregistre lui-même l'appareil de la
+  personne : aucune clé n'est transmise ([docs/PARTAGE.md](docs/PARTAGE.md)).
 - 🔄 **Mises à jour intégrées** : les applications proposent les nouvelles versions avec leurs nouveautés et s'installent
   en un clic, sans toucher aux PC enregistrés ni à l'historique ([docs/MISES-A-JOUR.md](docs/MISES-A-JOUR.md)).
 - 🔒 **Sécurisée** : configuration chiffrée sur le téléphone, commandes authentifiées et non rejouables, aucune donnée
@@ -233,7 +234,7 @@ Détails : **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** et **[docs/PROTOCOLE
 | Fuite d'un rapport de diagnostic | Journal chiffré sur l'appareil ; rapport exporté seulement à la demande, chiffré par mot de passe, sans aucune clé ni jeton ([docs/DIAGNOSTIC.md](docs/DIAGNOSTIC.md)). |
 | Fuite d'une sauvegarde automatique | Chiffrée comme l'export complet par un mot de passe dédié ; Gist secret ; mot de passe et jeton gardés chiffrés sur l'appareil ([docs/SAUVEGARDE.md](docs/SAUVEGARDE.md)). |
 | Fuite des archives des mesures | Chiffrées par le mot de passe des sauvegardes (AES-256-GCM, PBKDF2 600 000) ; seules les dates sont en clair ; Gists secrets ([docs/ARCHIVES.md](docs/ARCHIVES.md)). |
-| Partage des PC | Accès chiffré pour la clé d'un seul appareil (ECDH P-256 + AES-256-GCM) et signé par la personne qui partage (ECDSA P-256) ; code de vérification ; aucun accès aux dépôts GitHub ([docs/PARTAGE.md](docs/PARTAGE.md)). |
+| Partage des PC | Accès chiffré pour la clé d'un seul appareil (ECDH P-256 + AES-256-GCM) et signé par la personne qui partage (ECDSA P-256) ; code de vérification ; aucun accès aux dépôts GitHub. Partage v2 : aucune clé d'agent transmise, invitation à usage unique réservée à l'appareil de la personne, retrait appliqué par le PC lui-même ([docs/PARTAGE.md](docs/PARTAGE.md)). |
 | APK modifié | Signature de l'APK avec une clé privée remise uniquement à la publication officielle, après validation manuelle ; somme de contrôle de Gradle vérifiée. |
 | Version piégée (chaîne de production) | Actions épinglées par empreinte, failles connues vérifiées à chaque build, versions officielles compilées sans cache, provenance attestée (`gh attestation verify`) et inventaire des composants joints ([SECURITY.md](SECURITY.md)). |
 
