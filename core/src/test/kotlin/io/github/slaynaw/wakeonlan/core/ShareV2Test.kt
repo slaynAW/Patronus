@@ -17,7 +17,9 @@ import io.github.slaynaw.wakeonlan.core.share.SharePerson
 import io.github.slaynaw.wakeonlan.core.share.ShareRequest
 import io.github.slaynaw.wakeonlan.core.share.ShareRevocation
 import io.github.slaynaw.wakeonlan.core.share.ShareRight
+import io.github.slaynaw.wakeonlan.core.share.ShareAccess
 import io.github.slaynaw.wakeonlan.core.share.ShareAgents
+import io.github.slaynaw.wakeonlan.core.share.ShareSyncResult
 import io.github.slaynaw.wakeonlan.core.share.agentWork
 import io.github.slaynaw.wakeonlan.core.share.applyAgent
 import io.github.slaynaw.wakeonlan.core.share.needsKey
@@ -25,6 +27,8 @@ import io.github.slaynaw.wakeonlan.core.share.planAgent
 import kotlinx.serialization.Serializable
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -66,6 +70,12 @@ class ShareV2Test {
     )
 
     @Serializable
+    data class Received(
+        val name: String, val self: String, val now: Long, val access: ShareAccess,
+        val agents: List<String>, val probes: Map<String, List<Int>>, val pending: List<String>, val mismatch: Boolean,
+    )
+
+    @Serializable
     data class Vectors(
         val ownerPrivate: String, val ownerPublic: String, val devicePrivate: String, val devicePublic: String,
         val now: Long, val ownerName: String, val devices: List<Device>, val pairings: List<SharePairing>,
@@ -73,6 +83,7 @@ class ShareV2Test {
         val request: RequestVector, val invalidRequests: List<String>,
         val contents: List<ContentVector>, val invalidContents: List<ContentVector>,
         val plans: List<Plan>,
+        val received: List<Received>,
     )
 
     private val dir = System.getProperty("wol.protocolDir") ?: "../protocol"
@@ -132,6 +143,28 @@ class ShareV2Test {
         val (same, changed) = o.applyAgent(p.device, p.plan, PlanResult())
         assertFalse(changed)
         assertEquals(o, same)
+    }
+
+    @Test
+    fun `cote destinataire identique a Windows`() {
+        for (c in v.received) {
+            assertEquals(c.agents, c.access.devices.filter { c.access.localDevice(it, c.self).agent != null }.map { it.id }, "${c.name} : agents")
+            assertEquals(c.probes, c.access.devices.associate { it.id to c.access.localDevice(it, c.self).probePorts }, "${c.name} : ports sondés")
+            assertEquals(c.pending, c.access.pending(c.self, c.now).map { it.device }, "${c.name} : invitations")
+            assertEquals(c.mismatch, c.access.mismatch(c.self), "${c.name} : demande modifiée")
+        }
+        // Enregistré, puis invitation refusée : jamais retentée ; retiré : de nouveau sans agent.
+        val c = v.received.first()
+        val pc = c.access.devices.single { it.id == "c" }
+        var a = c.access.markPaired("c", pc.agent!!.pin).markTried("e", c.access.invites.single { it.device == "e" }.expires)
+        assertTrue(a.pending(c.self, c.now).isEmpty())
+        assertNotNull(a.localDevice(pc, c.self).agent)
+        a = a.unpair("c")
+        assertNull(a.localDevice(pc, c.self).agent)
+        // Accès retiré : invitations et enregistrements oubliés.
+        val (removed, result) = a.apply(emptyMap(), ShareCrypto.keyPair(v.devicePrivate, v.devicePublic), 1)
+        assertEquals(ShareSyncResult.WITHDRAWN, result)
+        assertTrue(removed.invites.isEmpty() && removed.paired.isEmpty() && removed.tried.isEmpty())
     }
 
     @Test

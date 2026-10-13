@@ -116,8 +116,8 @@ class ShareAgentTracker(
         /** Une session : lecture de l'état, puis quelques commandes. */
         const val TIMEOUT_MS = 30_000L
 
-        /** Relecture de l'état d'un PC dont des invitations attendent d'être utilisées. */
-        const val POLL_MS = 15 * 60_000L
+        /** Relecture de l'état d'un PC allumé dont des invitations attendent d'être utilisées (session légère). */
+        const val POLL_MS = 2 * 60_000L
 
         /** Délais entre deux essais après un échec : doublés à chaque fois, d'une minute à une heure. */
         const val RETRY_MIN_MS = 60_000L

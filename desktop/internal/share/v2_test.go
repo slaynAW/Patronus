@@ -423,6 +423,71 @@ type v2Vectors struct {
 	InvalidContents []v2Content `json:"invalidContents"`
 	// Plans : décisions sur un PC (PlanAgent), puis leur résultat enregistré (ApplyAgent).
 	Plans []v2Plan `json:"plans"`
+	// Received : côté destinataire, PC joints par leur agent et invitations utilisables.
+	Received []v2Received `json:"received"`
+}
+
+// v2Received est un état d'un partage reçu et ce qu'en fait l'appareil destinataire.
+type v2Received struct {
+	Name   string `json:"name"`
+	Self   string `json:"self"`
+	Now    int64  `json:"now"`
+	Access Access `json:"access"`
+	// Agents : PC qui gardent leur agent (LocalDevice) ; Probes : ports sondés de chaque PC ; Pending :
+	// PC dont l'invitation est utilisable.
+	Agents   []string         `json:"agents"`
+	Probes   map[string][]int `json:"probes"`
+	Pending  []string         `json:"pending"`
+	Mismatch bool             `json:"mismatch"`
+}
+
+// v2ReceivedCases construit les états reçus : invitations utilisables ou non, PC enregistrés (avec
+// l'empreinte actuelle de l'agent ou une ancienne), partage v1, demande modifiée, appareil sans
+// identité, accès en attente.
+func v2ReceivedCases(t *testing.T) []v2Received {
+	now := v2Now.Unix()
+	self := testIdentity("lea")
+	devices := v2Devices(t)
+	pinE := testIdentity("agent e")
+	e := devices[3].Clone()
+	e.ID, e.Name, e.Agent.Pin = "e", "Grenier", pinE
+	all := append(slices.Clone(devices), e)
+	invite := func(device string, expires int64) AgentInvite {
+		return AgentInvite{Device: device, Code: "7KQ29MXP", Role: "wake", Expires: expires}
+	}
+	access := func(identity string, active bool, invites []AgentInvite, paired map[string]string, tried map[string]int64) Access {
+		return Access{Owner: "owner", OwnerName: "Hugo", User: "slaynAW", Gist: "8f3a1c2b4d5e6f708192a3b4c5d6e7f8", MyName: "Léa",
+			Active: active, Revision: 1, Devices: all, Identity: identity, Invites: invites, Paired: paired, Tried: tried}
+	}
+	cases := []v2Received{
+		{Name: "invitations à utiliser, PC enregistré, agent réinstallé, partage v1", Self: self, Now: now,
+			Access: access(self, true, []AgentInvite{invite("c", now+600), invite("e", now+600)},
+				map[string]string{"d": devices[3].Agent.Pin, "e": testIdentity("ancien agent e")}, nil)},
+		{Name: "invitation expirée, invitation déjà refusée", Self: self, Now: now,
+			Access: access(self, true, []AgentInvite{invite("c", now), invite("d", now+600)}, nil, map[string]int64{"d": now + 600})},
+		{Name: "demande modifiée en route", Self: self, Now: now,
+			Access: access(testIdentity("autre appareil"), true, []AgentInvite{invite("c", now+600)},
+				map[string]string{"d": devices[3].Agent.Pin}, nil)},
+		{Name: "appareil sans identité wolagent/2", Self: "", Now: now,
+			Access: access(self, true, []AgentInvite{invite("c", now+600)}, map[string]string{"d": devices[3].Agent.Pin}, nil)},
+		{Name: "accès en attente", Self: self, Now: now, Access: access(self, false, []AgentInvite{invite("c", now+600)}, nil, nil)},
+	}
+	for i := range cases {
+		c := &cases[i]
+		c.Agents, c.Pending, c.Probes = []string{}, []string{}, map[string][]int{}
+		for _, d := range c.Access.Devices {
+			local := c.Access.LocalDevice(d, c.Self)
+			if local.Agent != nil {
+				c.Agents = append(c.Agents, d.ID)
+			}
+			c.Probes[d.ID] = local.ProbePorts
+		}
+		for _, inv := range c.Access.Pending(c.Self, time.Unix(c.Now, 0)) {
+			c.Pending = append(c.Pending, inv.Device)
+		}
+		c.Mismatch = c.Access.Mismatch(c.Self)
+	}
+	return cases
 }
 
 func buildV2Vectors(t *testing.T) v2Vectors {
@@ -449,6 +514,7 @@ func buildV2Vectors(t *testing.T) v2Vectors {
 	v.InvalidRequests = invalidRequests(req)
 	v.Contents, v.InvalidContents = v2Contents(t)
 	v.Plans = v2Plans(t)
+	v.Received = v2ReceivedCases(t)
 	return v
 }
 
@@ -513,6 +579,24 @@ func TestV2Vectors(t *testing.T) {
 		o.ApplyAgent(p.Device, p.Plan, p.Res)
 		if !reflect.DeepEqual(nonNil(o.Pairings), p.AfterPairings) || !reflect.DeepEqual(nonNil(o.Revocations), p.AfterRevocations) {
 			t.Errorf("%s : après %v %v", p.Name, o.Pairings, o.Revocations)
+		}
+	}
+	for _, c := range v.Received {
+		agents, pending := []string{}, []string{}
+		for _, d := range c.Access.Devices {
+			local := c.Access.LocalDevice(d, c.Self)
+			if local.Agent != nil {
+				agents = append(agents, d.ID)
+			}
+			if !slices.Equal(local.ProbePorts, c.Probes[d.ID]) {
+				t.Errorf("%s : ports sondés de %s : %v", c.Name, d.ID, local.ProbePorts)
+			}
+		}
+		for _, inv := range c.Access.Pending(c.Self, time.Unix(c.Now, 0)) {
+			pending = append(pending, inv.Device)
+		}
+		if !slices.Equal(agents, c.Agents) || !slices.Equal(pending, c.Pending) || c.Access.Mismatch(c.Self) != c.Mismatch {
+			t.Errorf("%s : agents %v, invitations %v", c.Name, agents, pending)
 		}
 	}
 }

@@ -50,16 +50,16 @@ class AppContainer(private val context: Context) {
     val network = LanNetworkMonitor(context)
     val repository = ConfigRepository(context)
 
+    /** Identité wolagent/2 de ce téléphone (Android 10 ou plus), créée dans le Keystore au premier besoin. */
+    private val identity = KeystoreIdentity()
+
     /** Partage des PC entre personnes (PC reçus, accès accordés). */
-    val share = ShareManager(context, scope, repository)
+    val share = ShareManager(context, scope, repository, identityPin = { identity.get()?.pin?.toString() })
 
     /** PC du téléphone puis PC reçus d'autres personnes : ce que surveille et affiche l'application. */
     val allDevices: Flow<AppConfig> = combine(repository.config, share.sharedDevices) { config, shared ->
         if (shared.isEmpty()) config else config.copy(devices = config.devices + shared.map { it.device })
     }
-
-    /** Identité wolagent/2 de ce téléphone (Android 10 ou plus), créée dans le Keystore au premier besoin. */
-    private val identity = KeystoreIdentity()
 
     /**
      * Le nom du téléphone accompagne chaque demande wolagent/1 et l'enregistrement auprès des agents (wolagent/2) : les
@@ -84,6 +84,9 @@ class AppContainer(private val context: Context) {
         repository, statusMonitor.statuses, agentClient, share, scope,
         selfPin = { runCatching { identity.get()?.pin?.short() }.getOrNull() },
     )
+
+    /** Partage v2 : invitations reçues utilisées dès que le PC répond. */
+    val receivedPairing = ReceivedPairingTracker(statusMonitor.statuses, agentClient, share, scope)
 
     /** Sauvegardes automatiques (GitHub et dossier), chiffrées par un mot de passe dédié. */
     val backups = BackupManager(context, scope, repository, share, history)

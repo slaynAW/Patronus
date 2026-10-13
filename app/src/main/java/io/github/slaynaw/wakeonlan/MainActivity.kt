@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
                 launch { container.specsTracker.run() }
                 launch { container.agentUpgrades.run() }
                 launch { container.shareAgents.run() }
+                launch { container.receivedPairing.run() }
                 launch { container.share.run() }
                 launch { container.backups.run() }
                 launch { container.archives.run() }

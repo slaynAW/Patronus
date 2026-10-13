@@ -77,6 +77,7 @@ func (s *Service) onStatusChange() {
 		s.refreshSpecs(id, st)
 		s.considerUpgrade(id, st)
 		s.considerShareAgent(id, st)
+		s.considerReceived(id, st)
 	}
 	s.statusMu.Unlock()
 	s.notify()

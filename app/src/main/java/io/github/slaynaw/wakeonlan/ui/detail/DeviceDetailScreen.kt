@@ -186,7 +186,7 @@ fun DeviceDetailContent(
                 actions = {
                     if (item != null) {
                         DeviceMenu(
-                            canShutdown = item.device.canShutdown,
+                            canShutdown = item.canShutdown,
                             editable = item.editable,
                             isFirst = isFirst,
                             isLast = isLast,
@@ -300,7 +300,7 @@ private fun Actions(item: DeviceItem, onWake: () -> Unit, onPower: (PowerAction)
     val edit = stringResource(R.string.action_edit)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when {
-            state == PowerState.ONLINE && item.device.canShutdown -> {
+            state == PowerState.ONLINE && item.canShutdown -> {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     WolButton(stringResource(R.string.action_shutdown), { onPower(PowerAction.SHUTDOWN) }, Modifier.weight(1f), ButtonKind.DANGER, WolIcons.Power)
                     WolButton(stringResource(R.string.action_reboot), { onPower(PowerAction.REBOOT) }, Modifier.weight(1f), icon = WolIcons.Restart)

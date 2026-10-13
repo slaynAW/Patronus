@@ -3,8 +3,11 @@ package io.github.slaynaw.wakeonlan.share
 import android.content.Context
 import io.github.slaynaw.wakeonlan.BuildConfig
 import io.github.slaynaw.wakeonlan.core.agent.AgentClient
+import io.github.slaynaw.wakeonlan.core.agent.AgentError
 import io.github.slaynaw.wakeonlan.core.agent.AgentResult
+import io.github.slaynaw.wakeonlan.core.model.AgentSettings
 import io.github.slaynaw.wakeonlan.core.model.Device
+import io.github.slaynaw.wakeonlan.core.share.AgentInvite
 import io.github.slaynaw.wakeonlan.core.share.ExportedShareOwner
 import io.github.slaynaw.wakeonlan.core.share.GitHubDeviceCode
 import io.github.slaynaw.wakeonlan.core.share.ShareAccess
@@ -24,6 +27,8 @@ import io.github.slaynaw.wakeonlan.core.share.applyAgent
 import io.github.slaynaw.wakeonlan.core.share.isV2
 import io.github.slaynaw.wakeonlan.core.share.needsKey
 import io.github.slaynaw.wakeonlan.core.share.planAgent
+import io.github.slaynaw.wakeonlan.core.status.DeviceStatus
+import io.github.slaynaw.wakeonlan.core.status.PowerState
 import io.github.slaynaw.wakeonlan.data.ConfigRepository
 import io.github.slaynaw.wakeonlan.data.ShareRepository
 import io.github.slaynaw.wakeonlan.diagnostics.DiagnosticLog
@@ -57,6 +62,8 @@ data class ShareLogin(val code: String, val uri: String, val error: String? = nu
 
 /** État du partage pour l'interface. */
 data class ShareUiState(
+    /** Empreinte wolagent/2 de ce téléphone (vide si inconnue), pour reconnaître une demande modifiée en route. */
+    val selfIdentity: String = "",
     val loaded: Boolean = false,
     /** Connexion GitHub configurée dans cette version (sinon : réception seulement). */
     val canLogin: Boolean = false,
@@ -88,6 +95,9 @@ data class ShareUiState(
 /** Enregistrement de l'appareil d'une personne sur un PC (partage v2). */
 enum class AgentState { REGISTERED, INVITED, PENDING, NOT_ADMIN }
 
+/** PC reçu ([device] : tel que dans le contenu) et ce qu'il faut y faire : utiliser [invite], ou oublier l'enregistrement. */
+data class ReceivedTarget(val owner: String, val device: Device, val invite: AgentInvite?, val unpair: Boolean)
+
 /** PC joint par l'empreinte de son agent : partage v2 possible. */
 val Device.isPinned: Boolean get() = hasHost && agent?.hasPin == true
 
@@ -102,7 +112,13 @@ data class ShareRequestView(val owner: String, val ownerName: String, val link: 
  * la personne qui partage publie dans son Gist un fichier chiffré et signé par appareil autorisé ;
  * chaque appareil qui reçoit relit le sien régulièrement (application visible).
  */
-class ShareManager(context: Context, private val scope: CoroutineScope, private val config: ConfigRepository) {
+class ShareManager(
+    context: Context,
+    private val scope: CoroutineScope,
+    private val config: ConfigRepository,
+    /** Empreinte wolagent/2 de ce téléphone (Keystore, Android 10 ou plus), null si indisponible ; lue hors du fil principal. */
+    private val identityPin: () -> String? = { null },
+) {
     private val repo = ShareRepository(context)
     private val github = ShareGitHub(BuildConfig.GITHUB_CLIENT_ID, "Patronus-Android/${BuildConfig.VERSION_NAME}")
 
@@ -117,6 +133,9 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
     )
 
     private val runtime = MutableStateFlow(Runtime())
+
+    /** Empreinte de ce téléphone (vide tant qu'elle n'est pas lue, ou indisponible). */
+    private val selfIdentity = MutableStateFlow("")
     private val publishMutex = Mutex()
     private val syncMutex = Mutex()
     private val lastSync = ConcurrentHashMap<String, Long>()
@@ -124,8 +143,9 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
     private val loginWake = Channel<Unit>(Channel.CONFLATED)
     private var loginJob: Job? = null
 
-    val state: StateFlow<ShareUiState> = combine(repo.data, runtime) { st, rt ->
+    val state: StateFlow<ShareUiState> = combine(repo.data, runtime, selfIdentity) { st, rt, self ->
         ShareUiState(
+            selfIdentity = self,
             loaded = true,
             canLogin = github.clientId.isNotEmpty(),
             owner = st.owner,
@@ -143,8 +163,11 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
      * PC reçus. Flux froid : il n'émet qu'une fois l'état relu, pour que l'historique des PC reçus ne
      * soit pas effacé au démarrage (liste encore vide).
      */
-    val sharedDevices: Flow<List<SharedDevice>> = repo.data.map { st ->
-        st.received.filter { it.active }.flatMap { a -> a.devices.map { SharedDevice(it.copy(id = a.localId(it.id)), a.owner, a.ownerName) } }
+    val sharedDevices: Flow<List<SharedDevice>> = combine(repo.data, selfIdentity) { st, self ->
+        st.received.filter { it.active }.flatMap { a ->
+            // Un PC partagé en v2 ne garde l'empreinte de son agent que s'il a enregistré ce téléphone.
+            a.devices.map { SharedDevice(a.localDevice(it, self).copy(id = a.localId(it.id)), a.owner, a.ownerName) }
+        }
     }.distinctUntilChanged()
 
     /** Lien de partage ouvert depuis un message ou un QR code, à traiter par l'interface. */
@@ -206,8 +229,69 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
         return sync.failure
     }
 
+    /** Lit l'empreinte de ce téléphone (Keystore) hors du fil principal, une fois. */
+    private suspend fun loadIdentity(): String {
+        selfIdentity.value.takeIf { it.isNotEmpty() }?.let { return it }
+        val pin = withContext(Dispatchers.IO) { runCatching { identityPin() }.getOrNull() }.orEmpty()
+        if (pin.isNotEmpty()) selfIdentity.value = pin
+        return pin
+    }
+
+    /**
+     * PC reçu partagé en v2 dont l'état appelle une action (docs/PARTAGE.md, « Partage v2 ») : invitation à utiliser
+     * (PC allumé, ce téléphone pas encore enregistré), ou enregistrement à oublier (téléphone retiré par le PC).
+     */
+    fun receivedTarget(localId: String, status: DeviceStatus, nowSeconds: Long): ReceivedTarget? {
+        val self = selfIdentity.value
+        for (a in state.value.received) {
+            if (!a.active) continue
+            val d = a.devices.firstOrNull { a.localId(it.id) == localId } ?: continue
+            val agent = d.agent?.takeIf { it.hasPin } ?: return null
+            val paired = a.paired[d.id] == agent.pin
+            val invite = if (!paired && status.state == PowerState.ONLINE) a.pending(self, nowSeconds).firstOrNull { it.device == d.id } else null
+            val unpair = paired && status.agentError == AgentError.UNREGISTERED
+            return ReceivedTarget(a.owner, d, invite, unpair).takeIf { unpair || invite != null }
+        }
+        return null
+    }
+
+    /** Ce téléphone a été retiré par le PC : il le traite de nouveau en « démarrer », jusqu'à une nouvelle invitation. */
+    suspend fun unpairReceived(target: ReceivedTarget) {
+        repo.update { st -> st.access(target.owner)?.let { st.replaceAccess(it.unpair(target.device.id)) } ?: st }
+        DiagnosticLog.i(AREA, "PC reçu « ${target.device.name} » : ce téléphone a été retiré du PC ; « démarrer » seulement")
+    }
+
+    /**
+     * Utilise l'invitation d'un PC reçu (une seule fois) : un refus de l'agent (code expiré, déjà utilisé, réservé à une
+     * autre identité) la marque comme essayée, pour ne pas compter d'échecs auprès de l'agent. Seule une erreur réseau
+     * est renvoyée (nouvel essai plus tard).
+     */
+    suspend fun pairReceived(target: ReceivedTarget, client: AgentClient): AgentResult.Failure? {
+        val invite = target.invite ?: return null
+        val agent = target.device.agent ?: return null
+        val settings = AgentSettings(port = agent.port, key = "", pin = agent.pin)
+        val r = client.pair(target.device.host, settings, invite.code)
+        if (r is AgentResult.Failure && r.error != AgentError.PAIRING_FAILED && r.error != AgentError.REJECTED) {
+            DiagnosticLog.w(AREA, "PC reçu « ${target.device.name} » : invitation non utilisée, PC injoignable (${r.error})")
+            return r
+        }
+        if (r is AgentResult.Success) {
+            repo.update { st -> st.access(target.owner)?.let { st.replaceAccess(it.markPaired(target.device.id, agent.pin)) } ?: st }
+            DiagnosticLog.i(
+                AREA,
+                "PC reçu « ${target.device.name} » : ce téléphone est enregistré par le PC (rôle ${r.value.role}" +
+                    (if (r.value.already) ", déjà enregistré" else "") + ")",
+            )
+        } else {
+            repo.update { st -> st.access(target.owner)?.let { st.replaceAccess(it.markTried(target.device.id, invite.expires)) } ?: st }
+            DiagnosticLog.w(AREA, "PC reçu « ${target.device.name} » : invitation refusée par le PC ; en attente d'une nouvelle invitation")
+        }
+        return null
+    }
+
     /** Tant que l'application est visible : publication des changements, vérification des accès reçus. */
     suspend fun run(): Unit = coroutineScope {
+        launch { loadIdentity() }
         launch {
             combine(config.config, repo.data.map { it.owner }.distinctUntilChanged()) { c, o -> c.devices to o }
                 .collect { (_, owner) -> if (owner?.isConnected == true) publish() }
@@ -539,12 +623,15 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
         return requestView(invite.owner) ?: throw ShareException(ShareException.Reason.INVALID, "demande introuvable")
     }
 
-    /** Lien, QR code et code de vérification d'une demande déjà faite. */
+    /**
+     * Lien, QR code et code de vérification d'une demande déjà faite. Le lien porte l'empreinte wolagent/2 de ce
+     * téléphone (partage v2) ; sans elle (Android 9 ou moins), la demande reste celle du partage v1.
+     */
     suspend fun requestView(owner: String): ShareRequestView? {
         val st = repo.current()
         val access = st.access(owner) ?: return null
         if (st.devicePublic.isEmpty()) return null
-        val request = ShareRequest(access.myName, st.devicePublic, ShareCrypto.keyId(owner))
+        val request = ShareRequest(access.myName, st.devicePublic, ShareCrypto.keyId(owner), loadIdentity())
         return ShareRequestView(owner, access.ownerName, request.link, ShareCrypto.verificationCode(owner, st.devicePublic))
     }
 
@@ -605,10 +692,15 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
             if (result != ShareSyncResult.UNCHANGED) {
                 DiagnosticLog.i(AREA, "partage reçu de ${DiagnosticLog.keyId(owner)} : $result (${next.devices.size} PC, révision ${next.revision})")
             }
+            // Partage v2 : empreinte reçue et invitations suivent le contenu ; les enregistrements (paired, tried) sont
+            // ceux de ce téléphone, oubliés seulement quand l'accès est retiré.
+            val withdrawn = result == ShareSyncResult.WITHDRAWN
             store(owner) {
                 it.copy(
                     active = next.active, removed = next.removed, revision = next.revision, devices = next.devices,
                     ownerName = next.ownerName, synced = next.synced, etag = etag,
+                    identity = next.identity, invites = next.invites,
+                    paired = if (withdrawn) emptyMap() else it.paired, tried = if (withdrawn) emptyMap() else it.tried,
                 )
             }
             runtime.update { it.copy(syncErrors = it.syncErrors - owner) }

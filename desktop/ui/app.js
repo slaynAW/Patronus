@@ -606,6 +606,7 @@
     share_request_code: "Code de vérification à comparer avec %1$s :",
     share_request_wait: "Les PC apparaîtront dans la liste dès que %1$s aura autorisé l’accès.",
     share_access_title: "PC de %1$s",
+    share_access_mismatch: "Demande modifiée en route : ses PC restent en « Démarrer ». Quittez ce partage puis refaites la demande d’accès.",
     share_access_pending: "En attente de l’autorisation de %1$s",
     share_access_active: "%1$s · vérifié il y a %2$s",
     share_access_removed: "Accès retiré par %1$s",
@@ -4361,6 +4362,7 @@
       else if (a.removed) body.push(h("p", { text: fmt(S.share_access_removed, a.ownerName) }));
       else body.push(h("p", { text: fmt(S.share_request_wait, a.ownerName) }));
       if (a.error) body.push(h("p", { class: "bad", text: a.error }));
+      if (a.mismatch) body.push(h("p", { class: "bad", text: S.share_access_mismatch }));
       const leaveLabel = a.active ? S.share_leave : a.removed ? S.share_remove : S.share_cancel_request;
       const actions = [{ label: leaveLabel, kind: "danger", onClick: () => { dialog.close(); leaveDialog(a, leaveLabel); } }];
       if (!a.active && !a.removed) actions.push({ label: S.share_show_request, kind: "sec", onClick: () => { dialog.close(); showRequest(a.owner); } });
@@ -4437,6 +4439,7 @@
 
     function accessSummary(a, now) {
       if (a.error) return a.error;
+      if (a.mismatch) return S.share_access_mismatch;
       if (a.removed) return fmt(S.share_access_removed, a.ownerName);
       if (!a.active) return fmt(S.share_access_pending, a.ownerName);
       const list = a.devices.length ? a.devices.join(", ") : S.share_access_none;
@@ -4446,7 +4449,7 @@
     function receivedItems(sh, now) {
       const items = sh.received.map((a) => {
         const item = settingItem("monitor", fmt(S.share_access_title, a.ownerName), accessSummary(a, now), () => accessDialog(a));
-        if (a.error || a.removed) item.querySelector(".supporting").classList.add("bad");
+        if (a.error || a.removed || a.mismatch) item.querySelector(".supporting").classList.add("bad");
         return item;
       });
       items.push(settingItem("download", S.share_request, S.share_request_help, invitePasteDialog));

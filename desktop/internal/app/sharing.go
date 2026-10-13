@@ -60,8 +60,10 @@ type sharer struct {
 	lastPublish time.Time
 	syncErr     map[string]string
 	lastSync    map[string]time.Time
-	// agents suit les sessions du partage v2 sur les PC (voir share_agents.go).
-	agents *agentSync
+	// agents suit les sessions du partage v2 sur les PC (voir share_agents.go) ; received, les
+	// appairages avec les invitations reçues (share_received.go).
+	agents   *agentSync
+	received *receivedPairing
 }
 
 func newSharer(opts *ShareOptions) *sharer {
@@ -71,6 +73,7 @@ func newSharer(opts *ShareOptions) *sharer {
 	sh := &sharer{
 		store: opts.Store, gh: opts.GitHub, wake: make(chan struct{}, 1),
 		dirty: true, syncErr: map[string]string{}, lastSync: map[string]time.Time{}, agents: newAgentSync(),
+		received: newReceivedPairing(),
 	}
 	st, err := opts.Store.Load()
 	if err != nil {
@@ -100,12 +103,14 @@ type sharedDevice struct {
 	ownerName string
 }
 
-// sharedDevices renvoie les PC reçus (accès actifs), identifiants locaux compris.
+// sharedDevices renvoie les PC reçus (accès actifs), identifiants locaux compris. Un PC partagé en v2
+// ne garde l'empreinte de son agent que s'il a enregistré cet ordinateur (share.Access.LocalDevice).
 func (s *Service) sharedDevices() []sharedDevice {
 	sh := s.sharing
 	if sh == nil {
 		return nil
 	}
+	self := s.selfIdentity()
 	sh.mu.Lock()
 	defer sh.mu.Unlock()
 	var out []sharedDevice
@@ -114,12 +119,20 @@ func (s *Service) sharedDevices() []sharedDevice {
 			continue
 		}
 		for _, d := range a.Devices {
-			d = d.Clone()
+			d = a.LocalDevice(d, self)
 			d.ID = share.SharedID(a.Owner, d.ID)
 			out = append(out, sharedDevice{device: d, owner: a.Owner, ownerName: a.OwnerName})
 		}
 	}
 	return out
+}
+
+// selfIdentity renvoie l'empreinte wolagent/2 de cet ordinateur ("" si elle n'existe pas encore).
+func (s *Service) selfIdentity() string {
+	if me := s.identity.Existing(); me != nil {
+		return me.Pin.String()
+	}
+	return ""
 }
 
 // allDevices renvoie les PC de l'appareil puis les PC reçus.
@@ -392,6 +405,10 @@ func (s *Service) syncAccess(ctx context.Context, owner string) {
 		cur := &sh.state.Received[j]
 		cur.Active, cur.Removed, cur.Revision, cur.Devices = access.Active, access.Removed, access.Revision, access.Devices
 		cur.OwnerName, cur.Synced, cur.ETag = access.OwnerName, access.Synced, access.ETag
+		cur.Identity, cur.Invites = access.Identity, access.Invites
+		if result == share.Withdrawn {
+			cur.Paired, cur.Tried = nil, nil
+		}
 		if err := sh.saveLocked(); err != nil {
 			diag.Error(areaShare, "partage reçu de %s : état non enregistré : %v", keyRef(owner), err)
 		}
@@ -853,11 +870,19 @@ func (s *Service) shareRequest(text, myName string) (any, error) {
 	return s.shareRequestView(inv.Owner)
 }
 
-// shareRequestView renvoie le lien, le QR code et le code de vérification d'une demande.
+// shareRequestView renvoie le lien, le QR code et le code de vérification d'une demande. Le lien porte
+// l'empreinte wolagent/2 de cet ordinateur (partage v2), créée au besoin ; sans elle, la demande reste
+// celle du partage v1.
 func (s *Service) shareRequestView(owner string) (map[string]any, error) {
 	sh, err := s.requireSharing()
 	if err != nil {
 		return nil, err
+	}
+	identity := ""
+	if me, err := s.identity.Get(); err == nil {
+		identity = me.Pin.String()
+	} else {
+		diag.Warn(areaShare, "identité de cet ordinateur indisponible, demande sans empreinte (partage v1) : %v", err)
 	}
 	sh.mu.Lock()
 	i := sh.state.Find(owner)
@@ -867,7 +892,7 @@ func (s *Service) shareRequestView(owner string) (map[string]any, error) {
 		if key, err := share.ParseDevicePrivate(sh.state.DeviceKey); err == nil {
 			devicePub = share.DevicePublic(key)
 			a := sh.state.Received[i]
-			req = share.Request{Name: a.MyName, Device: devicePub, Owner: share.KeyID(owner)}
+			req = share.Request{Name: a.MyName, Device: devicePub, Owner: share.KeyID(owner), Identity: identity}
 			ownerName = a.OwnerName
 		}
 	}
@@ -1020,6 +1045,8 @@ type AccessView struct {
 	Requested int64    `json:"requested"`
 	Synced    int64    `json:"synced"`
 	Error     string   `json:"error,omitempty"`
+	// Mismatch : la demande a été modifiée en route (partage v2) ; à refaire.
+	Mismatch bool `json:"mismatch,omitempty"`
 }
 
 func (s *Service) shareView() ShareView {
@@ -1040,9 +1067,9 @@ func (s *Service) shareView() ShareView {
 	}
 	s.mu.Unlock()
 
-	selfPin := ""
+	self, selfPin := "", ""
 	if me := s.identity.Existing(); me != nil {
-		selfPin = me.Pin.Short()
+		self, selfPin = me.Pin.String(), me.Pin.Short()
 	}
 
 	sh.mu.Lock()
@@ -1070,7 +1097,7 @@ func (s *Service) shareView() ShareView {
 	for _, a := range sh.state.Received {
 		av := AccessView{Owner: a.Owner, OwnerName: a.OwnerName, User: a.User, MyName: a.MyName,
 			Active: a.Active, Removed: a.Removed, Requested: a.Requested, Synced: a.Synced,
-			Error: sh.syncErr[a.Owner], Devices: []string{}}
+			Error: sh.syncErr[a.Owner], Devices: []string{}, Mismatch: a.Active && a.Mismatch(self)}
 		for _, d := range a.Devices {
 			av.Devices = append(av.Devices, d.Name)
 		}

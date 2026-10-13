@@ -23,8 +23,9 @@ import (
 const (
 	// shareAgentTimeout borne une session (lecture de l'état, puis quelques commandes).
 	shareAgentTimeout = 30 * time.Second
-	// shareAgentPoll : relecture de l'état d'un PC dont des invitations attendent d'être utilisées.
-	shareAgentPoll = 15 * time.Minute
+	// shareAgentPoll : relecture de l'état d'un PC allumé dont des invitations attendent d'être
+	// utilisées (une session légère : la liste des appareils et des invitations).
+	shareAgentPoll = 2 * time.Minute
 	// Délais entre deux essais après un échec : doublés à chaque fois, d'une minute à une heure.
 	shareAgentRetryMin = time.Minute
 	shareAgentRetryMax = time.Hour

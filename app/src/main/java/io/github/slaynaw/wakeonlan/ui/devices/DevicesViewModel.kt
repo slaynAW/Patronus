@@ -7,6 +7,8 @@ import io.github.slaynaw.wakeonlan.AppContainer
 import io.github.slaynaw.wakeonlan.R
 import io.github.slaynaw.wakeonlan.core.agent.AgentResult
 import io.github.slaynaw.wakeonlan.core.agent.PowerAction
+import io.github.slaynaw.wakeonlan.core.agent2.Role
+import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2
 import io.github.slaynaw.wakeonlan.core.model.AppSettings
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.status.DeviceStatus
@@ -40,6 +42,17 @@ data class DeviceItem(
     val specs: StoredSpecs? = null,
 ) {
     val editable: Boolean get() = sharedBy == null
+
+    /**
+     * Extinction proposée : PC avec agent et, en wolagent/2, rôle « control » au moins (un PC partagé en « démarrer et
+     * consulter » ne la propose pas). Rôle inconnu (PC éteint, wolagent/1) : rien n'est masqué.
+     */
+    val canShutdown: Boolean
+        get() {
+            val agent = status.agent
+            val role = agent?.takeIf { it.proto == Wolagent2.ALPN }?.role?.let { Role.parse(it) }
+            return device.canShutdown && (role == null || role >= Role.CONTROL)
+        }
 }
 
 data class DevicesUiState(

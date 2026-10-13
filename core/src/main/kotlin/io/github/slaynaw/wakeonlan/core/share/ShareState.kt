@@ -283,6 +283,7 @@ data class ExportedShareOwner(
 enum class ShareSyncResult { UNCHANGED, UPDATED, GRANTED, WITHDRAWN }
 
 /** Partage reçu (ou demandé) d'une autre personne. */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class ShareAccess(
     /** Clé de signature de la personne qui partage (épinglée à l'invitation). */
@@ -300,15 +301,72 @@ data class ShareAccess(
     val requested: Long = 0,
     val synced: Long = 0,
     val etag: String = "",
+    /**
+     * Partage v2 (docs/PARTAGE.md, « Partage v2 ») : empreinte de cet appareil telle que reçue par la personne qui
+     * partage, et invitations en attente (codes secrets, jamais écrits dans les journaux).
+     */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val identity: String = "",
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val invites: List<AgentInvite> = emptyList(),
+    /** PC (identifiant du contenu) qui ont enregistré cet appareil → empreinte de leur agent. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val paired: Map<String, String> = emptyMap(),
+    /** PC → expiration de la dernière invitation refusée, jamais retentée. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val tried: Map<String, Long> = emptyMap(),
 ) {
+    /**
+     * La demande a été modifiée en route : l'empreinte reçue par la personne qui partage n'est pas celle de cet appareil
+     * ([self], vide s'il n'en a pas : rien à comparer). Les PC joints par leur empreinte restent alors en « démarrer ».
+     */
+    fun mismatch(self: String): Boolean = self.isNotEmpty() && identity.isNotEmpty() && identity != self
+
+    /**
+     * Un PC reçu tel que cet appareil doit le joindre : un PC partagé en v2 garde l'empreinte de son agent seulement s'il
+     * a enregistré cet appareil ; sinon il est traité comme un PC sans agent (une identité inconnue de l'agent compterait
+     * comme un échec), dont le port de l'agent est sondé comme les autres : une simple connexion TCP n'est pas un échec,
+     * et elle montre que le PC répond. Les PC partagés en v1 (clé) sont inchangés.
+     */
+    fun localDevice(device: Device, self: String): Device {
+        val agent = device.agent ?: return device
+        if (!agent.hasPin || (self.isNotEmpty() && !mismatch(self) && paired[device.id] == agent.pin)) return device
+        val ports = if (agent.port in device.probePorts) device.probePorts else device.probePorts + agent.port
+        return device.copy(agent = null, probePorts = ports)
+    }
+
+    /**
+     * Invitations utilisables maintenant : PC du contenu joint par l'empreinte de son agent, pas encore enregistré,
+     * invitation valable et jamais refusée, demande non modifiée.
+     */
+    fun pending(self: String, nowSeconds: Long): List<AgentInvite> {
+        if (self.isEmpty() || identity != self || !active) return emptyList()
+        return invites.filter { inv ->
+            val pin = devices.firstOrNull { it.id == inv.device }?.agent?.takeIf { it.hasPin }?.pin
+            pin != null && paired[inv.device] != pin && inv.expires > nowSeconds && tried[inv.device] != inv.expires
+        }
+    }
+
+    /** Un PC a enregistré cet appareil ([pin] : empreinte de son agent). */
+    fun markPaired(device: String, pin: String): ShareAccess = copy(paired = paired + (device to pin), tried = tried - device)
+
+    /** Une invitation a été refusée : elle n'est jamais retentée. */
+    fun markTried(device: String, expires: Long): ShareAccess = copy(tried = tried + (device to expires))
+
+    /** Appareil retiré par le PC : de nouveau « démarrer » jusqu'à une nouvelle invitation. */
+    fun unpair(device: String): ShareAccess = copy(paired = paired - device)
+
     /** Applique le contenu d'un Gist ; [files] vide si le fichier (ou le Gist) n'existe plus. */
     fun apply(files: Map<String, String>, device: ShareKeyPair, nowMillis: Long): Pair<ShareAccess, ShareSyncResult> {
         val synced = copy(synced = nowMillis)
         val text = files[ShareCrypto.fileName(device.publicEncoded)]
-            ?: return if (active) synced.copy(active = false, removed = true, devices = emptyList()) to ShareSyncResult.WITHDRAWN
-            else synced to ShareSyncResult.UNCHANGED
+            ?: return if (active) {
+                synced.copy(active = false, removed = true, devices = emptyList(), invites = emptyList(), paired = emptyMap(), tried = emptyMap()) to
+                    ShareSyncResult.WITHDRAWN
+            } else {
+                synced to ShareSyncResult.UNCHANGED
+            }
         val opened = ShareCrypto.open(text, owner, device, revision)
-        val next = synced.copy(active = true, removed = false, revision = opened.revision, ownerName = opened.content.ownerName, devices = opened.content.devices)
+        val next = synced.copy(
+            active = true, removed = false, revision = opened.revision, ownerName = opened.content.ownerName, devices = opened.content.devices,
+            identity = opened.content.identity, invites = opened.content.invites,
+        )
         val result = when {
             !active -> ShareSyncResult.GRANTED
             opened.revision != revision -> ShareSyncResult.UPDATED
