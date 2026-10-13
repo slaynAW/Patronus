@@ -46,6 +46,8 @@ fichier avant de l'installer ([docs/MISES-A-JOUR.md](docs/MISES-A-JOUR.md)).
   « Publication officielle », dans l'environnement GitHub protégé `publication`, après validation
   manuelle. Les builds des branches et des pull requests n'y ont jamais accès ; ils signent avec une
   clé de test ([docs/SIGNATURE.md](docs/SIGNATURE.md)).
+- **Jamais de retour en arrière** : une version officielle plus ancienne que la dernière publiée est
+  refusée avant la signature (elle deviendrait celle que proposent les mises à jour intégrées).
 - **Versions officielles compilées sans cache**, à partir du code du commit publié.
 - **Failles connues** : `govulncheck` analyse à chaque build l'agent et l'application Windows, pour
   chaque système visé ; un build échoue si une faille publiée est atteignable depuis le code.
