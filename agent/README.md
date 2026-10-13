@@ -37,7 +37,10 @@ sudo ./wol-agent-linux-amd64 install
 - copie dans `/usr/local/bin/wol-agent`, configuration dans `/etc/wol-agent/config.json` (macOS : `/Library/Application Support/WolAgent/`) ;
 - Linux : service `wol-agent.service` durci ; ouverture du port si `firewalld` ou `ufw` est actif. Journal : `journalctl -u wol-agent`.
 
-À la fin, un **QR code** s'affiche : dans l'application, *Ajouter un PC* → *Scanner le QR code*.
+À la fin, un **QR code** s'affiche : dans l'application, *Ajouter un PC* → *Scanner le QR code*. Il ne contient aucune
+clé secrète : l'adresse du PC, l'empreinte de l'agent et un code d'appairage à usage unique, valable 10 minutes
+(`wolagent/2`, voir plus bas). Application antérieure à 1.12, ou téléphone sous Android 8 ou 9 : `wol-agent pair --v1`
+affiche l'ancien QR code, qui contient la clé de l'agent.
 
 > Réinstaller (ou installer une nouvelle version) conserve la configuration et la clé : pas besoin de ré-appairer.
 
@@ -72,10 +75,10 @@ une nouvelle version des applications ne provoque pas de mise à jour de l'agent
 | Commande | Rôle |
 |---|---|
 | `wol-agent install [--port 9770] [--name "PC Bureau"] [--ip 192.168.1.20] [--no-firewall] [--firewall-public]` | Installe / met à jour le service |
-| `wol-agent pair [--ip …] [--png qr.png] [--invert]` | Réaffiche le QR code (ou l'enregistre en PNG) et le lien d'appairage |
+| `wol-agent pair [--role admin\|control\|wake\|view] [--ttl 600] [--ip …] [--png qr.png] [--invert] [--v1]` | Affiche un QR code (ou l'enregistre en PNG) et un lien d'appairage `wolagent/2` : code à usage unique, aucune clé secrète. Rôle `admin` par défaut, valable 600 s (`--ttl` : de 60 s à 7 jours, `10m` ou `2h` acceptés). `--v1` : ancien lien, avec la clé de l'agent |
 | `wol-agent status` | État du service, configuration, carte réseau détectée, type des réseaux Windows (alerte si « Public »), températures, disques (espace, santé, erreurs), fiche du PC (processeur, mémoire, cartes graphiques, carte mère, système), derniers évènements du journal (avec la cause des arrêts anormaux) |
 | `wol-agent diagnostic` | Rapport de diagnostic chiffré par un mot de passe (état, configuration sans la clé, journaux), à transmettre pour analyser un problème ([docs/DIAGNOSTIC.md](../docs/DIAGNOSTIC.md)). Terminal administrateur recommandé. |
-| `wol-agent rotate-key` | Nouvelle clé ; l'ancienne est immédiatement refusée (ré-appairer) |
+| `wol-agent rotate-key` | Nouvelle clé `wolagent/1` ; l'ancienne est immédiatement refusée (ré-appairer). Sans effet sur les appareils passés en `wolagent/2` |
 | `wol-agent devices [revoke\|role\|rename] <empreinte> [rôle\|nom]` | Appareils autorisés en `wolagent/2` (voir ci-dessous) : liste, retrait, rôle (`view`, `wake`, `control`, `admin`), nom |
 | `wol-agent update [--check] [--yes] [--auto on\|off]` | Recherche et installe une nouvelle version (Windows) ; `--auto` : recherche quotidienne |
 | `wol-agent uninstall [--purge]` | Désinstalle (`--purge` supprime aussi la configuration) |
@@ -110,15 +113,21 @@ afin que le QR code contienne la bonne adresse MAC.
 ## Protocole chiffré `wolagent/2` (agent 1.11.0)
 
 L'agent sert aussi, sur le même port, [`wolagent/2`](../docs/PROTOCOLE-V2.md) : échanges chiffrés (TLS 1.3), une
-identité par appareil, des rôles et une révocation appareil par appareil. Les applications l'utiliseront dans leurs
-prochaines versions, et y feront passer d'elles-mêmes les appareils déjà appairés. En attendant, rien ne change pour
-elles.
+identité par appareil, des rôles et une révocation appareil par appareil. Les applications l'utilisent à partir de la
+version 1.12, et y font passer d'elles-mêmes les appareils déjà appairés, sans rescanner le QR code. Les versions
+antérieures continuent en `wolagent/1`.
 
 - **Identité de l'agent** : `identity.key`, créée au premier démarrage à côté de `config.json` (réservée à `root`, ou à
   SYSTEM et aux Administrateurs, et chiffrée par DPAPI sous Windows). Son empreinte courte s'affiche dans
   `wol-agent status`.
 - **Appareils autorisés** : `devices.json` (appareils, rôles, invitations en attente ; des invitations, seul le condensé
   du code est gardé).
+- **Appairage** : `wol-agent pair` crée une invitation à usage unique et affiche son QR code : adresse et MAC du PC,
+  empreinte de l'agent et code d'appairage (`7KQ2-9MXP`), sans aucune clé secrète. L'application vérifie l'empreinte de
+  l'agent avant d'envoyer le code, puis l'agent l'enregistre avec le rôle prévu : `admin` par défaut (la personne devant
+  le PC en est l'administrateur), `--role control` pour un appareil qui doit seulement démarrer et éteindre le PC. Un
+  code ne sert qu'une fois : s'il a servi sans vous, l'appareil inconnu figure dans `wol-agent devices`, retirez-le.
+  Service arrêté, l'invitation est écrite dans le registre et acceptée à son démarrage.
 - **`wol-agent devices`** liste les appareils avec leur empreinte courte. `wol-agent devices revoke <début de
   l'empreinte>` en retire un : ses connexions ouvertes sont fermées sur-le-champ. `role` et `rename` changent son rôle et
   son nom. Le dernier administrateur ne peut être retiré ou rétrogradé que sur le PC, après confirmation. La commande
