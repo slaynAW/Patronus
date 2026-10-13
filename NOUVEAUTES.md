@@ -3,6 +3,14 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.12.0
+
+- **Connexion chiffrée avec vos PC** (avec l'agent 1.11.0) : tous les échanges avec l'agent sont désormais chiffrés (TLS 1.3), et chaque téléphone ou ordinateur a sa propre identité, gardée dans le Keystore Android (ou chiffrée par Windows) et jamais exportée. Les PC déjà appairés y passent d'eux-mêmes, sans rien rescanner : leur fiche affiche « Chiffré et authentifié » et l'empreinte du PC, vérifiée à chaque connexion. Il faut Android 10 ou plus ; un téléphone sous Android 8 ou 9 continue comme avant.
+- **QR code d'appairage sans clé secrète** : celui de « wol-agent pair » (et de l'installation de l'agent) ne contient plus qu'un code à usage unique, valable 10 minutes, que l'application n'envoie qu'au PC attendu, à l'enregistrement de la fiche.
+- **Appareils autorisés** : chaque appareil a ses droits sur un PC (consulter, démarrer, contrôler, administrer). Celui qui scanne le QR code de « wol-agent pair » en est administrateur : depuis la fiche du PC, il voit les appareils autorisés, en retire un (téléphone perdu ou volé), change leurs droits, ou invite un autre téléphone ou ordinateur par un QR code à usage unique, sans passer par le PC. Un appareil passé de lui-même en connexion chiffrée a le droit « contrôler » : « wol-agent devices » sur le PC le change.
+- **Partage** : un PC passé en connexion chiffrée se partage pour l'instant avec le droit « démarrer » ; « démarrer et éteindre » reviendra avec la prochaine version du partage. Les partages déjà en place continuent.
+- Mettez à jour l'agent de vos PC (1.11.0) : les applications passent alors d'elles-mêmes en connexion chiffrée.
+
 ## 1.11.2
 
 - **Correctifs de sécurité** : l'application Windows est compilée avec Go 1.26.9, qui corrige 26 failles de sa bibliothèque standard atteignables depuis l'application (connexions HTTPS à GitHub, vérification des certificats, analyse des adresses). Il s'agit surtout de blocages ou de plantages que pourraient provoquer un serveur ou des données malveillants.

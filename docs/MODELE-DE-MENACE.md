@@ -4,7 +4,8 @@ Ce document décrit ce que Patronus protège, contre qui, et comment. Il sert de
 `wolagent/2` ([PROTOCOLE-V2.md](PROTOCOLE-V2.md)) et sera relu à chaque étape de la feuille de route (hub sur le NAS,
 notifications, accès à distance).
 
-- **État couvert** : Patronus 1.11.2, agent 1.10.1 (protocole `wolagent/1`), et la cible `wolagent/2` de l'étape 3.
+- **État couvert** : Patronus 1.12.0 et agent 1.11.0 : `wolagent/2` en service, `wolagent/1` gardé pendant la
+  transition (applications et agents plus anciens, téléphones sous Android 8 ou 9).
 - **Signaler une faille** : [SECURITY.md](../SECURITY.md). Détail des mesures actuelles : [SECURITE.md](SECURITE.md).
 
 ## 1. Système étudié
@@ -76,7 +77,9 @@ Flux étudiés :
 
 ## 5. Menaces et protections
 
-« Actuel » désigne Patronus 1.11.2 ; « Prévu » l'étape 3 (`wolagent/2`) ou l'étape indiquée.
+« Actuel » désigne `wolagent/1` (Patronus 1.11, et les appareils pas encore passés en `wolagent/2`) ; « Prévu »
+`wolagent/2`, **en service depuis Patronus 1.12.0 et l'agent 1.11.0**, sauf ce qui est marqué *(à venir)* ou attribué
+à une étape suivante.
 
 ### F1 · Application ↔ agent
 
@@ -105,7 +108,7 @@ Flux étudiés :
 
 | Id | Menace | Adv. | Actuel | Prévu | Résiduel |
 |---|---|---|---|---|---|
-| T14 | Lecture des Gists | M2, M4 | Chiffrement de bout en bout : pour la clé d'un appareil (partage), par mot de passe (sauvegardes, archives) | Partage v2 : plus de clé d'agent dans les fichiers, seulement une invitation à usage unique, liée à l'appareil destinataire | GitHub voit l'existence, la taille et les dates des Gists |
+| T14 | Lecture des Gists | M2, M4 | Chiffrement de bout en bout : pour la clé d'un appareil (partage), par mot de passe (sauvegardes, archives) | Partage v2 *(à venir, 1.13)* : plus de clé d'agent dans les fichiers, seulement une invitation à usage unique, liée à l'appareil destinataire | GitHub voit l'existence, la taille et les dates des Gists |
 | T15 | Faux fichier d'accès, fausse invitation, fausse demande | M3, M4 | Signature ECDSA du propriétaire, code de vérification comparé de vive voix | Inchangé | Utilisateur qui ne compare pas le code (H3) |
 | T16 | Retour à une ancienne révision d'un accès | M4 | Numéro de révision croissant | Inchangé ; et révocation sur l'agent lui-même | — |
 | T17 | Vol du jeton GitHub | M6, M9 | Droit `gist` seulement, chiffré sur l'appareil, jamais exporté | Inchangé | Lecture et suppression des Gists (contenu chiffré) |
@@ -115,7 +118,7 @@ Flux étudiés :
 
 | Id | Menace | Adv. | Actuel | Prévu | Résiduel |
 |---|---|---|---|---|---|
-| T19 | Version piégée publiée | M8 | Étape 1 : actions épinglées, clé de signature derrière une validation manuelle, provenance attestée, inventaire des composants, govulncheck, double authentification | Vérification de la provenance par les mises à jour intégrées | Compte du propriétaire compromis avec son second facteur |
+| T19 | Version piégée publiée | M8 | Étape 1 : actions épinglées, clé de signature derrière une validation manuelle, provenance attestée, inventaire des composants, govulncheck, double authentification | Vérification de la provenance par les mises à jour intégrées *(à venir)* | Compte du propriétaire compromis avec son second facteur |
 | T20 | Faux manifeste, fichier modifié en route | M1, M4 | Manifeste signé, empreinte SHA-256 de chaque fichier, même clé exigée par Android | Inchangé | — |
 | T21 | Retour à une version vulnérable | M4 | Seule une version plus récente est proposée et installée | Inchangé | — |
 | T22 | Remplacement de l'agent pendant sa mise à jour | M9 | Dossier réservé aux administrateurs, empreinte vérifiée, retour arrière automatique | Inchangé | — |
@@ -124,7 +127,7 @@ Flux étudiés :
 
 | Id | Menace | Adv. | Actuel | Prévu | Résiduel |
 |---|---|---|---|---|---|
-| T23 | Lecture de la clé ou de la configuration de l'agent | M9 | Fichiers réservés à `root` / `SYSTEM` / Administrateurs | Clé d'identité protégée de même, plus DPAPI (machine) sous Windows, puis TPM | Administrateur local (H1) |
+| T23 | Lecture de la clé ou de la configuration de l'agent | M9 | Fichiers réservés à `root` / `SYSTEM` / Administrateurs | Clé d'identité protégée de même, plus DPAPI (machine) sous Windows, puis TPM *(à venir)* | Administrateur local (H1) |
 | T24 | Se servir de l'agent pour obtenir plus de droits | M9 | Commandes nommées uniquement, jamais de commande libre ; `127.0.0.1` exige quand même la clé | Une connexion locale exige une identité enregistrée ou un code d'appairage | — |
 | T25 | Pilotage des ventilateurs via le serveur web de LibreHardwareMonitor | M1, M9 | L'agent le lit en local ; conseil de ne pas l'ouvrir dans le pare-feu | Inchangé | Configuration de LibreHardwareMonitor par l'utilisateur |
 
@@ -133,7 +136,7 @@ Flux étudiés :
 | Id | Menace | Adv. | Actuel | Prévu | Résiduel |
 |---|---|---|---|---|---|
 | T26 | Vol d'un téléphone verrouillé | M6 | Données chiffrées par une clé du Keystore | Identité dans StrongBox ; révocation depuis un autre appareil | — |
-| T27 | Téléphone déverrouillé utilisé par un tiers | M6 | L'application est utilisable | Verrouillage biométrique facultatif, révocation | Tant que l'appareil n'est pas révoqué |
+| T27 | Téléphone déverrouillé utilisé par un tiers | M6 | L'application est utilisable | Révocation ; verrouillage biométrique facultatif *(à venir)* | Tant que l'appareil n'est pas révoqué |
 | T28 | Fuite d'un export complet | M4, M6 | Chiffré par mot de passe | Les identités `wolagent/2` ne sont pas exportées : un nouvel appareil s'appaire à nouveau (QR code ou invitation d'un appareil administrateur) | Clés `wolagent/1` encore présentes tant que la migration n'est pas finie |
 | T29 | Rapport de diagnostic transmis à un tiers | M4 | Sans clé, sans jeton, sans mot de passe ; chiffré | Inchangé | — |
 
@@ -160,19 +163,20 @@ Flux étudiés :
 
 ## 7. Exigences de sécurité
 
-Exigences tirées des menaces ci-dessus. La spécification `wolagent/2` indique comment elle répond à chacune.
+Exigences tirées des menaces ci-dessus. La spécification `wolagent/2` indique comment elle répond à chacune ; la
+dernière colonne donne leur état dans Patronus 1.12.0 et l'agent 1.11.0.
 
-| Id | Exigence | Menaces |
-|---|---|---|
-| R1 | Tout échange application ↔ agent est chiffré et authentifié (TLS 1.3 uniquement, AEAD, confidentialité persistante). | T1, T2, T3 |
-| R2 | Authentification mutuelle par clés publiques épinglées, sans autorité de certification. | T4, T5 |
-| R3 | Une identité par appareil, agent et hub ; clé privée générée sur place, non exportable quand la plateforme le permet. | T7, T26, T28 |
-| R4 | Autorisation par rôle, au plus juste par défaut ; la liste blanche de commandes du PC reste appliquée par-dessus. | T8, T30 |
-| R5 | Révocation individuelle, effective immédiatement et vérifiée par l'agent lui-même. | T7, T16, T27 |
-| R6 | Appairage sans secret durable dans le QR code ou le lien : code à usage unique, expirant, limité en tentatives. | T5, T6 |
-| R7 | Migration depuis `wolagent/1` sans rescanner, résistante à l'homme du milieu, sans élargir les droits. | T12 |
-| R8 | Aucune rétrogradation silencieuse vers `wolagent/1` une fois `wolagent/2` établi avec un PC. | T11 |
-| R9 | Limites de taille, de durée et de débit ; une identité inconnue n'accède qu'aux commandes d'appairage. | T9, T24 |
-| R10 | Chaque action notée au journal de l'agent est attribuée à une identité authentifiée. | T10, T30 |
-| R11 | Aucune cryptographie maison : TLS de la plateforme ; seules des constructions HMAC documentées, à séparation de domaine, testées par vecteurs. | Toutes |
-| R12 | Vecteurs de test communs Go et Kotlin, cas négatifs et fuzzing des analyseurs, en CI. | Toutes |
+| Id | Exigence | Menaces | 1.12.0 |
+|---|---|---|---|
+| R1 | Tout échange application ↔ agent est chiffré et authentifié (TLS 1.3 uniquement, AEAD, confidentialité persistante). | T1, T2, T3 | Oui en `wolagent/2` ; Android 8 et 9 restent en `wolagent/1` |
+| R2 | Authentification mutuelle par clés publiques épinglées, sans autorité de certification. | T4, T5 | Oui |
+| R3 | Une identité par appareil, agent et hub ; clé privée générée sur place, non exportable quand la plateforme le permet. | T7, T26, T28 | Oui : Keystore Android (StrongBox si présent), DPAPI sous Windows ; TPM à venir |
+| R4 | Autorisation par rôle, au plus juste par défaut ; la liste blanche de commandes du PC reste appliquée par-dessus. | T8, T30 | Oui ; le partage par rôle viendra avec le partage v2 |
+| R5 | Révocation individuelle, effective immédiatement et vérifiée par l'agent lui-même. | T7, T16, T27 | Oui : sur le PC ou depuis un appareil administrateur |
+| R6 | Appairage sans secret durable dans le QR code ou le lien : code à usage unique, expirant, limité en tentatives. | T5, T6 | Oui ; l'ancien QR code reste possible sur demande (`--v1`) |
+| R7 | Migration depuis `wolagent/1` sans rescanner, résistante à l'homme du milieu, sans élargir les droits. | T12 | Oui |
+| R8 | Aucune rétrogradation silencieuse vers `wolagent/1` une fois `wolagent/2` établi avec un PC. | T11 | Oui |
+| R9 | Limites de taille, de durée et de débit ; une identité inconnue n'accède qu'aux commandes d'appairage. | T9, T24 | Oui |
+| R10 | Chaque action notée au journal de l'agent est attribuée à une identité authentifiée. | T10, T30 | Oui en `wolagent/2` |
+| R11 | Aucune cryptographie maison : TLS de la plateforme ; seules des constructions HMAC documentées, à séparation de domaine, testées par vecteurs. | Toutes | Oui |
+| R12 | Vecteurs de test communs Go et Kotlin, cas négatifs et fuzzing des analyseurs, en CI. | Toutes | Oui, plus des tests de bout en bout contre le vrai agent |
