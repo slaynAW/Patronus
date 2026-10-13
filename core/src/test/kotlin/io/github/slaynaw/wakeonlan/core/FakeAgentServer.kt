@@ -31,6 +31,10 @@ class FakeAgentServer(
     val port: Int get() = server.localPort
     val commands = mutableListOf<String>()
 
+    /** Demandes reçues, acceptées ou non (une simple connexion TCP n'en est pas une). */
+    @Volatile
+    var attempts = 0
+
     /** Journal renvoyé par la commande `history` ; `null` : agent trop ancien (commande refusée). */
     @Volatile
     var history: AgentHistory? = null
@@ -73,7 +77,9 @@ class FakeAgentServer(
         writer.write("""{"proto":"$proto","nonce":"$nonce"}""" + "\n")
         writer.flush()
 
-        val request = Json.parseToJsonElement(reader.readLine() ?: return).jsonObject
+        val line = reader.readLine() ?: return
+        synchronized(commands) { attempts++ }
+        val request = Json.parseToJsonElement(line).jsonObject
         val cnonce = request.str("cnonce")
         val body = request.str("body")
         val expected = AgentProtocol.requestMac(key, nonce, cnonce, body)

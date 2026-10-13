@@ -1,5 +1,6 @@
 package io.github.slaynaw.wakeonlan.core
 
+import io.github.slaynaw.wakeonlan.core.agent.AgentError
 import io.github.slaynaw.wakeonlan.core.agent.AgentKey
 import io.github.slaynaw.wakeonlan.core.model.AgentSettings
 import io.github.slaynaw.wakeonlan.core.model.AppConfig
@@ -304,6 +305,39 @@ class HostProberTest {
             assertTrue(result.reachable)
             assertEquals(ProbeMethod.AGENT, result.method)
             assertEquals("PC-TEST", result.agent?.hostname)
+        }
+    }
+
+    @Test
+    fun `agent qui refuse recontacte apres un delai croissant`() = runBlocking {
+        val key = AgentKey.generate()
+        FakeAgentServer(AgentKey.decode(key)).use { server ->
+            var now = 1_800_000_000_000L
+            val prober = HostProber(ping = noPing, now = { now })
+            var target = device(emptyList(), agent = AgentSettings(server.port, AgentKey.generate()))
+            suspend fun probe(what: String, attempts: Int, error: AgentError?) {
+                val result = prober.probe(target)
+                assertTrue(result.reachable, what)
+                assertEquals(error, result.agentError, what)
+                assertEquals(attempts, server.attempts, "$what : demandes reçues par l'agent")
+            }
+            probe("clé refusée", 1, AgentError.UNAUTHORIZED)
+            // Pendant le délai : l'agent n'est pas sollicité, une connexion à son port voit le PC allumé.
+            probe("pendant le délai", 1, AgentError.UNAUTHORIZED)
+            now += 61_000
+            probe("après une minute", 2, AgentError.UNAUTHORIZED)
+            now += 61_000
+            probe("délai doublé", 2, AgentError.UNAUTHORIZED)
+            now += 61_000
+            probe("après deux minutes", 3, AgentError.UNAUTHORIZED)
+            // Nouveaux réglages (bonne clé) : recontacté aussitôt.
+            target = target.copy(agent = AgentSettings(server.port, key))
+            probe("bonne clé", 4, null)
+            // Refus puis action réussie ailleurs (forget) : recontacté aussitôt.
+            target = target.copy(agent = AgentSettings(server.port, AgentKey.generate()))
+            probe("refus", 5, AgentError.UNAUTHORIZED)
+            prober.forget(target.id)
+            probe("oublié", 6, AgentError.UNAUTHORIZED)
         }
     }
 

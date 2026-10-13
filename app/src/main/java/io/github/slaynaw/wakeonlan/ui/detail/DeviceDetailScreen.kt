@@ -45,6 +45,7 @@ import io.github.slaynaw.wakeonlan.R
 import io.github.slaynaw.wakeonlan.appContainer
 import io.github.slaynaw.wakeonlan.core.agent.AgentTemperatures
 import io.github.slaynaw.wakeonlan.core.agent.PowerAction
+import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2
 import io.github.slaynaw.wakeonlan.core.status.PowerState
 import io.github.slaynaw.wakeonlan.core.status.StatusNotice
 import io.github.slaynaw.wakeonlan.ui.common.ButtonKind
@@ -226,16 +227,16 @@ fun DeviceDetailContent(
                 Text(stringResource(R.string.hint_shared, sharedBy), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
             } else if (item.status.state == PowerState.ONLINE && !item.device.canShutdown) {
                 Text(stringResource(R.string.hint_no_agent), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
-            } else if (item.status.state == PowerState.OFFLINE && item.device.agent?.hasKey == true) {
+            } else if (item.status.state == PowerState.OFFLINE && item.device.agent?.ready == true) {
                 // Allumé mais sans réponse : le plus souvent un réseau « Public » sous Windows.
                 Text(stringResource(R.string.hint_offline_agent), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
             }
             // Grand tracé : températures du processeur et de la carte graphique si le PC a un agent,
             // sinon la latence (celle d'un PC avec agent est dans les informations).
-            val hasAgent = item.device.agent?.hasKey == true
+            val hasAgent = item.device.agent?.ready == true
             if (item.device.hasHost && hasAgent) TempsCard(item, now) else if (item.device.hasHost) LatencyCard(item, now)
             InfoCard(item)
-            if (item.device.agent?.hasKey == true) {
+            if (item.device.agent?.ready == true) {
                 // Températures et utilisation dans le temps (agent et archives).
                 WolCard(onClick = onOpenMetrics) {
                     KeyValueRow(stringResource(R.string.detail_metrics), stringResource(R.string.metrics_open), valueColor = WolPalette.Blue, icon = WolIcons.Chart)
@@ -321,7 +322,7 @@ private fun lhmHint(state: String): Pair<Int, Int> = when (state) {
 }
 
 @Composable
-private fun InfoCard(item: DeviceItem) {
+internal fun InfoCard(item: DeviceItem) {
     val device = item.device
     val status = item.status
     val online = status.state == PowerState.ONLINE
@@ -337,7 +338,7 @@ private fun InfoCard(item: DeviceItem) {
         KeyValueRow(stringResource(R.string.detail_mac), device.mac.toString(), mono = true)
         // Latence d'un PC avec agent (le grand tracé montre ses températures).
         val latency = status.latencyMs
-        if (device.agent?.hasKey == true && online && latency != null) {
+        if (device.agent?.ready == true && online && latency != null) {
             val via = status.method?.let { stringResource(it.viaLabel()) }
             RowDivider()
             KeyValueRow(stringResource(R.string.detail_latency), listOfNotNull(stringResource(R.string.latency_ms, latency), via).joinToString(" · "))
@@ -410,12 +411,20 @@ private fun InfoCard(item: DeviceItem) {
             )
             online && agent != null -> KeyValueRow(
                 stringResource(R.string.detail_agent),
-                stringResource(R.string.agent_authenticated, agent.versionLabel()),
+                stringResource(
+                    if (agent.proto == Wolagent2.ALPN) R.string.agent_authenticated_v2 else R.string.agent_authenticated,
+                    agent.versionLabel(),
+                ),
                 valueColor = WolPalette.On,
                 icon = WolIcons.Shield,
                 bold = true,
             )
             else -> KeyValueRow(stringResource(R.string.detail_agent), stringResource(R.string.agent_configured), valueColor = WolPalette.Text2)
+        }
+        // Empreinte de l'agent d'un PC passé en wolagent/2, à comparer avec « wol-agent status » sur le PC.
+        device.agent?.shortPin?.let { pin ->
+            RowDivider()
+            KeyValueRow(stringResource(R.string.detail_agent_pin), pin, mono = true)
         }
     }
 }

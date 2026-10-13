@@ -3,6 +3,7 @@ package io.github.slaynaw.wakeonlan.core
 import io.github.slaynaw.wakeonlan.core.agent.AgentKey
 import io.github.slaynaw.wakeonlan.core.agent.PairingInfo
 import io.github.slaynaw.wakeonlan.core.agent.PairingLink
+import io.github.slaynaw.wakeonlan.core.agent2.Pin
 import io.github.slaynaw.wakeonlan.core.config.ConfigCodec
 import io.github.slaynaw.wakeonlan.core.config.ConfigException
 import io.github.slaynaw.wakeonlan.core.config.ExportCodec
@@ -48,6 +49,33 @@ class ConfigTest {
     fun `les secrets n apparaissent jamais dans toString`() {
         assertFalse(config.toString().contains(key))
         assertFalse(config.toString().contains("11:22:33:44:55:66"))
+    }
+
+    @Test
+    fun `empreinte de l agent (wolagent 2)`() {
+        val pin = Pin.of("agent de test".toByteArray()).toString()
+        val pinned = config.copy(devices = listOf(config.devices[0].copy(agent = AgentSettings(key = key, pin = pin))))
+        val text = ConfigCodec.encode(pinned)
+        assertTrue(text.contains(""""pin":"$pin""""), text)
+        assertEquals(pinned, ConfigCodec.decode(text))
+        val agent = pinned.devices[0].agent!!
+        assertTrue(agent.ready && agent.hasPin)
+        assertEquals(Pin.parse(pin)!!.short(), agent.shortPin)
+        assertFalse(agent.toString().contains(key))
+        assertTrue(agent.toString().contains("pin=${agent.shortPin}"))
+        // Export sans secret : la clé part, l'empreinte (publique) reste.
+        val plain = pinned.devices[0].withoutSecrets().agent!!
+        assertTrue(!plain.hasKey && plain.pin == pin && plain.ready)
+        // Sans empreinte, le champ n'est pas écrit : format inchangé pour les versions précédentes.
+        assertFalse(ConfigCodec.encode(config).contains("\"pin\""))
+        // Empreinte mal écrite : refusée comme une clé invalide.
+        val bad = pinned.devices[0].copy(agent = AgentSettings(key = key, pin = pin.dropLast(1)))
+        assertEquals(DeviceField.AGENT_KEY, DeviceValidator.validate(bad).first().field)
+        assertFalse(AgentSettings(key = "").ready)
+        // Fiche enregistrée : l'empreinte reste (clé vide ou inchangée), sauf si une nouvelle clé est saisie.
+        assertEquals(pin, agent.pinKeptWith(""))
+        assertEquals(pin, agent.pinKeptWith(key))
+        assertEquals("", agent.pinKeptWith(AgentKey.generate()))
     }
 
     @Test

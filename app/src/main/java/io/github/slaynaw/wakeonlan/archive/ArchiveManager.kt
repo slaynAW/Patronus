@@ -214,7 +214,7 @@ class ArchiveManager(
             val skipped = ArrayList<String>()
             for (d in config.current().devices) {
                 val settings = d.agent ?: continue
-                if (!settings.hasKey || !d.hasHost) continue
+                if (!settings.ready || !d.hasHost) continue
                 val mac = d.mac.toString()
                 val since = st.archive.synced[mac] ?: 0L
                 when (val w = collect(d, since)) {
@@ -482,7 +482,7 @@ class ArchiveManager(
 
     private suspend fun agentDays(d: Device): AgentResult<List<String>> {
         val settings = d.agent
-        if (settings == null || !settings.hasKey || !d.hasHost) return AgentResult.Failure(AgentError.NO_KEY)
+        if (settings == null || !settings.ready || !d.hasHost) return AgentResult.Failure(AgentError.NO_KEY)
         dayLists[d.id]?.let { (at, r) -> if (System.currentTimeMillis() - at < AGENT_DAYS_TTL_MS) return r }
         val r = when (val m = timed { agent.metrics(d.host, settings) }) {
             is AgentResult.Success -> AgentResult.Success(m.value.days)
@@ -536,7 +536,7 @@ class ArchiveManager(
         val (d, own) = device(deviceId) ?: throw IOException("PC introuvable")
         val raw = ArrayList<AgentHistoryEvent>()
         val settings = d.agent
-        if (settings != null && settings.hasKey && d.hasHost) {
+        if (settings != null && settings.ready && d.hasHost) {
             val cached = journals[d.id]?.takeIf { System.currentTimeMillis() - it.first < AGENT_DAYS_TTL_MS }?.second
             if (cached != null) {
                 raw += cached

@@ -133,7 +133,7 @@ class HistoryTracker(
     }
 
     private fun fetch(device: Device, force: Boolean) {
-        val agent = device.agent?.takeIf { it.hasKey && device.hasHost } ?: return
+        val agent = device.agent?.takeIf { it.ready && device.hasHost } ?: return
         val state = fetches.getOrPut(device.id) { Fetch() }
         val now = clock()
         synchronized(state) {

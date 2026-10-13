@@ -100,7 +100,10 @@ data class Response2(
     val nonce: String = "",
     val proof: String = "",
 ) {
-    fun toStatus() = AgentStatus(hostname, os, arch, version, uptime, temperatures, disks)
+    fun toStatus() = AgentStatus(
+        hostname, os, arch, version, uptime, temperatures, disks,
+        protocols = protocols, proto = Wolagent2.ALPN, role = role,
+    )
 }
 
 /** Échec d'une session wolagent/2. */
@@ -138,13 +141,15 @@ class Wolagent2Client(
 ) {
     /**
      * Ouvre une session avec l'agent [host]:[port]. [agent] est l'empreinte épinglée ; null seulement pour une
-     * migration, dont la preuve vérifiera l'empreinte vue.
+     * migration, dont la preuve vérifiera l'empreinte vue. [onSocket] reçoit la connexion dès sa création : la
+     * fermer interrompt l'ouverture (annulation).
      *
      * @throws Wolagent2Exception ou une [IOException] de connexion.
      */
-    fun connect(host: String, port: Int, identity: DeviceIdentity, agent: Pin?): Wolagent2Session {
+    fun connect(host: String, port: Int, identity: DeviceIdentity, agent: Pin?, onSocket: (Socket) -> Unit = {}): Wolagent2Session {
         val socket = Socket()
         try {
+            onSocket(socket)
             socket.connectBound(binder, InetSocketAddress(binder.resolve(host), port), connectTimeoutMs)
             socket.soTimeout = readTimeoutMs
             readHello(socket.getInputStream())
