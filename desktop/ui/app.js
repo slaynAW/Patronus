@@ -304,6 +304,19 @@
     pairing_text: "Sur le PC à contrôler, lancez « wol-agent pair » (ou l’installation de l’agent), copiez le lien « wolagent://… » affiché, puis cliquez sur « Coller le lien ».",
     pairing_ok_title: "Appairage réussi",
     pairing_ok_text: "Adresse, port et clé de l’agent ont été remplis. Vérifiez l’adresse MAC puis enregistrez.",
+    pairing_ok_text_v2: "Adresse, port et empreinte de l’agent ont été remplis. Vérifiez l’adresse MAC puis enregistrez : cet ordinateur s’appairera alors avec le PC, en connexion chiffrée.",
+    pairing_v2_title: "Appairage chiffré prêt",
+    pairing_v2_text: "Code %1$s · empreinte de l’agent %2$s · rôle « %3$s ». L’appairage se fera à l’enregistrement.",
+    pairing_v2_until: "Code valable jusqu’à %1$s (une seule fois).",
+    pairing_v2_cancel: "Annuler",
+    pairing_done: "PC appairé en connexion chiffrée (rôle « %1$s »)",
+    pairing_failed_title: "Appairage impossible",
+    pairing_error_PAIRING_FAILED: "Code d’appairage refusé : il a expiré ou a déjà servi. Relancez « wol-agent pair » sur le PC pour en obtenir un autre. Si ce code venait d’être affiché, quelqu’un d’autre l’a peut-être utilisé : vérifiez la liste des appareils du PC (« wol-agent devices ») et retirez celui que vous ne connaissez pas.",
+    pairing_error_PIN_MISMATCH: "Le PC qui répond à cette adresse n’est pas celui du lien (empreinte différente) : rien ne lui a été envoyé. Vérifiez l’adresse du PC, puis réessayez.",
+    role_view: "Consulter",
+    role_wake: "Démarrer",
+    role_control: "Contrôler",
+    role_admin: "Administrer",
     pairing_error_title: "Lien d’appairage invalide",
     paste_title: "Coller le lien d’appairage",
     paste_text: "Collez le lien « wolagent://… » affiché par l’agent sur le PC.",
@@ -319,7 +332,7 @@
     field_agent_port: "Port de l’agent",
     field_agent_key: "Clé de l’agent",
     field_agent_key_help: "Remplie automatiquement par le lien d’appairage. Ne la partagez pas.",
-    field_agent_key_help_v2: "Inutile : ce PC est passé en connexion chiffrée wolagent/2 (empreinte %1$s). Coller un nouveau lien d’appairage le réassocie à partir de sa clé.",
+    field_agent_key_help_v2: "Inutile : ce PC est passé en connexion chiffrée wolagent/2 (empreinte %1$s). Pour le réassocier, collez un nouveau lien d’appairage (« wol-agent pair » sur le PC).",
     field_broadcast: "Adresse de diffusion",
     field_broadcast_help: "Vide = automatique (ex. 192.168.1.255)",
     field_wol_port: "Port Wake-on-LAN",
@@ -3286,6 +3299,9 @@
     let testing = false;
     let keyVisible = false;
     let showAdvanced = false;
+    // Appairage wolagent/2 en attente (lien v=2 collé) : fait à l'enregistrement.
+    let pairing = null;
+    const savedKey = form.agentKey;
 
     const fields = {};
     const onChange = (key) => (value) => {
@@ -3315,6 +3331,7 @@
     const agentSwitch = switchInput(form.agentEnabled, (checked) => {
       form.agentEnabled = checked;
       agentSection.classList.toggle("hidden", !checked);
+      if (!checked) setPairing(null);
       clearErrors();
       setTestResult(null);
     }, S.section_agent);
@@ -3322,8 +3339,10 @@
     const testButton = btn("sec", S.action_test_agent, testAgent, "shield");
     const testSpinner = h("span", { class: "spin hidden" });
     const testSlot = h("div");
+    const testRow = h("div", { class: "test-row" }, testButton, testSpinner);
+    const pairingSlot = h("div");
     const agentSection = h("div", { class: `form-section${form.agentEnabled ? "" : " hidden"}` },
-      fields.agentPort.wrap, fields.agentKey.wrap, h("div", { class: "test-row" }, testButton, testSpinner), testSlot);
+      fields.agentPort.wrap, fields.agentKey.wrap, pairingSlot, testRow, testSlot);
 
     const advancedIcon = h("span", { class: "chev-slot" });
     const advancedButton = h("button", { class: "btn ghost expander", type: "button", onClick: () => setAdvanced(!showAdvanced) }, S.section_advanced, advancedIcon);
@@ -3400,17 +3419,28 @@
       }
     }
 
+    let saving = false;
     async function save() {
+      if (saving) return;
+      saving = true;
       let r;
       try {
-        r = await api.call("saveDevice", { id: deviceId, form });
+        r = await api.call("saveDevice", { id: deviceId, form, pairing });
       } catch (e) {
         snackbar(errorMessage(e));
         return;
+      } finally {
+        saving = false;
       }
       if (r.ok) {
         sheet.close();
         if (r.id) select(r.id, false);
+        if (r.role) snackbar(fmt(S.pairing_done, roleLabel(r.role)));
+        return;
+      }
+      if (r.pairing) {
+        const text = S["pairing_error_" + r.pairing] || agentErrorLabel(r.pairing);
+        alertDialog(S.pairing_failed_title, r.pairing === "UNREACHABLE" ? `${text}. ${S.hint_unreachable}` : text);
         return;
       }
       const map = { NAME: "name", MAC: "mac", HOST: "host", AGENT_PORT: "agentPort", AGENT_KEY: "agentKey", BROADCAST: "broadcast", WOL_PORT: "wolPort", PROBE_PORTS: "probePorts", SECURE_ON: "secureOn" };
@@ -3477,14 +3507,49 @@
       if (info.mac) set("mac", info.mac);
       set("host", info.host);
       set("agentPort", String(info.port));
-      set("agentKey", info.key);
+      // Lien v=2 : ni clé ni test, l'appairage se fait à l'enregistrement.
+      set("agentKey", info.version === 2 ? "" : info.key);
       form.agentEnabled = true;
       agentSwitch.input.checked = true;
       agentSection.classList.remove("hidden");
+      setPairing(info.version === 2 ? info : null);
       clearErrors();
       setTestResult(null);
-      alertDialog(S.pairing_ok_title, S.pairing_ok_text);
+      alertDialog(S.pairing_ok_title, info.version === 2 ? S.pairing_ok_text_v2 : S.pairing_ok_text);
     }
+
+    function setPairing(info) {
+      pairing = info ? { agent: info.agent, code: info.code } : null;
+      fields.agentKey.wrap.classList.toggle("hidden", !!info);
+      testRow.classList.toggle("hidden", !!info);
+      if (!info) {
+        pairingSlot.replaceChildren();
+        return;
+      }
+      const code = `${info.code.slice(0, 4)}-${info.code.slice(4)}`;
+      const lines = [h("b", { text: S.pairing_v2_title }),
+        h("small", { class: "result-help", text: fmt(S.pairing_v2_text, code, info.agentShort, roleLabel(info.role || "admin")) })];
+      if (info.expires) lines.push(h("small", { class: "result-help", text: fmt(S.pairing_v2_until, untilLabel(info.expires * 1000)) }));
+      pairingSlot.replaceChildren(h("div", { class: "result ok pending-pairing" }, icon("shield", "small"),
+        h("span", { class: "selectable grow" }, ...lines), btn("ghost", S.pairing_v2_cancel, cancelPairing)));
+    }
+
+    // Annule l'appairage en attente ; la clé enregistrée revient dans la fiche.
+    function cancelPairing() {
+      setPairing(null);
+      if (!form.agentKey) {
+        form.agentKey = savedKey;
+        fields.agentKey.input.value = savedKey;
+      }
+    }
+  }
+
+  const roleLabel = (role) => S["role_" + role] || role;
+  /** Échéance d'un code : « 14:32 » le jour même, sinon « 15 oct. 14:32 ». */
+  function untilLabel(ms) {
+    const at = new Date(ms);
+    const sameDay = at.toDateString() === new Date().toDateString();
+    return sameDay ? clockFmt.format(at) : `${shortDateFmt.format(at)} ${clockFmt.format(at)}`;
   }
 
   // ---------------------------------------------------------------------------------------------

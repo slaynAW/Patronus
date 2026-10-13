@@ -44,6 +44,7 @@ fun AgentError.label(): Int = when (this) {
     AgentError.UNREGISTERED -> R.string.agent_error_unregistered
     AgentError.PIN_MISMATCH -> R.string.agent_error_pin_mismatch
     AgentError.NO_IDENTITY -> R.string.agent_error_no_identity
+    AgentError.PAIRING_FAILED -> R.string.agent_error_pairing_failed
 }
 
 @StringRes

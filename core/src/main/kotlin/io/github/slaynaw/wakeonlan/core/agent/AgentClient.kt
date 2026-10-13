@@ -1,6 +1,8 @@
 package io.github.slaynaw.wakeonlan.core.agent
 
+import io.github.slaynaw.wakeonlan.core.agent2.Commands
 import io.github.slaynaw.wakeonlan.core.agent2.DeviceIdentity
+import io.github.slaynaw.wakeonlan.core.agent2.PairingCode
 import io.github.slaynaw.wakeonlan.core.agent2.Pin
 import io.github.slaynaw.wakeonlan.core.agent2.Request2
 import io.github.slaynaw.wakeonlan.core.agent2.Response2
@@ -63,7 +65,13 @@ enum class AgentError {
 
     /** L'identité wolagent/2 de cet appareil est indisponible (Android 9 ou moins, Keystore en panne). */
     NO_IDENTITY,
+
+    /** Code d'appairage refusé par l'agent (invalide, expiré ou déjà utilisé : la même réponse dans tous les cas). */
+    PAIRING_FAILED,
 }
+
+/** Résultat d'un appairage avec un code : rôle donné par l'agent ; [already] si cet appareil était déjà enregistré. */
+data class AgentPairing(val role: String, val already: Boolean = false)
 
 sealed interface AgentResult<out T> {
     data class Success<T>(val value: T) : AgentResult<T>
@@ -83,6 +91,7 @@ sealed interface AgentResult<out T> {
             AgentError.REJECTED,
             AgentError.UNREGISTERED,
             AgentError.PIN_MISMATCH,
+            AgentError.PAIRING_FAILED,
         )
     }
 }
@@ -188,6 +197,31 @@ class AgentClient(
             when (val body = fromV2(response)) {
                 is AgentResult.Success -> AgentResult.Success(response.role)
                 is AgentResult.Failure -> body
+            }
+        }
+    }
+
+    /**
+     * Enregistre cet appareil auprès de l'agent avec un code d'appairage (docs/PROTOCOLE-V2.md, §6.3 et §7.3), sur une
+     * session où l'empreinte de l'agent lue dans le lien, [AgentSettings.pin], est exigée : le code n'est envoyé qu'à cet
+     * agent. Un code refusé donne [AgentError.PAIRING_FAILED] ; un appareil déjà enregistré, [AgentPairing.already].
+     */
+    suspend fun pair(host: String, agent: AgentSettings, code: String): AgentResult<AgentPairing> {
+        val normalized = PairingCode.normalize(code)
+        if (normalized == null || !agent.hasPin) {
+            return AgentResult.Failure(AgentError.PAIRING_FAILED, "code d'appairage ou empreinte de l'agent invalide")
+        }
+        return session(host, agent) { session ->
+            val response = session.request(Request2(cmd = Commands.PAIR, code = normalized, name = name() ?: "Android"))
+            when {
+                !response.ok && response.code == ResponseCode.PAIRING_FAILED ->
+                    AgentResult.Failure(AgentError.PAIRING_FAILED, response.message)
+                !response.ok && response.code == ResponseCode.ALREADY_PAIRED ->
+                    AgentResult.Success(AgentPairing(response.role, already = true))
+                else -> when (val body = fromV2(response)) {
+                    is AgentResult.Success -> AgentResult.Success(AgentPairing(response.role))
+                    is AgentResult.Failure -> body
+                }
             }
         }
     }

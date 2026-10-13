@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/slaynaw/wakeonlan/agent/protocol2"
 	"github.com/slaynaw/wakeonlan/desktop/internal/agentclient"
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
 	"github.com/slaynaw/wakeonlan/desktop/internal/diag"
@@ -459,6 +460,14 @@ type callParams struct {
 	Points  int    `json:"points"`
 	Install bool   `json:"install"`
 	Level   string `json:"level"`
+	// Pairing : appairage wolagent/2 à faire avant d'enregistrer la fiche (lien v=2).
+	Pairing *pairingRequest `json:"pairing"`
+}
+
+// pairingRequest : empreinte de l'agent et code d'appairage lus dans un lien v=2.
+type pairingRequest struct {
+	Agent string `json:"agent"`
+	Code  string `json:"code"`
 }
 
 // Call exécute une méthode de l'interface ; params est un objet JSON. Chaque action et chaque erreur
@@ -559,7 +568,7 @@ func (s *Service) dispatch(method string, p callParams) (any, error) {
 	case "getDevice":
 		return s.getDevice(p.ID), nil
 	case "saveDevice":
-		return s.saveDevice(p.ID, p.Form)
+		return s.saveDevice(p.ID, p.Form, p.Pairing)
 	case "deleteDevice":
 		if s.isShared(p.ID) {
 			return nil, errShared
@@ -759,7 +768,9 @@ func (s *Service) getDevice(id string) map[string]any {
 	return map[string]any{"isNew": true, "form": model.NewForm()}
 }
 
-func (s *Service) saveDevice(id string, form model.DeviceForm) (any, error) {
+// saveDevice enregistre la fiche d'un PC ; avec pairing, cet ordinateur est d'abord appairé avec son
+// agent (lien v=2), et la fiche n'est enregistrée qu'en cas de succès.
+func (s *Service) saveDevice(id string, form model.DeviceForm, pairing *pairingRequest) (any, error) {
 	if s.isShared(id) {
 		return nil, errShared
 	}
@@ -780,11 +791,53 @@ func (s *Service) saveDevice(id string, form model.DeviceForm) (any, error) {
 	if old.Agent != nil && d.Agent != nil {
 		d.Agent.Pin = keptPin(*old.Agent, d.Agent.Key)
 	}
+	var paired *agentclient.Pairing
+	if pairing != nil && d.Agent != nil {
+		result, err := s.pairDevice(&d, old, *pairing)
+		if err != nil {
+			diag.Warn(areaActions, "appairage de « %s » (%s:%d) : %s (%v)", d.Name, d.Host, d.Agent.Port, agentclient.CodeOf(err), err)
+			return map[string]any{"ok": false, "pairing": agentclient.CodeOf(err)}, nil
+		}
+		paired = &result
+	}
 	if err := s.mutate(func(c model.AppConfig) model.AppConfig { return c.Upsert(d) }); err != nil {
 		return nil, err
 	}
 	diag.Info(areaActions, "PC « %s » [%s] %s", d.Name, shortID(d.ID), pick(id == "", "ajouté", "modifié"))
-	return map[string]any{"ok": true, "id": d.ID}, nil
+	out := map[string]any{"ok": true, "id": d.ID}
+	if paired != nil {
+		s.agentAnswered(d.ID)
+		diag.Info(areaAgent, "« %s » : cet ordinateur est appairé en wolagent/2 (empreinte %s, rôle %s%s)%s", d.Name,
+			d.Agent.ShortPin(), paired.Role, pick(paired.Already, ", déjà enregistré", ""),
+			pick(d.Agent.HasKey(), " ; clé gardée pour le partage « démarrer et éteindre »", ""))
+		out["role"] = paired.Role
+	}
+	return out, nil
+}
+
+// pairingTimeout borne l'appairage (une connexion et un échange).
+const pairingTimeout = 15 * time.Second
+
+// pairDevice appaire cet ordinateur avec l'agent du PC d grâce au code d'un lien v=2 (§7.3) : le code
+// n'est envoyé qu'à l'agent qui présente l'empreinte du lien. d.Agent reçoit alors cette empreinte, sans
+// clé : celle d'une fiche existante n'est gardée que pour un partage « démarrer et éteindre » (§10).
+func (s *Service) pairDevice(d *model.Device, old model.Device, req pairingRequest) (agentclient.Pairing, error) {
+	pin, err := protocol2.ParsePin(req.Agent)
+	if err != nil {
+		return agentclient.Pairing{}, &agentclient.Error{Code: agentclient.PairingFailed, Detail: "empreinte de l'agent invalide"}
+	}
+	settings := model.AgentSettings{Port: d.Agent.Port, Pin: pin.String()}
+	ctx, cancel := context.WithTimeout(context.Background(), pairingTimeout)
+	defer cancel()
+	result, err := s.agent.Pair(ctx, d.Host, settings, req.Code)
+	if err != nil {
+		return result, err
+	}
+	if old.Agent != nil && old.Agent.HasKey() && s.sharedWithControl(old.ID) {
+		settings.Key = old.Agent.Key
+	}
+	d.Agent = &settings
+	return result, nil
 }
 
 func (s *Service) wake(id string) (any, error) {

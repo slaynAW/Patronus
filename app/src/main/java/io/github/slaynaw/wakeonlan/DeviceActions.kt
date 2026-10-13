@@ -2,6 +2,7 @@ package io.github.slaynaw.wakeonlan
 
 import io.github.slaynaw.wakeonlan.core.agent.AgentClient
 import io.github.slaynaw.wakeonlan.core.agent.AgentError
+import io.github.slaynaw.wakeonlan.core.agent.AgentPairing
 import io.github.slaynaw.wakeonlan.core.agent.AgentResult
 import io.github.slaynaw.wakeonlan.core.agent.AgentStatus
 import io.github.slaynaw.wakeonlan.core.agent.PowerAction
@@ -75,6 +76,26 @@ class DeviceActions(
     }
 
     /** Teste l'agent avec les réglages de la fiche ; [deviceId] : PC modifié (null pour un nouveau PC). */
+    /**
+     * Appaire ce téléphone avec l'agent d'un PC grâce au code d'un lien `v=2` : le code n'est envoyé qu'à l'agent qui
+     * présente l'empreinte [AgentSettings.pin] du lien. Ni le code ni l'empreinte complète ne sont journalisés.
+     */
+    suspend fun pair(host: String, agent: AgentSettings, code: String, deviceId: String): AgentResult<AgentPairing> =
+        agentClient.pair(host, agent, code).also { r ->
+            when (r) {
+                is AgentResult.Success -> {
+                    prober?.forget(deviceId)
+                    DiagnosticLog.i(
+                        "action",
+                        "appairage avec $host:${agent.port} : réussi (empreinte ${agent.shortPin}, rôle ${r.value.role}" +
+                            if (r.value.already) ", déjà enregistré)" else ")",
+                    )
+                }
+                is AgentResult.Failure ->
+                    DiagnosticLog.w("action", "appairage avec $host:${agent.port} : ${r.error}${r.detail?.let { " — $it" }.orEmpty()}")
+            }
+        }
+
     suspend fun testAgent(host: String, agent: AgentSettings, deviceId: String? = null): AgentResult<AgentStatus> =
         agentClient.status(host, agent).also { r ->
             when (r) {

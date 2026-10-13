@@ -3,10 +3,12 @@ package io.github.slaynaw.wakeonlan.core
 import io.github.slaynaw.wakeonlan.core.agent.AgentClient
 import io.github.slaynaw.wakeonlan.core.agent.AgentError
 import io.github.slaynaw.wakeonlan.core.agent.AgentKey
+import io.github.slaynaw.wakeonlan.core.agent.AgentPairing
 import io.github.slaynaw.wakeonlan.core.agent.AgentResult
 import io.github.slaynaw.wakeonlan.core.agent.AgentUpgrade
 import io.github.slaynaw.wakeonlan.core.agent.PowerAction
 import io.github.slaynaw.wakeonlan.core.agent2.Commands
+import io.github.slaynaw.wakeonlan.core.agent2.PairingCode
 import io.github.slaynaw.wakeonlan.core.agent2.Pin
 import io.github.slaynaw.wakeonlan.core.agent2.Request2
 import io.github.slaynaw.wakeonlan.core.agent2.ResponseCode
@@ -133,6 +135,33 @@ class Wolagent2EndToEndTest {
         assertNull(again.role)
         assertEquals(first.settings.pin, again.settings.pin)
         assertEquals(pc.agent!!.key, again.settings.key, "clé gardée pour le partage")
+    }
+
+    @Test
+    fun `appairage avec un code par le client unifie`() = runBlocking {
+        // wol-agent pair sur le PC : invitation (rôle wake) créée avec l'identité de l'agent.
+        val agentPin = local.pin
+        val invite = client.connect("127.0.0.1", port, local, agentPin).use { admin ->
+            admin.request(Request2(cmd = Commands.INVITE, role = "wake", ttl = 120)).invite!!
+        }
+        val phone = TestIdentities.newDevice()
+        val app = AgentClient(deviceName = { "Pixel appairé" }, identity = { phone })
+        val settings = AgentSettings(port = port, key = "", pin = agentPin.toString())
+        // Code tapé en minuscules avec un tiret : normalisé.
+        val paired = app.pair("127.0.0.1", settings, PairingCode.format(invite.code).lowercase())
+        assertEquals(AgentResult.Success(AgentPairing("wake")), paired)
+        val status = app.status("127.0.0.1", settings)
+        assertTrue(status is AgentResult.Success && status.value.proto == "wolagent/2" && status.value.role == "wake", "$status")
+        val shutdown = app.power("127.0.0.1", settings, PowerAction.SHUTDOWN)
+        assertTrue(shutdown is AgentResult.Failure && shutdown.code == ResponseCode.INSUFFICIENT_ROLE, "$shutdown")
+        // Déjà enregistré : le code n'est pas consommé une seconde fois.
+        assertEquals(AgentResult.Success(AgentPairing("wake", already = true)), app.pair("127.0.0.1", settings, invite.code))
+        // Code mal écrit : refusé sans connexion.
+        val bad = app.pair("127.0.0.1", settings, "7KQ2-9MX")
+        assertTrue(bad is AgentResult.Failure && bad.error == AgentError.PAIRING_FAILED, "$bad")
+        client.connect("127.0.0.1", port, local, agentPin).use { admin ->
+            assertTrue(admin.request(Request2(cmd = Commands.DEVICES_REVOKE, device = phone.pin.toString())).ok)
+        }
     }
 
     @Test

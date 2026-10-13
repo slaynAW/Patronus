@@ -97,7 +97,7 @@ class HistoryTracker(
         if (events.isNotEmpty()) history.update { data -> events.fold(data) { acc, e -> acc.add(e, now) } }
         for ((id, status) in current) {
             val old = before[id]
-            if (old?.state != status.state || old?.agentError != status.agentError) {
+            if (old == null || old.state != status.state || old.agentError != status.agentError) {
                 DiagnosticLog.i(
                     "état",
                     "« ${devices[id]?.name ?: id} » : ${old?.state ?: "-"} → ${status.state}" +

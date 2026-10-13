@@ -46,6 +46,43 @@ func (c *Client) Migrate(ctx context.Context, host string, agent model.AgentSett
 	return out, err
 }
 
+// Pairing est le résultat de l'appairage de cet ordinateur avec un code.
+type Pairing struct {
+	// Role : rôle donné à cet ordinateur par l'agent (celui de l'invitation).
+	Role string
+	// Already : cet ordinateur était déjà enregistré par l'agent ; le code n'a pas servi.
+	Already bool
+}
+
+// Pair enregistre cet ordinateur auprès de l'agent avec un code d'appairage (docs/PROTOCOLE-V2.md,
+// §6.3 et §7.3), sur une session où l'empreinte de l'agent lue dans le lien, agent.Pin, est exigée :
+// le code n'est envoyé qu'à cet agent. Le nom de cet ordinateur est celui que l'agent enregistre.
+func (c *Client) Pair(ctx context.Context, host string, agent model.AgentSettings, code string) (Pairing, error) {
+	normalized, err := protocol2.NormalizeCode(code)
+	if err != nil || !agent.HasPin() {
+		return Pairing{}, &Error{Code: PairingFailed, Detail: "code d'appairage ou empreinte de l'agent invalide"}
+	}
+	var out Pairing
+	err = c.session(ctx, host, agent, func(ctx context.Context, s *client.Session) error {
+		resp, err := s.Do(ctx, protocol2.Request{Cmd: protocol2.CmdPair, Code: normalized, Name: c.by()})
+		switch {
+		case err != nil:
+			return err
+		case !resp.OK && resp.Code == protocol2.CodePairingFailed:
+			return &Error{Code: PairingFailed, Detail: resp.Message}
+		case !resp.OK && resp.Code == protocol2.CodeAlreadyPaired:
+			out.Role, out.Already = resp.Role, true
+			return nil
+		}
+		if _, err := fromV2(resp); err != nil {
+			return err
+		}
+		out.Role = resp.Role
+		return nil
+	})
+	return out, err
+}
+
 // exchange2 mène un échange wolagent/2 : une requête sur une session où l'empreinte de l'agent est
 // exigée.
 func (c *Client) exchange2(ctx context.Context, host string, agent model.AgentSettings, request protocol.RequestBody) (*responseBody, error) {

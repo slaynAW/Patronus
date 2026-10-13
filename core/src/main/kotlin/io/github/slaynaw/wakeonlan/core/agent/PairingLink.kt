@@ -1,5 +1,7 @@
 package io.github.slaynaw.wakeonlan.core.agent
 
+import io.github.slaynaw.wakeonlan.core.agent2.InvalidLinkException
+import io.github.slaynaw.wakeonlan.core.agent2.PairingLinkV2
 import io.github.slaynaw.wakeonlan.core.model.DEFAULT_AGENT_PORT
 import io.github.slaynaw.wakeonlan.core.model.DeviceValidator
 import io.github.slaynaw.wakeonlan.core.model.MacAddress
@@ -17,9 +19,16 @@ data class PairingInfo(
     override fun toString(): String = "PairingInfo(name=$name, host=$host, port=$port, mac=$mac, key=***)"
 }
 
+/** Lien d'appairage lu : version 1 (clé de l'agent) ou 2 (empreinte de l'agent et code à usage unique). */
+sealed interface ParsedPairing {
+    data class V1(val info: PairingInfo) : ParsedPairing
+
+    data class V2(val link: PairingLinkV2) : ParsedPairing
+}
+
 /**
- * Lien d'appairage : `wolagent://pair?v=1&n=<nom>&h=<ip>&p=<port>&m=<mac>&k=<clé>`.
- * Il est généré par `wol-agent pair` sur le PC et scanné / collé dans l'application.
+ * Lien d'appairage : `wolagent://pair?v=1&n=<nom>&h=<ip>&p=<port>&m=<mac>&k=<clé>`, ou `v=2` (docs/PROTOCOLE-V2.md,
+ * §7.1 : [PairingLinkV2]). Il est généré par `wol-agent pair` sur le PC et scanné / collé dans l'application.
  */
 object PairingLink {
     const val PREFIX = "wolagent://pair?"
@@ -34,7 +43,34 @@ object PairingLink {
         "k" to info.key,
     ).joinToString("&") { (k, v) -> "$k=${URLEncoder.encode(v, "UTF-8")}" }
 
-    /** @throws IllegalArgumentException avec un message lisible si le lien est invalide. */
+    /** Message d'un lien `v=2` invalide, selon le paramètre en cause. */
+    private val V2_ERRORS = mapOf(
+        "duplicate" to "Lien d'appairage mal formé",
+        "h" to "Adresse du PC invalide dans le lien",
+        "a" to "Empreinte de l'agent invalide dans le lien",
+        "c" to "Code d'appairage invalide dans le lien",
+        "p" to "Port invalide dans le lien",
+        "m" to "Adresse MAC invalide dans le lien",
+        "r" to "Rôle invalide dans le lien",
+        "e" to "Date d'expiration invalide dans le lien",
+    )
+
+    /**
+     * Lit un lien de l'une ou l'autre version : `v=2` selon les règles de la spécification (paramètre en double refusé),
+     * les autres comme avant.
+     *
+     * @throws IllegalArgumentException avec un message lisible si le lien est invalide.
+     */
+    fun parseAny(text: String): ParsedPairing {
+        try {
+            return ParsedPairing.V2(PairingLinkV2.parse(text))
+        } catch (e: InvalidLinkException) {
+            V2_ERRORS[e.field]?.let { throw IllegalArgumentException(it) }
+        }
+        return ParsedPairing.V1(parse(text))
+    }
+
+    /** Lit un lien `v=1`. @throws IllegalArgumentException avec un message lisible si le lien est invalide. */
     fun parse(text: String): PairingInfo {
         val link = text.trim()
         require(link.startsWith(PREFIX, ignoreCase = true)) { "Ce n'est pas un lien d'appairage wolagent://" }

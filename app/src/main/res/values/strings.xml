@@ -98,6 +98,7 @@
     <string name="agent_error_unregistered">ce téléphone n’est pas autorisé par ce PC : appairez-le à nouveau (wol-agent pair sur le PC)</string>
     <string name="agent_error_pin_mismatch">empreinte inattendue : autre machine à cette adresse ou agent réinstallé (connexion refusée)</string>
     <string name="agent_error_no_identity">identité de ce téléphone indisponible</string>
+    <string name="agent_error_pairing_failed">code d’appairage refusé</string>
 
     <!-- Vue d'ensemble et liste des PC -->
     <string name="summary_ratio">%1$d/%2$d</string>
@@ -378,6 +379,18 @@
     <string name="pairing_text">Sur le PC, lancez « wol-agent pair » (ou l’installation de l’agent) puis scannez le QR code affiché.</string>
     <string name="pairing_ok_title">Appairage réussi</string>
     <string name="pairing_ok_text">Adresse, port et clé de l’agent ont été remplis. Vérifiez l’adresse MAC puis enregistrez.</string>
+    <string name="pairing_ok_text_v2">Adresse, port et empreinte de l’agent ont été remplis. Vérifiez l’adresse MAC puis enregistrez : le téléphone s’appairera alors avec le PC, en connexion chiffrée.</string>
+    <string name="pairing_v2_title">Appairage chiffré prêt</string>
+    <string name="pairing_v2_text">Code %1$s · empreinte de l’agent %2$s · rôle « %3$s ». L’appairage se fera à l’enregistrement.</string>
+    <string name="pairing_v2_until">Code valable jusqu’à %1$s (une seule fois).</string>
+    <string name="pairing_v2_cancel">Annuler</string>
+    <string name="pairing_failed_title">Appairage impossible</string>
+    <string name="pairing_error_failed">Code d’appairage refusé : il a expiré ou a déjà servi. Relancez « wol-agent pair » sur le PC pour en obtenir un autre. Si ce code venait d’être affiché, quelqu’un d’autre l’a peut-être utilisé : vérifiez la liste des appareils du PC (« wol-agent devices ») et retirez celui que vous ne connaissez pas.</string>
+    <string name="pairing_error_pin_mismatch">Le PC qui répond à cette adresse n’est pas celui du QR code (empreinte différente) : rien ne lui a été envoyé. Vérifiez l’adresse du PC, puis réessayez.</string>
+    <string name="role_view">Consulter</string>
+    <string name="role_wake">Démarrer</string>
+    <string name="role_control">Contrôler</string>
+    <string name="role_admin">Administrer</string>
     <string name="pairing_error_title">Lien d’appairage invalide</string>
     <string name="paste_title">Coller le lien d’appairage</string>
     <string name="paste_text">Collez le lien « wolagent://… » affiché par l’agent sur le PC.</string>
@@ -397,7 +410,7 @@
     <string name="field_agent_port">Port de l’agent</string>
     <string name="field_agent_key">Clé de l’agent</string>
     <string name="field_agent_key_help">Remplie automatiquement par le QR code. Ne la partagez pas.</string>
-    <string name="field_agent_key_help_v2">Inutile : ce PC est passé en connexion chiffrée wolagent/2 (empreinte %1$s). Scanner un nouveau QR code le réassocie à partir de sa clé.</string>
+    <string name="field_agent_key_help_v2">Inutile : ce PC est passé en connexion chiffrée wolagent/2 (empreinte %1$s). Pour le réassocier, scannez un nouveau QR code (« wol-agent pair » sur le PC).</string>
     <string name="field_broadcast">Adresse de diffusion</string>
     <string name="field_broadcast_help">Vide = automatique (ex. 192.168.1.255)</string>
     <string name="field_wol_port">Port Wake-on-LAN</string>

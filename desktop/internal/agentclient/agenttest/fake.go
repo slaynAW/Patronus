@@ -57,6 +57,7 @@ type v2State struct {
 	pin     protocol2.Pin
 	devices map[protocol2.Pin]string // rôle
 	names   map[protocol2.Pin]string
+	invites map[string]string // code normalisé → rôle
 }
 
 // Start démarre un faux agent.
@@ -121,8 +122,17 @@ func (s *Server) EnableV2() protocol2.Pin {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.v2 = &v2State{cert: tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}, pin: pin,
-		devices: map[protocol2.Pin]string{}, names: map[protocol2.Pin]string{}}
+		devices: map[protocol2.Pin]string{}, names: map[protocol2.Pin]string{}, invites: map[string]string{}}
 	return pin
+}
+
+// Invite crée une invitation à usage unique pour le rôle donné ; renvoie son code.
+func (s *Server) Invite(role string) string {
+	code := protocol2.NewCode()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.v2.invites[code] = role
+	return code
 }
 
 // Register autorise un appareil wolagent/2 avec un rôle ("" : le retire).
@@ -322,7 +332,7 @@ func (c readerConn) Read(p []byte) (int, error) { return c.r.Read(p) }
 
 // serveV2 mène une session wolagent/2 : TLS 1.3 avec l'identité du faux agent, puis requêtes en
 // trames. Comme le vrai agent : une identité inconnue n'a droit qu'à la migration (preuves par la
-// clé), un rôle trop faible est refusé.
+// clé) et à l'appairage (code à usage unique), un rôle trop faible est refusé.
 func (s *Server) serveV2(conn net.Conn, r *bufio.Reader) {
 	s.mu.Lock()
 	cert, agent := s.v2.cert, s.v2.pin
@@ -359,6 +369,24 @@ func (s *Server) serveV2(conn net.Conn, r *bufio.Reader) {
 		}
 		role, _ := s.Device(device)
 		switch {
+		case req.Cmd == protocol2.CmdPair && role != "":
+			reply(protocol2.Response{ID: req.ID, ResponseBody: protocol.ResponseBody{Code: protocol2.CodeAlreadyPaired,
+				Message: "cet appareil est déjà autorisé sur ce PC"}, Role: role})
+		case req.Cmd == protocol2.CmdPair:
+			code, err := protocol2.NormalizeCode(req.Code)
+			s.mu.Lock()
+			invited, ok := s.v2.invites[code]
+			if err == nil && ok {
+				delete(s.v2.invites, code)
+				s.v2.devices[device], s.v2.names[device] = invited, req.Name
+			}
+			s.mu.Unlock()
+			if err != nil || !ok {
+				reply(protocol2.Reply{ID: req.ID, Code: protocol2.CodePairingFailed, Message: "code d'appairage refusé"})
+				return
+			}
+			reply(protocol2.Response{ID: req.ID, ResponseBody: protocol.ResponseBody{OK: true, Code: protocol2.CodeOK,
+				Message: "appareil ajouté"}, Role: invited, Device: device.String()})
 		case req.Cmd == protocol2.CmdMigrate && role != "":
 			reply(protocol2.Reply{ID: req.ID, Code: protocol2.CodeAlreadyPaired, Message: "appareil déjà appairé"})
 		case req.Cmd == protocol2.CmdMigrate && nc == nil:
