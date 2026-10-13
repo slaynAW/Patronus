@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/slaynaw/wakeonlan/agent/protocol2"
 )
 
 const (
@@ -20,25 +22,50 @@ func DefaultProbePorts() []int { return []int{3389, 445, 22, 139} }
 // AgentSettings contient les paramètres de connexion à l'agent d'un PC.
 type AgentSettings struct {
 	Port int `json:"port"`
-	// Key est la clé secrète partagée (32 octets en Base64 URL). Vide = à renseigner.
+	// Key est la clé secrète partagée de wolagent/1 (32 octets en Base64 URL). Vide = à renseigner,
+	// ou effacée une fois le PC passé en wolagent/2.
 	Key string `json:"key"`
+	// Pin est l'empreinte wolagent/2 de l'agent (B64), lue dans une réponse signée par la clé ou dans
+	// un lien d'appairage. Une fois connue, l'application ne parle plus que wolagent/2 à ce PC
+	// (docs/PROTOCOLE-V2.md, §9). Ce n'est pas un secret.
+	Pin string `json:"pin,omitempty"`
 }
 
-// HasKey indique si une clé est renseignée.
+// HasKey indique si une clé wolagent/1 est renseignée.
 func (a AgentSettings) HasKey() bool { return a.Key != "" }
+
+// HasPin indique que l'agent est joint en wolagent/2.
+func (a AgentSettings) HasPin() bool { return a.Pin != "" }
+
+// Ready indique que l'agent peut être joint : par sa clé (wolagent/1) ou son empreinte (wolagent/2).
+func (a AgentSettings) Ready() bool { return a.HasKey() || a.HasPin() }
+
+// ShortPin renvoie l'empreinte courte de l'agent (« 7KQ2-9MXP-4D1Z »), ou "".
+func (a AgentSettings) ShortPin() string {
+	pin, err := protocol2.ParsePin(a.Pin)
+	if err != nil {
+		return ""
+	}
+	return pin.Short()
+}
 
 func (a AgentSettings) String() string {
 	key := "<vide>"
 	if a.HasKey() {
 		key = "***"
 	}
-	return fmt.Sprintf("AgentSettings(port=%d, key=%s)", a.Port, key)
+	pin := ""
+	if a.HasPin() {
+		pin = ", pin=" + a.ShortPin()
+	}
+	return fmt.Sprintf("AgentSettings(port=%d, key=%s%s)", a.Port, key, pin)
 }
 
 func (a *AgentSettings) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		Port *int    `json:"port"`
 		Key  *string `json:"key"`
+		Pin  string  `json:"pin"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
@@ -51,6 +78,7 @@ func (a *AgentSettings) UnmarshalJSON(data []byte) error {
 		a.Port = *raw.Port
 	}
 	a.Key = *raw.Key
+	a.Pin = raw.Pin
 	return nil
 }
 
@@ -77,10 +105,11 @@ func (d Device) HasHost() bool { return strings.TrimSpace(d.Host) != "" }
 func (d Device) CanShutdown() bool { return d.HasHost() && d.Agent != nil }
 
 // WithoutSecrets renvoie une copie sans clé d'agent ni mot de passe SecureOn (export en clair).
+// L'empreinte de l'agent, publique, est gardée.
 func (d Device) WithoutSecrets() Device {
 	d.SecureOnPassword = nil
 	if d.Agent != nil {
-		d.Agent = &AgentSettings{Port: d.Agent.Port, Key: ""}
+		d.Agent = &AgentSettings{Port: d.Agent.Port, Key: "", Pin: d.Agent.Pin}
 	}
 	d.ProbePorts = append([]int(nil), d.ProbePorts...)
 	return d

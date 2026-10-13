@@ -168,7 +168,8 @@ flowchart LR
     Svc --> Store[(config.dat<br/>DPAPI)]
     Svc --> Mon[status.Monitor] --> Prober[HostProber<br/>agent / TCP / IcmpSendEcho]
     Svc --> Wol[wol.Send<br/>une socket par carte]
-    Svc --> Client[agentclient<br/>agent/protocol]
+    Svc --> Client[agentclient<br/>wolagent/2 ou wolagent/1]
+    Client --> Id[(identity.dat<br/>DPAPI)]
     Net[netstate<br/>GetAdaptersAddresses] --> Svc
 ```
 
@@ -179,6 +180,10 @@ flowchart LR
 - **Interopérabilité garantie** : `protocol/export-vectors.json` (produit par Node.js/OpenSSL) est relu par les tests Kotlin
   **et** Go ; le client Windows est testé contre le vrai agent en CI.
 - Surveillance en pause quand la fenêtre est réduite ; une seule instance ; `F5` actualise.
+- `wolagent/2` : `agentclient` parle `wolagent/2` (paquet `agent/protocol2/client` partagé avec l'agent) à tout PC dont
+  il connaît l'empreinte, et `wolagent/1` aux autres ; `identity` garde l'identité de cet ordinateur (ECDSA P-256,
+  DPAPI) ; `app/upgrade.go` fait passer les PC en `wolagent/2` dès que leur agent l'annonce
+  ([PROTOCOLE-V2.md, §9](PROTOCOLE-V2.md#9-migration-depuis-wolagent1)).
 - Interface : thème sombre « topologie & panneau de détail » (plan du réseau dessiné en SVG, tableau des appareils,
   panneau de détail) ; polices Inter et JetBrains Mono intégrées à la page (licence SIL OFL).
 
@@ -187,12 +192,12 @@ flowchart LR
 | Contrôle | Où |
 |---|---|
 | Tests unitaires `core` (plus de 60 tests : MAC, paquet, diffusion, protocole, client, config, export, états, surveillance, historique) | `./gradlew :core:test` |
-| Test de bout en bout app ↔ agent réel | CI (`AgentEndToEndTest`) |
+| Test de bout en bout app ↔ agent réel | CI (`AgentEndToEndTest`, `Wolagent2EndToEndTest`) |
 | Tests de l'agent (protocole, serveur, rejeu, force brute, config) sous Linux **et** Windows, détecteur de courses | CI |
 | Vecteurs cryptographiques communs, calculés indépendamment | `protocol/test-vectors.json` |
 | Vecteurs de `wolagent/2` : agent (Go), application Android (`core`, `Wolagent2Test`) et une troisième implémentation indépendante (Python, OpenSSL), à chaque build ; fuzzing des analyseurs | `protocol/v2-vectors.json`, `.github/scripts/check-v2-vectors.py` |
 | Scénario d'historique commun Kotlin ↔ Go (fusion, doublons, conservation) | `protocol/history-vectors.json` |
-| Tests de l'application Windows (Linux + Windows : DPAPI, ping, cartes réseau), test de bout en bout contre l'agent | CI |
+| Tests de l'application Windows (Linux + Windows : DPAPI, ping, cartes réseau), tests de bout en bout contre l'agent (`wolagent/1`, `wolagent/2`, passage automatique) | CI |
 | Démarrage réel de l'application Windows (fenêtre WebView2, interface, pont Go ↔ JS) | CI (`WOL_SELFTEST`) |
 | Lint Android, `go vet` pour Windows/Linux/macOS, `gofmt` | CI |
 | Avertissements Kotlin traités comme des erreurs (`core`) | `core/build.gradle.kts` |

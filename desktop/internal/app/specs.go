@@ -52,7 +52,7 @@ func (s *Service) refreshSpecs(id string, st status.DeviceStatus) {
 		return
 	}
 	d, ok := s.device(id)
-	if !ok || d.Agent == nil || !d.Agent.HasKey() || !d.HasHost() {
+	if !ok || d.Agent == nil || !d.Agent.Ready() || !d.HasHost() {
 		return
 	}
 	version := st.Agent.Version

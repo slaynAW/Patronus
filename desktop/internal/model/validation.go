@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf16"
+
+	"github.com/slaynaw/wakeonlan/agent/protocol2"
 )
 
 // Field désigne un champ du formulaire, pour afficher l'erreur au bon endroit.
@@ -88,6 +90,9 @@ func Validate(d Device) []ValidationError {
 		}
 		if d.Agent.HasKey() && DecodeAgentKey(d.Agent.Key) == nil {
 			add(FieldAgentKey, "Clé d'agent invalide")
+		}
+		if _, err := protocol2.ParsePin(d.Agent.Pin); d.Agent.HasPin() && err != nil {
+			add(FieldAgentKey, "Empreinte d'agent invalide")
 		}
 		if !d.HasHost() {
 			add(FieldHost, "L'adresse du PC est nécessaire pour l'agent")

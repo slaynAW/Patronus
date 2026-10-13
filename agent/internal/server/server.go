@@ -264,10 +264,11 @@ func (s *Server) protocols() []string {
 	return list
 }
 
-// newResponse prépare une réponse avec la description du PC.
+// newResponse prépare une réponse avec la description du PC, les protocoles servis et l'empreinte de
+// l'agent (docs/PROTOCOLE-V2.md, §9).
 func (s *Server) newResponse() protocol.ResponseBody {
 	info := s.info()
-	return protocol.ResponseBody{
+	resp := protocol.ResponseBody{
 		Hostname:  info.Hostname,
 		OS:        info.OS,
 		Arch:      info.Arch,
@@ -275,6 +276,10 @@ func (s *Server) newResponse() protocol.ResponseBody {
 		Uptime:    int64(info.Uptime.Seconds()),
 		Protocols: s.protocols(),
 	}
+	if s.v2 != nil {
+		resp.Pin = s.v2.identity.Pin.String()
+	}
+	return resp
 }
 
 // execute traite une requête wolagent/1 authentifiée.

@@ -602,6 +602,29 @@ func linkView(link, code string) (map[string]any, error) {
 	return v, nil
 }
 
+// sharedWithControl indique qu'un PC de cet appareil est partagé avec le droit « démarrer et
+// éteindre » : ce partage (wolagent/1) transmet la clé de son agent, qui doit donc être gardée. Dans
+// le doute (partage illisible), elle est gardée.
+func (s *Service) sharedWithControl(id string) bool {
+	sh := s.sharing
+	if sh == nil {
+		return false
+	}
+	sh.mu.Lock()
+	defer sh.mu.Unlock()
+	if sh.loadErr != "" {
+		return true
+	}
+	if o := sh.state.Owner; o != nil {
+		for _, p := range o.People {
+			if p.Rights[id] == share.RightFull {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // ownDevicesBrief résume les PC de l'appareil pour le choix des droits.
 func (s *Service) ownDevicesBrief() []map[string]any {
 	s.mu.Lock()

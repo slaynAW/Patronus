@@ -84,6 +84,10 @@
     agent_error_RATE_LIMITED: "trop de tentatives, réessayez dans quelques minutes",
     agent_error_PROTOCOL: "réponse invalide de l’agent",
     agent_error_REJECTED: "commande refusée par le PC",
+    agent_error_UNREGISTERED: "cet ordinateur n’est pas autorisé par ce PC : appairez-le à nouveau (wol-agent pair sur le PC)",
+    agent_error_PIN_MISMATCH: "empreinte inattendue : autre machine à cette adresse ou agent réinstallé (connexion refusée)",
+    agent_error_NO_IDENTITY: "identité de cet ordinateur indisponible",
+    agent_error_insufficient_role: "cet ordinateur n’a pas le droit de le faire sur ce PC (rôle insuffisant)",
 
     empty_title: "Aucun PC pour l’instant",
     empty_text: "Ajoutez un PC à réveiller. Si l’agent est installé dessus, collez simplement son lien d’appairage : tout est rempli automatiquement. Vous pouvez aussi importer la configuration exportée depuis le téléphone.",
@@ -223,6 +227,9 @@
     detail_agent: "Agent",
     detail_not_set: "Non renseignée",
     agent_authenticated: "Authentifié · %1$s",
+    agent_authenticated_v2: "Chiffré et authentifié · %1$s",
+    detail_agent_pin: "Empreinte du PC",
+    detail_agent_pin_help: "Identité de l’agent de ce PC (wolagent/2), vérifiée à chaque connexion. Elle doit correspondre à celle qu’affiche « wol-agent status » sur le PC.",
     agent_not_configured: "Non installé",
     agent_configured: "Configuré",
     hint_no_agent: "Pour éteindre, redémarrer ou mettre ce PC en veille d’ici, installez l’agent sur ce PC puis appairez-le (Modifier).",
@@ -312,6 +319,7 @@
     field_agent_port: "Port de l’agent",
     field_agent_key: "Clé de l’agent",
     field_agent_key_help: "Remplie automatiquement par le lien d’appairage. Ne la partagez pas.",
+    field_agent_key_help_v2: "Inutile : ce PC est passé en connexion chiffrée wolagent/2 (empreinte %1$s). Coller un nouveau lien d’appairage le réassocie à partir de sa clé.",
     field_broadcast: "Adresse de diffusion",
     field_broadcast_help: "Vide = automatique (ex. 192.168.1.255)",
     field_wol_port: "Port Wake-on-LAN",
@@ -321,6 +329,7 @@
     field_secure_on: "Mot de passe SecureOn",
     field_secure_on_help: "Rarement utilisé. 6 octets hexadécimaux.",
     test_ok: "Connexion réussie : %1$s (%2$s, agent %3$s)",
+    test_ok_v2: "Connexion chiffrée réussie : %1$s (%2$s, agent %3$s)",
 
     section_monitoring: "Surveillance",
     setting_poll_interval: "Vérifier l’état toutes les",
@@ -516,6 +525,7 @@
     share_right_none: "Non partagé",
     share_right_wake: "Démarrer",
     share_right_full: "Démarrer et éteindre",
+    share_right_v2_note: "Les PC passés en connexion chiffrée (wolagent/2) se partagent pour l’instant en « Démarrer » : le partage de l’extinction arrive avec la prochaine version du partage.",
     share_grant: "Autoriser",
     share_person_waiting: "%1$s · publication en attente",
     share_revoke: "Retirer l’accès",
@@ -906,7 +916,8 @@
     for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i];
     return 0;
   }
-  const agentErrorLabel = (code) => S["agent_error_" + code] || S.agent_error_PROTOCOL;
+  const agentErrorLabel = (code, reason) =>
+    (code === "REJECTED" && S["agent_error_" + reason]) || S["agent_error_" + code] || S.agent_error_PROTOCOL;
   const actionLabel = (a) => ({ shutdown: S.action_shutdown, reboot: S.action_reboot, sleep: S.action_sleep })[a];
   const confirmTitle = (a) => ({ shutdown: S.confirm_shutdown_title, reboot: S.confirm_reboot_title, sleep: S.confirm_sleep_title })[a];
   const sentMessage = (a) => ({ shutdown: S.message_shutdown_sent, reboot: S.message_reboot_sent, sleep: S.message_sleep_sent })[a];
@@ -2619,7 +2630,8 @@
       }
       else if (online && s.agentError) rows.push({ key: "agent", label: S.detail_agent, text: agentErrorLabel(s.agentError), cls: "bad" });
       else if (online && s.agent) {
-        rows.push({ key: "agent", label: S.detail_agent, text: fmt(S.agent_authenticated, versionLabel(s.agent.version)), cls: "ok", iconName: "shield" });
+        const label = s.agent.proto === "wolagent/2" ? S.agent_authenticated_v2 : S.agent_authenticated;
+        rows.push({ key: "agent", label: S.detail_agent, text: fmt(label, versionLabel(s.agent.version)), cls: "ok", iconName: "shield" });
         const latest = state.agent?.latest;
         if (latest && compareVersions(s.agent.version, latest) < 0) {
           rows.push({ key: "agentUpdate", label: S.detail_agent_update, text: fmt(S.agent_update_available, versionLabel(latest)),
@@ -2627,6 +2639,10 @@
         }
       }
       else rows.push({ key: "agent", label: S.detail_agent, text: S.agent_configured, cls: "muted" });
+      if (d.agentPin) {
+        rows.push({ key: "agentPin", label: S.detail_agent_pin, text: d.agentPin, cls: "mono", title: S.detail_agent_pin_help,
+          onClick: () => alertDialog(S.detail_agent_pin, S.detail_agent_pin_help) });
+      }
 
       const keys = rows.map((r) => r.key).join("|");
       if (info.dataset.keys !== keys) {
@@ -3174,7 +3190,7 @@
   async function power(d, action, force) {
     try {
       const r = await api.call("power", { id: d.id, action, force });
-      snackbar(r.ok ? fmt(sentMessage(action), d.name) : fmt(S.message_agent_error, d.name, agentErrorLabel(r.code)));
+      snackbar(r.ok ? fmt(sentMessage(action), d.name) : fmt(S.message_agent_error, d.name, agentErrorLabel(r.code, r.reason)));
     } catch (e) {
       snackbar(errorMessage(e));
     }
@@ -3289,7 +3305,8 @@
       fields.agentKey.input.type = keyVisible ? "text" : "password";
       keyToggle.textContent = keyVisible ? S.hide : S.show;
     });
-    make("agentKey", S.field_agent_key, S.field_agent_key_help, { type: "password", mono: true, trailing: keyToggle });
+    const keyHelp = data.agentPin ? fmt(S.field_agent_key_help_v2, data.agentPin) : S.field_agent_key_help;
+    make("agentKey", S.field_agent_key, keyHelp, { type: "password", mono: true, trailing: keyToggle });
     make("broadcast", S.field_broadcast, S.field_broadcast_help, { mono: true });
     make("wolPort", S.field_wol_port, S.field_wol_port_help, { mono: true });
     make("probePorts", S.field_probe_ports, S.field_probe_ports_help, { mono: true });
@@ -3355,7 +3372,10 @@
         return;
       }
       let text;
-      if (result.ok) text = fmt(S.test_ok, result.status.hostname, osLabel(result.status.os), result.status.version);
+      if (result.ok) {
+        const label = result.status.proto === "wolagent/2" ? S.test_ok_v2 : S.test_ok;
+        text = fmt(label, result.status.hostname, osLabel(result.status.os), result.status.version);
+      }
       else if (result.invalid) text = result.invalid;
       else text = agentErrorLabel(result.code);
       const detail = result.code === "UNREACHABLE" ? h("small", { class: "result-help", text: S.hint_unreachable }) : null;
@@ -3370,7 +3390,7 @@
       testSpinner.classList.remove("hidden");
       setTestResult(null);
       try {
-        setTestResult(await api.call("testAgent", { host: form.host, port: form.agentPort, key: form.agentKey }));
+        setTestResult(await api.call("testAgent", { id: deviceId, host: form.host, port: form.agentPort, key: form.agentKey }));
       } catch (e) {
         snackbar(errorMessage(e));
       } finally {
@@ -3874,8 +3894,8 @@
         const selectEl = h("select", { "aria-label": d.name },
           h("option", { value: "", text: S.share_right_none }),
           h("option", { value: "wake", text: S.share_right_wake }),
-          d.canShutdown ? h("option", { value: "full", text: S.share_right_full }) : null);
-        selectEl.value = chosen[d.id] === "full" && !d.canShutdown ? "wake" : chosen[d.id] || "";
+          d.shareControl ? h("option", { value: "full", text: S.share_right_full }) : null);
+        selectEl.value = chosen[d.id] === "full" && !d.shareControl ? "wake" : chosen[d.id] || "";
         selectEl.addEventListener("change", () => {
           if (selectEl.value) chosen[d.id] = selectEl.value;
           else delete chosen[d.id];
@@ -3888,6 +3908,7 @@
         body.push(h("p", { text: fmt(S.share_verify, name) }), codeView(code), h("p", { class: "muted small", text: S.share_verify_help }));
       }
       body.push(h("div", { class: "form-title", text: S.share_rights }), h("div", { class: "rights" }, rows));
+      if (ownDevices().some((d) => d.canShutdown && !d.shareControl)) body.push(h("p", { class: "muted small", text: S.share_right_v2_note }));
       const dialog = openDialog({ iconName: "users", title: fmt(isNew ? S.share_grant_title : S.share_edit_title, name), body, actions: [] });
       refresh();
       function refresh() {
@@ -4128,7 +4149,7 @@
         update() {
           const sh = state.share || { received: [] };
           const now = Date.now();
-          const next = JSON.stringify([sh, ownDevices().map((d) => [d.id, d.name, d.canShutdown])]);
+          const next = JSON.stringify([sh, ownDevices().map((d) => [d.id, d.name, d.canShutdown, d.shareControl])]);
           // Les durées (« vérifié il y a… ») sont rafraîchies chaque minute.
           if (next === sig && Math.floor(now / 60000) === minute) return;
           sig = next;

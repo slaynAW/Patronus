@@ -113,7 +113,9 @@ func (o *Owner) Person(device string) int {
 }
 
 // Content construit ce que reçoit une personne : ses PC autorisés, dans l'ordre de la configuration,
-// sans la clé de l'agent pour un accès « démarrer ».
+// sans la clé de l'agent pour un accès « démarrer ». L'empreinte wolagent/2 de l'agent n'est jamais
+// transmise : l'identité de la personne n'est pas enregistrée par l'agent, elle passe par la clé
+// (wolagent/1) jusqu'au partage v2 (docs/PROTOCOLE-V2.md, §10).
 func (o *Owner) Content(p Person, devices []model.Device) Content {
 	c := Content{OwnerName: o.Name, RecipientName: p.Name, Devices: []model.Device{}}
 	for _, d := range devices {
@@ -124,6 +126,8 @@ func (o *Owner) Content(p Person, devices []model.Device) Content {
 		d = d.Clone()
 		if right == RightWake {
 			d.Agent = nil
+		} else if d.Agent != nil {
+			d.Agent.Pin = ""
 		}
 		c.Devices = append(c.Devices, d)
 	}

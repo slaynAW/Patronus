@@ -421,7 +421,8 @@ func describeDevice(d model.Device, st status.DeviceStatus, known bool, origin s
 	var b strings.Builder
 	agent := "non"
 	if d.Agent != nil {
-		agent = fmt.Sprintf("port %d, clé %s", d.Agent.Port, pick(d.Agent.HasKey(), "présente", "absente"))
+		agent = fmt.Sprintf("port %d, clé %s, %s", d.Agent.Port, pick(d.Agent.HasKey(), "présente", "absente"),
+			pick(d.Agent.HasPin(), "wolagent/2 (empreinte "+d.Agent.ShortPin()+")", "wolagent/1"))
 	}
 	broadcast := "auto"
 	if d.BroadcastAddress != nil {

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/slaynaw/wakeonlan/agent/protocol2"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 )
 
@@ -126,5 +127,23 @@ func TestStoreRoundTrip(t *testing.T) {
 	back, err := store.Load()
 	if err != nil || back.Owner.Name != "Hugo" || back.Owner.People[0].Rights["a"] != RightWake || back.Received[0].OwnerName != "Paul" {
 		t.Errorf("relu : %+v %v", back, err)
+	}
+}
+
+func TestContentNeverCarriesAgentPin(t *testing.T) {
+	devices := testDevices(t)
+	pin := protocol2.PinOf([]byte("agent")).String()
+	devices[1].Agent = &model.AgentSettings{Port: 9770, Key: devices[1].Agent.Key, Pin: pin}
+	owner := &Owner{Name: "Hugo"}
+	c := owner.Content(Person{Name: "Léa", Rights: map[string]Right{"a": RightWake, "b": RightFull}}, devices)
+	if len(c.Devices) != 2 || c.Devices[0].Agent != nil {
+		t.Fatalf("contenu : %+v", c.Devices)
+	}
+	// La personne passe par la clé (wolagent/1) : son identité n'est pas enregistrée par l'agent.
+	if a := c.Devices[1].Agent; a == nil || a.Key != devices[1].Agent.Key || a.Pin != "" {
+		t.Errorf("agent partagé : %+v", a)
+	}
+	if devices[1].Agent.Pin != pin {
+		t.Error("configuration du propriétaire modifiée")
 	}
 }

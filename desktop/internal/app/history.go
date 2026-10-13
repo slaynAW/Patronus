@@ -75,6 +75,7 @@ func (s *Service) onStatusChange() {
 	}
 	for id, st := range statuses {
 		s.refreshSpecs(id, st)
+		s.considerUpgrade(id, st)
 	}
 	s.statusMu.Unlock()
 	s.notify()
@@ -207,7 +208,7 @@ func (s *Service) refreshAgentHistories(id string, force bool) {
 // d'agent, ou si une lecture récente existe).
 func (s *Service) refreshAgentHistory(id string, force bool) {
 	d, ok := s.device(id)
-	if !ok || d.Agent == nil || !d.Agent.HasKey() || !d.HasHost() {
+	if !ok || d.Agent == nil || !d.Agent.Ready() || !d.HasHost() {
 		return
 	}
 	s.histMu.Lock()
@@ -293,7 +294,7 @@ func (s *Service) historyView(id string) map[string]any {
 	hasAgent := false
 	for _, d := range s.allDevices() {
 		names[d.ID] = d.Name
-		if d.ID == id && d.Agent != nil && d.Agent.HasKey() {
+		if d.ID == id && d.Agent != nil && d.Agent.Ready() {
 			hasAgent = true
 		}
 	}
