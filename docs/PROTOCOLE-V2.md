@@ -1,8 +1,8 @@
 # Protocole `wolagent/2` (spécification)
 
-> **Statut : spécification adoptée (étape 2 de la feuille de route), décisions prises (§13).** Aucun agent ni aucune
-> application ne parle encore `wolagent/2` : son implémentation est l'étape 3, qui pourra encore préciser ce document
-> (toujours avec les vecteurs de test). Il remplacera [`wolagent/1`](PROTOCOLE.md) après une période de transition.
+> **Statut : en service depuis l'agent 1.11.0 et les applications 1.12.0 (étape 3 de la feuille de route), sauf le
+> partage v2 (§10), prévu pour les applications 1.13.** Toute évolution de ce document s'accompagne des vecteurs de
+> test. `wolagent/2` remplacera [`wolagent/1`](PROTOCOLE.md) après une période de transition (§11).
 
 `wolagent/2` chiffre tous les échanges entre les applications et l'agent. Il donne à chaque appareil sa propre
 identité, des droits (rôles) et une révocation individuelle. Il répond aux exigences R1 à R12 du

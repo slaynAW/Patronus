@@ -252,7 +252,8 @@ Téléphone sous Android 8 ou 9, ou application antérieure à 1.12 : `wol-agent
 Un appareil appairé avec le QR code de `wol-agent pair` en est **administrateur** : sur la fiche du PC, *Appareils
 autorisés* liste les appareils (rôle, nom, dernière connexion), en retire un ou change ses droits (consulter, démarrer,
 contrôler, administrer), et *Inviter un appareil* affiche un QR code à usage unique pour un autre téléphone ou
-ordinateur, sans passer par le PC.
+ordinateur, sans passer par le PC. Un appareil passé de lui-même en `wolagent/2` a le droit « contrôler » (celui de la
+clé) ; pour l'administrer : `wol-agent devices role <début de son empreinte> admin` sur le PC.
 
 ## 8. Développement
 
