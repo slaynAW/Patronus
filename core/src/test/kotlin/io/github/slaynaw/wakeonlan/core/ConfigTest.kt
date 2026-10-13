@@ -3,7 +3,10 @@ package io.github.slaynaw.wakeonlan.core
 import io.github.slaynaw.wakeonlan.core.agent.AgentKey
 import io.github.slaynaw.wakeonlan.core.agent.PairingInfo
 import io.github.slaynaw.wakeonlan.core.agent.PairingLink
+import io.github.slaynaw.wakeonlan.core.agent.ParsedPairing
+import io.github.slaynaw.wakeonlan.core.agent2.PairingLinkV2
 import io.github.slaynaw.wakeonlan.core.agent2.Pin
+import io.github.slaynaw.wakeonlan.core.agent2.Role
 import io.github.slaynaw.wakeonlan.core.config.ConfigCodec
 import io.github.slaynaw.wakeonlan.core.config.ConfigException
 import io.github.slaynaw.wakeonlan.core.config.ExportCodec
@@ -192,6 +195,30 @@ class ConfigTest {
         // Lien produit par l'agent Go (url.QueryEscape encode les espaces en « + »).
         val fromGo = "wolagent://pair?v=1&n=PC+Bureau&h=192.168.1.20&p=9770&m=AA%3ABB%3ACC%3ADD%3AEE%3AFF&k=$key"
         assertEquals("PC Bureau", PairingLink.parse(fromGo).name)
+    }
+
+    @Test
+    fun `lien d appairage v2 (wol-agent pair, agent 1_11)`() {
+        val agent = TestIdentities.newDevice().pin
+        val v2 = PairingLinkV2("PC Bureau", "192.168.1.20", 9771, "30:9C:23:01:02:03", agent, "7KQ29MXP", Role.ADMIN, 1_791_880_773)
+        val parsed = PairingLink.parseAny(" " + v2.text() + "\n")
+        assertEquals(ParsedPairing.V2(v2), parsed)
+        assertFalse(parsed.toString().contains("7KQ29MXP"), "code visible dans le journal")
+        // Lien v=1 : lu comme avant.
+        val v1 = PairingInfo("PC", "192.168.1.42", 9770, null, key)
+        assertEquals(ParsedPairing.V1(v1), PairingLink.parseAny(PairingLink.build(v1)))
+        val link = v2.text()
+        mapOf(
+            link.replace("a=$agent", "a=abc") to "Empreinte de l'agent invalide dans le lien",
+            link.replace("c=7KQ29MXP", "c=7KQ29MXU") to "Code d'appairage invalide dans le lien",
+            link.replace("h=192.168.1.20", "h=") to "Adresse du PC invalide dans le lien",
+            link.replace("r=admin", "r=owner") to "Rôle invalide dans le lien",
+            "$link&c=7KQ29MXP" to "Lien d'appairage mal formé",
+            link.replace("v=2", "v=3") to "Version de lien non prise en charge : 3",
+            "https://example.com" to "Ce n'est pas un lien d'appairage wolagent://",
+        ).forEach { (text, message) ->
+            assertEquals(message, assertThrows<IllegalArgumentException> { PairingLink.parseAny(text) }.message, text)
+        }
     }
 
     @Test

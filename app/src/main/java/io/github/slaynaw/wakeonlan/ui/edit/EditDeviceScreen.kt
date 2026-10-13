@@ -66,6 +66,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.slaynaw.wakeonlan.R
 import io.github.slaynaw.wakeonlan.appContainer
 import io.github.slaynaw.wakeonlan.core.agent.AgentError
+import io.github.slaynaw.wakeonlan.core.agent2.PairingCode
 import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2
 import io.github.slaynaw.wakeonlan.core.model.DeviceField
 import io.github.slaynaw.wakeonlan.ui.common.BusySpinner
@@ -79,6 +80,10 @@ import io.github.slaynaw.wakeonlan.ui.common.osLabel
 import io.github.slaynaw.wakeonlan.ui.common.scanQrCode
 import io.github.slaynaw.wakeonlan.ui.theme.MonoStyle
 import io.github.slaynaw.wakeonlan.ui.theme.WolPalette
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -130,7 +135,7 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
                             Icon(WolIcons.Delete, contentDescription = stringResource(R.string.action_delete), tint = WolPalette.DangerText)
                         }
                     }
-                    TextButton(onClick = vm::save, enabled = !state.loading) {
+                    TextButton(onClick = vm::save, enabled = !state.loading && !state.saving) {
                         Text(stringResource(R.string.save), color = WolPalette.Blue, style = MaterialTheme.typography.labelLarge)
                     }
                 },
@@ -208,35 +213,39 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
                         error = state.errors[DeviceField.AGENT_PORT],
                         keyboard = KeyboardOptions(keyboardType = KeyboardType.Number),
                     )
-                    FormField(
-                        value = form.agentKey,
-                        onValueChange = { vm.onFormChange(form.copy(agentKey = it)) },
-                        label = stringResource(R.string.field_agent_key),
-                        supporting = state.agentPin?.let { stringResource(R.string.field_agent_key_help_v2, it) }
-                            ?: stringResource(R.string.field_agent_key_help),
-                        error = state.errors[DeviceField.AGENT_KEY],
-                        keyboard = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailing = {
-                            TextButton(onClick = { keyVisible = !keyVisible }) {
-                                Text(stringResource(if (keyVisible) R.string.hide else R.string.show), color = WolPalette.Blue)
-                            }
-                        },
-                        mono = true,
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        WolButton(
-                            stringResource(R.string.action_test_agent),
-                            onClick = vm::testAgent,
-                            enabled = !state.testing,
-                            icon = WolIcons.Shield,
+                    // Lien v=2 : ni clé ni test, l'appairage se fait à l'enregistrement.
+                    state.pairing?.let { PendingPairingCard(it, onCancel = vm::cancelPairing) }
+                    if (state.pairing == null) {
+                        FormField(
+                            value = form.agentKey,
+                            onValueChange = { vm.onFormChange(form.copy(agentKey = it)) },
+                            label = stringResource(R.string.field_agent_key),
+                            supporting = state.agentPin?.let { stringResource(R.string.field_agent_key_help_v2, it) }
+                                ?: stringResource(R.string.field_agent_key_help),
+                            error = state.errors[DeviceField.AGENT_KEY],
+                            keyboard = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailing = {
+                                TextButton(onClick = { keyVisible = !keyVisible }) {
+                                    Text(stringResource(if (keyVisible) R.string.hide else R.string.show), color = WolPalette.Blue)
+                                }
+                            },
+                            mono = true,
                         )
-                        if (state.testing) {
-                            Spacer(Modifier.width(12.dp))
-                            BusySpinner()
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            WolButton(
+                                stringResource(R.string.action_test_agent),
+                                onClick = vm::testAgent,
+                                enabled = !state.testing,
+                                icon = WolIcons.Shield,
+                            )
+                            if (state.testing) {
+                                Spacer(Modifier.width(12.dp))
+                                BusySpinner()
+                            }
                         }
+                        state.testResult?.let { TestResultCard(it) }
                     }
-                    state.testResult?.let { TestResultCard(it) }
                 }
             }
 
@@ -289,13 +298,20 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
                 }
             }
 
-            WolButton(
-                stringResource(R.string.save),
-                onClick = vm::save,
-                modifier = Modifier.fillMaxWidth(),
-                kind = ButtonKind.PRIMARY,
-                height = 48.dp,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                WolButton(
+                    stringResource(R.string.save),
+                    onClick = vm::save,
+                    modifier = Modifier.weight(1f),
+                    kind = ButtonKind.PRIMARY,
+                    enabled = !state.saving,
+                    height = 48.dp,
+                )
+                if (state.saving) {
+                    Spacer(Modifier.width(12.dp))
+                    BusySpinner()
+                }
+            }
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -316,8 +332,22 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
             title = {
                 Text(stringResource(if (state.pairingApplied) R.string.pairing_ok_title else R.string.pairing_error_title))
             },
-            text = { Text(state.pairingError ?: stringResource(R.string.pairing_ok_text)) },
+            text = {
+                Text(
+                    state.pairingError
+                        ?: stringResource(if (state.pairing != null) R.string.pairing_ok_text_v2 else R.string.pairing_ok_text),
+                )
+            },
             confirmButton = { TextButton(onClick = vm::dismissPairingFeedback) { Text(stringResource(R.string.ok)) } },
+        )
+    }
+
+    state.pairingFailure?.let { error ->
+        AlertDialog(
+            onDismissRequest = vm::dismissPairingFailure,
+            title = { Text(stringResource(R.string.pairing_failed_title)) },
+            text = { Text(pairingFailureText(error)) },
+            confirmButton = { TextButton(onClick = vm::dismissPairingFailure) { Text(stringResource(R.string.ok)) } },
         )
     }
 
@@ -384,6 +414,63 @@ private fun PairingCard(onScan: () -> Unit, onPaste: () -> Unit) {
                 Text(stringResource(R.string.action_scan_qr), style = MaterialTheme.typography.labelLarge)
             }
             WolButton(stringResource(R.string.action_paste_link), onClick = onPaste, icon = WolIcons.Paste, height = 40.dp)
+        }
+    }
+}
+
+/** Cause d'un appairage refusé, avec ce qu'il faut faire (§7.6 pour un code déjà utilisé). */
+@Composable
+private fun pairingFailureText(error: AgentError): String = when (error) {
+    AgentError.PAIRING_FAILED -> stringResource(R.string.pairing_error_failed)
+    AgentError.PIN_MISMATCH -> stringResource(R.string.pairing_error_pin_mismatch)
+    AgentError.UNREACHABLE -> stringResource(error.label()).replaceFirstChar { it.uppercase() } + ". " +
+        stringResource(R.string.hint_unreachable)
+    else -> stringResource(error.label()).replaceFirstChar { it.uppercase() }
+}
+
+/** Rôle annoncé par un lien d'appairage, tel que l'affiche l'application. */
+@Composable
+internal fun roleLabel(wire: String): String = when (wire) {
+    "view" -> stringResource(R.string.role_view)
+    "wake" -> stringResource(R.string.role_wake)
+    "control" -> stringResource(R.string.role_control)
+    "admin" -> stringResource(R.string.role_admin)
+    else -> wire
+}
+
+private val clockFormat = DateTimeFormatter.ofPattern("HH:mm", Locale.FRENCH)
+private val dayClockFormat = DateTimeFormatter.ofPattern("d MMM HH:mm", Locale.FRENCH)
+
+/** Appairage wolagent/2 en attente : code, empreinte de l'agent et rôle annoncés par le lien. */
+@Composable
+internal fun PendingPairingCard(pairing: PendingPairing, onCancel: () -> Unit, now: Instant = Instant.now()) {
+    val zone = ZoneId.systemDefault()
+    val until = Instant.ofEpochSecond(pairing.expires).atZone(zone)
+    val untilText = if (until.toLocalDate() == now.atZone(zone).toLocalDate()) clockFormat.format(until) else dayClockFormat.format(until)
+    Card(
+        colors = CardDefaults.cardColors(containerColor = WolPalette.SuccessBackground, contentColor = WolPalette.SuccessText),
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(start = 12.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.Top) {
+            Icon(WolIcons.Shield, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(stringResource(R.string.pairing_v2_title), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    stringResource(
+                        R.string.pairing_v2_text,
+                        PairingCode.format(pairing.code),
+                        pairing.agentShort,
+                        roleLabel(pairing.role ?: "admin"),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                if (pairing.expires > 0) {
+                    Text(stringResource(R.string.pairing_v2_until, untilText), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            TextButton(onClick = onCancel) { Text(stringResource(R.string.pairing_v2_cancel), color = WolPalette.Blue) }
         }
     }
 }

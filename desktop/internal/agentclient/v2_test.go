@@ -2,7 +2,11 @@ package agentclient
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
+	"net"
 	"os"
 	"slices"
 	"strconv"
@@ -12,6 +16,7 @@ import (
 
 	"github.com/slaynaw/wakeonlan/agent/protocol"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
+	"github.com/slaynaw/wakeonlan/agent/protocol2/client"
 	"github.com/slaynaw/wakeonlan/desktop/internal/agentclient/agenttest"
 	"github.com/slaynaw/wakeonlan/desktop/internal/identity"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
@@ -169,6 +174,63 @@ func TestV2RolesAndRefusals(t *testing.T) {
 	}
 }
 
+// TestV2Pairing : appairage avec un code (§7.3) ; le code n'est envoyé qu'à l'agent qui présente
+// l'empreinte du lien, et ne sert qu'une fois.
+func TestV2Pairing(t *testing.T) {
+	s, settings, agent := startV2(t, agenttest.Normal)
+	ctx := context.Background()
+	c, device := newClient(t)
+	settings.Key, settings.Pin = "", agent.String()
+	code := s.Invite("wake")
+	p, err := c.Pair(ctx, "127.0.0.1", settings, strings.ToLower(protocol2.FormatCode(code)))
+	if err != nil || p.Role != "wake" || p.Already {
+		t.Fatalf("appairage : %+v %v", p, err)
+	}
+	if role, name := s.Device(device); role != "wake" || name != "PC-WINDOWS" {
+		t.Errorf("enregistré : %q %q", role, name)
+	}
+	if st, err := c.Status(ctx, "127.0.0.1", settings); err != nil || st.Role != "wake" || st.Proto != protocol2.ALPN {
+		t.Fatalf("statut : %+v %v", st, err)
+	}
+	if _, err := c.Power(ctx, "127.0.0.1", settings, Shutdown, 0, false); ReasonOf(err) != protocol2.CodeInsufficientRole {
+		t.Errorf("extinction avec le rôle wake : %v", err)
+	}
+
+	// Déjà enregistré : réponse already_paired, le second code reste valable.
+	second := s.Invite("admin")
+	if again, err := c.Pair(ctx, "127.0.0.1", settings, second); err != nil || !again.Already || again.Role != "wake" {
+		t.Errorf("déjà enregistré : %+v %v", again, err)
+	}
+	// Code déjà utilisé : refusé, la machine a bien répondu.
+	other, otherPin := newClient(t)
+	if _, err := other.Pair(ctx, "127.0.0.1", settings, code); CodeOf(err) != PairingFailed || !HostAnswered(err) {
+		t.Errorf("code déjà utilisé : %v", err)
+	}
+	// Autre empreinte à cette adresse : rien n'est envoyé, le code reste valable.
+	wrong := settings
+	wrong.Pin = protocol2.PinOf([]byte("autre agent")).String()
+	if _, err := other.Pair(ctx, "127.0.0.1", wrong, second); CodeOf(err) != PinMismatch {
+		t.Errorf("empreinte différente : %v", err)
+	}
+	if p, err := other.Pair(ctx, "127.0.0.1", settings, second); err != nil || p.Role != "admin" {
+		t.Errorf("code resté valable : %+v %v", p, err)
+	}
+	if role, _ := s.Device(otherPin); role != "admin" {
+		t.Errorf("second appareil : %q", role)
+	}
+	// Code mal écrit ou empreinte absente : refus sans connexion.
+	attempts := s.Attempts()
+	if _, err := other.Pair(ctx, "127.0.0.1", settings, "7KQ2-9MX"); CodeOf(err) != PairingFailed {
+		t.Errorf("code mal écrit : %v", err)
+	}
+	if _, err := other.Pair(ctx, "127.0.0.1", model.AgentSettings{Port: settings.Port}, s.Invite("view")); CodeOf(err) != PairingFailed {
+		t.Errorf("sans empreinte : %v", err)
+	}
+	if s.Attempts() != attempts {
+		t.Error("connexion ouverte malgré un code ou une empreinte invalide")
+	}
+}
+
 func TestV2WithoutIdentity(t *testing.T) {
 	_, settings, agent := startV2(t, agenttest.Normal)
 	settings.Pin = agent.String()
@@ -224,5 +286,77 @@ func TestEndToEndV2WithRealAgent(t *testing.T) {
 	settings.Pin = protocol2.PinOf([]byte("autre agent")).String()
 	if _, err := c.Status(ctx, "127.0.0.1", settings); CodeOf(err) != PinMismatch {
 		t.Errorf("empreinte différente : %v", err)
+	}
+}
+
+// agentAdmin ouvre une session avec le vrai agent sous son identité (fichier identity.key, en PEM hors
+// Windows), depuis l'adresse de bouclage : celle de « wol-agent pair » sur le PC, rôle admin.
+func agentAdmin(t *testing.T, path string, port int) (*client.Session, protocol2.Pin) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(data)
+	if block == nil {
+		t.Fatal("identité de l'agent illisible")
+	}
+	parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	key, ok := parsed.(*ecdsa.PrivateKey)
+	if err != nil || !ok {
+		t.Fatalf("identité de l'agent illisible : %v", err)
+	}
+	der, err := protocol2.NewCertificate(key, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	pin, _ := protocol2.PinFromCertificate(der)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	s, err := client.Dial(ctx, net.JoinHostPort("127.0.0.1", strconv.Itoa(port)),
+		client.Options{Identity: tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}, Agent: &pin})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	return s, pin
+}
+
+// Appairage de bout en bout contre le VRAI agent : invitation créée comme le fait « wol-agent pair »,
+// code envoyé par l'application, rôle de l'invitation appliqué, retrait par le PC.
+func TestEndToEndPairingWithRealAgent(t *testing.T) {
+	port, err := strconv.Atoi(os.Getenv("WOL_E2E_PORT"))
+	path := os.Getenv("WOL_E2E_IDENTITY")
+	if err != nil || path == "" {
+		t.Skip("WOL_E2E_PORT ou WOL_E2E_IDENTITY non défini (test lancé par la CI)")
+	}
+	ctx := context.Background()
+	admin, agent := agentAdmin(t, path, port)
+	invite, err := admin.Do(ctx, protocol2.Request{Cmd: protocol2.CmdInvite, Role: "wake", TTL: 120})
+	if err != nil || !invite.OK || invite.Invite == nil || invite.Invite.Agent != agent.String() {
+		t.Fatalf("invitation : %+v %v", invite, err)
+	}
+	c, device := newClient(t)
+	settings := model.AgentSettings{Port: port, Pin: agent.String()}
+	p, err := c.Pair(ctx, "127.0.0.1", settings, protocol2.FormatCode(invite.Invite.Code))
+	if err != nil || p.Role != "wake" || p.Already {
+		t.Fatalf("appairage : %+v %v", p, err)
+	}
+	st, err := c.Status(ctx, "127.0.0.1", settings)
+	if err != nil || st.Proto != protocol2.ALPN || st.Role != "wake" {
+		t.Fatalf("statut : %+v %v", st, err)
+	}
+	if _, err := c.Power(ctx, "127.0.0.1", settings, Shutdown, 0, false); ReasonOf(err) != protocol2.CodeInsufficientRole {
+		t.Errorf("extinction avec le rôle wake : %v", err)
+	}
+	if again, err := c.Pair(ctx, "127.0.0.1", settings, invite.Invite.Code); err != nil || !again.Already {
+		t.Errorf("déjà enregistré : %+v %v", again, err)
+	}
+	revoked, err := admin.Do(ctx, protocol2.Request{Cmd: protocol2.CmdDevicesRevoke, Device: device.String()})
+	if err != nil || !revoked.OK {
+		t.Fatalf("retrait : %+v %v", revoked, err)
+	}
+	if _, err := c.Status(ctx, "127.0.0.1", settings); CodeOf(err) != Unregistered {
+		t.Errorf("après le retrait : %v", err)
 	}
 }

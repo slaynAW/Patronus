@@ -1,5 +1,6 @@
 package io.github.slaynaw.wakeonlan.ui.edit
 
+import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.slaynaw.wakeonlan.AppContainer
@@ -7,6 +8,7 @@ import io.github.slaynaw.wakeonlan.core.agent.AgentError
 import io.github.slaynaw.wakeonlan.core.agent.AgentResult
 import io.github.slaynaw.wakeonlan.core.agent.AgentStatus
 import io.github.slaynaw.wakeonlan.core.agent.PairingLink
+import io.github.slaynaw.wakeonlan.core.agent.ParsedPairing
 import io.github.slaynaw.wakeonlan.core.model.AgentSettings
 import io.github.slaynaw.wakeonlan.core.model.DEFAULT_AGENT_PORT
 import io.github.slaynaw.wakeonlan.core.model.DEFAULT_PROBE_PORTS
@@ -15,6 +17,7 @@ import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.model.DeviceField
 import io.github.slaynaw.wakeonlan.core.model.DeviceValidator
 import io.github.slaynaw.wakeonlan.core.model.MacAddress
+import io.github.slaynaw.wakeonlan.diagnostics.DiagnosticLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,6 +54,15 @@ data class DeviceForm(
     }
 }
 
+/**
+ * Appairage wolagent/2 en attente, lu dans un lien `v=2` : il se fait à l'enregistrement. [agent] : empreinte complète
+ * de l'agent, [code] : code d'appairage normalisé, [role] et [expires] (secondes Unix, 0 si absente) : annoncés par le
+ * lien, pour l'affichage.
+ */
+data class PendingPairing(val agent: String, val agentShort: String, val code: String, val role: String?, val expires: Long) {
+    override fun toString(): String = "PendingPairing(agent=$agentShort, code=***, role=$role, expires=$expires)"
+}
+
 sealed interface AgentTestResult {
     data class Success(val status: AgentStatus) : AgentTestResult
     data class Failure(val error: AgentError, val detail: String?) : AgentTestResult
@@ -70,6 +82,12 @@ data class EditUiState(
     val done: Boolean = false,
     /** Empreinte courte de l'agent d'un PC passé en wolagent/2 (la clé n'est alors plus utile). */
     val agentPin: String? = null,
+    /** Appairage wolagent/2 à faire à l'enregistrement (lien `v=2`). */
+    val pairing: PendingPairing? = null,
+    /** Enregistrement en cours (appairage compris). */
+    val saving: Boolean = false,
+    /** Échec de l'appairage à l'enregistrement : la fiche n'est pas enregistrée. */
+    val pairingFailure: AgentError? = null,
 )
 
 class EditDeviceViewModel(
@@ -99,42 +117,97 @@ class EditDeviceViewModel(
     /** Réglages de l'agent pour la clé saisie, avec l'empreinte connue si elle reste valable. */
     private fun agentSettings(port: Int, key: String) = AgentSettings(port, key, pin = savedAgent?.pinKeptWith(key).orEmpty())
 
-    fun onFormChange(form: DeviceForm) = _state.update { it.copy(form = form, errors = emptyMap(), testResult = null) }
+    fun onFormChange(form: DeviceForm) = _state.update {
+        // Agent désactivé : l'appairage en attente n'a plus lieu d'être.
+        it.copy(form = form, errors = emptyMap(), testResult = null, pairing = it.pairing.takeIf { form.agentEnabled })
+    }
 
-    /** Remplit le formulaire à partir d'un lien `wolagent://` (QR code scanné ou lien collé). */
+    /**
+     * Remplit le formulaire à partir d'un lien `wolagent://` (QR code scanné ou lien collé) : `v=1` avec la clé de
+     * l'agent, `v=2` avec son empreinte et un code à usage unique, envoyé à l'enregistrement.
+     */
     fun applyPairing(text: String) {
-        val info = try {
-            PairingLink.parse(text)
+        val parsed = try {
+            PairingLink.parseAny(text)
         } catch (e: IllegalArgumentException) {
             _state.update { it.copy(pairingError = e.message, pairingApplied = false) }
             return
         }
+        if (parsed is ParsedPairing.V2 && Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            _state.update { it.copy(pairingError = ANDROID_9_V2, pairingApplied = false) }
+            return
+        }
         _state.update { s ->
             val f = s.form
-            s.copy(
-                form = f.copy(
-                    name = f.name.ifBlank { info.name },
-                    mac = info.mac?.toString() ?: f.mac,
-                    host = info.host,
-                    agentEnabled = true,
-                    agentPort = info.port.toString(),
-                    agentKey = info.key,
-                ),
-                errors = emptyMap(),
-                pairingError = null,
-                pairingApplied = true,
-                testResult = null,
-            )
+            val next = when (parsed) {
+                is ParsedPairing.V1 -> {
+                    val info = parsed.info
+                    s.copy(
+                        form = f.copy(
+                            name = f.name.ifBlank { info.name },
+                            mac = info.mac?.toString() ?: f.mac,
+                            host = info.host,
+                            agentEnabled = true,
+                            agentPort = info.port.toString(),
+                            agentKey = info.key,
+                        ),
+                        pairing = null,
+                    )
+                }
+                is ParsedPairing.V2 -> {
+                    val link = parsed.link
+                    s.copy(
+                        form = f.copy(
+                            name = f.name.ifBlank { link.name },
+                            mac = link.mac.ifEmpty { f.mac },
+                            host = link.host,
+                            agentEnabled = true,
+                            agentPort = link.port.toString(),
+                            agentKey = "",
+                        ),
+                        pairing = PendingPairing(link.agent.toString(), link.agent.short(), link.code, link.role?.wire, link.expires),
+                    )
+                }
+            }
+            next.copy(errors = emptyMap(), pairingError = null, pairingApplied = true, testResult = null, pairingFailure = null)
         }
     }
 
     fun dismissPairingFeedback() = _state.update { it.copy(pairingError = null, pairingApplied = false) }
 
+    /** Annule l'appairage en attente ; la clé enregistrée revient dans le formulaire. */
+    fun cancelPairing() = _state.update {
+        it.copy(pairing = null, form = it.form.copy(agentKey = it.form.agentKey.ifEmpty { savedAgent?.key.orEmpty() }))
+    }
+
+    fun dismissPairingFailure() = _state.update { it.copy(pairingFailure = null) }
+
     fun save() {
+        if (_state.value.saving) return
         val device = buildDevice() ?: return
+        val pairing = _state.value.pairing
+        val agent = device.agent
+        if (pairing == null || agent == null) {
+            viewModelScope.launch {
+                container.repository.upsert(device)
+                _state.update { it.copy(done = true) }
+            }
+            return
+        }
+        _state.update { it.copy(saving = true, pairingFailure = null) }
         viewModelScope.launch {
-            container.repository.upsert(device)
-            _state.update { it.copy(done = true) }
+            // Lien v=2 : ce téléphone s'appaire d'abord ; la fiche n'est enregistrée qu'en cas de succès, avec
+            // l'empreinte de l'agent et sans clé (gardée seulement pour un partage « démarrer et éteindre », §10).
+            val settings = AgentSettings(agent.port, key = "", pin = pairing.agent)
+            when (val r = container.actions.pair(device.host, settings, pairing.code, device.id)) {
+                is AgentResult.Success -> {
+                    val kept = savedAgent?.key?.takeIf { it.isNotEmpty() && container.share.sharedWithControl(device.id) }
+                    container.repository.upsert(device.copy(agent = settings.copy(key = kept.orEmpty())))
+                    DiagnosticLog.i("agent", "« ${device.name} » : appairé en wolagent/2 (rôle ${r.value.role})")
+                    _state.update { it.copy(saving = false, done = true) }
+                }
+                is AgentResult.Failure -> _state.update { it.copy(saving = false, pairingFailure = r.error) }
+            }
         }
     }
 
@@ -168,6 +241,11 @@ class EditDeviceViewModel(
                 )
             }
         }
+    }
+
+    private companion object {
+        const val ANDROID_9_V2 = "Ce QR code utilise la connexion chiffrée, que ce téléphone (Android 8 ou 9) ne permet pas. " +
+            "Sur le PC, lancez « wol-agent pair --v1 » pour afficher l'ancien QR code."
     }
 
     /** Convertit le formulaire en [Device], ou affiche les erreurs champ par champ. */

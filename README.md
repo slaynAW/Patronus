@@ -44,7 +44,8 @@ Anciennement **Wake On LAN** (jusqu'à la version 1.5.0).
   GitHub et/ou un dossier, 7 versions gardées, restauration en quelques gestes sur un nouvel appareil
   ([docs/SAUVEGARDE.md](docs/SAUVEGARDE.md)).
 - 🩺 **Rapport de diagnostic chiffré** à transmettre en cas de problème ([docs/DIAGNOSTIC.md](docs/DIAGNOSTIC.md)).
-- 📷 **Appairage par QR code** : l'agent affiche un QR code, l'application remplit tout (IP, MAC, clé).
+- 📷 **Appairage par QR code** : l'agent affiche un QR code, l'application remplit tout (IP, MAC) et s'appaire en
+  connexion chiffrée avec un code à usage unique : le QR code ne contient aucune clé secrète.
 - 🖥️ **Application Windows** très légère (un seul `.exe` d'environ 8 Mo, sans installation) : mêmes fonctions et même
   style, sauvegardes interchangeables avec le téléphone.
 
@@ -130,8 +131,10 @@ de retard.
 1. Téléchargez `wol-agent-windows-amd64.exe` (ou `arm64` pour les PC ARM).
 2. Double-cliquez dessus. Si SmartScreen s'affiche : *Informations complémentaires* → *Exécuter quand même*.
 3. Acceptez l'invite administrateur : l'agent s'installe comme **service Windows** (démarrage automatique, relance en cas de problème) et ouvre le port 9770 **uniquement pour le réseau local** dans le pare-feu.
-4. Un **QR code** s'affiche : sur le téléphone, *Ajouter un PC* → *Scanner le QR code*. C'est tout.
-   (Application Windows : *Ajouter un PC* → *Coller le lien*, avec le lien `wolagent://…` affiché sous le QR code.)
+4. Un **QR code** s'affiche : sur le téléphone, *Ajouter un PC* → *Scanner le QR code*, puis *Enregistrer* : le
+   téléphone s'appaire avec le PC. C'est tout. (Application Windows : *Ajouter un PC* → *Coller le lien*, avec le lien
+   `wolagent://…` affiché sous le QR code.) Le code qu'il contient ne sert qu'une fois, pendant 10 minutes :
+   `wol-agent pair` en affiche un autre.
 
 **Linux** (systemd)
 ```bash
@@ -242,7 +245,10 @@ avec l'agent 1.11.0, les applications (Android 10 ou plus, Windows) y passent d'
 annonce son empreinte dans une réponse signée par la clé ; l'application la vérifie, s'enregistre auprès de lui avec
 sa propre identité (Keystore Android, DPAPI sous Windows, jamais exportée), puis efface la clé : tous les échanges
 sont ensuite chiffrés, l'empreinte du PC est vérifiée à chaque connexion, et `wol-agent devices` retire un appareil
-seul. La fiche du PC affiche *Chiffré et authentifié* et son empreinte, à comparer avec `wol-agent status`.
+seul. La fiche du PC affiche *Chiffré et authentifié* et son empreinte, à comparer avec `wol-agent status`. Les
+nouveaux appairages s'y font directement : le QR code de `wol-agent pair` contient l'empreinte de l'agent et un code à
+usage unique, sans aucune clé secrète, et l'application n'envoie ce code qu'à l'agent qui présente cette empreinte.
+Téléphone sous Android 8 ou 9, ou application antérieure à 1.12 : `wol-agent pair --v1` affiche l'ancien QR code.
 
 ## 8. Développement
 

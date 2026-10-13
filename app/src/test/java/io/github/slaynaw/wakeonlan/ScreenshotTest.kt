@@ -56,6 +56,8 @@ import io.github.slaynaw.wakeonlan.ui.detail.DeviceDetailContent
 import io.github.slaynaw.wakeonlan.ui.detail.InfoCard
 import io.github.slaynaw.wakeonlan.ui.detail.SpecsCard
 import io.github.slaynaw.wakeonlan.ui.detail.TempsCard
+import io.github.slaynaw.wakeonlan.ui.edit.PendingPairing
+import io.github.slaynaw.wakeonlan.ui.edit.PendingPairingCard
 import io.github.slaynaw.wakeonlan.ui.devices.DeviceItem
 import io.github.slaynaw.wakeonlan.ui.devices.DevicesTab
 import io.github.slaynaw.wakeonlan.ui.devices.DevicesUiState
@@ -79,6 +81,7 @@ import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowNetwork
 import java.net.Inet4Address
 import java.net.InetAddress
+import java.time.Instant
 import kotlin.math.sin
 
 /**
@@ -296,6 +299,18 @@ class ScreenshotTest {
         )
         Column(Modifier.background(WolPalette.Background).verticalScroll(rememberScrollState()).padding(16.dp)) {
             InfoCard(item)
+        }
+    }
+
+    /** Lien v=2 scanné (wol-agent pair) : appairage chiffré prêt, fait à l'enregistrement de la fiche. */
+    @Test
+    fun appairageWolagent2() = capture("8-appairage-wolagent2") {
+        Column(Modifier.background(WolPalette.Background).padding(16.dp)) {
+            PendingPairingCard(
+                PendingPairing("qL5cBtCXCWvDGqMUWJ3gNeR0P1MukyXvb6K8OoRKVHw", "YWS2-0ZX5-MR4G", "7KQ29MXP", "admin", now / 1000 + 600),
+                onCancel = {},
+                now = Instant.ofEpochMilli(now),
+            )
         }
     }
 

@@ -113,7 +113,7 @@ class AgentUpgradeTracker(
                     attempt.failures++
                     AgentUpgrade.retryDelayMs(attempt.failures).also { attempt.next = clock() + it }
                 }
-                val why = (outcome as? AgentUpgrade.Outcome.Failed)?.let { "${it.error}${it.detail?.let { d -> " — $d" }.orEmpty()}" } ?: "pas de réponse"
+                val why = outcome?.let { "${it.error}${it.detail?.let { d -> " — $d" }.orEmpty()}" } ?: "pas de réponse"
                 DiagnosticLog.w("agent", "passage en wolagent/2 de « ${device.name} » : $why, nouvel essai dans ${wait / 60_000} min")
             }
         }

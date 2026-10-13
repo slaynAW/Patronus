@@ -41,7 +41,7 @@ jour*). Pour passer d'une version plus ancienne, remplacez simplement le fichier
 | Méthode | Comment |
 |---|---|
 | **Depuis le téléphone** (le plus simple) | Téléphone : *Réglages* → *Exporter la configuration* → « Complète, protégée par mot de passe ». Transférez le fichier sur le PC, puis *Réglages* → *Importer une configuration* (ou **glissez le fichier dans la fenêtre**). |
-| **Lien d'appairage de l'agent** | Sur le PC à contrôler : `wol-agent pair` affiche un lien `wolagent://…`. Copiez-le, puis *Ajouter un PC* → **Coller le lien** : adresse, MAC, port et clé sont remplis. |
+| **Lien d'appairage de l'agent** | Sur le PC à contrôler : `wol-agent pair` affiche un lien `wolagent://…`. Copiez-le, puis *Ajouter un PC* → **Coller le lien** : adresse, MAC et port sont remplis. À l'enregistrement, cet ordinateur s'appaire avec le PC en connexion chiffrée, grâce au code à usage unique du lien (valable 10 minutes), envoyé seulement à l'agent dont le lien donne l'empreinte. Le lien d'un agent antérieur à 1.11 remplit la clé, comme avant. |
 | **Saisie manuelle** | Nom + adresse MAC suffisent pour démarrer ; ajoutez l'IP pour l'état en temps réel, et la clé de l'agent pour l'extinction. |
 
 ## Connexion chiffrée (wolagent/2)
@@ -62,7 +62,7 @@ L'**identité de cet ordinateur** (clé ECDSA P-256) est créée au premier beso
 ce PC : elle n'est ni dans les sauvegardes ni dans le partage. Sur un nouveau PC (ou après une réinstallation de
 Windows), restaurer une sauvegarde ne suffit donc pas pour les PC déjà passés en `wolagent/2` : la fiche indique
 *cet ordinateur n'est pas autorisé par ce PC*. Il suffit de l'appairer à nouveau (`wol-agent pair` sur le PC, puis
-coller le lien dans la fiche du PC) ; la clé du lien sert alors à le réenregistrer.
+coller le lien dans la fiche du PC) : le code du lien sert alors à le réenregistrer.
 
 ## Où sont mes données ?
 

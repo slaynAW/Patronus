@@ -479,6 +479,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); width: 
 .test-row { display: flex; align-items: center; gap: 12px; }
 .result svg.icon { flex: none; }
 .result .result-help { display: block; margin-top: 4px; opacity: .85; font-size: 12px; line-height: 1.4; }
+.result.pending-pairing { align-items: flex-start; }
+.result.pending-pairing .grow { flex: 1; }
 
 /* ---------- Panneaux (édition, historique), dialogues, menus ---------- */
 

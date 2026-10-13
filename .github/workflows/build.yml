@@ -192,11 +192,14 @@ jobs:
           nohup "$RUNNER_TEMP/wol-agent" run --config "$RUNNER_TEMP/agent.json" --dry-run > "$RUNNER_TEMP/agent.log" 2>&1 &
           echo "WOL_E2E_PORT=19771" >> "$GITHUB_ENV"
           echo "WOL_E2E_KEY=$key" >> "$GITHUB_ENV"
+          # Identité de l'agent (créée à son démarrage) : invitations créées comme par wol-agent pair.
+          echo "WOL_E2E_IDENTITY=$RUNNER_TEMP/identity.key" >> "$GITHUB_ENV"
       - name: Tests
         run: |
           go test -race -count=1 ./...
           go test -count=1 -run EndToEnd -v ./internal/agentclient/ ./internal/app/ | tee "$RUNNER_TEMP/e2e.txt"
-          for t in TestEndToEndWithRealAgent TestEndToEndV2WithRealAgent TestEndToEndUpgradeWithRealAgent; do
+          for t in TestEndToEndWithRealAgent TestEndToEndV2WithRealAgent TestEndToEndPairingWithRealAgent \
+            TestEndToEndUpgradeWithRealAgent; do
             grep -q -- "--- PASS: $t " "$RUNNER_TEMP/e2e.txt" || { echo "::error::$t n'a pas tourné"; exit 1; }
           done
           cat "$RUNNER_TEMP/agent.log"
@@ -328,7 +331,7 @@ jobs:
         run: |
           grep -q 'tests="4" skipped="0" failures="0" errors="0"' \
             core/build/test-results/test/TEST-io.github.slaynaw.wakeonlan.core.AgentEndToEndTest.xml
-          grep -q 'tests="5" skipped="0" failures="0" errors="0"' \
+          grep -q 'tests="6" skipped="0" failures="0" errors="0"' \
             core/build/test-results/test/TEST-io.github.slaynaw.wakeonlan.core.Wolagent2EndToEndTest.xml
           cat "$RUNNER_TEMP/agent.log"
 

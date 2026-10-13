@@ -52,6 +52,9 @@ const (
 	PinMismatch Code = "PIN_MISMATCH"
 	// NoIdentity : l'identité wolagent/2 de cet ordinateur est indisponible.
 	NoIdentity Code = "NO_IDENTITY"
+	// PairingFailed : code d'appairage refusé par l'agent (invalide, expiré ou déjà utilisé : la même
+	// réponse dans tous les cas).
+	PairingFailed Code = "PAIRING_FAILED"
 )
 
 // Error est un échec d'échange avec l'agent.
@@ -93,7 +96,7 @@ func HostAnswered(err error) bool {
 		return true
 	}
 	switch CodeOf(err) {
-	case Refused, Unauthorized, RateLimited, Protocol, Rejected, Unregistered, PinMismatch:
+	case Refused, Unauthorized, RateLimited, Protocol, Rejected, Unregistered, PinMismatch, PairingFailed:
 		return true
 	}
 	return false
