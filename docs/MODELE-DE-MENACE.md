@@ -78,8 +78,8 @@ Flux étudiés :
 ## 5. Menaces et protections
 
 « Actuel » désigne `wolagent/1` (Patronus 1.11, et les appareils pas encore passés en `wolagent/2`) ; « Prévu »
-`wolagent/2`, **en service depuis Patronus 1.12.0 et l'agent 1.11.0** (partage v2 : Patronus 1.13.0), sauf ce qui est
-marqué *(à venir)* ou attribué à une étape suivante.
+`wolagent/2`, **en service depuis Patronus 1.13.0 et l'agent 1.11.0**, partage v2 compris, sauf ce qui est marqué
+*(à venir)* ou attribué à une étape suivante.
 
 ### F1 · Application ↔ agent
 
