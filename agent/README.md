@@ -114,7 +114,7 @@ afin que le QR code contienne la bonne adresse MAC.
 
 L'agent sert aussi, sur le même port, [`wolagent/2`](../docs/PROTOCOLE-V2.md) : échanges chiffrés (TLS 1.3), une
 identité par appareil, des rôles et une révocation appareil par appareil. Les applications l'utilisent à partir de la
-version 1.12, et y font passer d'elles-mêmes les appareils déjà appairés, sans rescanner le QR code. Les versions
+version 1.13, et y font passer d'elles-mêmes les appareils déjà appairés, sans rescanner le QR code. Les versions
 antérieures continuent en `wolagent/1`.
 
 - **Identité de l'agent** : `identity.key`, créée au premier démarrage à côté de `config.json` (réservée à `root`, ou à

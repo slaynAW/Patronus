@@ -1,7 +1,7 @@
 # Protocole `wolagent/2` (spécification)
 
-> **Statut : en service depuis l'agent 1.11.0 et les applications 1.12.0 (étape 3 de la feuille de route), partage v2
-> (§10) compris depuis les applications 1.13.0.** Toute évolution de ce document s'accompagne des vecteurs de
+> **Statut : en service depuis l'agent 1.11.0 et les applications 1.13.0 (étape 3 de la feuille de route), partage v2
+> (§10) compris.** Toute évolution de ce document s'accompagne des vecteurs de
 > test. `wolagent/2` remplacera [`wolagent/1`](PROTOCOLE.md) après une période de transition (§11).
 
 `wolagent/2` chiffre tous les échanges entre les applications et l'agent. Il donne à chaque appareil sa propre

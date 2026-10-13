@@ -70,7 +70,7 @@
 
 | Mesure | Détail |
 |---|---|
-| `wolagent/2` (agent 1.11.0, applications 1.12.0) | Échanges chiffrés en **TLS 1.3** (sans reprise de session ni 0-RTT), authentification **mutuelle** par clés ECDSA P-256 épinglées : chaque application vérifie l'empreinte du PC à chaque connexion, et l'agent ne répond qu'aux appareils qu'il a enregistrés. Chaque appareil a sa propre identité (Keystore Android, StrongBox si présent ; DPAPI sous Windows ; identité de l'agent réservée aux administrateurs du PC, DPAPI machine sous Windows), ses droits (consulter, démarrer, contrôler, administrer) et se retire seul (`wol-agent devices revoke`, ou depuis un appareil administrateur). Appairage par code à usage unique (10 minutes par défaut), envoyé seulement à l'agent attendu ; passage automatique des appareils déjà appairés, prouvé par la clé `wolagent/1` de part et d'autre ; aucun retour à `wolagent/1` avec un PC passé en `wolagent/2`. Voir [PROTOCOLE-V2.md](PROTOCOLE-V2.md). |
+| `wolagent/2` (agent 1.11.0, applications 1.13.0) | Échanges chiffrés en **TLS 1.3** (sans reprise de session ni 0-RTT), authentification **mutuelle** par clés ECDSA P-256 épinglées : chaque application vérifie l'empreinte du PC à chaque connexion, et l'agent ne répond qu'aux appareils qu'il a enregistrés. Chaque appareil a sa propre identité (Keystore Android, StrongBox si présent ; DPAPI sous Windows ; identité de l'agent réservée aux administrateurs du PC, DPAPI machine sous Windows), ses droits (consulter, démarrer, contrôler, administrer) et se retire seul (`wol-agent devices revoke`, ou depuis un appareil administrateur). Appairage par code à usage unique (10 minutes par défaut), envoyé seulement à l'agent attendu ; passage automatique des appareils déjà appairés, prouvé par la clé `wolagent/1` de part et d'autre ; aucun retour à `wolagent/1` avec un PC passé en `wolagent/2`. Voir [PROTOCOLE-V2.md](PROTOCOLE-V2.md). |
 | Authentification (`wolagent/1`) | HMAC-SHA256 avec une clé aléatoire de 256 bits par PC ; défi-réponse (nonces) → pas de rejeu, pas de clé sur le réseau. Gardé pendant la transition : applications et agents plus anciens, téléphones sous Android 8 ou 9. |
 | Authentification mutuelle (`wolagent/1`) | Les réponses sont signées : un faux agent ne peut pas faire croire qu'une extinction a réussi. |
 | Anti force brute | 5 échecs par minute et par adresse IP → blocage 5 minutes ; en `wolagent/2`, appairage suspendu 10 minutes (invitations annulées) après plus de 20 codes refusés en 10 minutes. Les applications espacent d'elles-mêmes leurs essais après un refus. |
@@ -95,7 +95,7 @@ Les menaces prises en compte, leur protection actuelle et celle prévue sont dé
   qu'un PC s'appelle « PC-BUREAU », depuis quand il est allumé et, lors d'une lecture du journal, ses heures de démarrage et
   d'arrêt ; il ne peut ni lire la clé ni forger de commande. Cela ne concerne plus que les appareils pas encore passés en
   `wolagent/2` (application ou agent plus anciens, Android 8 ou 9) : mettez à jour l'agent (1.11.0) et les applications
-  (1.12.0), elles y passent d'elles-mêmes.
+  (1.13.0), elles y passent d'elles-mêmes.
 - **L'ancien QR code d'appairage (`wol-agent pair --v1`) contient la clé** : ne le partagez pas, ne le photographiez pas avec un
   autre appareil. En cas de doute : `wol-agent rotate-key`. Le QR code par défaut ne contient qu'un code à usage unique ; si
   ce code a servi sans vous, l'appareil inconnu figure dans `wol-agent devices` : retirez-le.
