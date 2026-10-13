@@ -5,6 +5,7 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
 	"github.com/slaynaw/wakeonlan/desktop/internal/diag"
 	"github.com/slaynaw/wakeonlan/desktop/internal/history"
+	"github.com/slaynaw/wakeonlan/desktop/internal/identity"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 	"github.com/slaynaw/wakeonlan/desktop/internal/netstate"
 	"github.com/slaynaw/wakeonlan/desktop/internal/pairing"
@@ -96,7 +98,12 @@ type Service struct {
 	netState func() (netstate.State, error)
 	netPoll  time.Duration
 	agent    *agentclient.Client
+	prober   status.Prober
 	monitor  *status.Monitor
+	// identity est l'identité wolagent/2 de cette installation (créée au premier besoin) ; upgrades
+	// suit le passage des PC en wolagent/2 (voir upgrade.go).
+	identity *identity.Store
+	upgrades *upgrader
 
 	mu             sync.Mutex
 	cfg            model.AppConfig
@@ -166,6 +173,17 @@ func New(opts Options) *Service {
 	if s.now == nil {
 		s.now = time.Now
 	}
+	s.identity = identity.NewStore(filepath.Dir(opts.Store.Path()), s.now, func(format string, args ...any) {
+		diag.Warn(areaAgent, format, args...)
+	})
+	s.agent.Identity = func() (tls.Certificate, error) {
+		id, err := s.identity.Get()
+		if err != nil {
+			return tls.Certificate{}, err
+		}
+		return id.Cert, nil
+	}
+	s.upgrades = newUpgrader()
 	s.updates = newUpdater(opts.Updates, filepath.Dir(opts.Store.Path()), s.now)
 	s.agents = newAgentDownloads(opts.Agent)
 	s.sharing = newSharer(opts.Share)
@@ -187,11 +205,13 @@ func New(opts Options) *Service {
 	if s.netPoll <= 0 {
 		s.netPoll = 2 * time.Second
 	}
-	prober := opts.Prober
-	if prober == nil {
-		prober = status.NewHostProber()
+	s.prober = opts.Prober
+	if s.prober == nil {
+		hp := status.NewHostProber()
+		hp.Agent = s.agent
+		s.prober = hp
 	}
-	s.monitor = status.NewMonitor(prober, func() int64 { return s.now().UnixMilli() }, s.onStatusChange)
+	s.monitor = status.NewMonitor(s.prober, func() int64 { return s.now().UnixMilli() }, s.onStatusChange)
 	cfg, err := s.store.Load()
 	if err != nil {
 		diag.Error(areaData, "configuration : %v", err)
@@ -311,13 +331,17 @@ type NetworkView struct {
 
 // DeviceView est un PC tel qu'affiché dans la liste (sans secret).
 type DeviceView struct {
-	ID          string              `json:"id"`
-	Name        string              `json:"name"`
-	MAC         string              `json:"mac"`
-	Host        string              `json:"host"`
-	HasAgent    bool                `json:"hasAgent"`
-	CanShutdown bool                `json:"canShutdown"`
-	Status      status.DeviceStatus `json:"status"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	MAC         string `json:"mac"`
+	Host        string `json:"host"`
+	HasAgent    bool   `json:"hasAgent"`
+	CanShutdown bool   `json:"canShutdown"`
+	// AgentPin est l'empreinte courte de l'agent d'un PC passé en wolagent/2 ("" sinon).
+	AgentPin string `json:"agentPin,omitempty"`
+	// ShareControl : le droit « démarrer et éteindre » peut être partagé (clé wolagent/1 connue).
+	ShareControl bool                `json:"shareControl"`
+	Status       status.DeviceStatus `json:"status"`
 	// Latency contient les mesures récentes (latencyView), pour le tracé en direct.
 	Latency []status.LatencySample `json:"latency,omitempty"`
 	// Temps (relevés de températures des 5 dernières minutes) et Specs (fiche du PC) ne sont
@@ -378,6 +402,10 @@ func (s *Service) State() UIState {
 			ID: d.ID, Name: d.Name, MAC: d.MAC.String(), Host: d.Host,
 			HasAgent: d.Agent != nil, CanShutdown: d.CanShutdown(), Status: ds,
 			Latency: s.monitor.Latency(d.ID, since),
+		}
+		if d.Agent != nil {
+			v.AgentPin = d.Agent.ShortPin()
+			v.ShareControl = d.CanShutdown() && d.Agent.HasKey()
 		}
 		if d.ID == live {
 			v.Temps = s.monitor.Temps(d.ID, s.now().Add(-status.TempWindow).UnixMilli())
@@ -547,7 +575,7 @@ func (s *Service) dispatch(method string, p callParams) (any, error) {
 	case "power":
 		return s.power(p.ID, agentclient.Action(p.Action), p.Force)
 	case "testAgent":
-		return s.testAgent(p.Host, p.Port, p.Key), nil
+		return s.testAgent(p.ID, p.Host, p.Port, p.Key), nil
 	case "parsePairing":
 		info, err := pairing.Parse(p.Text)
 		if err != nil {
@@ -722,7 +750,11 @@ func (s *Service) getDevice(id string) map[string]any {
 		return map[string]any{"isNew": false, "shared": true}
 	}
 	if d, ok := s.ownDevice(id); ok {
-		return map[string]any{"isNew": false, "form": model.FormFrom(d)}
+		out := map[string]any{"isNew": false, "form": model.FormFrom(d)}
+		if d.Agent != nil && d.Agent.HasPin() {
+			out["agentPin"] = d.Agent.ShortPin()
+		}
+		return out
 	}
 	return map[string]any{"isNew": true, "form": model.NewForm()}
 }
@@ -731,7 +763,8 @@ func (s *Service) saveDevice(id string, form model.DeviceForm) (any, error) {
 	if s.isShared(id) {
 		return nil, errShared
 	}
-	if _, ok := s.ownDevice(id); !ok {
+	old, ok := s.ownDevice(id)
+	if !ok {
 		id = ""
 	}
 	d, errs := form.Build(id)
@@ -743,6 +776,9 @@ func (s *Service) saveDevice(id string, form model.DeviceForm) (any, error) {
 		slices.Sort(fields)
 		diag.Info(areaActions, "PC non enregistré, champs refusés : %s", strings.Join(fields, ", "))
 		return map[string]any{"ok": false, "errors": errs}, nil
+	}
+	if old.Agent != nil && d.Agent != nil {
+		d.Agent.Pin = keptPin(*old.Agent, d.Agent.Key)
 	}
 	if err := s.mutate(func(c model.AppConfig) model.AppConfig { return c.Upsert(d) }); err != nil {
 		return nil, err
@@ -801,32 +837,50 @@ func (s *Service) power(id string, action agentclient.Action, force bool) (any, 
 	if !action.Valid() {
 		return nil, errors.New("action inconnue")
 	}
-	if d.Agent == nil || !d.Agent.HasKey() || !d.HasHost() {
+	if d.Agent == nil || !d.Agent.Ready() || !d.HasHost() {
 		diag.Warn(areaActions, "%s de « %s » : agent non configuré", action, d.Name)
 		return map[string]any{"ok": false, "code": agentclient.NoKey}, nil
 	}
 	if _, err := s.agent.Power(context.Background(), d.Host, *d.Agent, action, 0, force); err != nil {
 		diag.Warn(areaActions, "%s de « %s » (%s:%d) : %s (%v)", action, d.Name, d.Host, d.Agent.Port, agentclient.CodeOf(err), err)
-		return map[string]any{"ok": false, "code": agentclient.CodeOf(err)}, nil
+		return map[string]any{"ok": false, "code": agentclient.CodeOf(err), "reason": agentclient.ReasonOf(err)}, nil
 	}
+	s.agentAnswered(id)
 	diag.Info(areaActions, "%s de « %s » accepté par l'agent%s", action, d.Name, pick(force, " (forcé)", ""))
 	s.record(history.Event{Device: id, Kind: requestKind(action), Source: history.App})
 	s.monitor.OnPowerActionSent(id, action)
 	return map[string]any{"ok": true}, nil
 }
 
-func (s *Service) testAgent(host, portText, key string) any {
+// keptPin renvoie l'empreinte à garder quand la fiche d'un PC est enregistrée avec la clé key :
+// l'empreinte connue, sauf si une nouvelle clé est saisie (agent réinstallé, nouveau lien
+// d'appairage) ; le passage en wolagent/2 reprend alors depuis cette clé, qui authentifiera
+// l'empreinte de l'agent.
+func keptPin(old model.AgentSettings, key string) string {
+	if key = strings.TrimSpace(key); key != "" && key != old.Key {
+		return ""
+	}
+	return old.Pin
+}
+
+func (s *Service) testAgent(id, host, portText, key string) any {
 	host = strings.TrimSpace(host)
 	var port int
 	_, err := fmt.Sscan(strings.TrimSpace(portText), &port)
 	if !model.IsValidHost(host) || err != nil || !model.IsValidPort(port) {
 		return map[string]any{"ok": false, "invalid": "Renseignez une adresse et un port valides"}
 	}
-	st, err := s.agent.Status(context.Background(), host, model.AgentSettings{Port: port, Key: strings.TrimSpace(key)})
+	settings := model.AgentSettings{Port: port, Key: strings.TrimSpace(key)}
+	if old, ok := s.ownDevice(id); ok && old.Agent != nil {
+		// Comme à l'enregistrement de la fiche : un PC passé en wolagent/2 est testé en wolagent/2.
+		settings.Pin = keptPin(*old.Agent, settings.Key)
+	}
+	st, err := s.agent.Status(context.Background(), host, settings)
 	if err != nil {
 		diag.Warn(areaActions, "test de l'agent %s:%d : %s (%v)", host, port, agentclient.CodeOf(err), err)
 		return map[string]any{"ok": false, "code": agentclient.CodeOf(err)}
 	}
+	s.agentAnswered(id)
 	diag.Info(areaActions, "test de l'agent %s:%d : réussi (agent %s, %s/%s, %s)", host, port, st.Version, st.OS, st.Arch, st.Hostname)
 	return map[string]any{"ok": true, "status": st}
 }
@@ -969,7 +1023,7 @@ func (s *Service) importPassword(password string) (any, error) {
 func (s *Service) confirmStep(cfg model.AppConfig) map[string]any {
 	missingKeys := false
 	for _, d := range cfg.Devices {
-		missingKeys = missingKeys || (d.Agent != nil && !d.Agent.HasKey())
+		missingKeys = missingKeys || (d.Agent != nil && !d.Agent.Ready())
 	}
 	s.mu.Lock()
 	s.pendingImport = &importState{config: &cfg}

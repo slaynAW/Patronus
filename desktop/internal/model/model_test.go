@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/slaynaw/wakeonlan/agent/protocol2"
 )
 
 const testKey = "q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq80"
@@ -100,6 +102,44 @@ func TestSecretsNeverInString(t *testing.T) {
 		if strings.Contains(s, testKey) || strings.Contains(s, "11:22:33:44:55:66") {
 			t.Errorf("secret visible : %s", s)
 		}
+	}
+}
+
+func TestAgentPin(t *testing.T) {
+	pin := protocol2.PinOf([]byte("agent de test"))
+	d := sampleConfig().Devices[0]
+	d.Agent = &AgentSettings{Port: 9770, Key: testKey, Pin: pin.String()}
+	if errs := Validate(d); len(errs) > 0 || !d.Agent.Ready() || !d.Agent.HasPin() || d.Agent.ShortPin() != pin.Short() {
+		t.Fatalf("empreinte valide refusée : %v", errs)
+	}
+	if s := d.String(); strings.Contains(s, testKey) || !strings.Contains(s, "pin="+pin.Short()) {
+		t.Errorf("journal : %s", s)
+	}
+	data, _ := json.Marshal(d)
+	if !strings.Contains(string(data), `"agent":{"port":9770,"key":"`+testKey+`","pin":"`+pin.String()+`"}`) {
+		t.Errorf("format : %s", data)
+	}
+	var back Device
+	if err := json.Unmarshal(data, &back); err != nil || !reflect.DeepEqual(back, d) {
+		t.Fatalf("aller-retour : %+v %v", back, err)
+	}
+	// Export sans secret : la clé part, l'empreinte (publique) reste.
+	if plain := d.WithoutSecrets(); plain.Agent.HasKey() || plain.Agent.Pin != pin.String() || !plain.Agent.Ready() {
+		t.Errorf("sans secret : %+v", plain.Agent)
+	}
+	// Sans empreinte, le champ n'apparaît pas (format de l'application Android inchangé).
+	d.Agent.Pin = ""
+	if data, _ := json.Marshal(d); strings.Contains(string(data), "pin") {
+		t.Errorf("champ vide écrit : %s", data)
+	}
+	for _, bad := range []string{"abc", pin.String() + "=", strings.ToUpper(pin.String()[:1]) + "#" + pin.String()[2:]} {
+		d.Agent.Pin = bad
+		if errs := Validate(d); len(errs) == 0 || errs[0].Field != FieldAgentKey {
+			t.Errorf("empreinte %q acceptée", bad)
+		}
+	}
+	if (AgentSettings{Port: 9770}).Ready() {
+		t.Error("agent sans clé ni empreinte prêt")
 	}
 }
 

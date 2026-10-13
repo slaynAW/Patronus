@@ -1,11 +1,14 @@
-// Package agentclient est le client du protocole « wolagent/1 » (voir docs/PROTOCOLE.md), équivalent
-// de AgentClient côté Android : état du PC, extinction, redémarrage et mise en veille authentifiés.
+// Package agentclient est le client des agents, équivalent de AgentClient côté Android : état du PC,
+// extinction, redémarrage et mise en veille authentifiés. Il parle « wolagent/2 » (TLS 1.3, identités
+// épinglées : docs/PROTOCOLE-V2.md) aux PC dont il connaît l'empreinte, et « wolagent/1 » (clé
+// partagée : docs/PROTOCOLE.md) aux autres.
 package agentclient
 
 import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,7 +28,7 @@ import (
 type Code string
 
 const (
-	// NoKey : aucune clé configurée pour ce PC.
+	// NoKey : ni clé ni empreinte configurée pour ce PC.
 	NoKey Code = "NO_KEY"
 	// UnknownHost : nom d'hôte introuvable.
 	UnknownHost Code = "UNKNOWN_HOST"
@@ -41,6 +44,14 @@ const (
 	Protocol Code = "PROTOCOL"
 	// Rejected : l'agent a compris mais n'a pas pu exécuter la commande.
 	Rejected Code = "REJECTED"
+	// Unregistered : cet ordinateur n'est pas (ou plus) autorisé par l'agent (wolagent/2) : il faut
+	// l'appairer.
+	Unregistered Code = "UNREGISTERED"
+	// PinMismatch : l'agent ne présente pas l'empreinte enregistrée (autre machine à cette adresse,
+	// agent réinstallé, ou interception). La connexion est refusée avant tout envoi.
+	PinMismatch Code = "PIN_MISMATCH"
+	// NoIdentity : l'identité wolagent/2 de cet ordinateur est indisponible.
+	NoIdentity Code = "NO_IDENTITY"
 )
 
 // Error est un échec d'échange avec l'agent.
@@ -82,7 +93,7 @@ func HostAnswered(err error) bool {
 		return true
 	}
 	switch CodeOf(err) {
-	case Refused, Unauthorized, RateLimited, Protocol, Rejected:
+	case Refused, Unauthorized, RateLimited, Protocol, Rejected, Unregistered, PinMismatch:
 		return true
 	}
 	return false
@@ -111,14 +122,25 @@ type Status struct {
 	Temperatures *protocol.Temperatures `json:"temperatures,omitempty"`
 	// Disks : espace des lecteurs et santé des disques (agent 1.9.0 ou plus).
 	Disks *protocol.Disks `json:"disks,omitempty"`
+	// Protocols : protocoles servis par l'agent (1.11.0 ou plus).
+	Protocols []string `json:"protocols,omitempty"`
+	// Pin : empreinte wolagent/2 de l'agent, annoncée dans les réponses wolagent/1 signées par la clé.
+	Pin string `json:"pin,omitempty"`
+	// Proto : protocole de l'échange, « wolagent/1 » ou « wolagent/2 ».
+	Proto string `json:"proto"`
+	// Role : rôle de cet ordinateur sur l'agent (wolagent/2).
+	Role string `json:"role,omitempty"`
 }
 
 // Client dialogue avec les agents.
 type Client struct {
 	ConnectTimeout time.Duration
 	ReadTimeout    time.Duration
-	// By est le nom de cet appareil, noté par l'agent (1.4.0 ou plus) avec chaque demande.
+	// By est le nom de cet appareil, noté par l'agent (1.4.0 ou plus) avec chaque demande wolagent/1,
+	// et enregistré par l'agent à la migration (wolagent/2).
 	By string
+	// Identity fournit l'identité wolagent/2 de cet ordinateur (nil : wolagent/2 indisponible).
+	Identity func() (tls.Certificate, error)
 }
 
 // New renvoie un client avec les délais de l'application Android (2 s / 4 s), qui se présente sous le
@@ -135,7 +157,8 @@ func (c *Client) Status(ctx context.Context, host string, agent model.AgentSetti
 		return Status{}, err
 	}
 	return Status{Hostname: body.Hostname, OS: body.OS, Arch: body.Arch, Version: body.Version, Uptime: body.Uptime,
-		Temperatures: body.Temperatures, Disks: body.Disks}, nil
+		Temperatures: body.Temperatures, Disks: body.Disks, Protocols: body.Protocols, Pin: body.Pin, Proto: body.proto,
+		Role: body.Role}, nil
 }
 
 // Power demande une action d'alimentation. L'agent répond AVANT d'exécuter l'action.
@@ -229,9 +252,20 @@ type responseBody struct {
 	Disks *protocol.Disks `json:"disks"`
 	// Specs : réponse à « specs » d'un agent 1.10.0 ou plus.
 	Specs *protocol.Specs `json:"specs"`
+	// Protocols et Pin : agent 1.11.0 ou plus (docs/PROTOCOLE-V2.md, §9).
+	Protocols []string `json:"protocols"`
+	Pin       string   `json:"pin"`
+	// Role : rôle de cet ordinateur (wolagent/2).
+	Role string `json:"-"`
+	// proto : protocole de l'échange.
+	proto string
 }
 
 func (c *Client) exchange(ctx context.Context, host string, agent model.AgentSettings, request protocol.RequestBody, maxResponse int) (*responseBody, error) {
+	if agent.HasPin() {
+		// Empreinte connue : wolagent/2 uniquement, jamais de retour à wolagent/1 (§9, R8).
+		return c.exchange2(ctx, host, agent, request)
+	}
 	key := model.DecodeAgentKey(agent.Key)
 	if key == nil {
 		return nil, &Error{Code: NoKey}
@@ -324,7 +358,7 @@ func (c *Client) converse(conn net.Conn, key []byte, request protocol.RequestBod
 	if !protocol.MACEqual(expected, response.Mac) {
 		return nil, protocolError("signature de la réponse invalide")
 	}
-	var body responseBody
+	body := responseBody{proto: protocol.Proto}
 	if json.Unmarshal([]byte(response.Body), &body) != nil || body.OK == nil || body.Code == nil {
 		return nil, protocolError("contenu de réponse illisible")
 	}

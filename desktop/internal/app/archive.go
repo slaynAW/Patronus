@@ -304,7 +304,7 @@ func (s *Service) archiveCollectAndUpload(ctx context.Context, acc archiveAccess
 	work := map[string]*pcWork{} // MAC → travail
 	synced := map[string]int64{}
 	for _, d := range devices {
-		if d.Agent == nil || !d.Agent.HasKey() || !d.HasHost() || d.MAC.IsZero() {
+		if d.Agent == nil || !d.Agent.Ready() || !d.HasHost() || d.MAC.IsZero() {
 			continue
 		}
 		mac := d.MAC.String()
@@ -754,7 +754,7 @@ func (s *Service) metricsRange(id string, fromMs, toMs int64, points int) (Metri
 	view := MetricsRangeView{From: fromMs, To: toMs, Points: []MetricsPoint{}}
 	notes := map[string]bool{}
 	agentDays, agentErr := s.agentDays(ctx, d)
-	if agentErr != nil && d.Agent != nil && d.Agent.HasKey() {
+	if agentErr != nil && d.Agent != nil && d.Agent.Ready() {
 		notes[agentNote(agentErr)] = true
 	}
 	_, own := s.ownDevice(id)
@@ -809,7 +809,7 @@ func agentNote(err error) string {
 
 // agentDays renvoie les jours enregistrés par l'agent d'un PC (gardés une minute).
 func (s *Service) agentDays(ctx context.Context, d model.Device) ([]string, error) {
-	if d.Agent == nil || !d.Agent.HasKey() || !d.HasHost() {
+	if d.Agent == nil || !d.Agent.Ready() || !d.HasHost() {
 		return nil, &agentclient.Error{Code: agentclient.NoKey}
 	}
 	a := s.archives
@@ -911,7 +911,7 @@ func (s *Service) metricsJournal(id string, fromMs, toMs int64) (any, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), viewTimeout)
 	defer cancel()
 	var raw []protocol.HistoryEvent
-	if d.Agent != nil && d.Agent.HasKey() && d.HasHost() {
+	if d.Agent != nil && d.Agent.Ready() && d.HasHost() {
 		if events, err := s.agentJournal(ctx, d); err == nil {
 			raw = append(raw, events...)
 		}

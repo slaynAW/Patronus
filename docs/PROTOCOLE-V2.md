@@ -154,6 +154,13 @@ Vérifications, avant tout envoi de données :
 | Échecs par adresse | 5 en une minute (TLS refusé par l'agent, identité inconnue hors appairage, `pair` ou `migrate` refusé), partagés avec `wolagent/1` : blocage de l'adresse 5 min. Un refus du client (empreinte différente) n'est pas compté. |
 | Échecs d'appairage, toutes adresses | Plus de 20 `pair` refusés en 10 min : invitations en attente annulées et appairage suspendu 10 min (noté au journal) |
 
+Les applications sondent leurs PC toutes les quelques secondes. Pour ne pas faire bloquer leur propre adresse, elles
+espacent leurs demandes à un agent qui les refuse (`unknown_device`, clé `wolagent/1` refusée) : une minute après le
+premier refus, délai doublé à chaque nouveau refus, 30 minutes au plus ; 5 minutes après `rate_limited`. Entre-temps,
+une simple connexion TCP au port de l'agent, sans rien envoyer (l'agent ne la compte pas), dit si le PC est allumé. Un
+changement des réglages du PC (nouvelle clé, nouvelle empreinte, autre adresse) ou une action réussie remet le délai à
+zéro.
+
 ## 4. Trames et messages
 
 ### 4.1 Trame
@@ -439,13 +446,25 @@ jusqu'à sa réparation (l'agent continue en `wolagent/1`).
 Un appareil déjà appairé en `wolagent/1` passe à `wolagent/2` sans rescanner, quand :
 
 - l'application connaît l'adresse, le port et la clé `K` du PC ;
-- l'agent connaît `wolagent/2`. Les agents qui le connaissent ajoutent `"protocols":["wolagent/1","wolagent/2"]` à
-  leurs réponses `wolagent/1`, qui sont signées par `K`.
+- l'agent connaît `wolagent/2`. Les agents qui le connaissent ajoutent à leurs réponses `wolagent/1`, qui sont signées
+  par `K`, la liste `"protocols":["wolagent/1","wolagent/2"]` et leur empreinte `"pin"`.
+
+L'application procède en trois temps, sans rien demander :
+
+1. elle lit l'empreinte de l'agent dans une réponse `wolagent/1` : signée par `K`, elle est authentique ;
+2. elle ouvre une session `wolagent/2` où cette empreinte est exigée. Si l'agent connaît déjà son identité
+   (migration interrompue, configuration restaurée sur la même installation), elle passe à l'étape 3 ; sinon
+   (`unknown_device`), elle migre, comme ci-dessous ;
+3. elle enregistre l'empreinte et efface `K`, en une seule écriture. Une interruption avant laisse le PC en
+   `wolagent/1` : l'essai suivant reprend, et l'étape 2 reconnaît un enregistrement déjà fait.
+
+Une application qui ne connaît pas encore l'empreinte (agent qui ne l'annonce pas) peut migrer sans elle : elle
+retient alors l'empreinte vue dans sa poignée de main, que la preuve `Pa` authentifie.
 
 ```
 Application                                                          Agent
  │══ TLS 1.3 (ALPN wolagent/2) : l'application présente son identité ═══▶│
- │   et retient l'empreinte de l'agent vue dans SA poignée de main        │
+ │   et vérifie l'empreinte de l'agent (ou la retient, §9 ci-dessus)      │
  │── {"id":1,"cmd":"migrate","nonce":Nc,"name":"Pixel 8"} ──────────────▶│
  │◀─ {"id":1,"ok":true,"code":"ok","nonce":Na,"proof":Pa} ───────────────│
  │   vérifie Pa : sinon fermeture, aucun autre envoi                       │
@@ -473,13 +492,23 @@ en temps constant.
   la ligne, les preuves par `wolagent/2 migrate` : une signature de l'un ne vaut jamais preuve dans l'autre.
 - **Fraîcheur.** Les deux nonces rendent chaque preuve unique.
 - **Force brute.** Un échec compte dans le limiteur (§3.3).
+- **Empreinte annoncée.** Un intermédiaire sans `K` ne peut ni la modifier ni la remplacer dans la réponse
+  `wolagent/1`, signée par `K` ; la preuve `Pa` la confirme ensuite dans la session `wolagent/2`.
 
 **Ensuite :**
 
 - l'application garde l'empreinte de l'agent et ne parle plus jamais `wolagent/1` à ce PC (R8). Elle efface `K` de sa
-  configuration.
+  configuration, **sauf** tant qu'elle partage ce PC avec le droit « démarrer et éteindre » : ce partage
+  (`wolagent/1`) transmet `K` aux personnes autorisées. `K` ne sert alors plus qu'à ce partage, jusqu'au partage v2
+  (§10), et elle est effacée dès que le partage est retiré.
 - L'appareil migré reçoit le rôle `control` : les droits qu'avait sa clé. Le rôle `admin` ne s'obtient jamais par
   migration, seulement sur le PC (`wol-agent pair` ou `wol-agent devices role`).
+- Une application qui n'a plus `K` et que l'agent ne reconnaît plus (`unknown_device` : appareil retiré) ne se
+  réenregistre jamais d'elle-même : il faut l'appairer à nouveau.
+- Une nouvelle clé saisie pour ce PC (lien d'appairage collé après une réinstallation de l'agent) fait oublier
+  l'empreinte : le passage reprend depuis cette clé, qui authentifie l'empreinte de l'agent réinstallé.
+- Une application ne migre que ses propres PC. Ceux qu'elle a reçus d'une autre personne restent en `wolagent/1`
+  (leur clé vient du partage, sans l'empreinte de l'agent) jusqu'au partage v2.
 
 **Qui peut migrer.** Tout détenteur de `K` : les appareils du propriétaire, et les personnes ayant un partage « démarrer
 et éteindre ». C'est cohérent avec leurs droits en `wolagent/1`. Chaque migration est notée au journal et visible dans
@@ -502,6 +531,8 @@ et éteindre ». C'est cohérent avec leurs droits en `wolagent/1`. Chaque migra
 - **Retirer l'accès** : l'application du propriétaire envoie `devices.revoke` aux PC concernés, et supprime le fichier
   d'accès. La révocation prend effet dès qu'un appareil administrateur joint le PC, ou tout de suite avec
   `wol-agent devices revoke`. Le hub (2.0) l'appliquera sans attendre.
+- **En attendant** : le partage `wolagent/1` continue de transmettre `K` pour le droit « démarrer et éteindre »,
+  jamais l'empreinte de l'agent. Un PC dont l'application a effacé `K` ne se partage qu'avec le droit « démarrer ».
 
 ## 11. Coexistence et calendrier
 

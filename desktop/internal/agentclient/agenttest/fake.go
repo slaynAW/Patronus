@@ -1,8 +1,13 @@
-// Package agenttest fournit un faux agent pour les tests (comportements normaux et défaillants).
+// Package agenttest fournit un faux agent pour les tests (comportements normaux et défaillants), en
+// wolagent/1 et, sur demande, en wolagent/2.
 package agenttest
 
 import (
 	"bufio"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
 	"encoding/json"
 	"io"
 	"net"
@@ -11,6 +16,7 @@ import (
 	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/protocol"
+	"github.com/slaynaw/wakeonlan/agent/protocol2"
 )
 
 // Behavior choisit le comportement du faux agent.
@@ -38,7 +44,19 @@ type Server struct {
 	metrics  map[string][]protocol.MetricsRow
 	commands []string
 	requests []protocol.RequestBody
+	// attempts compte les demandes reçues (requête wolagent/1, session wolagent/2), acceptées ou non ;
+	// une simple connexion TCP n'en est pas une.
+	attempts int
+	v2       *v2State
 	wg       sync.WaitGroup
+}
+
+// v2State est l'état wolagent/2 du faux agent : son identité et les appareils autorisés.
+type v2State struct {
+	cert    tls.Certificate
+	pin     protocol2.Pin
+	devices map[protocol2.Pin]string // rôle
+	names   map[protocol2.Pin]string
 }
 
 // Start démarre un faux agent.
@@ -89,6 +107,48 @@ func (s *Server) SetMetrics(days map[string][]protocol.MetricsRow) {
 	s.mu.Lock()
 	s.metrics = days
 	s.mu.Unlock()
+}
+
+// EnableV2 fait aussi servir wolagent/2 au faux agent, sur le même port : il crée son identité et
+// l'annonce (protocols et pin) dans ses réponses. Renvoie son empreinte.
+func (s *Server) EnableV2() protocol2.Pin {
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	der, err := protocol2.NewCertificate(key, time.Now())
+	if err != nil {
+		panic(err)
+	}
+	pin, _ := protocol2.PinFromCertificate(der)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.v2 = &v2State{cert: tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}, pin: pin,
+		devices: map[protocol2.Pin]string{}, names: map[protocol2.Pin]string{}}
+	return pin
+}
+
+// Register autorise un appareil wolagent/2 avec un rôle ("" : le retire).
+func (s *Server) Register(device protocol2.Pin, role string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if role == "" {
+		delete(s.v2.devices, device)
+		return
+	}
+	s.v2.devices[device] = role
+}
+
+// Device renvoie le rôle et le nom d'un appareil wolagent/2 ("" s'il n'est pas autorisé).
+func (s *Server) Device(device protocol2.Pin) (role, name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.v2.devices[device], s.v2.names[device]
+}
+
+// Attempts renvoie le nombre de demandes reçues, acceptées ou non (requêtes wolagent/1, sessions
+// wolagent/2).
+func (s *Server) Attempts() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.attempts
 }
 
 // Commands renvoie les commandes authentifiées reçues.
@@ -149,10 +209,21 @@ func (s *Server) handle(conn net.Conn) {
 	}
 	write(protocol.Hello{Proto: proto, Nonce: nonce})
 
-	line, err := bufio.NewReader(conn).ReadBytes('\n')
+	reader := bufio.NewReader(conn)
+	s.mu.Lock()
+	v2 := s.v2 != nil
+	s.mu.Unlock()
+	if first, err := reader.Peek(1); err == nil && first[0] == protocol2.TLSHandshakeRecord && v2 {
+		s.serveV2(conn, reader)
+		return
+	}
+	line, err := reader.ReadBytes('\n')
 	if err != nil {
 		return
 	}
+	s.mu.Lock()
+	s.attempts++
+	s.mu.Unlock()
 	var req protocol.Request
 	if json.Unmarshal(line, &req) != nil || !protocol.MACEqual(protocol.RequestMAC(s.key, nonce, req.CNonce, req.Body), req.Mac) {
 		write(protocol.Response{Error: protocol.ErrUnauthorized})
@@ -160,13 +231,29 @@ func (s *Server) handle(conn net.Conn) {
 	}
 	var body protocol.RequestBody
 	_ = json.Unmarshal([]byte(req.Body), &body)
+	b, _ := json.Marshal(s.answer(body))
+	mac := protocol.ResponseMAC(s.key, nonce, req.CNonce, string(b))
+	if s.behavior == BadResponseMAC {
+		mac = protocol.ResponseMAC(make([]byte, protocol.KeyBytes), nonce, req.CNonce, string(b))
+	}
+	write(protocol.Response{Body: string(b), Mac: mac})
+}
+
+// answer exécute une commande de wolagent/1, reçue par l'un ou l'autre protocole.
+func (s *Server) answer(body protocol.RequestBody) protocol.ResponseBody {
 	s.mu.Lock()
 	s.commands = append(s.commands, body.Cmd)
 	s.requests = append(s.requests, body)
 	s.mu.Unlock()
 
 	resp := protocol.ResponseBody{OK: true, Code: "ok", Message: "OK", Hostname: "PC-TEST", OS: "windows", Arch: "amd64",
-		Version: "1.0.0", Uptime: 3600}
+		Version: "1.0.0", Uptime: 3600, Protocols: []string{protocol.Proto}}
+	s.mu.Lock()
+	if s.v2 != nil {
+		resp.Protocols = append(resp.Protocols, protocol2.ALPN)
+		resp.Pin = s.v2.pin.String()
+	}
+	s.mu.Unlock()
 	if body.Cmd == protocol.CmdStatus {
 		s.mu.Lock()
 		resp.Temperatures = s.temps
@@ -222,10 +309,92 @@ func (s *Server) handle(conn net.Conn) {
 	if s.behavior == Reject {
 		resp = protocol.ResponseBody{OK: false, Code: "forbidden", Message: "commande désactivée"}
 	}
-	b, _ := json.Marshal(resp)
-	mac := protocol.ResponseMAC(s.key, nonce, req.CNonce, string(b))
-	if s.behavior == BadResponseMAC {
-		mac = protocol.ResponseMAC(make([]byte, protocol.KeyBytes), nonce, req.CNonce, string(b))
+	return resp
+}
+
+// readerConn rend à TLS ce que la lecture du premier octet a déjà mis en mémoire.
+type readerConn struct {
+	net.Conn
+	r *bufio.Reader
+}
+
+func (c readerConn) Read(p []byte) (int, error) { return c.r.Read(p) }
+
+// serveV2 mène une session wolagent/2 : TLS 1.3 avec l'identité du faux agent, puis requêtes en
+// trames. Comme le vrai agent : une identité inconnue n'a droit qu'à la migration (preuves par la
+// clé), un rôle trop faible est refusé.
+func (s *Server) serveV2(conn net.Conn, r *bufio.Reader) {
+	s.mu.Lock()
+	cert, agent := s.v2.cert, s.v2.pin
+	s.mu.Unlock()
+	tc := tls.Server(readerConn{conn, r}, &tls.Config{
+		MinVersion: tls.VersionTLS13, MaxVersion: tls.VersionTLS13,
+		Certificates: []tls.Certificate{cert}, NextProtos: []string{protocol2.ALPN},
+		ClientAuth: tls.RequireAnyClientCert, SessionTicketsDisabled: true,
+	})
+	if err := tc.Handshake(); err != nil || tc.ConnectionState().NegotiatedProtocol != protocol2.ALPN {
+		return
 	}
-	write(protocol.Response{Body: string(b), Mac: mac})
+	s.mu.Lock()
+	s.attempts++
+	s.mu.Unlock()
+	device, err := protocol2.PinFromCertificate(tc.ConnectionState().PeerCertificates[0].Raw)
+	if err != nil {
+		return
+	}
+	reply := func(v any) {
+		b, _ := json.Marshal(v)
+		_ = protocol2.WriteFrame(tc, b, protocol2.MaxResponseBytes)
+	}
+	var nc, na *protocol2.Nonce
+	var name string
+	for {
+		payload, err := protocol2.ReadFrame(tc, protocol2.MaxRequestBytes)
+		if err != nil {
+			return
+		}
+		var req protocol2.Request
+		if json.Unmarshal(payload, &req) != nil {
+			return
+		}
+		role, _ := s.Device(device)
+		switch {
+		case req.Cmd == protocol2.CmdMigrate && role != "":
+			reply(protocol2.Reply{ID: req.ID, Code: protocol2.CodeAlreadyPaired, Message: "appareil déjà appairé"})
+		case req.Cmd == protocol2.CmdMigrate && nc == nil:
+			client, err := protocol2.ParseNonce(req.Nonce)
+			if err != nil {
+				return
+			}
+			agentNonce := protocol2.NewNonce()
+			nc, na, name = &client, &agentNonce, req.Name
+			proof := protocol2.AgentProof(s.key, agent, device, client, agentNonce)
+			reply(protocol2.Reply{ID: req.ID, OK: true, Code: protocol2.CodeOK, Message: "preuve de l'agent",
+				Nonce: agentNonce.String(), Proof: proof.String()})
+		case req.Cmd == protocol2.CmdMigrate:
+			proof, err := protocol2.ParseProof(req.Proof)
+			if err != nil || !protocol2.DeviceProof(s.key, agent, device, *nc, *na).Equal(proof) {
+				reply(protocol2.Reply{ID: req.ID, Code: protocol2.CodeMigrationFailed, Message: "migration impossible"})
+				return
+			}
+			s.mu.Lock()
+			s.v2.devices[device], s.v2.names[device] = "control", name
+			s.mu.Unlock()
+			reply(protocol2.Response{ID: req.ID, ResponseBody: protocol.ResponseBody{OK: true, Code: protocol2.CodeOK,
+				Message: "appareil migré"}, Role: "control", Device: device.String()})
+		case role == "":
+			reply(protocol2.Reply{ID: req.ID, Code: protocol2.CodeUnknownDevice, Message: "appareil inconnu de ce PC"})
+			return
+		default:
+			have, _ := protocol2.ParseRole(role)
+			if need, ok := protocol2.MinRole(req.Cmd); ok && have < need {
+				reply(protocol2.Reply{ID: req.ID, Code: protocol2.CodeInsufficientRole, Message: "rôle insuffisant"})
+				continue
+			}
+			_, by := s.Device(device)
+			body := s.answer(protocol.RequestBody{Cmd: req.Cmd, Delay: req.Delay, Force: req.Force, Wakes: req.Wakes,
+				Day: req.Day, By: by})
+			reply(protocol2.Response{ID: req.ID, ResponseBody: body, Role: role})
+		}
+	}
 }

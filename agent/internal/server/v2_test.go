@@ -161,10 +161,19 @@ func TestV2StatusAndProtocols(t *testing.T) {
 	if s.AgentPin() != env.id.Pin {
 		t.Error("empreinte de l'agent")
 	}
-	// wolagent/1 inchangé, et annonce wolagent/2 dans ses réponses signées.
+	// wolagent/1 inchangé, et annonce wolagent/2 et l'empreinte de l'agent dans ses réponses signées.
 	body := decodeBody(t, first(exchange(t, env.addr, env.cfg.Key, `{"cmd":"status"}`)))
-	if !body.OK || !slices.Equal(body.Protocols, []string{config.ProtocolV1, config.ProtocolV2}) {
+	if !body.OK || !slices.Equal(body.Protocols, []string{config.ProtocolV1, config.ProtocolV2}) ||
+		body.Pin != env.id.Pin.String() {
 		t.Fatalf("wolagent/1 : %+v", body)
+	}
+}
+
+func TestV1OnlyAgentAnnouncesNoPin(t *testing.T) {
+	cfg, _, addr := startServer(t, nil, nil)
+	body := decodeBody(t, first(exchange(t, addr, cfg.Key, `{"cmd":"status"}`)))
+	if !body.OK || !slices.Equal(body.Protocols, []string{config.ProtocolV1}) || body.Pin != "" {
+		t.Fatalf("wolagent/1 seul : %+v", body)
 	}
 }
 

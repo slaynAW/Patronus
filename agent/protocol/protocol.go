@@ -221,6 +221,10 @@ type ResponseBody struct {
 	// Protocols liste les protocoles acceptés par l'agent (agent 1.11.0 ou plus) : la présence de
 	// « wolagent/2 » permet aux applications de migrer (docs/PROTOCOLE-V2.md, §9).
 	Protocols []string `json:"protocols,omitempty"`
+	// Pin est l'empreinte wolagent/2 de l'agent (B64), s'il sert wolagent/2 (agent 1.11.0 ou plus).
+	// Signée par la clé dans les réponses wolagent/1, elle permet aux applications de connaître l'agent
+	// avant de migrer (docs/PROTOCOLE-V2.md, §9).
+	Pin string `json:"pin,omitempty"`
 }
 
 // Specs est la fiche du PC. Une information illisible est absente ; aucun numéro de série n'y figure.

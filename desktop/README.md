@@ -44,6 +44,26 @@ jour*). Pour passer d'une version plus ancienne, remplacez simplement le fichier
 | **Lien d'appairage de l'agent** | Sur le PC à contrôler : `wol-agent pair` affiche un lien `wolagent://…`. Copiez-le, puis *Ajouter un PC* → **Coller le lien** : adresse, MAC, port et clé sont remplis. |
 | **Saisie manuelle** | Nom + adresse MAC suffisent pour démarrer ; ajoutez l'IP pour l'état en temps réel, et la clé de l'agent pour l'extinction. |
 
+## Connexion chiffrée (wolagent/2)
+
+Avec l'agent 1.11.0 ou plus, l'application passe d'elle-même au protocole chiffré
+[`wolagent/2`](../docs/PROTOCOLE-V2.md), sans rien rescanner :
+
+- l'agent annonce son **empreinte** dans une réponse signée par sa clé : l'application la vérifie, puis s'enregistre
+  auprès de lui avec sa propre identité (rôle « contrôle », les droits qu'avait la clé) ;
+- tous les échanges sont ensuite **chiffrés** (TLS 1.3), et l'application vérifie l'empreinte du PC à chaque connexion :
+  une autre machine à la même adresse est refusée avant tout envoi. Elle ne revient jamais à l'ancien protocole avec ce PC ;
+- la **clé de l'agent est effacée** de l'application, qui n'en a plus besoin. Seule exception : un PC partagé avec le
+  droit « démarrer et éteindre » la garde, car ce partage la transmet (jusqu'à la prochaine version du partage) ;
+- la fiche du PC affiche *Chiffré et authentifié* et son **empreinte** (`7KQ2-9MXP-4D1Z`), à comparer avec celle de
+  `wol-agent status` sur le PC. `wol-agent devices` y liste les appareils autorisés, et retire celui qu'on veut.
+
+L'**identité de cet ordinateur** (clé ECDSA P-256) est créée au premier besoin, chiffrée par DPAPI, et ne quitte jamais
+ce PC : elle n'est ni dans les sauvegardes ni dans le partage. Sur un nouveau PC (ou après une réinstallation de
+Windows), restaurer une sauvegarde ne suffit donc pas pour les PC déjà passés en `wolagent/2` : la fiche indique
+*cet ordinateur n'est pas autorisé par ce PC*. Il suffit de l'appairer à nouveau (`wol-agent pair` sur le PC, puis
+coller le lien dans la fiche du PC) ; la clé du lien sert alors à le réenregistrer.
+
 ## Où sont mes données ?
 
 | Élément | Emplacement |
@@ -51,6 +71,7 @@ jour*). Pour passer d'une version plus ancienne, remplacez simplement le fichier
 | Configuration (PC, clés des agents, réglages) | `%APPDATA%\WakeOnLan\config.dat`, chiffrée avec **DPAPI** (liée à votre session Windows : illisible depuis un autre compte ou un autre PC). |
 | Historique (30 jours) | `%APPDATA%\WakeOnLan\history.dat`, chiffré avec DPAPI. *Réglages* → *Effacer l'historique* le vide (le journal tenu par l'agent de chaque PC est conservé). |
 | Partage (clés, jeton GitHub, accès reçus) | `%APPDATA%\WakeOnLan\share.dat`, chiffré avec DPAPI. |
+| Identité `wolagent/2` de cet ordinateur | `%APPDATA%\WakeOnLan\identity.dat`, chiffrée avec DPAPI ; jamais exportée ni sauvegardée. |
 | Sauvegarde automatique (mot de passe, jeton GitHub, dossier) | `%APPDATA%\WakeOnLan\backup.dat`, chiffré avec DPAPI ; les sauvegardes elles-mêmes sont dans le Gist secret et/ou le dossier choisis ([docs/SAUVEGARDE.md](../docs/SAUVEGARDE.md)). |
 | Journal de diagnostic | `%APPDATA%\WakeOnLan\diagnostics\`, chiffré (clé protégée par DPAPI). *Réglages* → *Diagnostic* exporte un rapport chiffré par mot de passe ([docs/DIAGNOSTIC.md](../docs/DIAGNOSTIC.md)). |
 | Cache d'affichage WebView2 | `%LOCALAPPDATA%\WakeOnLan\WebView2` |
@@ -84,7 +105,8 @@ desktop/
     ├── model/        PC, réglages, validation (mêmes règles et messages qu'Android)
     ├── config/       format JSON, export/import chiffré (PBKDF2 + AES-256-GCM), stockage DPAPI
     ├── wol/          paquet magique, diffusion par carte réseau
-    ├── agentclient/  client du protocole wolagent/1 (réutilise agent/protocol)
+    ├── agentclient/  client des agents : wolagent/2 (TLS 1.3, empreinte épinglée) ou wolagent/1
+    ├── identity/     identité wolagent/2 de cet ordinateur (ECDSA P-256, DPAPI)
     ├── history/      historique sur 30 jours (mêmes règles que le téléphone), stockage DPAPI
     ├── status/       sondes (agent, TCP, ping ICMP), machine à états, surveillance
     ├── netstate/     cartes Ethernet / Wi-Fi / VPN (GetAdaptersAddresses)

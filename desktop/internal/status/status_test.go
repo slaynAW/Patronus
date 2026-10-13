@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/netip"
 	"reflect"
@@ -13,6 +14,7 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/protocol"
 	"github.com/slaynaw/wakeonlan/desktop/internal/agentclient"
 	"github.com/slaynaw/wakeonlan/desktop/internal/agentclient/agenttest"
+	"github.com/slaynaw/wakeonlan/desktop/internal/identity"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 )
 
@@ -204,6 +206,62 @@ func TestAgentHasPriority(t *testing.T) {
 	if !r.Reachable || r.AgentError != agentclient.Unauthorized {
 		t.Errorf("mauvaise clé : %+v", r)
 	}
+}
+
+// Un agent qui refuse cet ordinateur (identité inconnue, clé refusée) n'est recontacté qu'après un
+// délai, doublé à chaque refus : chaque refus compte comme un échec, et l'agent bloquerait l'adresse.
+func TestAgentRefusalBackoff(t *testing.T) {
+	keyText, _ := protocol.NewKey()
+	s, err := agenttest.Start(model.DecodeAgentKey(keyText), agenttest.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	pin := s.EnableV2()
+	id, err := identity.NewStore(t.TempDir(), nil, nil).Get()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := testProber()
+	p.Agent.Identity = func() (tls.Certificate, error) { return id.Cert, nil }
+	now := time.Unix(1_800_000_000, 0)
+	p.Now = func() time.Time { return now }
+	d := device(nil, "127.0.0.1", &model.AgentSettings{Port: s.Port(), Pin: pin.String()})
+	probe := func(what string, attempts int, want agentclient.Code) {
+		t.Helper()
+		r := p.Probe(context.Background(), d)
+		if !r.Reachable || r.AgentError != want || s.Attempts() != attempts {
+			t.Fatalf("%s : %+v, %d demandes reçues", what, r, s.Attempts())
+		}
+	}
+	probe("premier refus", 1, agentclient.Unregistered)
+	// Pendant le délai : l'agent n'est pas sollicité ; une simple connexion à son port suffit à voir
+	// le PC allumé, et le refus reste affiché.
+	probe("pendant le délai", 1, agentclient.Unregistered)
+	now = now.Add(61 * time.Second)
+	probe("après une minute", 2, agentclient.Unregistered)
+	now = now.Add(61 * time.Second)
+	probe("délai doublé", 2, agentclient.Unregistered)
+	now = now.Add(61 * time.Second)
+	probe("après deux minutes", 3, agentclient.Unregistered)
+
+	// Enregistré entre-temps (appairage) : le refus est oublié dès qu'une action réussit.
+	s.Register(id.Pin, "control")
+	p.Forget(d.ID)
+	probe("réponse", 4, "")
+	probe("sondes normales", 5, "")
+
+	// Refusé à nouveau, puis réglages changés (nouvelle clé, autre empreinte) : recontacté aussitôt.
+	s.Register(id.Pin, "")
+	probe("révoqué", 6, agentclient.Unregistered)
+	d.Agent.Key = keyText
+	probe("nouveaux réglages", 7, agentclient.Unregistered)
+
+	// Même règle en wolagent/1 pour une clé refusée.
+	other, _ := protocol.NewKey()
+	d.Agent = &model.AgentSettings{Port: s.Port(), Key: other}
+	probe("clé refusée", 8, agentclient.Unauthorized)
+	probe("clé refusée, pendant le délai", 8, agentclient.Unauthorized)
 }
 
 func TestPingAloneAndNoHost(t *testing.T) {
