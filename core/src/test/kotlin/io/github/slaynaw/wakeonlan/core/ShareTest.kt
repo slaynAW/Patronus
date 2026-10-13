@@ -175,8 +175,8 @@ class ShareTest {
         val pin = Pin.of("agent".toByteArray()).toString()
         val pinned = device("b", "Bureau", "192.168.1.21", agent = true).let { it.copy(agent = it.agent!!.copy(pin = pin)) }
         val owner = ShareOwner(key = "", publicKey = "", name = "Hugo")
-        val content = owner.content(SharePerson("Léa", "x", 1, mapOf("b" to ShareRight.FULL)), listOf(pinned))
-        // La personne passe par la clé (wolagent/1) : son identité n'est pas enregistrée par l'agent.
+        val content = owner.content(SharePerson("Léa", "x", 1, mapOf("b" to ShareRight.FULL)), listOf(pinned), 0)
+        // Partage v1 (demande sans empreinte) : la personne passe par la clé, son identité n'est pas enregistrée par l'agent.
         val shared = content.devices.single().agent!!
         assertEquals(pinned.agent!!.key, shared.key)
         assertEquals("", shared.pin)

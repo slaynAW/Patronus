@@ -27,16 +27,27 @@ data class ShareRequest(
     val device: String,
     /** Identifiant (KeyID) de la clé de la personne invitante : une demande ne sert qu'à elle. */
     val owner: String,
+    /**
+     * Empreinte wolagent/2 de son appareil (paramètre « id », partage v2) ; vide pour une application qui ne connaît que
+     * le partage v1. Le code de vérification ne la couvre pas : l'appareil la retrouve dans son fichier d'accès
+     * ([ShareContent.identity]) et la vérifie.
+     */
+    val identity: String = "",
 ) {
-    val link: String get() = ShareLinks.build("request", "name" to name, "device" to device, "owner" to owner)
+    val link: String
+        get() {
+            val params = listOf("name" to name, "device" to device, "owner" to owner)
+            return ShareLinks.build("request", *(if (identity.isEmpty()) params else params + ("id" to identity)).toTypedArray())
+        }
 
     val isValid: Boolean
-        get() = ShareCrypto.isValidName(name) && ShareCrypto.isValidPublicKey(device) && ShareLinks.KEY_ID.matches(owner)
+        get() = ShareCrypto.isValidName(name) && ShareCrypto.isValidPublicKey(device) && ShareLinks.KEY_ID.matches(owner) &&
+            (identity.isEmpty() || ShareCrypto.isValidIdentity(identity))
 }
 
 /**
  * Liens échangés entre les deux personnes, par QR code ou message (même format que Windows) :
- * `wolshare://invite?v=1&name=…&owner=…&user=…&gist=…` et `wolshare://request?v=1&name=…&device=…&owner=…`.
+ * `wolshare://invite?v=1&name=…&owner=…&user=…&gist=…` et `wolshare://request?v=1&name=…&device=…&owner=…[&id=…]`.
  */
 object ShareLinks {
     const val SCHEME = "wolshare"
@@ -61,7 +72,8 @@ object ShareLinks {
 
     fun parseRequest(text: String): ShareRequest {
         val q = parse(text, "request")
-        return ShareRequest(q["name"].orEmpty(), q["device"].orEmpty(), q["owner"].orEmpty())
+        if (q["id"]?.isEmpty() == true) invalid()
+        return ShareRequest(q["name"].orEmpty(), q["device"].orEmpty(), q["owner"].orEmpty(), q["id"].orEmpty())
             .takeIf { it.isValid } ?: invalid()
     }
 

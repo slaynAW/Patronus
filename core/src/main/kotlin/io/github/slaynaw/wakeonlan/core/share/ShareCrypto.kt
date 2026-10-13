@@ -1,9 +1,15 @@
 package io.github.slaynaw.wakeonlan.core.share
 
+import io.github.slaynaw.wakeonlan.core.agent2.PairingCode
+import io.github.slaynaw.wakeonlan.core.agent2.PairingLinkV2
+import io.github.slaynaw.wakeonlan.core.agent2.Pin
+import io.github.slaynaw.wakeonlan.core.agent2.Role
 import io.github.slaynaw.wakeonlan.core.config.ConfigCodec
 import io.github.slaynaw.wakeonlan.core.config.ConfigException
 import io.github.slaynaw.wakeonlan.core.model.AppConfig
 import io.github.slaynaw.wakeonlan.core.model.Device
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -80,12 +86,35 @@ class ShareKeyPair(val privateKey: ByteArray, val publicKey: ByteArray) {
 }
 
 /** Ce que reçoit l'appareil autorisé (même format que Windows). */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class ShareContent(
     val ownerName: String,
     val recipientName: String = "",
     val devices: List<Device> = emptyList(),
+    /**
+     * Empreinte wolagent/2 de l'appareil destinataire, telle que reçue dans sa demande (partage v2) : l'appareil vérifie
+     * que c'est la sienne avant d'utiliser [invites].
+     */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val identity: String = "",
+    /** Invitations wolagent/2 en attente, réservées à [identity] (partage v2). */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val invites: List<AgentInvite> = emptyList(),
 )
+
+/** Invitation wolagent/2 transmise par le partage : l'appareil destinataire l'utilise (« pair ») pour se faire enregistrer. */
+@Serializable
+data class AgentInvite(
+    /** Identifiant du PC dans [ShareContent.devices]. */
+    val device: String,
+    /** Code d'appairage normalisé (secret : jamais écrit dans les journaux). */
+    val code: String,
+    /** Rôle que donnera l'agent. */
+    val role: String,
+    /** Fin de validité (secondes Unix). */
+    val expires: Long,
+) {
+    override fun toString(): String = "AgentInvite(device=$device, role=$role, expires=$expires, code=***)"
+}
 
 /** Fichier d'accès vérifié et déchiffré. */
 data class OpenedAccess(val revision: Long, val issuedAt: String, val content: ShareContent)
@@ -186,6 +215,9 @@ object ShareCrypto {
         val n = (BigInteger(1, sum.copyOf(4)).toLong() % 1_000_000).toString().padStart(6, '0')
         return n.substring(0, 3) + " " + n.substring(3)
     }
+
+    /** Vrai si [text] est une empreinte wolagent/2 d'appareil (B64, sous sa forme canonique). */
+    fun isValidIdentity(text: String): Boolean = Pin.parse(text)?.toString() == text
 
     /** Nom de personne valide : 1 à 40 caractères, sans caractère de contrôle ni espace autour. */
     fun isValidName(name: String): Boolean {
@@ -294,7 +326,26 @@ object ShareCrypto {
         } catch (e: ConfigException) {
             invalid(e.message ?: "PC invalide", e)
         }
-        return OpenedAccess(payload.revision, payload.issuedAt, content.copy(devices = devices))
+        return OpenedAccess(payload.revision, payload.issuedAt, checkV2(content.copy(devices = devices)))
+    }
+
+    /**
+     * Vérifie les champs du partage v2 (docs/PARTAGE.md, « Partage v2 ») : empreinte de l'appareil destinataire, et
+     * invitations qui désignent chacune un PC du contenu joint par l'empreinte de son agent. Les codes sont normalisés.
+     */
+    private fun checkV2(content: ShareContent): ShareContent {
+        if (content.identity.isNotEmpty() && !isValidIdentity(content.identity)) invalid("empreinte de l'appareil destinataire invalide")
+        if (content.invites.isEmpty()) return content
+        if (content.identity.isEmpty()) invalid("invitations sans empreinte de l'appareil destinataire")
+        val seen = HashSet<String>()
+        val invites = content.invites.map { inv ->
+            val device = content.devices.firstOrNull { it.id == inv.device }
+            if (device?.agent?.hasPin != true || !seen.add(inv.device)) invalid("invitation pour un PC absent, sans empreinte d'agent, ou en double")
+            val code = PairingCode.normalize(inv.code)
+            if (code == null || Role.parse(inv.role) == null || inv.expires !in 1..PairingLinkV2.MAX_EXPIRES) invalid("invitation invalide")
+            inv.copy(code = code)
+        }
+        return content.copy(invites = invites)
     }
 
     // --- Primitives ---

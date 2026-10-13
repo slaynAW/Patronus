@@ -261,8 +261,8 @@ Rôles par défaut :
 | Migration depuis `wolagent/1` | `control`, les droits d'une clé `wolagent/1` (§9) |
 | Hub (2.0) | `wake` ; `control` seulement si une extinction programmée est activée pour ce PC |
 | Partage « démarrer » | Pas d'enregistrement : paquet magique seulement, comme aujourd'hui |
+| Partage « démarrer et consulter » (nouveau) | `wake` : consulter, et noter ses démarrages au journal |
 | Partage « démarrer et éteindre » | `control` |
-| Partage « consulter » (nouveau) | `view` |
 
 ## 6. Commandes
 
@@ -521,9 +521,12 @@ et éteindre ». C'est cohérent avec leurs droits en `wolagent/1`. Chaque migra
 
 ## 10. Partage v2
 
+Format exact et règles des deux côtés : [PARTAGE.md, « Partage v2 »](PARTAGE.md#partage-v2--appareils-enregistrés-par-le-pc).
+
 - Le fichier d'accès (`wakeonlan-share/1`, chiffré pour l'appareil destinataire) ne contient plus la clé de l'agent.
-  Pour les droits « consulter » et « démarrer et éteindre », il contient une **invitation** :
-  `{"host","port","mac","agent","code","role","expires"}`.
+  Pour les droits « démarrer et consulter » et « démarrer et éteindre », il contient l'empreinte de l'agent et une
+  **invitation** (`code`, `role`, `expires`) pour ce PC, dont l'adresse, le port et la MAC figurent déjà dans le
+  contenu.
 - L'application du propriétaire (administrateur du PC) la crée par `invite`, **réservée à l'identité `wolagent/2` du
   destinataire** (`device`), valable 7 jours et renouvelée tant qu'elle n'a pas servi. L'empreinte du destinataire
   arrive par sa demande d'accès, qui gagne un paramètre `id` : `wolshare://request?…&id=<empreinte>`.
@@ -533,8 +536,10 @@ et éteindre ». C'est cohérent avec leurs droits en `wolagent/1`. Chaque migra
 - **Retirer l'accès** : l'application du propriétaire envoie `devices.revoke` aux PC concernés, et supprime le fichier
   d'accès. La révocation prend effet dès qu'un appareil administrateur joint le PC, ou tout de suite avec
   `wol-agent devices revoke`. Le hub (2.0) l'appliquera sans attendre.
-- **En attendant** : le partage `wolagent/1` continue de transmettre `K` pour le droit « démarrer et éteindre »,
-  jamais l'empreinte de l'agent. Un PC dont l'application a effacé `K` ne se partage qu'avec le droit « démarrer ».
+- **Partage v1** : pour une demande sans empreinte (application antérieure), ou un agent qui ne connaît que
+  `wolagent/1`, le partage continue de transmettre `K` pour le droit « démarrer et éteindre », jamais l'empreinte de
+  l'agent. Un PC dont l'application a effacé `K` ne se partage alors qu'avec le droit « démarrer ». À une personne
+  dont la demande porte une empreinte, un PC joint en `wolagent/2` ne se partage jamais par `K`.
 
 ## 11. Coexistence et calendrier
 

@@ -73,7 +73,8 @@ GitHub voit l'existence du Gist, sa taille et ses dates de mise à jour.
 
 ## Format (wakeonlan-share/1)
 
-Vecteurs de test communs Windows / Android : [`protocol/share-vectors.json`](../protocol/share-vectors.json).
+Vecteurs de test communs Windows / Android : [`protocol/share-vectors.json`](../protocol/share-vectors.json), et
+[`protocol/share-v2-vectors.json`](../protocol/share-v2-vectors.json) pour le partage v2.
 
 ### Clés
 
@@ -90,11 +91,12 @@ Vecteurs de test communs Windows / Android : [`protocol/share-vectors.json`](../
 
 ```
 wolshare://invite?v=1&name=<nom>&owner=<clé de signature>&user=<compte GitHub>&gist=<identifiant du Gist>
-wolshare://request?v=1&name=<nom>&device=<clé de réception>&owner=<KeyID de la clé de signature>
+wolshare://request?v=1&name=<nom>&device=<clé de réception>&owner=<KeyID de la clé de signature>[&id=<empreinte>]
 ```
 
 Paramètres encodés en `application/x-www-form-urlencoded` (UTF-8). Noms : 1 à 40 caractères, sans caractère de
-contrôle ni espace en début ou fin.
+contrôle ni espace en début ou fin. Un paramètre en double rend le lien invalide ; les paramètres inconnus sont
+ignorés. `id`, facultatif, sert au [partage v2](#partage-v2--appareils-enregistrés-par-le-pc).
 
 ### Fichier d'accès
 
@@ -112,11 +114,93 @@ Un fichier par appareil autorisé, nommé `acces-<KeyID(clé de réception)>.jso
   `data = AES-256-GCM(clé, iv, contenu, AAD = "wakeonlan-share/1" ‖ clé de signature ‖ clé de réception)`
   (étiquette de 16 octets à la fin).
 - Contenu déchiffré (JSON) : `ownerName`, `recipientName`, `devices` (PC au format de la configuration ; sans `agent`
-  pour un accès « démarrer »).
+  pour un accès « démarrer »), et pour le [partage v2](#partage-v2--appareils-enregistrés-par-le-pc) `identity` et
+  `invites`.
 
 Ordre de vérification à la réception : format et version → signature avec la clé de l'invitation → `owner` identique →
 `device` = sa propre clé → `revision` ≥ dernière reçue → déchiffrement → validation de chaque PC (mêmes règles qu'un
 import). Un fichier absent du Gist signifie : demande pas encore acceptée, ou accès retiré.
+
+### Partage v2 : appareils enregistrés par le PC
+
+Avec le partage v2 (applications 1.13), les fichiers d'accès ne contiennent plus la clé `wolagent/1` des agents :
+chaque PC enregistre l'appareil de la personne autorisée, avec un rôle à sa mesure, grâce à une invitation réservée à
+cet appareil ([PROTOCOLE-V2.md, §10](PROTOCOLE-V2.md#10-partage-v2)). Le format `wakeonlan-share/1` ne change pas :
+le contenu gagne deux champs facultatifs, que les versions précédentes ignorent. Vecteurs de test communs :
+[`protocol/share-v2-vectors.json`](../protocol/share-v2-vectors.json).
+
+**Droits** (`rights` de chaque personne) :
+
+| Droit | Libellé | Partage v2 : rôle donné par l'agent | Partage v1 |
+|---|---|---|---|
+| `wake` | Démarrer | Aucun : l'agent n'est pas joint | Idem |
+| `view` | Démarrer et consulter | `wake` : état, journal, mesures, fiche du PC, et ses démarrages notés au journal | Comme `wake` |
+| `full` | Démarrer et éteindre | `control` | Clé de l'agent transmise |
+
+**Demande d'accès** : le paramètre `id` porte l'empreinte `wolagent/2` de l'appareil qui demande (B64, 43 caractères,
+sous sa forme canonique ; [PROTOCOLE-V2.md, §2.1](PROTOCOLE-V2.md#21-clés-et-empreintes)). Présent, il doit être
+valide, sinon le lien est refusé. Le code de vérification ne le couvre pas, pour rester celui des versions
+précédentes : l'appareil destinataire vérifie dans son fichier d'accès que l'empreinte reçue est bien la sienne.
+Modifiée en route, elle ne donne donc rien à personne : les invitations seraient réservées à une autre identité, et
+leur code n'est lisible que par l'appareil prévu.
+
+**Contenu** :
+
+```json
+{"ownerName":"Hugo","recipientName":"Léa","identity":"<empreinte de l'appareil de Léa>",
+ "devices":[{"id":"c","name":"Salon",…,"agent":{"port":9770,"key":"","pin":"<empreinte de l'agent>"}}],
+ "invites":[{"device":"c","code":"7KQ29MXP","role":"control","expires":1790604800}]}
+```
+
+- `identity` : l'`id` de la demande ; absent en partage v1.
+- `invites` : invitations en attente, réservées à `identity`. `device` désigne un PC de `devices` dont `agent` porte
+  une empreinte (une invitation par PC au plus) ; `code` est un code d'appairage
+  ([PROTOCOLE-V2.md, §7.2](PROTOCOLE-V2.md#72-code-dappairage)), `role` le rôle que donnera l'agent, `expires` la fin
+  de validité (secondes Unix).
+
+**Côté propriétaire**, pour chaque PC partagé avec la personne, dans l'ordre de la configuration :
+
+1. `wake` : le PC sans `agent`.
+2. `view` ou `full`, demande avec `id`, PC dont l'empreinte de l'agent est connue : **partage v2**.
+   - Une invitation a été créée pour cette empreinte, ou l'appareil est enregistré par le PC : `agent` avec le port et
+     l'empreinte, **sans clé**, et une entrée `invites` tant que l'invitation n'a ni servi ni expiré.
+   - Sinon (invitation pas encore créée) : le PC sans `agent`. La clé n'est jamais transmise à la place.
+3. Sinon, **partage v1** (demande sans `id`, ou agent qui ne connaît que `wolagent/1`) : pour `full`, `agent` avec le
+   port et la clé quand l'application la connaît, sans empreinte ; sinon le PC sans `agent`.
+
+L'application du propriétaire, quand elle est administratrice du PC
+([PROTOCOLE-V2.md, §6.2](PROTOCOLE-V2.md#62-administration-rôle-admin)) :
+
+- crée l'invitation : `invite` avec `device` = l'empreinte de la personne, le rôle du droit, `ttl` = 604 800 (7 jours)
+  et le nom de la personne. Elle garde le code, chiffré sur l'appareil, pour le fichier d'accès ; il n'est ni exporté
+  ni écrit dans les journaux ;
+- la renouvelle tant qu'elle n'a pas servi (expirée, ou droit changé) ;
+- constate l'enregistrement dans `devices` : le code est alors oublié et quitte le fichier d'accès ;
+- aligne le rôle (`devices.role`) quand le droit passe de `view` à `full` ou l'inverse ;
+- **retire** l'appareil quand l'accès est retiré, réduit à `wake`, ou demandé de nouveau avec une autre empreinte :
+  elle annule les invitations réservées à cette empreinte (`invites.cancel`), puis envoie `devices.revoke`. Ces
+  retraits attendent dans une file, gardée dans l'export complet, jusqu'à ce que l'application joigne le PC ; un PC
+  accordé en v2 y figure même sans enregistrement connu (sauvegarde restaurée), car retirer un appareil absent ne
+  change rien.
+
+Sans le rôle `admin` sur le PC, l'application ne peut pas créer d'invitation : le PC reste partagé en « démarrer »
+avec les personnes dont la demande porte une empreinte, jusqu'à ce que l'appareil du propriétaire en devienne
+administrateur (`wol-agent devices role <empreinte> admin` sur le PC, ou depuis un appareil administrateur).
+
+**Côté destinataire** :
+
+- `identity` différente de sa propre empreinte : la demande a été modifiée en route. L'application n'utilise ni les
+  `agent` portant une empreinte ni `invites` (ces PC restent en « démarrer ») et propose de refaire la demande.
+- PC dont `agent` porte une empreinte : déjà enregistré par ce PC, l'appareil le joint en `wolagent/2`, comme ses
+  propres PC. Sinon, il utilise l'invitation de ce PC (`pair`) dès qu'il le joint, si elle n'a pas expiré, une seule
+  fois par code ; `already_paired` vaut succès. Sans enregistrement, il ne contacte pas l'agent : une identité
+  inconnue compterait comme un échec ([PROTOCOLE-V2.md, §3.3](PROTOCOLE-V2.md#33-durées-et-limites)).
+- Il ne garde que l'adresse, le port, la MAC et l'empreinte de l'agent, jamais de clé.
+
+**Vérifications à la lecture**, en plus de celles du partage v1 ; une seule erreur fait refuser le fichier :
+`identity` est une empreinte valide ; chaque invitation désigne un PC du contenu dont `agent` porte une empreinte,
+une seule fois ; son code est valide (il est normalisé), son rôle connu, son expiration comprise entre 1 et
+253 402 300 799 ; des invitations sans `identity` sont refusées.
 
 ### GitHub
 

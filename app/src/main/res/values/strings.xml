@@ -567,6 +567,7 @@
     <string name="share_rights">PC partagés</string>
     <string name="share_right_none">Non partagé</string>
     <string name="share_right_wake">Démarrer</string>
+    <string name="share_right_view">Démarrer et consulter</string>
     <string name="share_right_full">Démarrer et éteindre</string>
     <string name="share_right_v2_note">Les PC passés en connexion chiffrée (wolagent/2) se partagent pour l’instant en « Démarrer » : le partage de l’extinction arrive avec la prochaine version du partage.</string>
     <string name="share_grant">Autoriser</string>

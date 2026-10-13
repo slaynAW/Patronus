@@ -1,0 +1,666 @@
+{
+  "comment": "Vecteurs du partage v2 (docs/PARTAGE.md, « Partage v2 »), communs à Windows (Go) et Android (Kotlin). Générés par desktop/internal/share (TestWriteV2Vectors). Clés : celles de share-vectors.json.",
+  "ownerPrivate": "s8gTH9cfIfyRvQ7TMuiKxXnVczQGqjpQzxJ6iDqHmJg",
+  "ownerPublic": "BFeLDSQsW-Wj1L6bJEDXE7WwqLRS7h_-L_Si-3l0S9eDm27Eqg0Gdlyjl8SFGpBtXiMcEVaSDp-dixV9HZeaQWw",
+  "devicePrivate": "aUjXbCZa50xTJ9gvd4jXtP5EHlg4JVfCY2AQ4KkfQss",
+  "devicePublic": "BFbaZt5Je8W3QPh8x8q6QJYjDBMb8dkYgj6mB8Sel2O8dfg34J97eOLeLbTnjiUPFcnCdYcVY1pNU9sbEl4penc",
+  "now": 1790600000,
+  "ownerName": "Hugo",
+  "devices": [
+    {
+      "id": "a",
+      "name": "PC streaming",
+      "mac": "3C:7C:3F:1A:2B:4C",
+      "host": "192.168.1.20",
+      "wolPort": 9,
+      "probePorts": [
+        3389,
+        445
+      ]
+    },
+    {
+      "id": "b",
+      "name": "Bureau",
+      "mac": "00:11:22:33:44:55",
+      "host": "bureau.local",
+      "wolPort": 9,
+      "probePorts": [
+        3389,
+        445,
+        22,
+        139
+      ],
+      "agent": {
+        "port": 9770,
+        "key": "ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4"
+      }
+    },
+    {
+      "id": "c",
+      "name": "Salon",
+      "mac": "00:11:22:33:44:66",
+      "host": "192.168.1.30",
+      "wolPort": 9,
+      "probePorts": [
+        3389
+      ],
+      "agent": {
+        "port": 9770,
+        "key": "gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc",
+        "pin": "EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c"
+      }
+    },
+    {
+      "id": "d",
+      "name": "Atelier",
+      "mac": "00:11:22:33:44:77",
+      "host": "atelier.local",
+      "wolPort": 9,
+      "probePorts": [
+        22
+      ],
+      "agent": {
+        "port": 9771,
+        "key": "",
+        "pin": "43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U"
+      }
+    }
+  ],
+  "pairings": [
+    {
+      "person": "BHPAUi7yC17jWBysZOshZC88o83DtPmX_VJgOHCEJC1rqV9mrMneO7Xl-sSVOuaJ1vDOg-_7SQVgPsA-782Hg3w",
+      "device": "c",
+      "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+      "role": "control",
+      "invite": "AQIDBAUGBwg",
+      "code": "7KQ29MXP",
+      "expires": 1790603600
+    },
+    {
+      "person": "BHPAUi7yC17jWBysZOshZC88o83DtPmX_VJgOHCEJC1rqV9mrMneO7Xl-sSVOuaJ1vDOg-_7SQVgPsA-782Hg3w",
+      "device": "d",
+      "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+      "role": "wake",
+      "registered": true
+    },
+    {
+      "person": "BLn3ivkFQy46VkkXJOnrWNhQULjMkcwU6n-bFSTnUFt6IMWlNjo9UE6FwI9JaI-gWuEyCll4L8uqp5KXTFB1WUo",
+      "device": "c",
+      "identity": "AXALs-P5DbFhNaMVrNzTl_tTCL3O6YQC2HRrKp0G19U",
+      "role": "wake",
+      "invite": "CQoLDA0ODxA",
+      "code": "9MXP7KQ2",
+      "expires": 1790599999
+    },
+    {
+      "person": "BPiz3wYmTx_MSpoqAkX91llT1vpUQL7ca0Ld0fzp0CRhrCgNWQRb8gke-IKhaX9jeydI3gQoA0VsSMg0z3Fe5oM",
+      "device": "c",
+      "identity": "ZeaiedGxTILLewZMYDCaLQQ1uHFmCaI_y58XXPUloSc",
+      "role": "control",
+      "registered": true
+    },
+    {
+      "person": "BNZtEkptj1K5zRcGGBdOCm3ZFtML1bosHjaEYMde7jsHhiobznY1VIbulBwchHsoIbAl-66U17prVI1_gxIgSm8",
+      "device": "c",
+      "identity": "B12NKbA9dZmy6-p_RczRNuqBW8rpuMDNEZzy3yMUhX0",
+      "role": "control",
+      "registered": true
+    }
+  ],
+  "cases": [
+    {
+      "name": "partage v1 : clé de l'agent pour « démarrer et éteindre », jamais son empreinte",
+      "person": {
+        "name": "Léa",
+        "device": "BPvH0D4_uhKYW404uKgUJxKQUFCb1nm8miAZ4N-EaJ-nYfmcZ7GBAf4d8MIeDXKScEA88W7WX_ETyXwoShoRna8",
+        "added": 1790000000000,
+        "rights": {
+          "a": "full",
+          "b": "full",
+          "c": "full",
+          "d": "full"
+        }
+      },
+      "content": {
+        "ownerName": "Hugo",
+        "recipientName": "Léa",
+        "devices": [
+          {
+            "id": "a",
+            "name": "PC streaming",
+            "mac": "3C:7C:3F:1A:2B:4C",
+            "host": "192.168.1.20",
+            "wolPort": 9,
+            "probePorts": [
+              3389,
+              445
+            ]
+          },
+          {
+            "id": "b",
+            "name": "Bureau",
+            "mac": "00:11:22:33:44:55",
+            "host": "bureau.local",
+            "wolPort": 9,
+            "probePorts": [
+              3389,
+              445,
+              22,
+              139
+            ],
+            "agent": {
+              "port": 9770,
+              "key": "ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4"
+            }
+          },
+          {
+            "id": "c",
+            "name": "Salon",
+            "mac": "00:11:22:33:44:66",
+            "host": "192.168.1.30",
+            "wolPort": 9,
+            "probePorts": [
+              3389
+            ],
+            "agent": {
+              "port": 9770,
+              "key": "gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc"
+            }
+          },
+          {
+            "id": "d",
+            "name": "Atelier",
+            "mac": "00:11:22:33:44:77",
+            "host": "atelier.local",
+            "wolPort": 9,
+            "probePorts": [
+              22
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "partage v2 : invitation, appareil enregistré, et repli v1 pour un agent wolagent/1",
+      "person": {
+        "name": "Léa",
+        "device": "BHPAUi7yC17jWBysZOshZC88o83DtPmX_VJgOHCEJC1rqV9mrMneO7Xl-sSVOuaJ1vDOg-_7SQVgPsA-782Hg3w",
+        "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+        "added": 1790000000000,
+        "rights": {
+          "a": "view",
+          "b": "full",
+          "c": "full",
+          "d": "view"
+        }
+      },
+      "content": {
+        "ownerName": "Hugo",
+        "recipientName": "Léa",
+        "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+        "devices": [
+          {
+            "id": "a",
+            "name": "PC streaming",
+            "mac": "3C:7C:3F:1A:2B:4C",
+            "host": "192.168.1.20",
+            "wolPort": 9,
+            "probePorts": [
+              3389,
+              445
+            ]
+          },
+          {
+            "id": "b",
+            "name": "Bureau",
+            "mac": "00:11:22:33:44:55",
+            "host": "bureau.local",
+            "wolPort": 9,
+            "probePorts": [
+              3389,
+              445,
+              22,
+              139
+            ],
+            "agent": {
+              "port": 9770,
+              "key": "ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4"
+            }
+          },
+          {
+            "id": "c",
+            "name": "Salon",
+            "mac": "00:11:22:33:44:66",
+            "host": "192.168.1.30",
+            "wolPort": 9,
+            "probePorts": [
+              3389
+            ],
+            "agent": {
+              "port": 9770,
+              "key": "",
+              "pin": "EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c"
+            }
+          },
+          {
+            "id": "d",
+            "name": "Atelier",
+            "mac": "00:11:22:33:44:77",
+            "host": "atelier.local",
+            "wolPort": 9,
+            "probePorts": [
+              22
+            ],
+            "agent": {
+              "port": 9771,
+              "key": "",
+              "pin": "43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U"
+            }
+          }
+        ],
+        "invites": [
+          {
+            "device": "c",
+            "code": "7KQ29MXP",
+            "role": "control",
+            "expires": 1790603600
+          }
+        ]
+      }
+    },
+    {
+      "name": "partage v2 avant l'invitation : ni clé ni empreinte",
+      "person": {
+        "name": "Léa",
+        "device": "BJlGbfIB1wag6ut5V9iWxo556lVKF7OxgvLciMMtXNKecPEBu-Nr7sdkYVPXWOFaEn--3lvu9AqQOIFjVPA-Lu4",
+        "identity": "t3XjyhilEnEdr9k3PfC_SbrJN2b51LU3gqxQONp4z6U",
+        "added": 1790000000000,
+        "rights": {
+          "c": "full",
+          "d": "view"
+        }
+      },
+      "content": {
+        "ownerName": "Hugo",
+        "recipientName": "Léa",
+        "identity": "t3XjyhilEnEdr9k3PfC_SbrJN2b51LU3gqxQONp4z6U",
+        "devices": [
+          {
+            "id": "c",
+            "name": "Salon",
+            "mac": "00:11:22:33:44:66",
+            "host": "192.168.1.30",
+            "wolPort": 9,
+            "probePorts": [
+              3389
+            ]
+          },
+          {
+            "id": "d",
+            "name": "Atelier",
+            "mac": "00:11:22:33:44:77",
+            "host": "atelier.local",
+            "wolPort": 9,
+            "probePorts": [
+              22
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "invitation expirée : empreinte de l'agent sans invitation",
+      "person": {
+        "name": "Léa",
+        "device": "BLn3ivkFQy46VkkXJOnrWNhQULjMkcwU6n-bFSTnUFt6IMWlNjo9UE6FwI9JaI-gWuEyCll4L8uqp5KXTFB1WUo",
+        "identity": "AXALs-P5DbFhNaMVrNzTl_tTCL3O6YQC2HRrKp0G19U",
+        "added": 1790000000000,
+        "rights": {
+          "c": "view"
+        }
+      },
+      "content": {
+        "ownerName": "Hugo",
+        "recipientName": "Léa",
+        "identity": "AXALs-P5DbFhNaMVrNzTl_tTCL3O6YQC2HRrKp0G19U",
+        "devices": [
+          {
+            "id": "c",
+            "name": "Salon",
+            "mac": "00:11:22:33:44:66",
+            "host": "192.168.1.30",
+            "wolPort": 9,
+            "probePorts": [
+              3389
+            ],
+            "agent": {
+              "port": 9770,
+              "key": "",
+              "pin": "EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "appairage d'une ancienne empreinte : ignoré",
+      "person": {
+        "name": "Léa",
+        "device": "BPiz3wYmTx_MSpoqAkX91llT1vpUQL7ca0Ld0fzp0CRhrCgNWQRb8gke-IKhaX9jeydI3gQoA0VsSMg0z3Fe5oM",
+        "identity": "s4fTzlqJN1BNm4B6p2kSzudwfNmdRWLkyKYRk-0N7EU",
+        "added": 1790000000000,
+        "rights": {
+          "c": "full"
+        }
+      },
+      "content": {
+        "ownerName": "Hugo",
+        "recipientName": "Léa",
+        "identity": "s4fTzlqJN1BNm4B6p2kSzudwfNmdRWLkyKYRk-0N7EU",
+        "devices": [
+          {
+            "id": "c",
+            "name": "Salon",
+            "mac": "00:11:22:33:44:66",
+            "host": "192.168.1.30",
+            "wolPort": 9,
+            "probePorts": [
+              3389
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "« démarrer » : jamais d'agent",
+      "person": {
+        "name": "Léa",
+        "device": "BNZtEkptj1K5zRcGGBdOCm3ZFtML1bosHjaEYMde7jsHhiobznY1VIbulBwchHsoIbAl-66U17prVI1_gxIgSm8",
+        "identity": "B12NKbA9dZmy6-p_RczRNuqBW8rpuMDNEZzy3yMUhX0",
+        "added": 1790000000000,
+        "rights": {
+          "c": "wake"
+        }
+      },
+      "content": {
+        "ownerName": "Hugo",
+        "recipientName": "Léa",
+        "identity": "B12NKbA9dZmy6-p_RczRNuqBW8rpuMDNEZzy3yMUhX0",
+        "devices": [
+          {
+            "id": "c",
+            "name": "Salon",
+            "mac": "00:11:22:33:44:66",
+            "host": "192.168.1.30",
+            "wolPort": 9,
+            "probePorts": [
+              3389
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "revocations": {
+    "people": [
+      {
+        "name": "Léa",
+        "device": "BAzODgxl_YFc8enKwNQzNZZzKYieg2-Jk2s_mq9qrsRR-HvjM0rfN6E4TMhLuAcLv2KoP_dMzLxXRst_ABOB2sQ",
+        "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+        "added": 1790000000000,
+        "rights": {
+          "c": "full",
+          "d": "view"
+        }
+      }
+    ],
+    "pairings": [
+      {
+        "person": "BAzODgxl_YFc8enKwNQzNZZzKYieg2-Jk2s_mq9qrsRR-HvjM0rfN6E4TMhLuAcLv2KoP_dMzLxXRst_ABOB2sQ",
+        "device": "c",
+        "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+        "role": "control",
+        "registered": true
+      },
+      {
+        "person": "BAzODgxl_YFc8enKwNQzNZZzKYieg2-Jk2s_mq9qrsRR-HvjM0rfN6E4TMhLuAcLv2KoP_dMzLxXRst_ABOB2sQ",
+        "device": "d",
+        "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+        "role": "wake",
+        "invite": "AQIDBAUGBwg",
+        "code": "7KQ29MXP",
+        "expires": 1790600600
+      }
+    ],
+    "steps": [
+      {
+        "op": "grant",
+        "person": {
+          "name": "Léa",
+          "device": "BAzODgxl_YFc8enKwNQzNZZzKYieg2-Jk2s_mq9qrsRR-HvjM0rfN6E4TMhLuAcLv2KoP_dMzLxXRst_ABOB2sQ",
+          "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+          "added": 1790000000000,
+          "rights": {
+            "c": "full",
+            "d": "wake"
+          }
+        },
+        "pairings": [
+          {
+            "person": "BAzODgxl_YFc8enKwNQzNZZzKYieg2-Jk2s_mq9qrsRR-HvjM0rfN6E4TMhLuAcLv2KoP_dMzLxXRst_ABOB2sQ",
+            "device": "c",
+            "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+            "role": "control",
+            "registered": true
+          }
+        ],
+        "revocations": [
+          {
+            "device": "d",
+            "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ"
+          }
+        ]
+      },
+      {
+        "op": "grant",
+        "person": {
+          "name": "Léa",
+          "device": "BAzODgxl_YFc8enKwNQzNZZzKYieg2-Jk2s_mq9qrsRR-HvjM0rfN6E4TMhLuAcLv2KoP_dMzLxXRst_ABOB2sQ",
+          "identity": "3b5L4tADLWDwMehpdftsKtC_635kIzoseTCz7I0lrgo",
+          "added": 1790000000000,
+          "rights": {
+            "c": "full",
+            "d": "view"
+          }
+        },
+        "pairings": [],
+        "revocations": [
+          {
+            "device": "c",
+            "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ"
+          },
+          {
+            "device": "d",
+            "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ"
+          }
+        ]
+      },
+      {
+        "op": "grant",
+        "person": {
+          "name": "Léa",
+          "device": "BAzODgxl_YFc8enKwNQzNZZzKYieg2-Jk2s_mq9qrsRR-HvjM0rfN6E4TMhLuAcLv2KoP_dMzLxXRst_ABOB2sQ",
+          "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+          "added": 1790000000000,
+          "rights": {
+            "c": "view"
+          }
+        },
+        "pairings": [],
+        "revocations": [
+          {
+            "device": "c",
+            "identity": "3b5L4tADLWDwMehpdftsKtC_635kIzoseTCz7I0lrgo"
+          },
+          {
+            "device": "d",
+            "identity": "3b5L4tADLWDwMehpdftsKtC_635kIzoseTCz7I0lrgo"
+          },
+          {
+            "device": "d",
+            "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ"
+          }
+        ]
+      },
+      {
+        "op": "grant",
+        "person": {
+          "name": "Paul",
+          "device": "BNCv5QgWwPavfLHXAEby8wYYIUOtuNVHWeV3sDwKiQhCDHqY-975jK00Lr2P7bjtpZtLQIul-6AVKfFomGDkPa0",
+          "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+          "added": 1790000000000,
+          "rights": {
+            "d": "full"
+          }
+        },
+        "pairings": [],
+        "revocations": [
+          {
+            "device": "c",
+            "identity": "3b5L4tADLWDwMehpdftsKtC_635kIzoseTCz7I0lrgo"
+          },
+          {
+            "device": "d",
+            "identity": "3b5L4tADLWDwMehpdftsKtC_635kIzoseTCz7I0lrgo"
+          }
+        ]
+      },
+      {
+        "op": "withdraw",
+        "device": "BAzODgxl_YFc8enKwNQzNZZzKYieg2-Jk2s_mq9qrsRR-HvjM0rfN6E4TMhLuAcLv2KoP_dMzLxXRst_ABOB2sQ",
+        "pairings": [],
+        "revocations": [
+          {
+            "device": "c",
+            "identity": "3b5L4tADLWDwMehpdftsKtC_635kIzoseTCz7I0lrgo"
+          },
+          {
+            "device": "c",
+            "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ"
+          },
+          {
+            "device": "d",
+            "identity": "3b5L4tADLWDwMehpdftsKtC_635kIzoseTCz7I0lrgo"
+          }
+        ]
+      },
+      {
+        "op": "withdraw",
+        "device": "BNCv5QgWwPavfLHXAEby8wYYIUOtuNVHWeV3sDwKiQhCDHqY-975jK00Lr2P7bjtpZtLQIul-6AVKfFomGDkPa0",
+        "pairings": [],
+        "revocations": [
+          {
+            "device": "c",
+            "identity": "3b5L4tADLWDwMehpdftsKtC_635kIzoseTCz7I0lrgo"
+          },
+          {
+            "device": "c",
+            "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ"
+          },
+          {
+            "device": "d",
+            "identity": "3b5L4tADLWDwMehpdftsKtC_635kIzoseTCz7I0lrgo"
+          },
+          {
+            "device": "d",
+            "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ"
+          }
+        ]
+      }
+    ]
+  },
+  "request": {
+    "link": "wolshare://request?device=BFbaZt5Je8W3QPh8x8q6QJYjDBMb8dkYgj6mB8Sel2O8dfg34J97eOLeLbTnjiUPFcnCdYcVY1pNU9sbEl4penc&id=Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ&name=L%C3%A9a&owner=2afb65a9e082480748c0c7e24e86e68f&v=1",
+    "fields": {
+      "name": "Léa",
+      "device": "BFbaZt5Je8W3QPh8x8q6QJYjDBMb8dkYgj6mB8Sel2O8dfg34J97eOLeLbTnjiUPFcnCdYcVY1pNU9sbEl4penc",
+      "owner": "2afb65a9e082480748c0c7e24e86e68f",
+      "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ"
+    }
+  },
+  "invalidRequests": [
+    "wolshare://request?device=BFbaZt5Je8W3QPh8x8q6QJYjDBMb8dkYgj6mB8Sel2O8dfg34J97eOLeLbTnjiUPFcnCdYcVY1pNU9sbEl4penc&name=L%C3%A9a&owner=2afb65a9e082480748c0c7e24e86e68f&v=1&id=",
+    "wolshare://request?device=BFbaZt5Je8W3QPh8x8q6QJYjDBMb8dkYgj6mB8Sel2O8dfg34J97eOLeLbTnjiUPFcnCdYcVY1pNU9sbEl4penc&name=L%C3%A9a&owner=2afb65a9e082480748c0c7e24e86e68f&v=1&id=AAAA",
+    "wolshare://request?device=BFbaZt5Je8W3QPh8x8q6QJYjDBMb8dkYgj6mB8Sel2O8dfg34J97eOLeLbTnjiUPFcnCdYcVY1pNU9sbEl4penc&name=L%C3%A9a&owner=2afb65a9e082480748c0c7e24e86e68f&v=1&id=Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ&id=Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+    "wolshare://request?device=BFbaZt5Je8W3QPh8x8q6QJYjDBMb8dkYgj6mB8Sel2O8dfg34J97eOLeLbTnjiUPFcnCdYcVY1pNU9sbEl4penc&name=L%C3%A9a&owner=2afb65a9e082480748c0c7e24e86e68f&v=1&id=Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeR",
+    "wolshare://request?device=BFbaZt5Je8W3QPh8x8q6QJYjDBMb8dkYgj6mB8Sel2O8dfg34J97eOLeLbTnjiUPFcnCdYcVY1pNU9sbEl4penc&name=L%C3%A9a&owner=2afb65a9e082480748c0c7e24e86e68f&v=1&id=%2Bg3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ"
+  ],
+  "contents": [
+    {
+      "name": "invitation (code normalisé)",
+      "plaintext": "{\"ownerName\":\"Hugo\",\"recipientName\":\"Léa\",\"identity\":\"Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ\",\"invites\":[{\"device\":\"c\",\"code\":\"7kq2-9mxp\",\"role\":\"control\",\"expires\":1790603600},{\"device\":\"d\",\"code\":\"9MXP 7KQ2\",\"role\":\"wake\",\"expires\":253402300799}],\"devices\":[{\"id\":\"a\",\"name\":\"PC streaming\",\"mac\":\"3C:7C:3F:1A:2B:4C\",\"host\":\"192.168.1.20\",\"wolPort\":9,\"probePorts\":[3389,445]},{\"id\":\"b\",\"name\":\"Bureau\",\"mac\":\"00:11:22:33:44:55\",\"host\":\"bureau.local\",\"wolPort\":9,\"probePorts\":[3389,445,22,139],\"agent\":{\"port\":9770,\"key\":\"ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4\"}},{\"id\":\"c\",\"name\":\"Salon\",\"mac\":\"00:11:22:33:44:66\",\"host\":\"192.168.1.30\",\"wolPort\":9,\"probePorts\":[3389],\"agent\":{\"port\":9770,\"key\":\"gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc\",\"pin\":\"EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c\"}},{\"id\":\"d\",\"name\":\"Atelier\",\"mac\":\"00:11:22:33:44:77\",\"host\":\"atelier.local\",\"wolPort\":9,\"probePorts\":[22],\"agent\":{\"port\":9771,\"key\":\"\",\"pin\":\"43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U\"}}]}",
+      "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+      "invites": [
+        {
+          "device": "c",
+          "code": "7KQ29MXP",
+          "role": "control",
+          "expires": 1790603600
+        },
+        {
+          "device": "d",
+          "code": "9MXP7KQ2",
+          "role": "wake",
+          "expires": 253402300799
+        }
+      ]
+    },
+    {
+      "name": "empreinte sans invitation",
+      "plaintext": "{\"ownerName\":\"Hugo\",\"recipientName\":\"Léa\",\"identity\":\"Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ\",\"invites\":[],\"devices\":[{\"id\":\"a\",\"name\":\"PC streaming\",\"mac\":\"3C:7C:3F:1A:2B:4C\",\"host\":\"192.168.1.20\",\"wolPort\":9,\"probePorts\":[3389,445]},{\"id\":\"b\",\"name\":\"Bureau\",\"mac\":\"00:11:22:33:44:55\",\"host\":\"bureau.local\",\"wolPort\":9,\"probePorts\":[3389,445,22,139],\"agent\":{\"port\":9770,\"key\":\"ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4\"}},{\"id\":\"c\",\"name\":\"Salon\",\"mac\":\"00:11:22:33:44:66\",\"host\":\"192.168.1.30\",\"wolPort\":9,\"probePorts\":[3389],\"agent\":{\"port\":9770,\"key\":\"gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc\",\"pin\":\"EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c\"}},{\"id\":\"d\",\"name\":\"Atelier\",\"mac\":\"00:11:22:33:44:77\",\"host\":\"atelier.local\",\"wolPort\":9,\"probePorts\":[22],\"agent\":{\"port\":9771,\"key\":\"\",\"pin\":\"43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U\"}}]}",
+      "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ"
+    },
+    {
+      "name": "partage v1",
+      "plaintext": "{\"ownerName\":\"Hugo\",\"recipientName\":\"Léa\",\"devices\":[{\"id\":\"a\",\"name\":\"PC streaming\",\"mac\":\"3C:7C:3F:1A:2B:4C\",\"host\":\"192.168.1.20\",\"wolPort\":9,\"probePorts\":[3389,445]},{\"id\":\"b\",\"name\":\"Bureau\",\"mac\":\"00:11:22:33:44:55\",\"host\":\"bureau.local\",\"wolPort\":9,\"probePorts\":[3389,445,22,139],\"agent\":{\"port\":9770,\"key\":\"ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4\"}},{\"id\":\"c\",\"name\":\"Salon\",\"mac\":\"00:11:22:33:44:66\",\"host\":\"192.168.1.30\",\"wolPort\":9,\"probePorts\":[3389],\"agent\":{\"port\":9770,\"key\":\"gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc\",\"pin\":\"EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c\"}},{\"id\":\"d\",\"name\":\"Atelier\",\"mac\":\"00:11:22:33:44:77\",\"host\":\"atelier.local\",\"wolPort\":9,\"probePorts\":[22],\"agent\":{\"port\":9771,\"key\":\"\",\"pin\":\"43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U\"}}]}"
+    }
+  ],
+  "invalidContents": [
+    {
+      "name": "empreinte invalide",
+      "plaintext": "{\"ownerName\":\"Hugo\",\"recipientName\":\"Léa\",\"identity\":\"AAAA\",\"devices\":[{\"id\":\"a\",\"name\":\"PC streaming\",\"mac\":\"3C:7C:3F:1A:2B:4C\",\"host\":\"192.168.1.20\",\"wolPort\":9,\"probePorts\":[3389,445]},{\"id\":\"b\",\"name\":\"Bureau\",\"mac\":\"00:11:22:33:44:55\",\"host\":\"bureau.local\",\"wolPort\":9,\"probePorts\":[3389,445,22,139],\"agent\":{\"port\":9770,\"key\":\"ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4\"}},{\"id\":\"c\",\"name\":\"Salon\",\"mac\":\"00:11:22:33:44:66\",\"host\":\"192.168.1.30\",\"wolPort\":9,\"probePorts\":[3389],\"agent\":{\"port\":9770,\"key\":\"gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc\",\"pin\":\"EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c\"}},{\"id\":\"d\",\"name\":\"Atelier\",\"mac\":\"00:11:22:33:44:77\",\"host\":\"atelier.local\",\"wolPort\":9,\"probePorts\":[22],\"agent\":{\"port\":9771,\"key\":\"\",\"pin\":\"43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U\"}}]}"
+    },
+    {
+      "name": "invitations sans empreinte",
+      "plaintext": "{\"ownerName\":\"Hugo\",\"recipientName\":\"Léa\",\"invites\":[{\"device\":\"c\",\"code\":\"7kq2-9mxp\",\"role\":\"control\",\"expires\":1790603600}],\"devices\":[{\"id\":\"a\",\"name\":\"PC streaming\",\"mac\":\"3C:7C:3F:1A:2B:4C\",\"host\":\"192.168.1.20\",\"wolPort\":9,\"probePorts\":[3389,445]},{\"id\":\"b\",\"name\":\"Bureau\",\"mac\":\"00:11:22:33:44:55\",\"host\":\"bureau.local\",\"wolPort\":9,\"probePorts\":[3389,445,22,139],\"agent\":{\"port\":9770,\"key\":\"ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4\"}},{\"id\":\"c\",\"name\":\"Salon\",\"mac\":\"00:11:22:33:44:66\",\"host\":\"192.168.1.30\",\"wolPort\":9,\"probePorts\":[3389],\"agent\":{\"port\":9770,\"key\":\"gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc\",\"pin\":\"EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c\"}},{\"id\":\"d\",\"name\":\"Atelier\",\"mac\":\"00:11:22:33:44:77\",\"host\":\"atelier.local\",\"wolPort\":9,\"probePorts\":[22],\"agent\":{\"port\":9771,\"key\":\"\",\"pin\":\"43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U\"}}]}"
+    },
+    {
+      "name": "invitation pour un PC absent",
+      "plaintext": "{\"ownerName\":\"Hugo\",\"recipientName\":\"Léa\",\"identity\":\"Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ\",\"invites\":[{\"device\":\"z\",\"code\":\"7KQ29MXP\",\"role\":\"control\",\"expires\":1790603600}],\"devices\":[{\"id\":\"a\",\"name\":\"PC streaming\",\"mac\":\"3C:7C:3F:1A:2B:4C\",\"host\":\"192.168.1.20\",\"wolPort\":9,\"probePorts\":[3389,445]},{\"id\":\"b\",\"name\":\"Bureau\",\"mac\":\"00:11:22:33:44:55\",\"host\":\"bureau.local\",\"wolPort\":9,\"probePorts\":[3389,445,22,139],\"agent\":{\"port\":9770,\"key\":\"ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4\"}},{\"id\":\"c\",\"name\":\"Salon\",\"mac\":\"00:11:22:33:44:66\",\"host\":\"192.168.1.30\",\"wolPort\":9,\"probePorts\":[3389],\"agent\":{\"port\":9770,\"key\":\"gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc\",\"pin\":\"EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c\"}},{\"id\":\"d\",\"name\":\"Atelier\",\"mac\":\"00:11:22:33:44:77\",\"host\":\"atelier.local\",\"wolPort\":9,\"probePorts\":[22],\"agent\":{\"port\":9771,\"key\":\"\",\"pin\":\"43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U\"}}]}"
+    },
+    {
+      "name": "invitation pour un PC sans empreinte d'agent",
+      "plaintext": "{\"ownerName\":\"Hugo\",\"recipientName\":\"Léa\",\"identity\":\"Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ\",\"invites\":[{\"device\":\"b\",\"code\":\"7KQ29MXP\",\"role\":\"control\",\"expires\":1790603600}],\"devices\":[{\"id\":\"a\",\"name\":\"PC streaming\",\"mac\":\"3C:7C:3F:1A:2B:4C\",\"host\":\"192.168.1.20\",\"wolPort\":9,\"probePorts\":[3389,445]},{\"id\":\"b\",\"name\":\"Bureau\",\"mac\":\"00:11:22:33:44:55\",\"host\":\"bureau.local\",\"wolPort\":9,\"probePorts\":[3389,445,22,139],\"agent\":{\"port\":9770,\"key\":\"ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4\"}},{\"id\":\"c\",\"name\":\"Salon\",\"mac\":\"00:11:22:33:44:66\",\"host\":\"192.168.1.30\",\"wolPort\":9,\"probePorts\":[3389],\"agent\":{\"port\":9770,\"key\":\"gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc\",\"pin\":\"EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c\"}},{\"id\":\"d\",\"name\":\"Atelier\",\"mac\":\"00:11:22:33:44:77\",\"host\":\"atelier.local\",\"wolPort\":9,\"probePorts\":[22],\"agent\":{\"port\":9771,\"key\":\"\",\"pin\":\"43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U\"}}]}"
+    },
+    {
+      "name": "deux invitations pour un PC",
+      "plaintext": "{\"ownerName\":\"Hugo\",\"recipientName\":\"Léa\",\"identity\":\"Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ\",\"invites\":[{\"device\":\"c\",\"code\":\"7kq2-9mxp\",\"role\":\"control\",\"expires\":1790603600},{\"device\":\"c\",\"code\":\"7kq2-9mxp\",\"role\":\"control\",\"expires\":1790603600}],\"devices\":[{\"id\":\"a\",\"name\":\"PC streaming\",\"mac\":\"3C:7C:3F:1A:2B:4C\",\"host\":\"192.168.1.20\",\"wolPort\":9,\"probePorts\":[3389,445]},{\"id\":\"b\",\"name\":\"Bureau\",\"mac\":\"00:11:22:33:44:55\",\"host\":\"bureau.local\",\"wolPort\":9,\"probePorts\":[3389,445,22,139],\"agent\":{\"port\":9770,\"key\":\"ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4\"}},{\"id\":\"c\",\"name\":\"Salon\",\"mac\":\"00:11:22:33:44:66\",\"host\":\"192.168.1.30\",\"wolPort\":9,\"probePorts\":[3389],\"agent\":{\"port\":9770,\"key\":\"gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc\",\"pin\":\"EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c\"}},{\"id\":\"d\",\"name\":\"Atelier\",\"mac\":\"00:11:22:33:44:77\",\"host\":\"atelier.local\",\"wolPort\":9,\"probePorts\":[22],\"agent\":{\"port\":9771,\"key\":\"\",\"pin\":\"43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U\"}}]}"
+    },
+    {
+      "name": "code invalide",
+      "plaintext": "{\"ownerName\":\"Hugo\",\"recipientName\":\"Léa\",\"identity\":\"Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ\",\"invites\":[{\"device\":\"c\",\"code\":\"7KQ2-9MXU\",\"role\":\"control\",\"expires\":1790603600}],\"devices\":[{\"id\":\"a\",\"name\":\"PC streaming\",\"mac\":\"3C:7C:3F:1A:2B:4C\",\"host\":\"192.168.1.20\",\"wolPort\":9,\"probePorts\":[3389,445]},{\"id\":\"b\",\"name\":\"Bureau\",\"mac\":\"00:11:22:33:44:55\",\"host\":\"bureau.local\",\"wolPort\":9,\"probePorts\":[3389,445,22,139],\"agent\":{\"port\":9770,\"key\":\"ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4\"}},{\"id\":\"c\",\"name\":\"Salon\",\"mac\":\"00:11:22:33:44:66\",\"host\":\"192.168.1.30\",\"wolPort\":9,\"probePorts\":[3389],\"agent\":{\"port\":9770,\"key\":\"gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc\",\"pin\":\"EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c\"}},{\"id\":\"d\",\"name\":\"Atelier\",\"mac\":\"00:11:22:33:44:77\",\"host\":\"atelier.local\",\"wolPort\":9,\"probePorts\":[22],\"agent\":{\"port\":9771,\"key\":\"\",\"pin\":\"43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U\"}}]}"
+    },
+    {
+      "name": "rôle inconnu",
+      "plaintext": "{\"ownerName\":\"Hugo\",\"recipientName\":\"Léa\",\"identity\":\"Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ\",\"invites\":[{\"device\":\"c\",\"code\":\"7KQ29MXP\",\"role\":\"owner\",\"expires\":1790603600}],\"devices\":[{\"id\":\"a\",\"name\":\"PC streaming\",\"mac\":\"3C:7C:3F:1A:2B:4C\",\"host\":\"192.168.1.20\",\"wolPort\":9,\"probePorts\":[3389,445]},{\"id\":\"b\",\"name\":\"Bureau\",\"mac\":\"00:11:22:33:44:55\",\"host\":\"bureau.local\",\"wolPort\":9,\"probePorts\":[3389,445,22,139],\"agent\":{\"port\":9770,\"key\":\"ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4\"}},{\"id\":\"c\",\"name\":\"Salon\",\"mac\":\"00:11:22:33:44:66\",\"host\":\"192.168.1.30\",\"wolPort\":9,\"probePorts\":[3389],\"agent\":{\"port\":9770,\"key\":\"gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc\",\"pin\":\"EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c\"}},{\"id\":\"d\",\"name\":\"Atelier\",\"mac\":\"00:11:22:33:44:77\",\"host\":\"atelier.local\",\"wolPort\":9,\"probePorts\":[22],\"agent\":{\"port\":9771,\"key\":\"\",\"pin\":\"43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U\"}}]}"
+    },
+    {
+      "name": "expiration nulle",
+      "plaintext": "{\"ownerName\":\"Hugo\",\"recipientName\":\"Léa\",\"identity\":\"Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ\",\"invites\":[{\"device\":\"c\",\"code\":\"7KQ29MXP\",\"role\":\"control\",\"expires\":0}],\"devices\":[{\"id\":\"a\",\"name\":\"PC streaming\",\"mac\":\"3C:7C:3F:1A:2B:4C\",\"host\":\"192.168.1.20\",\"wolPort\":9,\"probePorts\":[3389,445]},{\"id\":\"b\",\"name\":\"Bureau\",\"mac\":\"00:11:22:33:44:55\",\"host\":\"bureau.local\",\"wolPort\":9,\"probePorts\":[3389,445,22,139],\"agent\":{\"port\":9770,\"key\":\"ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4\"}},{\"id\":\"c\",\"name\":\"Salon\",\"mac\":\"00:11:22:33:44:66\",\"host\":\"192.168.1.30\",\"wolPort\":9,\"probePorts\":[3389],\"agent\":{\"port\":9770,\"key\":\"gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc\",\"pin\":\"EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c\"}},{\"id\":\"d\",\"name\":\"Atelier\",\"mac\":\"00:11:22:33:44:77\",\"host\":\"atelier.local\",\"wolPort\":9,\"probePorts\":[22],\"agent\":{\"port\":9771,\"key\":\"\",\"pin\":\"43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U\"}}]}"
+    },
+    {
+      "name": "expiration trop lointaine",
+      "plaintext": "{\"ownerName\":\"Hugo\",\"recipientName\":\"Léa\",\"identity\":\"Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ\",\"invites\":[{\"device\":\"c\",\"code\":\"7KQ29MXP\",\"role\":\"control\",\"expires\":253402300800}],\"devices\":[{\"id\":\"a\",\"name\":\"PC streaming\",\"mac\":\"3C:7C:3F:1A:2B:4C\",\"host\":\"192.168.1.20\",\"wolPort\":9,\"probePorts\":[3389,445]},{\"id\":\"b\",\"name\":\"Bureau\",\"mac\":\"00:11:22:33:44:55\",\"host\":\"bureau.local\",\"wolPort\":9,\"probePorts\":[3389,445,22,139],\"agent\":{\"port\":9770,\"key\":\"ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4\"}},{\"id\":\"c\",\"name\":\"Salon\",\"mac\":\"00:11:22:33:44:66\",\"host\":\"192.168.1.30\",\"wolPort\":9,\"probePorts\":[3389],\"agent\":{\"port\":9770,\"key\":\"gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc\",\"pin\":\"EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c\"}},{\"id\":\"d\",\"name\":\"Atelier\",\"mac\":\"00:11:22:33:44:77\",\"host\":\"atelier.local\",\"wolPort\":9,\"probePorts\":[22],\"agent\":{\"port\":9771,\"key\":\"\",\"pin\":\"43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U\"}}]}"
+    }
+  ]
+}

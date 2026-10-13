@@ -10,7 +10,7 @@ import (
 // Liens échangés entre les deux personnes (QR code ou message) ; aucun ne contient de secret.
 //
 //	wolshare://invite?v=1&name=…&owner=…&user=…&gist=…   (de la personne qui partage)
-//	wolshare://request?v=1&name=…&device=…&owner=…       (de la personne qui demande l'accès)
+//	wolshare://request?v=1&name=…&device=…&owner=…[&id=…] (de la personne qui demande l'accès)
 const Scheme = "wolshare"
 
 var (
@@ -40,6 +40,10 @@ type Request struct {
 	Device string `json:"device"`
 	// Owner est l'identifiant (KeyID) de la clé de la personne invitante : une demande ne sert qu'à elle.
 	Owner string `json:"owner"`
+	// Identity est l'empreinte wolagent/2 de son appareil (paramètre « id », partage v2) ; vide pour
+	// une application qui ne connaît que le partage v1. Le code de vérification ne la couvre pas :
+	// l'appareil la retrouve dans son fichier d'accès (Content.Identity) et la vérifie.
+	Identity string `json:"identity,omitempty"`
 }
 
 // Link renvoie le lien de l'invitation.
@@ -49,7 +53,11 @@ func (i Invite) Link() string {
 
 // Link renvoie le lien de la demande.
 func (r Request) Link() string {
-	return build("request", url.Values{"name": {r.Name}, "device": {r.Device}, "owner": {r.Owner}})
+	q := url.Values{"name": {r.Name}, "device": {r.Device}, "owner": {r.Owner}}
+	if r.Identity != "" {
+		q.Set("id", r.Identity)
+	}
+	return build("request", q)
 }
 
 func build(kind string, q url.Values) string {
@@ -67,7 +75,7 @@ func (i Invite) Validate() error {
 
 // Validate vérifie chaque champ d'une demande.
 func (r Request) Validate() error {
-	if !ValidName(r.Name) || !ValidDeviceKey(r.Device) || !idPattern.MatchString(r.Owner) {
+	if !ValidName(r.Name) || !ValidDeviceKey(r.Device) || !idPattern.MatchString(r.Owner) || (r.Identity != "" && !validIdentity(r.Identity)) {
 		return ErrLink
 	}
 	return nil
@@ -89,7 +97,10 @@ func ParseRequest(text string) (Request, error) {
 	if err != nil {
 		return Request{}, err
 	}
-	r := Request{Name: q.Get("name"), Device: q.Get("device"), Owner: q.Get("owner")}
+	r := Request{Name: q.Get("name"), Device: q.Get("device"), Owner: q.Get("owner"), Identity: q.Get("id")}
+	if q.Has("id") && r.Identity == "" {
+		return r, ErrLink
+	}
 	return r, r.Validate()
 }
 

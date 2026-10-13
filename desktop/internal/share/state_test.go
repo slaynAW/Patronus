@@ -130,12 +130,13 @@ func TestStoreRoundTrip(t *testing.T) {
 	}
 }
 
+// Partage v1 (demande sans empreinte) : la clé de l'agent, jamais son empreinte.
 func TestContentNeverCarriesAgentPin(t *testing.T) {
 	devices := testDevices(t)
 	pin := protocol2.PinOf([]byte("agent")).String()
 	devices[1].Agent = &model.AgentSettings{Port: 9770, Key: devices[1].Agent.Key, Pin: pin}
 	owner := &Owner{Name: "Hugo"}
-	c := owner.Content(Person{Name: "Léa", Rights: map[string]Right{"a": RightWake, "b": RightFull}}, devices)
+	c := owner.Content(Person{Name: "Léa", Rights: map[string]Right{"a": RightWake, "b": RightFull}}, devices, time.Now())
 	if len(c.Devices) != 2 || c.Devices[0].Agent != nil {
 		t.Fatalf("contenu : %+v", c.Devices)
 	}
