@@ -131,16 +131,28 @@ func (s *Server) EnableV2() protocol2.Pin {
 func (s *Server) Invite(role string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.invite(role, "", time.Hour).Code
+	return s.invite(role, "", time.Hour, "").Code
 }
 
-// invite crée une invitation (verrou pris).
-func (s *Server) invite(role, name string, ttl time.Duration) protocol2.InviteInfo {
+// invite crée une invitation (verrou pris) ; device, s'il n'est pas vide, la réserve à cette empreinte.
+func (s *Server) invite(role, name string, ttl time.Duration, device string) protocol2.InviteInfo {
 	code := protocol2.NewCode()
 	inv := protocol2.InviteInfo{ID: protocol2.NewCode(), Code: code, Role: role, Name: name, Expires: time.Now().Add(ttl).Unix(),
-		Agent: s.v2.pin.String()}
+		Device: device, Agent: s.v2.pin.String()}
 	s.v2.invites[code] = inv
 	return inv
+}
+
+// InviteList renvoie les invitations en attente, sans leur code.
+func (s *Server) InviteList() []protocol2.InviteInfo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := []protocol2.InviteInfo{}
+	for _, inv := range s.v2.invites {
+		inv.Code, inv.Agent = "", ""
+		out = append(out, inv)
+	}
+	return out
 }
 
 // register enregistre un appareil (verrou pris).
@@ -215,7 +227,10 @@ func (s *Server) administer(self protocol2.Pin, req protocol2.Request) protocol2
 		if _, ok := protocol2.ParseRole(req.Role); !ok || req.TTL < protocol2.MinInviteTTL || req.TTL > protocol2.MaxInviteTTL {
 			return refuse(protocol2.CodeBadRequest)
 		}
-		inv := s.invite(req.Role, req.Name, time.Duration(req.TTL)*time.Second)
+		if _, err := protocol2.ParsePin(req.Device); req.Device != "" && err != nil {
+			return refuse(protocol2.CodeBadRequest)
+		}
+		inv := s.invite(req.Role, req.Name, time.Duration(req.TTL)*time.Second, req.Device)
 		resp.Invite = &inv
 	case protocol2.CmdInvites:
 		resp.Invites = []protocol2.InviteInfo{}
@@ -465,6 +480,8 @@ func (s *Server) serveV2(conn net.Conn, r *bufio.Reader) {
 			code, err := protocol2.NormalizeCode(req.Code)
 			s.mu.Lock()
 			invited, ok := s.v2.invites[code]
+			// Une invitation réservée ne sert qu'à l'empreinte prévue (§6.2).
+			ok = ok && (invited.Device == "" || invited.Device == device.String())
 			if err == nil && ok {
 				delete(s.v2.invites, code)
 				s.register(device, invited.Role, req.Name)

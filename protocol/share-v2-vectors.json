@@ -662,5 +662,539 @@
       "name": "expiration trop lointaine",
       "plaintext": "{\"ownerName\":\"Hugo\",\"recipientName\":\"Léa\",\"identity\":\"Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ\",\"invites\":[{\"device\":\"c\",\"code\":\"7KQ29MXP\",\"role\":\"control\",\"expires\":253402300800}],\"devices\":[{\"id\":\"a\",\"name\":\"PC streaming\",\"mac\":\"3C:7C:3F:1A:2B:4C\",\"host\":\"192.168.1.20\",\"wolPort\":9,\"probePorts\":[3389,445]},{\"id\":\"b\",\"name\":\"Bureau\",\"mac\":\"00:11:22:33:44:55\",\"host\":\"bureau.local\",\"wolPort\":9,\"probePorts\":[3389,445,22,139],\"agent\":{\"port\":9770,\"key\":\"ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4\"}},{\"id\":\"c\",\"name\":\"Salon\",\"mac\":\"00:11:22:33:44:66\",\"host\":\"192.168.1.30\",\"wolPort\":9,\"probePorts\":[3389],\"agent\":{\"port\":9770,\"key\":\"gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc\",\"pin\":\"EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c\"}},{\"id\":\"d\",\"name\":\"Atelier\",\"mac\":\"00:11:22:33:44:77\",\"host\":\"atelier.local\",\"wolPort\":9,\"probePorts\":[22],\"agent\":{\"port\":9771,\"key\":\"\",\"pin\":\"43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U\"}}]}"
     }
+  ],
+  "plans": [
+    {
+      "name": "invitations gardée, renouvelée et créée ; rôle aligné ; retraits ; administrateurs intouchables",
+      "device": "c",
+      "now": 1790600000,
+      "people": [
+        {
+          "name": "Léa",
+          "device": "BPmi538rR4ivFc_GBoEHrkLzb9AhS3is1evXazr2RR98JQtoBtK-3c-Fe6CyWDu6Jqxa9DsZxhEJxR5nYE6Zcbc",
+          "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+          "added": 1790000000000,
+          "rights": {
+            "c": "full"
+          }
+        },
+        {
+          "name": "Paul",
+          "device": "BA4nacUPgcw6RJ2MMZ8SrY7Xv2Wbt6-8zc1hEy6hkY2MGz3CB60BoUQqWwwcmKml-5EsvGXMdmR5vsJdztC6LJE",
+          "identity": "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA",
+          "added": 1790000000000,
+          "rights": {
+            "c": "view"
+          }
+        },
+        {
+          "name": "Zoé",
+          "device": "BO_53hrVZYpeUyhq7V7lEsav-dO3nbnHELCxOeOGsdUsAHlePcV3DBDaqi6ZMDCw6Y4JkthwtXQCh6Ke8Jxa5V8",
+          "identity": "nQF-JoG38xcl4cD74mEuiQecIoBrAs96iUtQDdWiGcE",
+          "added": 1790000000000,
+          "rights": {
+            "c": "full"
+          }
+        },
+        {
+          "name": "Max",
+          "device": "BDri6lcvmTrlYIImH2GeYd2kTFAdu8bEh1OHPdeCK4ebRIxGXKczIhABuu6p89aHV8RoBMmowPxI4qhe0tOuLWo",
+          "identity": "m686QDEvOYSfRtrRBA8vA58c_6EjjEHp22dTFc-tObY",
+          "added": 1790000000000,
+          "rights": {
+            "c": "view"
+          }
+        },
+        {
+          "name": "Kim",
+          "device": "BPg0znTqRQ-J8fsruR_7n57B0mpAmXpi9YUD40ebAMS1c7p_QuNRVJJrAeQuUM_FQk4Zgb-7vaZYddftVTPlMP8",
+          "identity": "Jq54TRlKV2BGQ0gymvTrn8orJ7v4I3QslophVD46EVM",
+          "added": 1790000000000,
+          "rights": {
+            "c": "full"
+          }
+        },
+        {
+          "name": "Tom",
+          "device": "BN5eWYdUpIDLg97LmS9aPm6EY5npxSojYvyVHZDXF2fCUrZ-alb-yQf6x7G5DYdTxandC-rHVl4-ptM9mOYPnhc",
+          "added": 1790000000000,
+          "rights": {
+            "c": "full"
+          }
+        }
+      ],
+      "pairings": [
+        {
+          "person": "BPmi538rR4ivFc_GBoEHrkLzb9AhS3is1evXazr2RR98JQtoBtK-3c-Fe6CyWDu6Jqxa9DsZxhEJxR5nYE6Zcbc",
+          "device": "c",
+          "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+          "role": "control",
+          "invite": "AAAAAAAAAAA",
+          "code": "7KQ29MXP",
+          "expires": 1790859200
+        },
+        {
+          "person": "BA4nacUPgcw6RJ2MMZ8SrY7Xv2Wbt6-8zc1hEy6hkY2MGz3CB60BoUQqWwwcmKml-5EsvGXMdmR5vsJdztC6LJE",
+          "device": "c",
+          "identity": "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA",
+          "role": "control",
+          "invite": "BBBBBBBBBBB",
+          "code": "9MXP7KQ2",
+          "expires": 1790859200
+        }
+      ],
+      "revocations": [
+        {
+          "device": "c",
+          "identity": "y6BrVzb69n5UsHtWHq6UOV53TFF6fZEKVDaeEmPM-9Q"
+        },
+        {
+          "device": "c",
+          "identity": "KDu53u8C5oQ6v7U476HspwgBvYpwHD-YGR4SNJYzkkc"
+        },
+        {
+          "device": "c",
+          "identity": "BsYEszKzhrbM6DVczyf__TqYt6elubOlUMA5xuuuOOQ"
+        },
+        {
+          "device": "d",
+          "identity": "2SmKENGwc1g33EvYXaxkGw887yekfl1TpU8vP1svz_o"
+        }
+      ],
+      "view": {
+        "devices": [
+          {
+            "device": "BsYEszKzhrbM6DVczyf__TqYt6elubOlUMA5xuuuOOQ",
+            "name": "PC de Hugo",
+            "role": "admin",
+            "added": 1790000000,
+            "via": "pair",
+            "self": true
+          },
+          {
+            "device": "m686QDEvOYSfRtrRBA8vA58c_6EjjEHp22dTFc-tObY",
+            "name": "Max",
+            "role": "admin",
+            "added": 1790000000,
+            "via": "pair"
+          },
+          {
+            "device": "y6BrVzb69n5UsHtWHq6UOV53TFF6fZEKVDaeEmPM-9Q",
+            "name": "Ancien",
+            "role": "control",
+            "added": 1790000000,
+            "via": "pair"
+          },
+          {
+            "device": "Jq54TRlKV2BGQ0gymvTrn8orJ7v4I3QslophVD46EVM",
+            "name": "Kim",
+            "role": "wake",
+            "added": 1790000000,
+            "via": "pair"
+          }
+        ],
+        "invites": [
+          {
+            "id": "AAAAAAAAAAA",
+            "role": "control",
+            "name": "x",
+            "expires": 1790859200,
+            "device": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ"
+          },
+          {
+            "id": "BBBBBBBBBBB",
+            "role": "control",
+            "name": "x",
+            "expires": 1790859200,
+            "device": "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA"
+          },
+          {
+            "id": "CCCCCCCCCCC",
+            "role": "control",
+            "name": "x",
+            "expires": 1790600600,
+            "device": "y6BrVzb69n5UsHtWHq6UOV53TFF6fZEKVDaeEmPM-9Q"
+          },
+          {
+            "id": "DDDDDDDDDDD",
+            "role": "control",
+            "name": "x",
+            "expires": 1790600600,
+            "device": "nQF-JoG38xcl4cD74mEuiQecIoBrAs96iUtQDdWiGcE"
+          },
+          {
+            "id": "EEEEEEEEEEE",
+            "role": "view",
+            "name": "x",
+            "expires": 1790600600
+          }
+        ]
+      },
+      "work": true,
+      "poll": false,
+      "plan": {
+        "cancel": [
+          "CCCCCCCCCCC",
+          "BBBBBBBBBBB",
+          "DDDDDDDDDDD"
+        ],
+        "revoke": [
+          "y6BrVzb69n5UsHtWHq6UOV53TFF6fZEKVDaeEmPM-9Q"
+        ],
+        "roles": [
+          {
+            "identity": "Jq54TRlKV2BGQ0gymvTrn8orJ7v4I3QslophVD46EVM",
+            "role": "control"
+          }
+        ],
+        "invite": [
+          {
+            "identity": "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA",
+            "role": "wake",
+            "name": "Paul"
+          },
+          {
+            "identity": "nQF-JoG38xcl4cD74mEuiQecIoBrAs96iUtQDdWiGcE",
+            "role": "control",
+            "name": "Zoé"
+          }
+        ],
+        "registered": [
+          {
+            "identity": "m686QDEvOYSfRtrRBA8vA58c_6EjjEHp22dTFc-tObY",
+            "role": "admin"
+          },
+          {
+            "identity": "Jq54TRlKV2BGQ0gymvTrn8orJ7v4I3QslophVD46EVM",
+            "role": "control"
+          }
+        ],
+        "done": [
+          {
+            "device": "c",
+            "identity": "y6BrVzb69n5UsHtWHq6UOV53TFF6fZEKVDaeEmPM-9Q"
+          },
+          {
+            "device": "c",
+            "identity": "KDu53u8C5oQ6v7U476HspwgBvYpwHD-YGR4SNJYzkkc"
+          },
+          {
+            "device": "c",
+            "identity": "BsYEszKzhrbM6DVczyf__TqYt6elubOlUMA5xuuuOOQ"
+          }
+        ],
+        "skipped": [
+          "BsYEszKzhrbM6DVczyf__TqYt6elubOlUMA5xuuuOOQ",
+          "m686QDEvOYSfRtrRBA8vA58c_6EjjEHp22dTFc-tObY"
+        ]
+      },
+      "result": {
+        "changed": true,
+        "created": {
+          "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA": {
+            "id": "FFFFFFFFFFF",
+            "code": "ab12-cd34",
+            "role": "wake",
+            "expires": 1791204800
+          },
+          "nQF-JoG38xcl4cD74mEuiQecIoBrAs96iUtQDdWiGcE": {
+            "id": "GGGGGGGGGGG",
+            "code": "EF56GH78",
+            "role": "control",
+            "expires": 1791204800
+          }
+        }
+      },
+      "afterPairings": [
+        {
+          "person": "BPmi538rR4ivFc_GBoEHrkLzb9AhS3is1evXazr2RR98JQtoBtK-3c-Fe6CyWDu6Jqxa9DsZxhEJxR5nYE6Zcbc",
+          "device": "c",
+          "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+          "role": "control",
+          "invite": "AAAAAAAAAAA",
+          "code": "7KQ29MXP",
+          "expires": 1790859200
+        },
+        {
+          "person": "BA4nacUPgcw6RJ2MMZ8SrY7Xv2Wbt6-8zc1hEy6hkY2MGz3CB60BoUQqWwwcmKml-5EsvGXMdmR5vsJdztC6LJE",
+          "device": "c",
+          "identity": "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA",
+          "role": "wake",
+          "invite": "FFFFFFFFFFF",
+          "code": "AB12CD34",
+          "expires": 1791204800
+        },
+        {
+          "person": "BDri6lcvmTrlYIImH2GeYd2kTFAdu8bEh1OHPdeCK4ebRIxGXKczIhABuu6p89aHV8RoBMmowPxI4qhe0tOuLWo",
+          "device": "c",
+          "identity": "m686QDEvOYSfRtrRBA8vA58c_6EjjEHp22dTFc-tObY",
+          "role": "admin",
+          "registered": true
+        },
+        {
+          "person": "BPg0znTqRQ-J8fsruR_7n57B0mpAmXpi9YUD40ebAMS1c7p_QuNRVJJrAeQuUM_FQk4Zgb-7vaZYddftVTPlMP8",
+          "device": "c",
+          "identity": "Jq54TRlKV2BGQ0gymvTrn8orJ7v4I3QslophVD46EVM",
+          "role": "control",
+          "registered": true
+        },
+        {
+          "person": "BO_53hrVZYpeUyhq7V7lEsav-dO3nbnHELCxOeOGsdUsAHlePcV3DBDaqi6ZMDCw6Y4JkthwtXQCh6Ke8Jxa5V8",
+          "device": "c",
+          "identity": "nQF-JoG38xcl4cD74mEuiQecIoBrAs96iUtQDdWiGcE",
+          "role": "control",
+          "invite": "GGGGGGGGGGG",
+          "code": "EF56GH78",
+          "expires": 1791204800
+        }
+      ],
+      "afterRevocations": [
+        {
+          "device": "d",
+          "identity": "2SmKENGwc1g33EvYXaxkGw887yekfl1TpU8vP1svz_o"
+        }
+      ],
+      "afterWork": false,
+      "afterPoll": true
+    },
+    {
+      "name": "rien à faire : invitation en attente, appareil enregistré",
+      "device": "c",
+      "now": 1790600000,
+      "people": [
+        {
+          "name": "Léa",
+          "device": "BPmi538rR4ivFc_GBoEHrkLzb9AhS3is1evXazr2RR98JQtoBtK-3c-Fe6CyWDu6Jqxa9DsZxhEJxR5nYE6Zcbc",
+          "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+          "added": 1790000000000,
+          "rights": {
+            "c": "full"
+          }
+        },
+        {
+          "name": "Paul",
+          "device": "BA4nacUPgcw6RJ2MMZ8SrY7Xv2Wbt6-8zc1hEy6hkY2MGz3CB60BoUQqWwwcmKml-5EsvGXMdmR5vsJdztC6LJE",
+          "identity": "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA",
+          "added": 1790000000000,
+          "rights": {
+            "c": "view"
+          }
+        }
+      ],
+      "pairings": [
+        {
+          "person": "BPmi538rR4ivFc_GBoEHrkLzb9AhS3is1evXazr2RR98JQtoBtK-3c-Fe6CyWDu6Jqxa9DsZxhEJxR5nYE6Zcbc",
+          "device": "c",
+          "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+          "role": "control",
+          "invite": "AAAAAAAAAAA",
+          "code": "7KQ29MXP",
+          "expires": 1790859200
+        },
+        {
+          "person": "BA4nacUPgcw6RJ2MMZ8SrY7Xv2Wbt6-8zc1hEy6hkY2MGz3CB60BoUQqWwwcmKml-5EsvGXMdmR5vsJdztC6LJE",
+          "device": "c",
+          "identity": "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA",
+          "role": "wake",
+          "registered": true
+        }
+      ],
+      "revocations": [],
+      "view": {
+        "devices": [
+          {
+            "device": "BsYEszKzhrbM6DVczyf__TqYt6elubOlUMA5xuuuOOQ",
+            "name": "PC de Hugo",
+            "role": "admin",
+            "added": 1790000000,
+            "via": "pair",
+            "self": true
+          },
+          {
+            "device": "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA",
+            "name": "Paul",
+            "role": "wake",
+            "added": 1790000000,
+            "via": "pair"
+          }
+        ],
+        "invites": [
+          {
+            "id": "AAAAAAAAAAA",
+            "role": "control",
+            "name": "x",
+            "expires": 1790859200,
+            "device": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ"
+          }
+        ]
+      },
+      "work": false,
+      "poll": true,
+      "plan": {
+        "cancel": [],
+        "revoke": [],
+        "roles": [],
+        "invite": [],
+        "registered": [
+          {
+            "identity": "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA",
+            "role": "wake"
+          }
+        ],
+        "done": [],
+        "skipped": []
+      },
+      "result": {
+        "changed": true,
+        "created": {}
+      },
+      "afterPairings": [
+        {
+          "person": "BPmi538rR4ivFc_GBoEHrkLzb9AhS3is1evXazr2RR98JQtoBtK-3c-Fe6CyWDu6Jqxa9DsZxhEJxR5nYE6Zcbc",
+          "device": "c",
+          "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+          "role": "control",
+          "invite": "AAAAAAAAAAA",
+          "code": "7KQ29MXP",
+          "expires": 1790859200
+        },
+        {
+          "person": "BA4nacUPgcw6RJ2MMZ8SrY7Xv2Wbt6-8zc1hEy6hkY2MGz3CB60BoUQqWwwcmKml-5EsvGXMdmR5vsJdztC6LJE",
+          "device": "c",
+          "identity": "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA",
+          "role": "wake",
+          "registered": true
+        }
+      ],
+      "afterRevocations": [],
+      "afterWork": false,
+      "afterPoll": true
+    },
+    {
+      "name": "invitation utilisée, invitation à renouveler, personne retirée pendant l'échange",
+      "device": "c",
+      "now": 1790600000,
+      "people": [
+        {
+          "name": "Léa",
+          "device": "BPmi538rR4ivFc_GBoEHrkLzb9AhS3is1evXazr2RR98JQtoBtK-3c-Fe6CyWDu6Jqxa9DsZxhEJxR5nYE6Zcbc",
+          "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+          "added": 1790000000000,
+          "rights": {
+            "c": "full"
+          }
+        },
+        {
+          "name": "Paul",
+          "device": "BA4nacUPgcw6RJ2MMZ8SrY7Xv2Wbt6-8zc1hEy6hkY2MGz3CB60BoUQqWwwcmKml-5EsvGXMdmR5vsJdztC6LJE",
+          "identity": "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA",
+          "added": 1790000000000,
+          "rights": {
+            "c": "view"
+          }
+        }
+      ],
+      "pairings": [
+        {
+          "person": "BPmi538rR4ivFc_GBoEHrkLzb9AhS3is1evXazr2RR98JQtoBtK-3c-Fe6CyWDu6Jqxa9DsZxhEJxR5nYE6Zcbc",
+          "device": "c",
+          "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+          "role": "control",
+          "invite": "AAAAAAAAAAA",
+          "code": "7KQ29MXP",
+          "expires": 1790859200
+        },
+        {
+          "person": "BA4nacUPgcw6RJ2MMZ8SrY7Xv2Wbt6-8zc1hEy6hkY2MGz3CB60BoUQqWwwcmKml-5EsvGXMdmR5vsJdztC6LJE",
+          "device": "c",
+          "identity": "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA",
+          "role": "wake",
+          "invite": "BBBBBBBBBBB",
+          "code": "9MXP7KQ2",
+          "expires": 1790603600
+        }
+      ],
+      "revocations": [],
+      "view": {
+        "devices": [
+          {
+            "device": "BsYEszKzhrbM6DVczyf__TqYt6elubOlUMA5xuuuOOQ",
+            "name": "PC de Hugo",
+            "role": "admin",
+            "added": 1790000000,
+            "via": "pair",
+            "self": true
+          },
+          {
+            "device": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+            "name": "Léa",
+            "role": "control",
+            "added": 1790000000,
+            "via": "pair"
+          }
+        ],
+        "invites": [
+          {
+            "id": "BBBBBBBBBBB",
+            "role": "wake",
+            "name": "x",
+            "expires": 1790603600,
+            "device": "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA"
+          }
+        ]
+      },
+      "work": true,
+      "poll": false,
+      "plan": {
+        "cancel": [
+          "BBBBBBBBBBB"
+        ],
+        "revoke": [],
+        "roles": [],
+        "invite": [
+          {
+            "identity": "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA",
+            "role": "wake",
+            "name": "Paul"
+          }
+        ],
+        "registered": [
+          {
+            "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+            "role": "control"
+          }
+        ],
+        "done": [],
+        "skipped": []
+      },
+      "result": {
+        "changed": true,
+        "created": {
+          "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA": {
+            "id": "HHHHHHHHHHH",
+            "code": "JK90MN12",
+            "role": "wake",
+            "expires": 1791204800
+          }
+        }
+      },
+      "afterPairings": [
+        {
+          "person": "BPmi538rR4ivFc_GBoEHrkLzb9AhS3is1evXazr2RR98JQtoBtK-3c-Fe6CyWDu6Jqxa9DsZxhEJxR5nYE6Zcbc",
+          "device": "c",
+          "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+          "role": "control",
+          "registered": true
+        }
+      ],
+      "afterRevocations": [
+        {
+          "device": "c",
+          "identity": "A1dRPeuQOgVudKfkdSR_wf_jHYvkwdSjH1jdR65IQQA"
+        }
+      ],
+      "afterWork": true,
+      "afterPoll": false
+    }
   ]
 }

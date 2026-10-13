@@ -453,7 +453,9 @@ type callParams struct {
 	Device     string            `json:"device"`
 	Owner      string            `json:"owner"`
 	Rights     map[string]string `json:"rights"`
-	Platform   string            `json:"platform"`
+	// Identity : empreinte wolagent/2 de l'appareil d'une personne autorisée (partage v2).
+	Identity string `json:"identity"`
+	Platform string `json:"platform"`
 	// From, To (millisecondes) et Points : période et finesse de l'écran « Mesures ».
 	From    int64  `json:"from"`
 	To      int64  `json:"to"`
@@ -657,7 +659,7 @@ func (s *Service) dispatch(method string, p callParams) (any, error) {
 	case "shareReadRequest":
 		return s.shareReadRequest(p.Text)
 	case "shareGrant":
-		return s.shareGrant(p.Device, p.Name, p.Rights)
+		return s.shareGrant(p.Device, p.Name, p.Identity, p.Rights)
 	case "shareRevoke":
 		return nil, s.shareRevoke(p.Device)
 	case "shareStop":

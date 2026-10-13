@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/slaynaw/wakeonlan/agent/protocol2"
 	"github.com/slaynaw/wakeonlan/desktop/internal/diag"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 	"github.com/slaynaw/wakeonlan/desktop/internal/share"
@@ -59,6 +60,8 @@ type sharer struct {
 	lastPublish time.Time
 	syncErr     map[string]string
 	lastSync    map[string]time.Time
+	// agents suit les sessions du partage v2 sur les PC (voir share_agents.go).
+	agents *agentSync
 }
 
 func newSharer(opts *ShareOptions) *sharer {
@@ -67,7 +70,7 @@ func newSharer(opts *ShareOptions) *sharer {
 	}
 	sh := &sharer{
 		store: opts.Store, gh: opts.GitHub, wake: make(chan struct{}, 1),
-		dirty: true, syncErr: map[string]string{}, lastSync: map[string]time.Time{},
+		dirty: true, syncErr: map[string]string{}, lastSync: map[string]time.Time{}, agents: newAgentSync(),
 	}
 	st, err := opts.Store.Load()
 	if err != nil {
@@ -602,9 +605,10 @@ func linkView(link, code string) (map[string]any, error) {
 	return v, nil
 }
 
-// sharedWithControl indique qu'un PC de cet appareil est partagé avec le droit « démarrer et
-// éteindre » : ce partage (wolagent/1) transmet la clé de son agent, qui doit donc être gardée. Dans
-// le doute (partage illisible), elle est gardée.
+// sharedWithControl indique qu'un PC de cet appareil, joint par l'empreinte de son agent, est partagé
+// en v1 avec le droit « démarrer et éteindre » (personne dont la demande ne porte pas d'empreinte) :
+// ce partage transmet la clé de son agent, qui doit donc être gardée. Le partage v2 n'en a pas
+// besoin. Dans le doute (partage illisible), elle est gardée.
 func (s *Service) sharedWithControl(id string) bool {
 	sh := s.sharing
 	if sh == nil {
@@ -615,23 +619,18 @@ func (s *Service) sharedWithControl(id string) bool {
 	if sh.loadErr != "" {
 		return true
 	}
-	if o := sh.state.Owner; o != nil {
-		for _, p := range o.People {
-			if p.Rights[id] == share.RightFull {
-				return true
-			}
-		}
-	}
-	return false
+	return sh.state.Owner != nil && sh.state.Owner.NeedsKey(id, true)
 }
 
-// ownDevicesBrief résume les PC de l'appareil pour le choix des droits.
+// ownDevicesBrief résume les PC de l'appareil pour le choix des droits : pinned, agent joint par son
+// empreinte (partage v2 possible) ; canShutdown, clé de l'agent connue (partage v1 de l'extinction).
 func (s *Service) ownDevicesBrief() []map[string]any {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := []map[string]any{}
 	for _, d := range s.cfg.Devices {
-		out = append(out, map[string]any{"id": d.ID, "name": d.Name, "canShutdown": d.CanShutdown() && d.Agent.HasKey()})
+		out = append(out, map[string]any{"id": d.ID, "name": d.Name, "canShutdown": d.CanShutdown() && d.Agent.HasKey(),
+			"pinned": d.HasHost() && d.Agent != nil && d.Agent.HasPin()})
 	}
 	return out
 }
@@ -666,22 +665,29 @@ func (s *Service) shareReadRequest(text string) (any, error) {
 		diag.Warn(areaShare, "demande de « %s » %s destinée à une autre invitation", req.Name, keyRef(req.Device))
 		return map[string]any{"ok": false, "error": "Cette demande répond à l'invitation d'une autre personne."}, nil
 	}
-	diag.Info(areaShare, "demande lue : « %s » %s, %s", req.Name, keyRef(req.Device), pick(existing != nil, "personne déjà autorisée", "nouvelle personne"))
+	diag.Info(areaShare, "demande lue : « %s » %s, %s, %s", req.Name, keyRef(req.Device), pick(existing != nil, "personne déjà autorisée", "nouvelle personne"),
+		pick(req.Identity != "", "partage v2 (empreinte "+shortPin(req.Identity)+")", "partage v1 (application antérieure)"))
 	return map[string]any{
-		"ok": true, "name": req.Name, "device": req.Device,
+		"ok": true, "name": req.Name, "device": req.Device, "identity": req.Identity,
 		"code":    share.VerificationCode(pub, req.Device),
 		"devices": s.ownDevicesBrief(), "rights": existing,
 	}, nil
 }
 
-// shareGrant autorise une personne (ou modifie ses droits).
-func (s *Service) shareGrant(device, name string, rights map[string]string) (any, error) {
+// shareGrant autorise une personne (ou modifie ses droits). identity est l'empreinte wolagent/2 de son
+// appareil, lue dans sa demande ("" : application qui ne connaît que le partage v1). Chaque droit est
+// ramené à ce que le PC permet (share.AllowedRight).
+func (s *Service) shareGrant(device, name, identity string, rights map[string]string) (any, error) {
 	sh, err := s.requireSharing()
 	if err != nil {
 		return nil, err
 	}
-	if !share.ValidDeviceKey(device) || !share.ValidName(name) {
+	if _, err := protocol2.ParsePin(identity); !share.ValidDeviceKey(device) || !share.ValidName(name) || (identity != "" && err != nil) {
 		return nil, errors.New("demande invalide")
+	}
+	if identity != "" {
+		pin, _ := protocol2.ParsePin(identity)
+		identity = pin.String()
 	}
 	s.mu.Lock()
 	granted := map[string]share.Right{}
@@ -691,10 +697,8 @@ func (s *Service) shareGrant(device, name string, rights map[string]string) (any
 		if !ok || !right.Valid() {
 			continue
 		}
-		if right == share.RightFull && !(d.CanShutdown() && d.Agent.HasKey()) {
-			right = share.RightWake
-		}
-		granted[id] = right
+		pinned := d.HasHost() && d.Agent != nil && d.Agent.HasPin()
+		granted[id] = share.AllowedRight(right, identity != "", pinned, d.CanShutdown() && d.Agent.HasKey())
 	}
 	s.mu.Unlock()
 	if len(granted) == 0 {
@@ -712,7 +716,7 @@ func (s *Service) shareGrant(device, name string, rights map[string]string) (any
 		sh.mu.Unlock()
 		return nil, errors.New("le partage n'est pas activé")
 	}
-	err = o.Grant(share.Person{Name: name, Device: device, Added: s.now().UnixMilli(), Rights: granted})
+	err = o.Grant(share.Person{Name: name, Device: device, Identity: identity, Added: s.now().UnixMilli(), Rights: granted})
 	if err == nil {
 		sh.dirty = true
 		err = sh.saveLocked()
@@ -984,6 +988,10 @@ type OwnerView struct {
 	Publishing bool         `json:"publishing"`
 	Error      string       `json:"error,omitempty"`
 	People     []PersonView `json:"people"`
+	// Revocations : appareils à retirer des PC, en attente que cet ordinateur les joigne.
+	Revocations int `json:"revocations"`
+	// SelfPin : empreinte courte de cet ordinateur (wolagent/2), pour le rendre administrateur d'un PC.
+	SelfPin string `json:"selfPin,omitempty"`
 }
 
 // PersonView est une personne autorisée.
@@ -994,6 +1002,10 @@ type PersonView struct {
 	Rights    map[string]share.Right `json:"rights"`
 	Devices   []string               `json:"devices"`
 	Published bool                   `json:"published"`
+	// Identity : empreinte wolagent/2 de son appareil (partage v2), "" pour une demande antérieure.
+	Identity string `json:"identity,omitempty"`
+	// Agents : où en est l'enregistrement de son appareil sur chaque PC partagé en v2.
+	Agents map[string]map[string]any `json:"agents,omitempty"`
 }
 
 // AccessView est un partage reçu ou demandé.
@@ -1017,14 +1029,21 @@ func (s *Service) shareView() ShareView {
 	}
 	s.mu.Lock()
 	names := map[string]string{}
+	pins := map[string]bool{}
 	for _, d := range s.cfg.Devices {
 		names[d.ID] = d.Name
+		pins[d.ID] = d.HasHost() && d.Agent != nil && d.Agent.HasPin()
 	}
 	order := make([]string, 0, len(s.cfg.Devices))
 	for _, d := range s.cfg.Devices {
 		order = append(order, d.ID)
 	}
 	s.mu.Unlock()
+
+	selfPin := ""
+	if me := s.identity.Existing(); me != nil {
+		selfPin = me.Pin.Short()
+	}
 
 	sh.mu.Lock()
 	defer sh.mu.Unlock()
@@ -1034,9 +1053,10 @@ func (s *Service) shareView() ShareView {
 	}
 	if o := sh.state.Owner; o != nil {
 		ov := &OwnerView{Name: o.Name, User: o.User, Connected: o.Token != "" && o.Gist != "",
-			Publishing: sh.publishing, Error: sh.publishErr, People: []PersonView{}}
+			Publishing: sh.publishing, Error: sh.publishErr, People: []PersonView{}, Revocations: len(o.Revocations), SelfPin: selfPin}
 		for _, p := range o.People {
-			pv := PersonView{Name: p.Name, Device: p.Device, Added: p.Added, Rights: p.Rights, Devices: []string{}}
+			pv := PersonView{Name: p.Name, Device: p.Device, Added: p.Added, Rights: p.Rights, Devices: []string{},
+				Identity: p.Identity, Agents: s.shareAgentStatesLocked(o, p, func(id string) bool { return pins[id] })}
 			for _, id := range order {
 				if p.Rights[id].Valid() {
 					pv.Devices = append(pv.Devices, names[id])

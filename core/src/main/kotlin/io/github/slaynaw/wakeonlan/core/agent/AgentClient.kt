@@ -15,6 +15,10 @@ import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2Exception
 import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2Session
 import io.github.slaynaw.wakeonlan.core.model.AgentSettings
 import io.github.slaynaw.wakeonlan.core.net.NetworkBinder
+import io.github.slaynaw.wakeonlan.core.share.AgentPlan
+import io.github.slaynaw.wakeonlan.core.share.AgentView
+import io.github.slaynaw.wakeonlan.core.share.PlanResult
+import io.github.slaynaw.wakeonlan.core.share.ShareAgents
 import io.github.slaynaw.wakeonlan.core.net.connectBound
 import io.github.slaynaw.wakeonlan.core.net.useCancellable
 import kotlinx.coroutines.Dispatchers
@@ -77,6 +81,9 @@ data class AgentPairing(val role: String, val already: Boolean = false)
 
 /** État d'un agent vu par un administrateur : appareils autorisés et invitations en attente (sans leur code). */
 data class AgentAdmin(val devices: List<DeviceInfo>, val invites: List<InviteInfo>)
+
+/** Session du partage v2 sur un PC : plan décidé (null : rien à faire), ce qui a été fait, et l'échec éventuel. */
+data class ShareSync(val plan: AgentPlan?, val result: PlanResult, val failure: AgentResult.Failure?)
 
 sealed interface AgentResult<out T> {
     data class Success<T>(val value: T) : AgentResult<T>
@@ -274,6 +281,52 @@ class AgentClient(
 
     suspend fun cancelInvite(host: String, agent: AgentSettings, id: String): AgentResult<Unit> =
         adminChange(host, agent, Request2(cmd = Commands.INVITES_CANCEL, invite = id))
+
+    /**
+     * Mène, sur une seule session, ce que le partage v2 demande à un PC (docs/PARTAGE.md, « Partage v2 ») : lecture de
+     * l'état de l'agent, décision ([decide], d'après l'état du partage au moment même ; null : rien à faire), puis
+     * annulations d'invitations, retraits, changements de rôle et invitations réservées. Le résultat est rendu même
+     * partiel : une invitation créée n'est jamais perdue. Une annulation ou un retrait sans objet (invitation utilisée
+     * entre-temps, appareil déjà retiré) n'est pas un échec.
+     */
+    suspend fun shareSync(host: String, agent: AgentSettings, decide: (AgentView) -> AgentPlan?): ShareSync {
+        var plan: AgentPlan? = null
+        var changed = false
+        val created = LinkedHashMap<String, InviteInfo>()
+        val r = adminSession(host, agent) { session ->
+            val devices = adminRequest(session, Request2(cmd = Commands.DEVICES))
+            if (devices is AgentResult.Failure) return@adminSession devices
+            val invites = adminRequest(session, Request2(cmd = Commands.INVITES))
+            if (invites is AgentResult.Failure) return@adminSession invites
+            val view = AgentView((devices as AgentResult.Success).value.devices.orEmpty(), (invites as AgentResult.Success).value.invites.orEmpty())
+            val p = decide(view) ?: return@adminSession AgentResult.Success(Unit)
+            plan = p
+            val undone = p.cancel.map { Request2(cmd = Commands.INVITES_CANCEL, invite = it) } +
+                p.revoke.map { Request2(cmd = Commands.DEVICES_REVOKE, device = it) }
+            for (request in undone) {
+                val c = adminRequest(session, request)
+                if (c is AgentResult.Failure && !(c.error == AgentError.REJECTED && c.code == ResponseCode.BAD_REQUEST)) return@adminSession c
+            }
+            for (role in p.roles) {
+                val c = adminRequest(session, Request2(cmd = Commands.DEVICES_ROLE, device = role.identity, role = role.role))
+                if (c is AgentResult.Failure) return@adminSession c
+            }
+            changed = true
+            for (req in p.invite) {
+                val request = Request2(
+                    cmd = Commands.INVITE, role = req.role, ttl = ShareAgents.INVITE_TTL_SECONDS, name = req.name.ifBlank { null },
+                    device = req.identity,
+                )
+                when (val c = adminRequest(session, request)) {
+                    is AgentResult.Success -> created[req.identity] = c.value.invite?.takeIf { it.code.isNotEmpty() }
+                        ?: return@adminSession protocolError("invitation absente de la réponse")
+                    is AgentResult.Failure -> return@adminSession c
+                }
+            }
+            AgentResult.Success(Unit)
+        }
+        return ShareSync(plan, PlanResult(changed, created), r as? AgentResult.Failure)
+    }
 
     private suspend fun adminChange(host: String, agent: AgentSettings, request: Request2): AgentResult<Unit> =
         adminSession(host, agent) { session ->
