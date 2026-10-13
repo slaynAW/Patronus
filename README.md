@@ -234,9 +234,15 @@ Détails : **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** et **[docs/PROTOCOLE
 | APK modifié | Signature de l'APK avec une clé privée remise uniquement à la publication officielle, après validation manuelle ; somme de contrôle de Gradle vérifiée. |
 | Version piégée (chaîne de production) | Actions épinglées par empreinte, failles connues vérifiées à chaque build, versions officielles compilées sans cache, provenance attestée (`gh attestation verify`) et inventaire des composants joints ([SECURITY.md](SECURITY.md)). |
 
-Détails et limites : **[docs/SECURITE.md](docs/SECURITE.md)**. Prochaine étape : le protocole chiffré `wolagent/2`
-(TLS 1.3, une identité par appareil, rôles et révocation), conçu à partir d'un
-**[modèle de menace](docs/MODELE-DE-MENACE.md)** et spécifié dans **[docs/PROTOCOLE-V2.md](docs/PROTOCOLE-V2.md)**.
+Détails et limites : **[docs/SECURITE.md](docs/SECURITE.md)**.
+
+**Protocole chiffré `wolagent/2`** (TLS 1.3, une identité par appareil, rôles et révocation), conçu à partir d'un
+**[modèle de menace](docs/MODELE-DE-MENACE.md)** et spécifié dans **[docs/PROTOCOLE-V2.md](docs/PROTOCOLE-V2.md)** :
+avec l'agent 1.11.0, les applications (Android 10 ou plus, Windows) y passent d'elles-mêmes, sans rescanner. L'agent
+annonce son empreinte dans une réponse signée par la clé ; l'application la vérifie, s'enregistre auprès de lui avec
+sa propre identité (Keystore Android, DPAPI sous Windows, jamais exportée), puis efface la clé : tous les échanges
+sont ensuite chiffrés, l'empreinte du PC est vérifiée à chaque connexion, et `wol-agent devices` retire un appareil
+seul. La fiche du PC affiche *Chiffré et authentifié* et son empreinte, à comparer avec `wol-agent status`.
 
 ## 8. Développement
 

@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
                 container.updater.checkIfDue()
                 launch { container.historyTracker.run() }
                 launch { container.specsTracker.run() }
+                launch { container.agentUpgrades.run() }
                 launch { container.share.run() }
                 launch { container.backups.run() }
                 launch { container.archives.run() }

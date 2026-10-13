@@ -1,5 +1,8 @@
 package io.github.slaynaw.wakeonlan.core.model
 
+import io.github.slaynaw.wakeonlan.core.agent2.Pin
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
 /** Port UDP standard du Wake-on-LAN (« discard »). */
@@ -37,7 +40,7 @@ data class Device(
     val hasHost: Boolean get() = host.isNotBlank()
     val canShutdown: Boolean get() = hasHost && agent != null
 
-    /** Copie sans aucun secret (clé d'agent, mot de passe SecureOn), pour l'export en clair. */
+    /** Copie sans aucun secret (clé d'agent, mot de passe SecureOn), pour l'export en clair. L'empreinte de l'agent, publique, reste. */
     fun withoutSecrets(): Device = copy(secureOnPassword = null, agent = agent?.copy(key = ""))
 
     override fun toString(): String =
@@ -47,15 +50,38 @@ data class Device(
 
 /**
  * Paramètres de connexion à l'agent.
- * @property key clé secrète partagée (32 octets encodés en Base64 URL-safe). Vide = à renseigner.
+ * @property key clé secrète partagée de wolagent/1 (32 octets encodés en Base64 URL-safe). Vide = à renseigner, ou
+ * effacée une fois le PC passé en wolagent/2.
+ * @property pin empreinte wolagent/2 de l'agent (B64), lue dans une réponse signée par la clé ou dans un lien
+ * d'appairage. Une fois connue, l'application ne parle plus que wolagent/2 à ce PC (docs/PROTOCOLE-V2.md, §9). Ce
+ * n'est pas un secret. Absente du JSON quand elle est vide (format inchangé pour les versions précédentes).
  */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class AgentSettings(
     val port: Int = DEFAULT_AGENT_PORT,
     val key: String,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val pin: String = "",
 ) {
     val hasKey: Boolean get() = key.isNotEmpty()
 
+    /** L'agent est joint en wolagent/2. */
+    val hasPin: Boolean get() = pin.isNotEmpty()
+
+    /** L'agent peut être joint : par sa clé (wolagent/1) ou son empreinte (wolagent/2). */
+    val ready: Boolean get() = hasKey || hasPin
+
+    /** Empreinte courte de l'agent (« 7KQ2-9MXP-4D1Z »), ou null. */
+    val shortPin: String? get() = Pin.parse(pin)?.short()
+
+    /**
+     * Empreinte à garder quand la fiche du PC est enregistrée avec la clé [newKey] : l'empreinte connue, sauf si une
+     * nouvelle clé est saisie (agent réinstallé, nouveau lien d'appairage) ; le passage en wolagent/2 reprend alors
+     * depuis cette clé, qui authentifiera l'empreinte de l'agent.
+     */
+    fun pinKeptWith(newKey: String): String = if (newKey.isNotEmpty() && newKey != key) "" else pin
+
     // Ne jamais afficher la clé dans les journaux.
-    override fun toString(): String = "AgentSettings(port=$port, key=${if (hasKey) "***" else "<vide>"})"
+    override fun toString(): String =
+        "AgentSettings(port=$port, key=${if (hasKey) "***" else "<vide>"}${shortPin?.let { ", pin=$it" } ?: ""})"
 }

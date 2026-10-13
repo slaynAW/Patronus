@@ -1,13 +1,23 @@
 package io.github.slaynaw.wakeonlan.core
 
+import io.github.slaynaw.wakeonlan.core.agent.AgentClient
+import io.github.slaynaw.wakeonlan.core.agent.AgentError
 import io.github.slaynaw.wakeonlan.core.agent.AgentKey
+import io.github.slaynaw.wakeonlan.core.agent.AgentResult
+import io.github.slaynaw.wakeonlan.core.agent.AgentUpgrade
+import io.github.slaynaw.wakeonlan.core.agent.PowerAction
 import io.github.slaynaw.wakeonlan.core.agent2.Commands
 import io.github.slaynaw.wakeonlan.core.agent2.Pin
 import io.github.slaynaw.wakeonlan.core.agent2.Request2
 import io.github.slaynaw.wakeonlan.core.agent2.ResponseCode
 import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2Client
 import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2Exception
+import io.github.slaynaw.wakeonlan.core.model.AgentSettings
+import io.github.slaynaw.wakeonlan.core.model.Device
+import io.github.slaynaw.wakeonlan.core.model.MacAddress
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -69,6 +79,60 @@ class Wolagent2EndToEndTest {
         client.connect("127.0.0.1", port, tablet, agentPin).use { session ->
             assertEquals(ResponseCode.UNKNOWN_DEVICE, session.request(Request2(cmd = "status")).code)
         }
+    }
+
+    /**
+     * Ce que fait l'application : l'empreinte est lue dans une réponse wolagent/1 signée par la clé, l'appareil
+     * migre sur une session où elle est exigée, puis ne parle plus que wolagent/2 (sans la clé).
+     */
+    @Test
+    fun `client unifie, empreinte annoncee, migration puis wolagent2 seul`() = runBlocking {
+        val phone = TestIdentities.newDevice()
+        val agentClient = AgentClient(deviceName = { "Pixel unifié" }, identity = { phone })
+        val v1 = AgentSettings(port, System.getenv("WOL_E2E_KEY"))
+        val announced = (agentClient.status("127.0.0.1", v1) as AgentResult.Success).value
+        assertEquals("wolagent/1", announced.proto)
+        assertTrue(announced.pin.isNotEmpty() && "wolagent/2" in announced.protocols, "$announced")
+        assertEquals(local.pin.toString(), announced.pin, "empreinte annoncée = celle de l'agent")
+
+        val pinned = v1.copy(pin = announced.pin)
+        assertEquals(AgentError.UNREGISTERED, (agentClient.status("127.0.0.1", pinned) as AgentResult.Failure).error)
+        assertEquals("control", (agentClient.migrate("127.0.0.1", pinned) as AgentResult.Success).value)
+
+        val v2 = pinned.copy(key = "")
+        val status = (agentClient.status("127.0.0.1", v2) as AgentResult.Success).value
+        assertEquals("wolagent/2", status.proto)
+        assertEquals("control", status.role)
+        assertEquals(announced.hostname, status.hostname)
+        assertTrue(agentClient.power("127.0.0.1", v2, PowerAction.SLEEP) is AgentResult.Success)
+        val history = (agentClient.history("127.0.0.1", v2) as AgentResult.Success).value.events
+        assertTrue(history.any { it.k == "cmd" && it.a == "sleep" && it.b == "Pixel unifié" && it.i == phone.pin.short() }, "$history")
+
+        val elsewhere = v2.copy(pin = Pin.of("autre agent".toByteArray()).toString())
+        assertEquals(AgentError.PIN_MISMATCH, (agentClient.status("127.0.0.1", elsewhere) as AgentResult.Failure).error)
+        val noIdentity = AgentClient()
+        assertEquals(AgentError.NO_IDENTITY, (noIdentity.status("127.0.0.1", v2) as AgentResult.Failure).error)
+    }
+
+    /** Passage automatique (celui de l'application), puis reprise d'une configuration restaurée sur la même installation. */
+    @Test
+    fun `passage automatique en wolagent2`() = runBlocking {
+        val phone = TestIdentities.newDevice()
+        val agentClient = AgentClient(deviceName = { "Pixel passage" }, identity = { phone })
+        val pc = Device(
+            id = "pc", name = "PC CI", mac = MacAddress.parse("AA:BB:CC:DD:EE:09"), host = "127.0.0.1",
+            agent = AgentSettings(port, System.getenv("WOL_E2E_KEY")),
+        )
+        val first = AgentUpgrade.run(agentClient, pc, keepKey = false) as AgentUpgrade.Outcome.Upgraded
+        assertEquals("control", first.role)
+        assertEquals(local.pin.toString(), first.settings.pin)
+        assertEquals("", first.settings.key, "clé effacée")
+        assertTrue(agentClient.status("127.0.0.1", first.settings) is AgentResult.Success)
+        // Déjà enregistré (configuration restaurée, avec la clé et sans empreinte) : aucune nouvelle migration.
+        val again = AgentUpgrade.run(agentClient, pc, keepKey = true) as AgentUpgrade.Outcome.Upgraded
+        assertNull(again.role)
+        assertEquals(first.settings.pin, again.settings.pin)
+        assertEquals(pc.agent!!.key, again.settings.key, "clé gardée pour le partage")
     }
 
     @Test

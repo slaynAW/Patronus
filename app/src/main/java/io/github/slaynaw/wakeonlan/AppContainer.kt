@@ -14,6 +14,7 @@ import io.github.slaynaw.wakeonlan.core.status.UnknownReason
 import io.github.slaynaw.wakeonlan.core.wol.WakeOnLanSender
 import io.github.slaynaw.wakeonlan.data.ConfigRepository
 import io.github.slaynaw.wakeonlan.data.HistoryRepository
+import io.github.slaynaw.wakeonlan.data.KeystoreIdentity
 import io.github.slaynaw.wakeonlan.data.SpecsRepository
 import io.github.slaynaw.wakeonlan.diagnostics.DiagnosticLog
 import io.github.slaynaw.wakeonlan.network.LanNetworkMonitor
@@ -57,16 +58,26 @@ class AppContainer(private val context: Context) {
         if (shared.isEmpty()) config else config.copy(devices = config.devices + shared.map { it.device })
     }
 
-    /** Le nom du téléphone accompagne chaque demande : les agents le notent dans l'historique commun. */
-    private val agentClient = AgentClient(binder = network, deviceName = ::deviceName)
-    val statusMonitor = StatusMonitor(prober = HostProber(binder = network, agentClient = agentClient))
+    /** Identité wolagent/2 de ce téléphone (Android 10 ou plus), créée dans le Keystore au premier besoin. */
+    private val identity = KeystoreIdentity()
+
+    /**
+     * Le nom du téléphone accompagne chaque demande wolagent/1 et l'enregistrement auprès des agents (wolagent/2) : les
+     * agents le notent dans l'historique commun.
+     */
+    private val agentClient = AgentClient(binder = network, deviceName = ::deviceName, identity = identity::get)
+    private val prober = HostProber(binder = network, agentClient = agentClient)
+    val statusMonitor = StatusMonitor(prober = prober)
     val history = HistoryRepository(context, scope)
     val historyTracker = HistoryTracker(allDevices, statusMonitor.statuses, agentClient, history, scope)
 
     /** Fiche de chaque PC (agent 1.10.0), gardée pour l'afficher PC éteint. */
     val specs = SpecsRepository(context, scope)
     val specsTracker = SpecsTracker(allDevices, statusMonitor.statuses, agentClient, specs, scope)
-    val actions = DeviceActions(network, WakeOnLanSender(binder = network), agentClient, statusMonitor, historyTracker)
+    val actions = DeviceActions(network, WakeOnLanSender(binder = network), agentClient, statusMonitor, historyTracker, prober)
+
+    /** Passage automatique des PC du téléphone en wolagent/2 (connexion chiffrée, identité propre au téléphone). */
+    val agentUpgrades = AgentUpgradeTracker(repository, statusMonitor.statuses, agentClient, prober, share, scope)
 
     /** Sauvegardes automatiques (GitHub et dossier), chiffrées par un mot de passe dédié. */
     val backups = BackupManager(context, scope, repository, share, history)

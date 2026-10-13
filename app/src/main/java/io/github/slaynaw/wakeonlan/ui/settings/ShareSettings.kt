@@ -587,6 +587,10 @@ private fun RightsDialog(
                         )
                     }
                 }
+                // PC passés en wolagent/2 : plus de clé à transmettre, « démarrer » seulement jusqu'au partage v2.
+                if (devices.any { it.canShutdown && it.agent?.hasKey != true }) {
+                    Text(stringResource(R.string.share_right_v2_note), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
+                }
                 if (!dialog.isNew) {
                     WolButton(stringResource(R.string.share_revoke), onRevoke, Modifier.fillMaxWidth(), ButtonKind.DANGER)
                 }

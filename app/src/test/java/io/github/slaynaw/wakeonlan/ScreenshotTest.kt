@@ -53,6 +53,7 @@ import io.github.slaynaw.wakeonlan.data.StoredSpecs
 import io.github.slaynaw.wakeonlan.network.LanState
 import io.github.slaynaw.wakeonlan.network.LanTransport
 import io.github.slaynaw.wakeonlan.ui.detail.DeviceDetailContent
+import io.github.slaynaw.wakeonlan.ui.detail.InfoCard
 import io.github.slaynaw.wakeonlan.ui.detail.SpecsCard
 import io.github.slaynaw.wakeonlan.ui.detail.TempsCard
 import io.github.slaynaw.wakeonlan.ui.devices.DeviceItem
@@ -282,6 +283,19 @@ class ScreenshotTest {
         ) {
             TempsCard(items.first(), now)
             SpecsCard(items.first(), now)
+        }
+    }
+
+    /** PC passé en wolagent/2 : connexion chiffrée, empreinte de l'agent, plus de clé. */
+    @Test
+    fun ficheWolagent2() = capture("3e-informations-wolagent2") {
+        val base = items.first()
+        val item = base.copy(
+            device = base.device.copy(agent = AgentSettings(key = "", pin = "qL5cBtCXCWvDGqMUWJ3gNeR0P1MukyXvb6K8OoRKVHw")),
+            status = base.status.copy(agent = base.status.agent?.copy(proto = "wolagent/2", role = "control")),
+        )
+        Column(Modifier.background(WolPalette.Background).verticalScroll(rememberScrollState()).padding(16.dp)) {
+            InfoCard(item)
         }
     }
 

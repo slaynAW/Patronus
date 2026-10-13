@@ -66,6 +66,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.slaynaw.wakeonlan.R
 import io.github.slaynaw.wakeonlan.appContainer
 import io.github.slaynaw.wakeonlan.core.agent.AgentError
+import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2
 import io.github.slaynaw.wakeonlan.core.model.DeviceField
 import io.github.slaynaw.wakeonlan.ui.common.BusySpinner
 import io.github.slaynaw.wakeonlan.ui.common.ButtonKind
@@ -211,7 +212,8 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
                         value = form.agentKey,
                         onValueChange = { vm.onFormChange(form.copy(agentKey = it)) },
                         label = stringResource(R.string.field_agent_key),
-                        supporting = stringResource(R.string.field_agent_key_help),
+                        supporting = state.agentPin?.let { stringResource(R.string.field_agent_key_help_v2, it) }
+                            ?: stringResource(R.string.field_agent_key_help),
                         error = state.errors[DeviceField.AGENT_KEY],
                         keyboard = KeyboardOptions(keyboardType = KeyboardType.Password),
                         visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -405,7 +407,7 @@ private fun TestResultCard(result: AgentTestResult) {
                 Text(
                     when (result) {
                         is AgentTestResult.Success -> stringResource(
-                            R.string.test_ok,
+                            if (result.status.proto == Wolagent2.ALPN) R.string.test_ok_v2 else R.string.test_ok,
                             result.status.hostname,
                             result.status.osLabel(),
                             result.status.version,

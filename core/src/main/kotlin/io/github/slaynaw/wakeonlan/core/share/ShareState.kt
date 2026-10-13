@@ -58,14 +58,18 @@ data class ShareOwner(
 
     fun person(device: String): SharePerson? = people.firstOrNull { it.device == device }
 
-    /** Ce que reçoit une personne : ses PC, dans l'ordre, sans clé d'agent pour « démarrer ». */
+    /**
+     * Ce que reçoit une personne : ses PC, dans l'ordre, sans clé d'agent pour « démarrer ». L'empreinte wolagent/2 de
+     * l'agent n'est jamais transmise : l'identité de la personne n'est pas enregistrée par l'agent, elle passe par la
+     * clé (wolagent/1) jusqu'au partage v2 (docs/PROTOCOLE-V2.md, §10).
+     */
     fun content(person: SharePerson, devices: List<Device>): ShareContent = ShareContent(
         ownerName = name,
         recipientName = person.name,
         devices = devices.mapNotNull { d ->
             when (person.rights[d.id]) {
                 ShareRight.WAKE -> d.copy(agent = null)
-                ShareRight.FULL -> d
+                ShareRight.FULL -> d.copy(agent = d.agent?.copy(pin = ""))
                 null -> null
             }
         },

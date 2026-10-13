@@ -21,6 +21,9 @@ import java.net.ConnectException
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.security.MessageDigest
+import java.util.Base64
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.TimeSource
 
 /** Méthode qui a permis de détecter la machine. */
@@ -53,6 +56,10 @@ fun interface DeviceProber {
  * - **Ping ICMP**, souvent bloqué par le pare-feu Windows mais utile pour les autres systèmes.
  *
  * La première réponse positive l'emporte ; le tout est borné par [timeoutMs].
+ *
+ * Après un refus de l'agent (identité inconnue, clé refusée), il n'est recontacté qu'après un délai, doublé à chaque
+ * nouveau refus : chaque refus compte comme un échec, et l'agent bloque une adresse après 5 échecs en une minute
+ * (docs/PROTOCOLE-V2.md, §3.3). Entre-temps, une simple connexion à son port dit si le PC est allumé.
  */
 class HostProber(
     private val binder: NetworkBinder = NetworkBinder.Default,
@@ -60,8 +67,19 @@ class HostProber(
     private val timeoutMs: Long = DEFAULT_TIMEOUT_MS,
     private val ping: suspend (InetAddress, Int) -> Boolean = ::defaultPing,
     tcp: (suspend (InetAddress, Int, Int) -> Boolean)? = null,
+    private val now: () -> Long = System::currentTimeMillis,
 ) : DeviceProber {
     private val tcp: suspend (InetAddress, Int, Int) -> Boolean = tcp ?: ::tcpAnswers
+
+    /** Derniers refus de l'agent, par PC. */
+    private val refusals = ConcurrentHashMap<String, Refusal>()
+
+    private data class Refusal(val settings: String, val error: AgentError, val count: Int, val until: Long)
+
+    /** Oublie le dernier refus de l'agent d'un PC : il sera recontacté à la prochaine sonde (action réussie, appairage). */
+    fun forget(deviceId: String) {
+        refusals.remove(deviceId)
+    }
 
     override suspend fun probe(device: Device): ProbeResult = coroutineScope {
         if (!device.hasHost) return@coroutineScope ProbeResult.UNREACHABLE
@@ -70,15 +88,20 @@ class HostProber(
             runCatching { awaitBlocking { binder.resolve(device.host) } }.getOrNull()
         } ?: return@coroutineScope ProbeResult.UNREACHABLE
 
-        val agentSettings = device.agent?.takeIf { it.hasKey }
-        val agentJob = agentSettings?.let {
+        val agentSettings = device.agent?.takeIf { it.ready }
+        // Agent qui refuse cet appareil : pas de nouvelle demande avant le délai, mais une simple connexion à son
+        // port (qu'il ne compte pas comme un échec) dit si le PC est allumé.
+        val refused = agentSettings?.let { refusedRecently(device) }
+        val ports = if (refused != null) device.probePorts + agentSettings.port else device.probePorts
+        val agentJob = agentSettings?.takeIf { refused == null }?.let {
             async { withTimeoutOrNull(timeoutMs) { agentClient.status(address.hostAddress, it) } }
         }
         val fallbackJob = async {
-            withTimeoutOrNull(timeoutMs) { firstReachable(address, device.probePorts, start) }
+            withTimeoutOrNull(timeoutMs) { firstReachable(address, ports, start) }
         }
 
         val agentResult = agentJob?.await()
+        if (agentResult != null) noteAgent(device, agentResult)
         if (agentResult != null && agentResult.hostAnswered) {
             fallbackJob.cancel()
             val latency = start.elapsedNow().inWholeMilliseconds
@@ -89,10 +112,43 @@ class HostProber(
         }
         val agentError = when {
             agentSettings == null -> null
+            refused != null -> refused
             agentResult == null -> AgentError.UNREACHABLE
             else -> (agentResult as? AgentResult.Failure)?.error
         }
         (fallbackJob.await() ?: ProbeResult.UNREACHABLE).copy(agentError = agentError)
+    }
+
+    /** Refus récent de l'agent d'un PC, avec les mêmes réglages, dont le délai court encore ; null sinon. */
+    private fun refusedRecently(device: Device): AgentError? {
+        val r = refusals[device.id] ?: return null
+        return r.error.takeIf { r.settings == settingsKey(device) && now() < r.until }
+    }
+
+    /** Retient un refus de l'agent (délai doublé à chaque refus), ou l'oublie après une réponse. */
+    private fun noteAgent(device: Device, result: AgentResult<*>) {
+        val error = (result as? AgentResult.Failure)?.error
+        if (error == null) {
+            refusals.remove(device.id)
+            return
+        }
+        if (error != AgentError.UNREGISTERED && error != AgentError.UNAUTHORIZED && error != AgentError.RATE_LIMITED) return
+        val key = settingsKey(device)
+        val previous = refusals[device.id]?.takeIf { it.settings == key }
+        val next = if (error == AgentError.RATE_LIMITED) {
+            Refusal(key, error, previous?.count ?: 0, now() + RATE_LIMITED_PAUSE_MS)
+        } else {
+            val count = (previous?.count ?: 0) + 1
+            Refusal(key, error, count, now() + minOf(REFUSAL_MAX_DELAY_MS, REFUSAL_MIN_DELAY_MS shl minOf(count - 1, 5)))
+        }
+        refusals[device.id] = next
+    }
+
+    /** Adresse et réglages de l'agent d'un PC, résumés (sans garder la clé) : un changement remet le délai à zéro. */
+    private fun settingsKey(device: Device): String {
+        val a = device.agent
+        val text = listOf(device.host, a?.port?.toString().orEmpty(), a?.key.orEmpty(), a?.pin.orEmpty()).joinToString("\u0000")
+        return Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)))
     }
 
     private suspend fun firstReachable(
@@ -136,6 +192,13 @@ class HostProber(
 
     companion object {
         const val DEFAULT_TIMEOUT_MS = 1_500L
+
+        /** Délai avant de recontacter un agent qui a refusé cet appareil, doublé à chaque refus. */
+        const val REFUSAL_MIN_DELAY_MS = 60_000L
+        const val REFUSAL_MAX_DELAY_MS = 30 * 60_000L
+
+        /** Une adresse bloquée par l'agent l'est 5 minutes. */
+        const val RATE_LIMITED_PAUSE_MS = 5 * 60_000L
 
         suspend fun defaultPing(address: InetAddress, timeoutMs: Int): Boolean =
             awaitBlocking { runCatching { address.isReachable(timeoutMs) }.getOrDefault(false) }

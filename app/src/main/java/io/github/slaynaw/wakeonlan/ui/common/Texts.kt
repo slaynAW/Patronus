@@ -41,6 +41,9 @@ fun AgentError.label(): Int = when (this) {
     AgentError.RATE_LIMITED -> R.string.agent_error_rate_limited
     AgentError.PROTOCOL -> R.string.agent_error_protocol
     AgentError.REJECTED -> R.string.agent_error_rejected
+    AgentError.UNREGISTERED -> R.string.agent_error_unregistered
+    AgentError.PIN_MISMATCH -> R.string.agent_error_pin_mismatch
+    AgentError.NO_IDENTITY -> R.string.agent_error_no_identity
 }
 
 @StringRes

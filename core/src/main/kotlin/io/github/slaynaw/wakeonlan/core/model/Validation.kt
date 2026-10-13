@@ -1,6 +1,7 @@
 package io.github.slaynaw.wakeonlan.core.model
 
 import io.github.slaynaw.wakeonlan.core.agent.AgentKey
+import io.github.slaynaw.wakeonlan.core.agent2.Pin
 
 /** Champ d'un terminal, pour rattacher une erreur de validation au bon champ du formulaire. */
 enum class DeviceField { NAME, MAC, HOST, BROADCAST, WOL_PORT, SECURE_ON, PROBE_PORTS, AGENT_PORT, AGENT_KEY }
@@ -46,6 +47,9 @@ object DeviceValidator {
             if (!isValidPort(agent.port)) add(ValidationError(DeviceField.AGENT_PORT, "Port invalide (1-65535)"))
             if (agent.hasKey && AgentKey.decodeOrNull(agent.key) == null) {
                 add(ValidationError(DeviceField.AGENT_KEY, "Clé d'agent invalide"))
+            }
+            if (agent.hasPin && Pin.parse(agent.pin) == null) {
+                add(ValidationError(DeviceField.AGENT_KEY, "Empreinte d'agent invalide"))
             }
             if (!device.hasHost) add(ValidationError(DeviceField.HOST, "L'adresse du PC est nécessaire pour l'agent"))
         }

@@ -76,6 +76,8 @@
     <string name="temperature_cpu_short">CPU %1$s</string>
     <string name="temperature_gpu_short">GPU %1$s</string>
     <string name="agent_authenticated">Authentifié · %1$s</string>
+    <string name="agent_authenticated_v2">Chiffré et authentifié · %1$s</string>
+    <string name="detail_agent_pin">Empreinte du PC</string>
     <string name="agent_not_configured">Non installé</string>
     <string name="agent_configured">Configuré</string>
     <string name="agent_problem">Agent : %1$s</string>
@@ -93,6 +95,9 @@
     <string name="agent_error_rate_limited">trop de tentatives, réessayez dans quelques minutes</string>
     <string name="agent_error_protocol">réponse invalide de l’agent</string>
     <string name="agent_error_rejected">commande refusée par le PC</string>
+    <string name="agent_error_unregistered">ce téléphone n’est pas autorisé par ce PC : appairez-le à nouveau (wol-agent pair sur le PC)</string>
+    <string name="agent_error_pin_mismatch">empreinte inattendue : autre machine à cette adresse ou agent réinstallé (connexion refusée)</string>
+    <string name="agent_error_no_identity">identité de ce téléphone indisponible</string>
 
     <!-- Vue d'ensemble et liste des PC -->
     <string name="summary_ratio">%1$d/%2$d</string>
@@ -392,6 +397,7 @@
     <string name="field_agent_port">Port de l’agent</string>
     <string name="field_agent_key">Clé de l’agent</string>
     <string name="field_agent_key_help">Remplie automatiquement par le QR code. Ne la partagez pas.</string>
+    <string name="field_agent_key_help_v2">Inutile : ce PC est passé en connexion chiffrée wolagent/2 (empreinte %1$s). Scanner un nouveau QR code le réassocie à partir de sa clé.</string>
     <string name="field_broadcast">Adresse de diffusion</string>
     <string name="field_broadcast_help">Vide = automatique (ex. 192.168.1.255)</string>
     <string name="field_wol_port">Port Wake-on-LAN</string>
@@ -401,6 +407,7 @@
     <string name="field_secure_on">Mot de passe SecureOn</string>
     <string name="field_secure_on_help">Rarement utilisé. 6 octets hexadécimaux.</string>
     <string name="test_ok">Connexion réussie : %1$s (%2$s, agent %3$s)</string>
+    <string name="test_ok_v2">Connexion chiffrée réussie : %1$s (%2$s, agent %3$s)</string>
 
     <!-- Réglages -->
     <string name="section_monitoring">Surveillance</string>
@@ -507,6 +514,7 @@
     <string name="share_right_none">Non partagé</string>
     <string name="share_right_wake">Démarrer</string>
     <string name="share_right_full">Démarrer et éteindre</string>
+    <string name="share_right_v2_note">Les PC passés en connexion chiffrée (wolagent/2) se partagent pour l’instant en « Démarrer » : le partage de l’extinction arrive avec la prochaine version du partage.</string>
     <string name="share_grant">Autoriser</string>
     <string name="share_person_waiting">%1$s · publication en attente</string>
     <string name="share_revoke">Retirer l’accès</string>

@@ -115,6 +115,13 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
     /** Lien de partage ouvert depuis un message ou un QR code, à traiter par l'interface. */
     val pendingLink = MutableStateFlow<String?>(null)
 
+    /**
+     * Ce PC est-il partagé avec le droit « démarrer et éteindre » ? Ce partage (wolagent/1) transmet la clé de son
+     * agent, qui est donc gardée quand il passe en wolagent/2 (docs/PROTOCOLE-V2.md, §9).
+     */
+    suspend fun sharedWithControl(deviceId: String): Boolean =
+        repo.current().owner?.people?.any { it.rights[deviceId] == ShareRight.FULL } == true
+
     /** Tant que l'application est visible : publication des changements, vérification des accès reçus. */
     suspend fun run(): Unit = coroutineScope {
         launch {

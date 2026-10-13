@@ -49,7 +49,7 @@ class HistoryViewModel(private val container: AppContainer, deviceId: String?) :
                 names[e.device]?.let { HistoryItem(e, it) }
             },
             devices = config.devices.map { it.id to it.name },
-            hasAgent = selected != null && config.devices.firstOrNull { it.id == selected }?.agent?.hasKey == true,
+            hasAgent = selected != null && config.devices.firstOrNull { it.id == selected }?.agent?.ready == true,
             agentState = selected?.let { journal[it] },
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HistoryUiState(filter = deviceId))

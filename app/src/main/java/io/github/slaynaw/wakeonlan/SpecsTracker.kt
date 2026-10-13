@@ -62,7 +62,7 @@ class SpecsTracker(
         val agentStatus = status.agent ?: return
         if (status.state != PowerState.ONLINE) return
         val device = devices[id] ?: return
-        val settings = device.agent?.takeIf { it.hasKey && device.hasHost } ?: return
+        val settings = device.agent?.takeIf { it.ready && device.hasHost } ?: return
         val version = agentStatus.version
         val now = clock()
         val stored = specs.data.value[id]

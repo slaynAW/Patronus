@@ -68,6 +68,8 @@ data class EditUiState(
     val pairingError: String? = null,
     val pairingApplied: Boolean = false,
     val done: Boolean = false,
+    /** Empreinte courte de l'agent d'un PC passé en wolagent/2 (la clé n'est alors plus utile). */
+    val agentPin: String? = null,
 )
 
 class EditDeviceViewModel(
@@ -78,16 +80,24 @@ class EditDeviceViewModel(
     private val _state = MutableStateFlow(EditUiState())
     val state: StateFlow<EditUiState> = _state.asStateFlow()
 
+    /** Réglages de l'agent enregistrés : l'empreinte wolagent/2 n'est pas dans le formulaire. */
+    private var savedAgent: AgentSettings? = null
+
     init {
         viewModelScope.launch {
             val existing = deviceId?.let { container.repository.current().device(it) }
+            savedAgent = existing?.agent
             _state.value = EditUiState(
                 loading = false,
                 isNew = existing == null,
                 form = existing?.let(DeviceForm::from) ?: DeviceForm(),
+                agentPin = existing?.agent?.shortPin,
             )
         }
     }
+
+    /** Réglages de l'agent pour la clé saisie, avec l'empreinte connue si elle reste valable. */
+    private fun agentSettings(port: Int, key: String) = AgentSettings(port, key, pin = savedAgent?.pinKeptWith(key).orEmpty())
 
     fun onFormChange(form: DeviceForm) = _state.update { it.copy(form = form, errors = emptyMap(), testResult = null) }
 
@@ -146,7 +156,8 @@ class EditDeviceViewModel(
         }
         _state.update { it.copy(testing = true, testResult = null) }
         viewModelScope.launch {
-            val result = container.actions.testAgent(host, AgentSettings(port, form.agentKey.trim()))
+            // Comme à l'enregistrement : un PC passé en wolagent/2 est testé en wolagent/2.
+            val result = container.actions.testAgent(host, agentSettings(port, form.agentKey.trim()), deviceId)
             _state.update {
                 it.copy(
                     testing = false,
@@ -183,7 +194,7 @@ class EditDeviceViewModel(
                 wolPort = wolPort ?: DEFAULT_WOL_PORT,
                 secureOnPassword = f.secureOn.trim().ifEmpty { null },
                 probePorts = probePorts.filterNotNull().distinct(),
-                agent = if (f.agentEnabled) AgentSettings(agentPort ?: DEFAULT_AGENT_PORT, f.agentKey.trim()) else null,
+                agent = if (f.agentEnabled) agentSettings(agentPort ?: DEFAULT_AGENT_PORT, f.agentKey.trim()) else null,
             )
             DeviceValidator.validate(device).forEach { errors.putIfAbsent(it.field, it.message) }
             if (errors.isEmpty()) return device

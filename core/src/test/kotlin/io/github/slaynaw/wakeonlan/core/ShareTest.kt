@@ -2,6 +2,7 @@ package io.github.slaynaw.wakeonlan.core
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import io.github.slaynaw.wakeonlan.core.agent2.Pin
 import io.github.slaynaw.wakeonlan.core.config.ConfigCodec
 import io.github.slaynaw.wakeonlan.core.config.ExportCodec
 import io.github.slaynaw.wakeonlan.core.model.AgentSettings
@@ -167,6 +168,18 @@ class ShareTest {
             val rows = (0 until code.size).map { y -> (0 until code.size).joinToString("") { x -> if (code.isDark(x, y)) "#" else "." } }
             assertEquals(q.rows.joinToString("\n"), rows.joinToString("\n"), q.text)
         }
+    }
+
+    @Test
+    fun `l empreinte de l agent n est jamais partagee`() {
+        val pin = Pin.of("agent".toByteArray()).toString()
+        val pinned = device("b", "Bureau", "192.168.1.21", agent = true).let { it.copy(agent = it.agent!!.copy(pin = pin)) }
+        val owner = ShareOwner(key = "", publicKey = "", name = "Hugo")
+        val content = owner.content(SharePerson("Léa", "x", 1, mapOf("b" to ShareRight.FULL)), listOf(pinned))
+        // La personne passe par la clé (wolagent/1) : son identité n'est pas enregistrée par l'agent.
+        val shared = content.devices.single().agent!!
+        assertEquals(pinned.agent!!.key, shared.key)
+        assertEquals("", shared.pin)
     }
 
     @Test

@@ -48,7 +48,7 @@ object DiagnosticReport {
                 appendLine(
                     "- « ${d.name} » [${d.id.take(8)}] MAC ${d.mac}, hôte ${d.host.ifEmpty { "-" }}, diffusion ${d.broadcastAddress ?: "auto"}, " +
                         "port WoL ${d.wolPort}, SecureOn ${if (d.secureOnPassword != null) "oui" else "non"}, sondes ${d.probePorts}, " +
-                        "agent ${d.agent?.let { "port ${it.port}, clé ${if (it.hasKey) "présente" else "absente"}" } ?: "non"}",
+                        "agent ${d.agent?.let { "port ${it.port}, clé ${if (it.hasKey) "présente" else "absente"}, ${it.shortPin?.let { p -> "wolagent/2 (empreinte $p)" } ?: "wolagent/1"}" } ?: "non"}",
                 )
                 if (st != null) {
                     appendLine(

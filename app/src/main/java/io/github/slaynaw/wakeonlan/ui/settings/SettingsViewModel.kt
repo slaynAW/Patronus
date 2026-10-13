@@ -47,7 +47,7 @@ sealed interface ImportStep {
     data class NeedPassword(val text: String, val wrongPassword: Boolean = false) : ImportStep
     data class Confirm(val config: AppConfig, val sharing: ExportedShareOwner? = null, val history: HistoryData? = null) : ImportStep {
         /** Sauvegarde « sans secrets » : certaines clés d'agent devront être ressaisies. */
-        val missingKeys: Boolean get() = config.devices.any { it.agent?.hasKey == false }
+        val missingKeys: Boolean get() = config.devices.any { it.agent?.ready == false }
     }
 }
 

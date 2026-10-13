@@ -21,3 +21,5 @@
 # QR code fait planter l'APK de publication. Contrôlé en CI (.github/scripts/check-r8-registrars.sh).
 -keep class * implements com.google.firebase.components.ComponentRegistrar { <init>(); }
 -keep class com.google.mlkit.** { <init>(...); }
+# wolagent/2 : messages échangés avec les agents (contrat réseau, comme le partage).
+-keep class io.github.slaynaw.wakeonlan.core.agent2.** { *; }

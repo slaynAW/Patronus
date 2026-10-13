@@ -2,6 +2,7 @@ package io.github.slaynaw.wakeonlan.core.agent
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import java.security.MessageDigest
 import java.util.Base64
 import javax.crypto.Mac
@@ -86,6 +87,14 @@ data class AgentStatus(
     val temperatures: AgentTemperatures? = null,
     /** Espace des lecteurs et santé des disques (agent 1.9.0 ou plus). */
     val disks: AgentDisks? = null,
+    /** Protocoles servis par l'agent (1.11.0 ou plus). */
+    val protocols: List<String> = emptyList(),
+    /** Empreinte wolagent/2 de l'agent, annoncée dans les réponses wolagent/1 signées par la clé (docs/PROTOCOLE-V2.md, §9). */
+    val pin: String = "",
+    /** Protocole de l'échange : « wolagent/1 » ou « wolagent/2 ». */
+    val proto: String = "",
+    /** Rôle de cet appareil sur l'agent (wolagent/2). */
+    val role: String = "",
 )
 
 /** Gravité d'un problème de disque. */
@@ -398,6 +407,15 @@ internal data class ResponseBody(
     val metrics: AgentMetrics? = null,
     val disks: AgentDisks? = null,
     val specs: AgentSpecs? = null,
+    /** Agent 1.11.0 ou plus (docs/PROTOCOLE-V2.md, §9). */
+    val protocols: List<String> = emptyList(),
+    val pin: String = "",
+    /** Protocole de l'échange et rôle de cet appareil (wolagent/2) : jamais lus dans la réponse. */
+    @Transient val proto: String = AgentProtocol.PROTO,
+    @Transient val role: String = "",
 ) {
-    fun toStatus() = AgentStatus(hostname, os, arch, version, uptime, temperatures, disks)
+    fun toStatus() = AgentStatus(
+        hostname, os, arch, version, uptime, temperatures, disks,
+        protocols = protocols, pin = pin, proto = proto, role = role,
+    )
 }

@@ -8,20 +8,24 @@ Patronus/
 │   ├── model/      Device, AppConfig, MacAddress, validation
 │   ├── wol/        paquet magique, adresses de diffusion, envoi UDP
 │   ├── status/     sondes (agent / TCP / ping), machine à états, surveillance
-│   ├── agent/      protocole wolagent/1, client, clé, lien d'appairage
+│   ├── agent/      client des agents (wolagent/2 dès que l'empreinte est connue, sinon wolagent/1), clé, lien
+│   │               d'appairage, passage automatique en wolagent/2 (AgentUpgrade)
+│   ├── agent2/     protocole wolagent/2 : empreintes, codes et liens, preuves de migration, trames, session TLS
 │   ├── history/    historique sur 30 jours : fusion avec le journal des agents, déduction des changements
 │   ├── config/     JSON versionné + migrations, export/import chiffré
 │   ├── share/      partage des PC : format chiffré et signé, liens, client GitHub, QR code (docs/PARTAGE.md)
 │   ├── update/     mises à jour intégrées : manifeste signé, téléchargement vérifié
 │   └── net/        attachement des sockets au bon réseau, E/S annulables
 ├── app/         Android — interface et intégration système
-│   ├── data/       stockage chiffré (DataStore + Keystore) : configuration, historique, partage
+│   ├── data/       stockage chiffré (DataStore + Keystore) : configuration, historique, partage ; identité
+│   │               wolagent/2 du téléphone (KeystoreIdentity : clé P-256 du Keystore, StrongBox si possible)
 │   ├── share/      ShareManager : connexion GitHub, publication des accès, vérification des accès reçus
 │   ├── network/    suivi du Wi-Fi/Ethernet, autorisation « réseau local »
 │   ├── ui/         écrans Compose : onglets (vue d'ensemble, appareils, réglages), fiche d'un PC,
 │   │               historique, édition ; thème sombre commun avec Windows
 │   ├── AppContainer.kt    assemblage des dépendances (injection manuelle)
 │   ├── DeviceActions.kt   réveil / extinction / test d'agent
+│   ├── AgentUpgradeTracker.kt  passage automatique des PC en wolagent/2
 │   └── HistoryTracker.kt  tenue de l'historique (surveillance, demandes, journal des agents)
 ├── desktop/     Go + WebView2 — application Windows (même interface et mêmes fonctions qu'Android)
 │   ├── ui/         interface HTML/CSS/JS : plan du réseau, tableau, panneau de détail, historique

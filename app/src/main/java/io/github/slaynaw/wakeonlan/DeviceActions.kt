@@ -9,6 +9,7 @@ import io.github.slaynaw.wakeonlan.core.history.HistoryKind
 import io.github.slaynaw.wakeonlan.core.model.AgentSettings
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.model.DeviceValidator
+import io.github.slaynaw.wakeonlan.core.status.HostProber
 import io.github.slaynaw.wakeonlan.core.status.StatusMonitor
 import io.github.slaynaw.wakeonlan.core.wol.BroadcastAddresses
 import io.github.slaynaw.wakeonlan.core.wol.MagicPacket
@@ -29,6 +30,8 @@ class DeviceActions(
     private val agentClient: AgentClient,
     private val monitor: StatusMonitor,
     private val history: HistoryTracker,
+    /** Sonde des PC : un agent qui accepte une action est recontacté sans attendre la fin d'un délai après refus. */
+    private val prober: HostProber? = null,
 ) {
     suspend fun wake(device: Device): WakeResult {
         val forced = device.broadcastAddress?.let { InetAddress.getByName(it) as? Inet4Address }
@@ -49,7 +52,7 @@ class DeviceActions(
     }
 
     suspend fun power(device: Device, action: PowerAction, force: Boolean = false): AgentResult<String> {
-        val agent = device.agent?.takeIf { it.hasKey && device.hasHost }
+        val agent = device.agent?.takeIf { it.ready && device.hasHost }
             ?: return AgentResult.Failure(AgentError.NO_KEY)
         val result = agentClient.power(device.host, agent, action, force = force)
         when (result) {
@@ -57,6 +60,7 @@ class DeviceActions(
             is AgentResult.Failure -> DiagnosticLog.w("action", "$action refusé ou impossible pour « ${device.name} » (${device.host}:${agent.port}) : ${result.error}${result.detail?.let { " — $it" }.orEmpty()}")
         }
         if (result is AgentResult.Success) {
+            prober?.forget(device.id)
             history.record(
                 device.id,
                 when (action) {
@@ -70,10 +74,14 @@ class DeviceActions(
         return result
     }
 
-    suspend fun testAgent(host: String, agent: AgentSettings): AgentResult<AgentStatus> =
+    /** Teste l'agent avec les réglages de la fiche ; [deviceId] : PC modifié (null pour un nouveau PC). */
+    suspend fun testAgent(host: String, agent: AgentSettings, deviceId: String? = null): AgentResult<AgentStatus> =
         agentClient.status(host, agent).also { r ->
             when (r) {
-                is AgentResult.Success -> DiagnosticLog.i("action", "test de l'agent $host:${agent.port} : réussi (version ${r.value.version}, ${r.value.os})")
+                is AgentResult.Success -> {
+                    deviceId?.let { prober?.forget(it) }
+                    DiagnosticLog.i("action", "test de l'agent $host:${agent.port} : réussi (version ${r.value.version}, ${r.value.os}, ${r.value.proto})")
+                }
                 is AgentResult.Failure -> DiagnosticLog.w("action", "test de l'agent $host:${agent.port} : ${r.error}${r.detail?.let { " — $it" }.orEmpty()}")
             }
         }
