@@ -7,7 +7,8 @@ affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
 ## 1.11.0
 
-- **Protocole chiffré wolagent/2** : l'agent l'accepte désormais sur le même port, à côté du protocole actuel. Les prochaines versions des applications l'utiliseront : tous les échanges seront chiffrés, chaque téléphone ou PC aura sa propre identité et ses droits (consulter, démarrer, éteindre, administrer), et pourra être retiré seul. Les appareils déjà appairés y passeront d'eux-mêmes, sans rescanner le QR code. Rien ne change pour les applications actuelles.
+- **Protocole chiffré wolagent/2** : l'agent l'accepte désormais sur le même port, à côté du protocole actuel. Les applications 1.12 l'utilisent : tous les échanges sont chiffrés, chaque téléphone ou PC a sa propre identité et ses droits (consulter, démarrer, éteindre, administrer), et peut être retiré seul. Les appareils déjà appairés y passent d'eux-mêmes, sans rescanner le QR code. Les applications plus anciennes continuent de fonctionner comme avant.
+- **QR code d'appairage sans clé secrète** : `wol-agent pair` et l'installation affichent un code à usage unique, valable 10 minutes, et l'empreinte de l'agent. Pour une application antérieure à 1.12, ou un téléphone sous Android 8 ou 9 : `wol-agent pair --v1` affiche l'ancien QR code.
 - **`wol-agent devices`** : liste des appareils autorisés en wolagent/2, retrait, rôle et nom.
 
 ## 1.10.1

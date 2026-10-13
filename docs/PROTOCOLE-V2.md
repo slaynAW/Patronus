@@ -380,7 +380,9 @@ sont vides, et garde `:` tel quel dans les valeurs pour un QR code plus petit.
 ### 7.3 Avec le QR code affiché sur le PC
 
 1. Sur le PC (droits d'administrateur) : `wol-agent pair [--role admin|control|wake|view] [--ttl 600]`. L'agent crée
-   une invitation et affiche le QR code, le lien et son empreinte courte.
+   une invitation et affiche le QR code, le lien et son empreinte courte. Il le fait aussi à la fin de son installation.
+   Pendant la coexistence (§11), `wol-agent pair --v1` affiche à la place l'ancien lien `v=1`, avec la clé
+   `wolagent/1`, pour les applications qui ne connaissent que lui.
 2. L'application scanne, ouvre TLS, vérifie que l'empreinte de l'agent est `a`, puis envoie `pair` avec le code et son
    nom d'appareil.
 3. L'agent enregistre l'appareil (§6.3) et note `device added` au journal.

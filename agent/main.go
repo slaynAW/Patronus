@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -21,6 +22,7 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/internal/config"
 	"github.com/slaynaw/wakeonlan/agent/internal/disks"
 	"github.com/slaynaw/wakeonlan/agent/internal/history"
+	"github.com/slaynaw/wakeonlan/agent/internal/identity"
 	"github.com/slaynaw/wakeonlan/agent/internal/metrics"
 	"github.com/slaynaw/wakeonlan/agent/internal/netinfo"
 	"github.com/slaynaw/wakeonlan/agent/internal/pairing"
@@ -32,6 +34,7 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/internal/sysinfo"
 	"github.com/slaynaw/wakeonlan/agent/internal/terminal"
 	"github.com/slaynaw/wakeonlan/agent/protocol"
+	"github.com/slaynaw/wakeonlan/agent/protocol2"
 )
 
 // version est injectée à la compilation (-ldflags "-X main.version=1.0.0").
@@ -44,9 +47,13 @@ Utilisation : wol-agent <commande> [options]
 Commandes :
   install      Installe l'agent comme service (démarrage automatique) et affiche le QR code d'appairage.
                Options : --port 9770, --name "PC Bureau", --ip 192.168.1.20, --no-firewall, --firewall-public
-  pair         Réaffiche le QR code / lien d'appairage.  Options : --ip, --png fichier.png, --invert
-  rotate-key   Génère une nouvelle clé (l'ancienne ne fonctionne plus : ré-appairez le téléphone).
-  devices      Appareils autorisés en wolagent/2, le protocole chiffré des prochaines applications :
+  pair         Affiche un QR code / lien d'appairage wolagent/2 : code à usage unique, aucune clé secrète.
+               Options : --role admin|control|wake|view (admin), --ttl 600 (secondes ou durée : 10m, 2h ;
+               de 60 s à 7 jours), --ip, --png fichier.png, --invert,
+               --v1 (ancien lien avec la clé de l'agent : applications antérieures à 1.12, Android 8 ou 9)
+  rotate-key   Génère une nouvelle clé wolagent/1 (l'ancienne ne fonctionne plus : ré-appairez le téléphone).
+               Les appareils passés en wolagent/2 ne sont pas concernés.
+  devices      Appareils autorisés en wolagent/2, le protocole chiffré des applications 1.12 :
                liste, retrait, rôle, nom (« wol-agent devices help »).
   status       Affiche l'état du service et la configuration.
   diagnostic   Crée un rapport de diagnostic chiffré par un mot de passe (état, journal), à transmettre
@@ -281,6 +288,15 @@ func cmdInstall(args []string) error {
 	if err := config.Save(cfgPath, cfg); err != nil {
 		return fmt.Errorf("enregistrement de la configuration : %w", err)
 	}
+	if cfg.Accepts(config.ProtocolV2) {
+		// Identité wolagent/2 créée dès maintenant plutôt qu'au démarrage du service : l'appairage
+		// affiché ci-dessous en a besoin.
+		if id, created, err := identity.LoadOrCreate(filepath.Dir(cfgPath), time.Now()); err != nil {
+			fmt.Println("⚠ Identité wolagent/2 de l'agent impossible à créer :", err)
+		} else if created {
+			fmt.Printf("Identité wolagent/2 de l'agent créée (empreinte %s).\n", id.Pin.Short())
+		}
+	}
 
 	opts := service.Options{
 		Binary:         service.DefaultBinary(),
@@ -295,7 +311,9 @@ func cmdInstall(args []string) error {
 	}
 	fmt.Printf("✔ Agent installé (%s) et démarré sur le port TCP %d.\n", opts.Binary, cfg.Port)
 	fmt.Printf("  Configuration : %s\n\n", cfgPath)
-	if err := showPairing(cfg, *ip, "", false); err != nil {
+	// Le service vient de démarrer : l'invitation passe par lui dès qu'il écoute.
+	pairOpts := pairingOptions{IP: *ip, Role: protocol2.RoleAdmin, TTL: protocol2.DefaultInviteTTL * time.Second, Wait: serviceStartWait}
+	if err := showPairingFor(cfg, cfgPath, pairOpts); err != nil {
 		return err
 	}
 	if !*noFirewall {
@@ -309,11 +327,22 @@ func cmdPair(args []string) error {
 	ip := fs.String("ip", "", "adresse IP à annoncer (détectée automatiquement)")
 	pngPath := fs.String("png", "", "enregistre aussi le QR code dans ce fichier PNG")
 	invert := fs.Bool("invert", false, "inverse les couleurs (terminal à fond clair sans couleurs)")
+	roleName := fs.String("role", "admin", "rôle de l'appareil appairé : admin, control, wake ou view")
+	ttlText := fs.String("ttl", "600", "validité du code, de 60 s à 7 jours : secondes (600) ou durée (10m, 2h)")
+	v1 := fs.Bool("v1", false, "ancien lien wolagent/1, avec la clé de l'agent (applications antérieures à 1.12, Android 8 ou 9)")
 	cfgPath := fs.String("config", config.DefaultPath(), "fichier de configuration")
 	pause := fs.Bool("pause", false, "attendre une touche à la fin")
 	_ = fs.Parse(args)
 	if *pause {
 		defer terminal.Pause()
+	}
+	role, ok := protocol2.ParseRole(*roleName)
+	if !ok {
+		return errors.New("rôle invalide (--role) : admin, control, wake ou view")
+	}
+	ttl, err := parseTTL(*ttlText)
+	if err != nil {
+		return err
 	}
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
@@ -322,11 +351,27 @@ func cmdPair(args []string) error {
 		}
 		return err
 	}
-	if err := showPairing(cfg, *ip, *pngPath, *invert); err != nil {
+	if err := showPairingFor(cfg, *cfgPath, pairingOptions{IP: *ip, PNG: *pngPath, Invert: *invert, V1: *v1, Role: role, TTL: ttl}); err != nil {
 		return err
 	}
 	warnBlockedNetwork(false)
 	return nil
+}
+
+// parseTTL lit la validité d'un code d'appairage : un nombre de secondes, ou une durée (10m, 2h).
+func parseTTL(text string) (time.Duration, error) {
+	var ttl time.Duration
+	if n, err := strconv.ParseInt(text, 10, 64); err == nil {
+		if n >= protocol2.MinInviteTTL && n <= protocol2.MaxInviteTTL {
+			ttl = time.Duration(n) * time.Second
+		}
+	} else if d, err := time.ParseDuration(text); err == nil {
+		ttl = d.Truncate(time.Second)
+	}
+	if ttl < protocol2.MinInviteTTL*time.Second || ttl > protocol2.MaxInviteTTL*time.Second {
+		return 0, errors.New("validité invalide (--ttl) : de 60 s à 7 jours, en secondes (600) ou en durée (10m, 2h, 168h)")
+	}
+	return ttl, nil
 }
 
 func cmdRotateKey(args []string) error {
@@ -345,11 +390,18 @@ func cmdRotateKey(args []string) error {
 	if err := config.Save(*cfgPath, cfg); err != nil {
 		return err
 	}
+	// Service redémarré : l'invitation d'appairage attend qu'il écoute de nouveau.
+	pairOpts := pairingOptions{Role: protocol2.RoleAdmin, TTL: protocol2.DefaultInviteTTL * time.Second, Wait: serviceStartWait}
 	if err := service.Restart(); err != nil {
 		fmt.Println("Attention : redémarrez le service pour appliquer la nouvelle clé :", err)
+		pairOpts.Wait = 0
 	}
 	fmt.Println("✔ Nouvelle clé générée. L'ancienne est désormais refusée : ré-appairez le téléphone.")
-	return showPairing(cfg, "", "", false)
+	if cfg.Accepts(config.ProtocolV2) {
+		fmt.Println("  Les appareils passés en wolagent/2 ne sont pas concernés : ils n'utilisent plus cette clé.")
+	}
+	fmt.Println()
+	return showPairingFor(cfg, *cfgPath, pairOpts)
 }
 
 func cmdStatus(args []string) error {
@@ -716,14 +768,161 @@ func cmdUninstall(args []string) error {
 	return nil
 }
 
-// showPairing affiche le QR code et le lien à scanner / coller dans l'application.
+// serviceStartWait : délai laissé au service qui vient de (re)démarrer pour écouter de nouveau.
+const serviceStartWait = 15 * time.Second
+
+// pairingOptions règle l'appairage affiché par wol-agent pair, install et rotate-key.
+type pairingOptions struct {
+	IP, PNG string
+	Invert  bool
+	// V1 affiche l'ancien lien wolagent/1, qui contient la clé secrète de l'agent.
+	V1   bool
+	Role protocol2.Role
+	TTL  time.Duration
+	// Wait laisse au service qui vient de démarrer le temps d'écouter (install) ; sans lui, un service
+	// arrêté trouvera l'invitation dans son registre à son démarrage.
+	Wait time.Duration
+}
+
+// showPairingFor affiche l'appairage : en wolagent/2 (code à usage unique, aucune clé secrète) si
+// l'agent l'accepte, sinon, ou sur demande (--v1), l'ancien lien wolagent/1 avec la clé.
+func showPairingFor(cfg *config.Config, cfgPath string, o pairingOptions) error {
+	if o.V1 || !cfg.Accepts(config.ProtocolV2) {
+		if !cfg.Accepts(config.ProtocolV1) {
+			return errors.New("wolagent/1 est désactivé dans la configuration (« protocols ») : appairez sans --v1")
+		}
+		return showPairing(cfg, o.IP, o.PNG, o.Invert)
+	}
+	iface, err := detectInterface(o.IP)
+	if err != nil {
+		return err
+	}
+	p, err := invitePairing(cfg, cfgPath, iface, o)
+	if err != nil {
+		if cfg.Accepts(config.ProtocolV1) {
+			err = fmt.Errorf("%w\n(« wol-agent pair --v1 » affiche l'ancien lien d'appairage, avec la clé de l'agent)", err)
+		}
+		return err
+	}
+	p.Legacy = cfg.Accepts(config.ProtocolV1)
+	if err := printPairingV2(os.Stdout, p, o.Invert, terminal.EnableANSI(), time.Now()); err != nil {
+		return err
+	}
+	if o.PNG != "" {
+		return savePairingPNG(o.PNG, p.Link.String())
+	}
+	return nil
+}
+
+// pairingV2 est l'appairage wolagent/2 à afficher.
+type pairingV2 struct {
+	Link  protocol2.Link
+	Iface *netinfo.Interface
+	// Offline : service arrêté, invitation écrite dans le registre et valable à son démarrage.
+	Offline bool
+	// Legacy : l'agent accepte encore wolagent/1 (wol-agent pair --v1 possible).
+	Legacy bool
+}
+
+// invitePairing crée l'invitation de wol-agent pair (par le service s'il tourne, sinon dans le
+// registre) et le lien qui la porte : adresse et MAC de la carte réseau, empreinte de l'agent, code.
+func invitePairing(cfg *config.Config, cfgPath string, iface *netinfo.Interface, o pairingOptions) (pairingV2, error) {
+	id, err := loadAgentIdentity(cfgPath)
+	if err != nil {
+		return pairingV2{}, err
+	}
+	admin, err := openDeviceAdmin(cfg, cfgPath, id, o.Wait)
+	if err != nil {
+		return pairingV2{}, err
+	}
+	defer admin.Close()
+	inv, err := admin.invite(id.Pin, o.Role, o.TTL)
+	if err != nil {
+		return pairingV2{}, fmt.Errorf("invitation : %w", err)
+	}
+	code, err := protocol2.NormalizeCode(inv.Code)
+	if err != nil {
+		return pairingV2{}, fmt.Errorf("invitation : %w", err)
+	}
+	role, _ := protocol2.ParseRole(inv.Role)
+	// MAC en majuscules, comme l'écrit la lecture d'un lien (§7.1).
+	link := protocol2.Link{Name: cfg.Name, Host: iface.IP.String(), Port: cfg.Port, MAC: strings.ToUpper(iface.MAC.String()),
+		Agent: id.Pin, Code: code, Role: role, Expires: inv.Expires}
+	return pairingV2{Link: link, Iface: iface, Offline: admin.session == nil}, nil
+}
+
+// roleHelp résume ce que permet chaque rôle (docs/PROTOCOLE-V2.md, §5).
+var roleHelp = map[protocol2.Role]string{
+	protocol2.RoleView:    "consulter : état, journal, mesures",
+	protocol2.RoleWake:    "démarrer et consulter",
+	protocol2.RoleControl: "démarrer, éteindre, redémarrer, mettre en veille et consulter",
+	protocol2.RoleAdmin:   "tous les droits, y compris la gestion des appareils autorisés",
+}
+
+// printPairingV2 affiche le QR code, le code et le lien d'un appairage wolagent/2.
+func printPairingV2(w io.Writer, p pairingV2, invert, ansi bool, now time.Time) error {
+	link := p.Link.String()
+	fmt.Fprintln(w, "Dans l'application : « Ajouter un PC » → « Scanner le QR code » :")
+	fmt.Fprintln(w)
+	if err := pairing.WriteTerminalQR(w, link, ansi, invert); err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "\nPC : %s — IP %s — MAC %s (carte %s)\n", p.Link.Name, p.Link.Host, p.Link.MAC, p.Iface.Name)
+	fmt.Fprintln(w, "⚠ Le Wake-on-LAN passe par la carte réseau FILAIRE : si cette carte est en Wi-Fi,")
+	fmt.Fprintln(w, "  corrigez l'adresse MAC dans l'application (ou utilisez --ip avec l'IP de la carte Ethernet).")
+	fmt.Fprintf(w, "\nCode d'appairage : %s — à usage unique, valable jusqu'%s\n", protocol2.FormatCode(p.Link.Code),
+		untilText(time.Unix(p.Link.Expires, 0), now))
+	fmt.Fprintf(w, "Rôle donné : %s (%s)\n", p.Link.Role, roleHelp[p.Link.Role])
+	fmt.Fprintf(w, "Empreinte de l'agent : %s (l'application l'affiche une fois le PC ajouté)\n", p.Link.Agent.Short())
+	fmt.Fprintln(w, "\nLien d'appairage (application Windows : « Ajouter un PC » → « Coller le lien » ;\nsur le téléphone, « Coller un lien » si le QR code ne passe pas) :")
+	fmt.Fprintln(w, link)
+	fmt.Fprintln(w, "\nCe QR code ne contient aucune clé secrète, et le code ne sert qu'une fois. S'il a servi sans vous,")
+	fmt.Fprintln(w, "l'appareil inconnu figure dans « wol-agent devices » : retirez-le (wol-agent devices revoke …).")
+	if p.Offline {
+		fmt.Fprintln(w, "Service arrêté : le code sera accepté à son démarrage.")
+	}
+	if p.Legacy {
+		fmt.Fprintln(w, "Application antérieure à 1.12, ou téléphone sous Android 8 ou 9 : « wol-agent pair --v1 ».")
+	}
+	return nil
+}
+
+// untilText écrit l'échéance d'un code : « à 14:32 » le jour même, sinon « au 15/10/2026 à 14:32 ».
+func untilText(t, now time.Time) string {
+	if y, m, d := t.Date(); y == now.Year() && m == now.Month() && d == now.Day() {
+		return "à " + t.Format("15:04")
+	}
+	return "au " + t.Format("02/01/2006 à 15:04")
+}
+
+// detectInterface trouve la carte réseau à annoncer dans le lien d'appairage.
+func detectInterface(ip string) (*netinfo.Interface, error) {
+	iface, err := netinfo.Detect(ip)
+	if err != nil && ip == "" {
+		return nil, fmt.Errorf("%w (précisez l'adresse avec --ip)", err)
+	}
+	return iface, err
+}
+
+// savePairingPNG enregistre le QR code d'un lien d'appairage dans un fichier PNG.
+func savePairingPNG(path, link string) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if err := pairing.WritePNG(f, link, 8); err != nil {
+		return err
+	}
+	fmt.Println("QR code enregistré dans", path, "(supprimez-le après usage).")
+	return nil
+}
+
+// showPairing affiche le QR code et le lien wolagent/1, qui contient la clé secrète de l'agent.
 func showPairing(cfg *config.Config, ip, pngPath string, invert bool) error {
 	info := pairing.Info{Name: cfg.Name, Port: cfg.Port, Key: cfg.Key}
-	iface, err := netinfo.Detect(ip)
+	iface, err := detectInterface(ip)
 	if err != nil {
-		if ip == "" {
-			return fmt.Errorf("%w (précisez l'adresse avec --ip)", err)
-		}
 		return err
 	}
 	info.Host = iface.IP.String()
@@ -742,15 +941,7 @@ func showPairing(cfg *config.Config, ip, pngPath string, invert bool) error {
 	fmt.Println(link)
 	fmt.Println("\nCe QR code contient la clé secrète de l'agent : ne le partagez pas.")
 	if pngPath != "" {
-		f, err := os.OpenFile(pngPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		if err := pairing.WritePNG(f, link, 8); err != nil {
-			return err
-		}
-		fmt.Println("QR code enregistré dans", pngPath, "(supprimez-le après usage).")
+		return savePairingPNG(pngPath, link)
 	}
 	return nil
 }

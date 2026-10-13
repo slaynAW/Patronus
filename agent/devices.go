@@ -81,6 +81,21 @@ func describeV2(cfg *config.Config, cfgPath string) string {
 	return fmt.Sprintf("%s — %d appareil(s) autorisé(s), %d invitation(s) en attente", text, len(registry.Devices()), len(registry.Invites()))
 }
 
+// errNoIdentity : le service n'a pas encore créé l'identité wolagent/2 de l'agent.
+var errNoIdentity = errors.New("identité wolagent/2 pas encore créée : elle l'est au démarrage du service (wol-agent status)")
+
+// loadAgentIdentity lit l'identité wolagent/2 de l'agent, réservée aux administrateurs du PC.
+func loadAgentIdentity(cfgPath string) (*identity.Identity, error) {
+	id, err := identity.Load(filepath.Dir(cfgPath), time.Now())
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return nil, errNoIdentity
+	case errors.Is(err, os.ErrPermission):
+		return nil, errors.New("droits administrateur nécessaires")
+	}
+	return id, err
+}
+
 // deviceAdmin agit sur le registre : par le service s'il tourne (effet immédiat, connexions de
 // l'appareil retiré fermées), sinon directement dans le fichier, relu au démarrage du service.
 type deviceAdmin struct {
@@ -91,15 +106,27 @@ type deviceAdmin struct {
 
 // openDeviceAdmin se connecte au service sur le PC avec l'identité de l'agent : seul un
 // administrateur du PC peut la lire, et l'agent ne l'accepte que depuis l'adresse de bouclage.
-func openDeviceAdmin(cfg *config.Config, cfgPath string, id *identity.Identity) (*deviceAdmin, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	session, err := client.Dial(ctx, net.JoinHostPort("127.0.0.1", strconv.Itoa(cfg.Port)), client.Options{Identity: id.Cert, Agent: &id.Pin})
-	if err == nil {
-		return &deviceAdmin{session: session}, nil
-	}
-	if !connRefused(err) {
-		return nil, fmt.Errorf("connexion au service : %w", err)
+// wait laisse au service qui vient de démarrer le temps d'écouter (install) : il doit alors répondre,
+// le registre qu'il a déjà lu ne pouvant plus être modifié directement.
+func openDeviceAdmin(cfg *config.Config, cfgPath string, id *identity.Identity, wait time.Duration) (*deviceAdmin, error) {
+	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(cfg.Port))
+	deadline := time.Now().Add(wait)
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		session, err := client.Dial(ctx, addr, client.Options{Identity: id.Cert, Agent: &id.Pin})
+		cancel()
+		switch {
+		case err == nil:
+			return &deviceAdmin{session: session}, nil
+		case !connRefused(err):
+			return nil, fmt.Errorf("connexion au service : %w", err)
+		case time.Now().Before(deadline):
+			time.Sleep(250 * time.Millisecond)
+			continue
+		case wait > 0:
+			return nil, fmt.Errorf("le service ne répond pas sur le port %d (wol-agent status)", cfg.Port)
+		}
+		break
 	}
 	registry, err := devices.Open(devices.Path(filepath.Dir(cfgPath)), time.Now)
 	if err != nil {
@@ -136,6 +163,28 @@ func (a *deviceAdmin) list() ([]protocol2.DeviceInfo, int, error) {
 		list = append(list, protocol2.DeviceInfo{Device: d.Pin.String(), Name: d.Name, Role: d.Role.String(), Added: d.Added, Via: d.Via, Seen: d.Seen})
 	}
 	return list, len(a.registry.Invites()), nil
+}
+
+// invite crée une invitation (wol-agent pair) : par le service s'il tourne, sinon dans le registre, où
+// le service la trouvera à son démarrage. agent est l'empreinte de l'agent, jointe à l'invitation.
+func (a *deviceAdmin) invite(agent protocol2.Pin, role protocol2.Role, ttl time.Duration) (protocol2.InviteInfo, error) {
+	if a.session != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		resp, err := a.session.Do(ctx, protocol2.Request{Cmd: protocol2.CmdInvite, Role: role.String(), TTL: int64(ttl / time.Second)})
+		switch {
+		case err != nil:
+			return protocol2.InviteInfo{}, err
+		case !resp.OK || resp.Invite == nil:
+			return protocol2.InviteInfo{}, errors.New(resp.Message)
+		}
+		return *resp.Invite, nil
+	}
+	inv, code, err := a.registry.CreateInvite(role, "", ttl, nil, devices.ByLocal)
+	if err != nil {
+		return protocol2.InviteInfo{}, err
+	}
+	return protocol2.InviteInfo{ID: inv.ID, Code: code, Role: role.String(), Expires: inv.Expires, Agent: agent.String()}, nil
 }
 
 // change applique devices.revoke, devices.role ou devices.rename ; renvoie le code de réponse.
@@ -209,16 +258,11 @@ func cmdDevices(args []string) error {
 	if !cfg.Accepts(config.ProtocolV2) {
 		return errors.New("wolagent/2 est désactivé dans la configuration (« protocols »)")
 	}
-	id, err := identity.Load(filepath.Dir(cfgPath), time.Now())
-	switch {
-	case errors.Is(err, os.ErrNotExist):
-		return errors.New("identité wolagent/2 pas encore créée : elle l'est au démarrage du service (wol-agent status)")
-	case errors.Is(err, os.ErrPermission):
-		return errors.New("droits administrateur nécessaires")
-	case err != nil:
+	id, err := loadAgentIdentity(cfgPath)
+	if err != nil {
 		return err
 	}
-	admin, err := openDeviceAdmin(cfg, cfgPath, id)
+	admin, err := openDeviceAdmin(cfg, cfgPath, id, 0)
 	if err != nil {
 		return err
 	}
