@@ -602,6 +602,7 @@
     <string name="share_request_code">Code de vérification à comparer avec %1$s :</string>
     <string name="share_request_wait">Les PC apparaîtront dans la liste dès que %1$s aura autorisé l’accès.</string>
     <string name="share_access_title">PC de %1$s</string>
+    <string name="share_access_mismatch">Demande modifiée en route : ses PC restent en « Démarrer ». Quittez ce partage puis refaites la demande d’accès.</string>
     <string name="share_access_pending">En attente de l’autorisation de %1$s</string>
     <string name="share_access_active">%1$s · vérifié il y a %2$s</string>
     <string name="share_access_removed">Accès retiré par %1$s</string>

@@ -149,7 +149,77 @@ type Access struct {
 	// Synced est l'heure de la dernière vérification réussie ; ETag évite de relire un Gist inchangé.
 	Synced int64  `json:"synced,omitempty"`
 	ETag   string `json:"etag,omitempty"`
+	// Partage v2 (docs/PARTAGE.md, « Partage v2 ») : empreinte de cet appareil telle que reçue par la
+	// personne qui partage, et invitations en attente (codes secrets, jamais écrits dans les journaux).
+	Identity string        `json:"identity,omitempty"`
+	Invites  []AgentInvite `json:"invites,omitempty"`
+	// Paired associe chaque PC (identifiant du contenu) qui a enregistré cet appareil à l'empreinte de
+	// son agent ; Tried, chaque PC à l'expiration de la dernière invitation refusée, jamais retentée.
+	Paired map[string]string `json:"paired,omitempty"`
+	Tried  map[string]int64  `json:"tried,omitempty"`
 }
+
+// Mismatch indique que la demande a été modifiée en route : l'empreinte reçue par la personne qui
+// partage n'est pas celle de cet appareil (self, "" s'il n'en a pas : rien à comparer). Les PC joints
+// par leur empreinte restent alors en « démarrer ».
+func (a *Access) Mismatch(self string) bool {
+	return self != "" && a.Identity != "" && a.Identity != self
+}
+
+// LocalDevice renvoie un PC reçu tel que cet appareil doit le joindre : un PC partagé en v2 garde
+// l'empreinte de son agent seulement s'il a enregistré cet appareil. Sinon il est traité comme un PC
+// sans agent (une identité inconnue de l'agent compterait comme un échec, §3.3), dont le port de
+// l'agent est sondé comme les autres : une simple connexion TCP n'est pas un échec, et elle montre que
+// le PC répond, même pare-feu fermé à ses autres ports. Les PC partagés en v1 (clé) sont inchangés.
+func (a *Access) LocalDevice(d model.Device, self string) model.Device {
+	d = d.Clone()
+	if d.Agent != nil && d.Agent.HasPin() && (self == "" || a.Mismatch(self) || a.Paired[d.ID] != d.Agent.Pin) {
+		if !slices.Contains(d.ProbePorts, d.Agent.Port) {
+			d.ProbePorts = append(d.ProbePorts, d.Agent.Port)
+		}
+		d.Agent = nil
+	}
+	return d
+}
+
+// Pending renvoie les invitations utilisables maintenant : PC du contenu joint par l'empreinte de son
+// agent, pas encore enregistré, invitation valable et jamais refusée, demande non modifiée.
+func (a *Access) Pending(self string, now time.Time) []AgentInvite {
+	if self == "" || a.Identity != self || !a.Active {
+		return nil
+	}
+	var out []AgentInvite
+	for _, inv := range a.Invites {
+		i := slices.IndexFunc(a.Devices, func(d model.Device) bool { return d.ID == inv.Device })
+		if i < 0 || a.Devices[i].Agent == nil || !a.Devices[i].Agent.HasPin() || a.Paired[inv.Device] == a.Devices[i].Agent.Pin ||
+			inv.Expires <= now.Unix() || a.Tried[inv.Device] == inv.Expires {
+			continue
+		}
+		out = append(out, inv)
+	}
+	return out
+}
+
+// MarkPaired note qu'un PC a enregistré cet appareil (empreinte de son agent : pin).
+func (a *Access) MarkPaired(device, pin string) {
+	if a.Paired == nil {
+		a.Paired = map[string]string{}
+	}
+	a.Paired[device] = pin
+	delete(a.Tried, device)
+}
+
+// MarkTried note qu'une invitation a été refusée : elle n'est jamais retentée.
+func (a *Access) MarkTried(device string, expires int64) {
+	if a.Tried == nil {
+		a.Tried = map[string]int64{}
+	}
+	a.Tried[device] = expires
+}
+
+// Unpair oublie l'enregistrement d'un PC (appareil retiré par le PC) : il redevient « démarrer »
+// jusqu'à une nouvelle invitation.
+func (a *Access) Unpair(device string) { delete(a.Paired, device) }
 
 const stateVersion = 1
 
@@ -407,7 +477,7 @@ func (a *Access) Apply(files map[string]string, device string, key func() (strin
 	text, ok := files[FileName(device)]
 	if !ok {
 		if a.Active {
-			a.Active, a.Removed, a.Devices = false, true, []model.Device{}
+			a.Active, a.Removed, a.Devices, a.Invites, a.Paired, a.Tried = false, true, []model.Device{}, nil, nil, nil
 			return Withdrawn, nil
 		}
 		return Unchanged, nil
@@ -429,6 +499,7 @@ func (a *Access) Apply(files map[string]string, device string, key func() (strin
 	a.Active, a.Removed, a.Revision = true, false, opened.Revision
 	a.OwnerName = opened.Content.OwnerName
 	a.Devices = opened.Content.Devices
+	a.Identity, a.Invites = opened.Content.Identity, opened.Content.Invites
 	switch {
 	case !wasActive:
 		return Granted, nil

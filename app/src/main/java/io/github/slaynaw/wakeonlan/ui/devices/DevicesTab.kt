@@ -173,7 +173,7 @@ private fun DeviceCard(
                 LatencyTrace(item.latency, Modifier.weight(1f).height(24.dp))
             }
             DeviceMenu(
-                canShutdown = device.canShutdown,
+                canShutdown = item.canShutdown,
                 editable = item.editable,
                 isFirst = isFirst,
                 isLast = isLast,
@@ -250,7 +250,7 @@ private fun DeviceCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 when (status.state) {
-                    PowerState.ONLINE -> if (device.canShutdown) {
+                    PowerState.ONLINE -> if (item.canShutdown) {
                         WolButton(
                             stringResource(R.string.action_shutdown),
                             onClick = { onPower(PowerAction.SHUTDOWN) },

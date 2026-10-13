@@ -273,7 +273,7 @@ private fun DeviceRow(item: DeviceItem, now: Long, onOpen: () -> Unit, onWake: (
             Spacer(Modifier.width(10.dp))
         }
         when {
-            status.state == PowerState.ONLINE && device.canShutdown -> RoundIconButton(
+            status.state == PowerState.ONLINE && item.canShutdown -> RoundIconButton(
                 icon = WolIcons.Power,
                 contentDescription = stringResource(R.string.action_shutdown),
                 onClick = onShutdown,

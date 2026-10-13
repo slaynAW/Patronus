@@ -164,11 +164,13 @@ fun ColumnScope.ShareSections(
     WolCard {
         share.received.forEach { access ->
             val error = share.syncErrors[access.owner]
+            val mismatch = access.active && access.mismatch(share.selfIdentity)
             SettingItem(
                 icon = WolIcons.Monitor,
                 title = stringResource(R.string.share_access_title, access.ownerName),
                 text = when {
                     error != null -> error
+                    mismatch -> stringResource(R.string.share_access_mismatch)
                     access.removed -> stringResource(R.string.share_access_removed, access.ownerName)
                     !access.active -> stringResource(R.string.share_access_pending, access.ownerName)
                     else -> stringResource(
@@ -177,7 +179,7 @@ fun ColumnScope.ShareSections(
                         formatDuration(now - (access.synced.takeIf { it > 0 } ?: now)),
                     )
                 },
-                danger = error != null || access.removed,
+                danger = error != null || access.removed || mismatch,
                 onClick = { onDialog(ShareDialog.Access(access)) },
             )
             RowDivider()
@@ -399,19 +401,23 @@ fun ShareDialogHost(
             onSend = { send(context, dialog.view.link) },
             onDismiss = close,
         )
-        is ShareDialog.Access -> AccessDialog(
-            access = share.received.firstOrNull { it.owner == dialog.access.owner } ?: dialog.access,
-            error = share.syncErrors[dialog.access.owner],
-            onShowRequest = {
-                scope.launch { manager.requestView(dialog.access.owner)?.let { onDialog(ShareDialog.Request(it)) } }
-            },
-            onSync = {
-                manager.syncNow()
-                close()
-            },
-            onLeave = { onDialog(ShareDialog.Leave(dialog.access)) },
-            onDismiss = close,
-        )
+        is ShareDialog.Access -> {
+            val access = share.received.firstOrNull { it.owner == dialog.access.owner } ?: dialog.access
+            AccessDialog(
+                access = access,
+                error = share.syncErrors[dialog.access.owner],
+                mismatch = access.active && access.mismatch(share.selfIdentity),
+                onShowRequest = {
+                    scope.launch { manager.requestView(dialog.access.owner)?.let { onDialog(ShareDialog.Request(it)) } }
+                },
+                onSync = {
+                    manager.syncNow()
+                    close()
+                },
+                onLeave = { onDialog(ShareDialog.Leave(dialog.access)) },
+                onDismiss = close,
+            )
+        }
         is ShareDialog.Leave -> ConfirmDialog(
             title = stringResource(R.string.share_leave_title, dialog.access.ownerName),
             text = stringResource(R.string.share_leave_text),
@@ -730,6 +736,7 @@ private fun NameDialog(ownerName: String, onConfirm: (String) -> Unit, onDismiss
 private fun AccessDialog(
     access: ShareAccess,
     error: String?,
+    mismatch: Boolean,
     onShowRequest: () -> Unit,
     onSync: () -> Unit,
     onLeave: () -> Unit,
@@ -753,6 +760,13 @@ private fun AccessDialog(
                     },
                 )
                 error?.let { Text(it, color = WolPalette.DangerText, style = MaterialTheme.typography.bodySmall) }
+                if (mismatch) {
+                    Text(
+                        stringResource(R.string.share_access_mismatch),
+                        color = WolPalette.DangerText,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 if (!access.active && !access.removed) {
                     WolButton(stringResource(R.string.share_show_request), onShowRequest, Modifier.fillMaxWidth(), icon = WolIcons.Share)
                 }

@@ -359,6 +359,17 @@ type SharedView struct {
 	OwnerName string `json:"ownerName"`
 }
 
+// roleCanControl indique que cet ordinateur peut éteindre le PC d'après son dernier état : en
+// wolagent/2, il faut le rôle « control » au moins (un PC partagé en « démarrer et consulter » ne
+// propose pas l'extinction). Rôle inconnu (PC éteint, wolagent/1) : rien n'est masqué.
+func roleCanControl(ds status.DeviceStatus) bool {
+	if ds.Agent == nil || ds.Agent.Proto != protocol2.ALPN || ds.Agent.Role == "" {
+		return true
+	}
+	role, ok := protocol2.ParseRole(ds.Agent.Role)
+	return !ok || role >= protocol2.RoleControl
+}
+
 // latencyView est la durée des mesures de latence envoyées à l'interface : la minute tracée,
 // plus une marge pour le défilement.
 const latencyView = 75 * time.Second
@@ -401,7 +412,7 @@ func (s *Service) State() UIState {
 		}
 		v := DeviceView{
 			ID: d.ID, Name: d.Name, MAC: d.MAC.String(), Host: d.Host,
-			HasAgent: d.Agent != nil, CanShutdown: d.CanShutdown(), Status: ds,
+			HasAgent: d.Agent != nil, CanShutdown: d.CanShutdown() && roleCanControl(ds), Status: ds,
 			Latency: s.monitor.Latency(d.ID, since),
 		}
 		if d.Agent != nil {

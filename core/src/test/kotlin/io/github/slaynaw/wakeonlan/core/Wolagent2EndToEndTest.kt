@@ -18,6 +18,7 @@ import io.github.slaynaw.wakeonlan.core.model.AgentSettings
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.model.MacAddress
 import io.github.slaynaw.wakeonlan.core.share.RoleChange
+import io.github.slaynaw.wakeonlan.core.share.ShareAccess
 import io.github.slaynaw.wakeonlan.core.share.ShareAgents
 import io.github.slaynaw.wakeonlan.core.share.ShareOwner
 import io.github.slaynaw.wakeonlan.core.share.SharePerson
@@ -238,9 +239,25 @@ class Wolagent2EndToEndTest {
         val idle = app.shareSync("127.0.0.1", settings) { view -> owner.planAgent("pc", view, now) }
         assertTrue(idle.plan!!.isEmpty && idle.result.created.isEmpty(), "${idle.plan}")
 
+        // Fichier d'accès de Léa : le PC sans clé, avec l'empreinte de l'agent et l'invitation réservée.
+        val pc = Device(id = "pc", name = "PC CI", mac = MacAddress.parse("AA:BB:CC:DD:EE:01"), host = "127.0.0.1", agent = settings)
+        val content = owner.content(owner.people.single(), listOf(pc), now * 1000)
+        var access = ShareAccess(
+            owner = "owner", ownerName = "Hugo", user = "slaynAW", gist = "8f3a1c2b4d5e6f708192a3b4c5d6e7f8", myName = "Léa",
+            active = true, devices = content.devices, identity = content.identity, invites = content.invites,
+        )
+        val self = lea.pin.toString()
+        assertNull(access.localDevice(access.devices.single(), self).agent, "pas d'agent avant l'enregistrement")
+        val usable = access.pending(self, now).single()
+
         // Léa utilise l'invitation : enregistrée avec le rôle « control », constaté à la session suivante.
         val leaApp = AgentClient(deviceName = { "Pixel de Léa" }, identity = { lea })
-        assertEquals(AgentResult.Success(AgentPairing("control")), leaApp.pair("127.0.0.1", settings, created.code))
+        assertEquals(AgentResult.Success(AgentPairing("control")), leaApp.pair("127.0.0.1", settings, usable.code))
+        access = access.markPaired("pc", agentPin.toString())
+        val joined = access.localDevice(access.devices.single(), self).agent!!
+        val leaStatus = leaApp.status("127.0.0.1", joined)
+        assertTrue(leaStatus is AgentResult.Success && leaStatus.value.role == "control", "$leaStatus")
+        assertTrue(access.pending(self, now).isEmpty(), "invitation utilisée une seule fois")
         val second = app.shareSync("127.0.0.1", settings) { view -> owner.planAgent("pc", view, now) }
         val secondPlan = second.plan!!
         assertEquals(listOf(RoleChange(lea.pin.toString(), "control")), secondPlan.registered)

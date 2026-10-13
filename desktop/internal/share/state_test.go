@@ -1,6 +1,7 @@
 package share
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -146,5 +147,49 @@ func TestContentNeverCarriesAgentPin(t *testing.T) {
 	}
 	if devices[1].Agent.Pin != pin {
 		t.Error("configuration du propriétaire modifiée")
+	}
+}
+
+// Côté destinataire du partage v2 : PC joints par leur agent seulement une fois enregistrés,
+// invitations utilisables une seule fois, demande modifiée en route.
+func TestReceivedV2(t *testing.T) {
+	cases := v2ReceivedCases(t)
+	want := []struct {
+		agents, pending []string
+		mismatch        bool
+	}{
+		{[]string{"b", "d"}, []string{"c", "e"}, false},
+		{[]string{"b"}, []string{}, false},
+		{[]string{"b"}, []string{}, true},
+		{[]string{"b"}, []string{}, false},
+		{[]string{"b"}, []string{}, false},
+	}
+	for i, c := range cases {
+		if !slices.Equal(c.Agents, want[i].agents) || !slices.Equal(c.Pending, want[i].pending) || c.Mismatch != want[i].mismatch {
+			t.Errorf("%s : agents %v, invitations %v, demande modifiée %t", c.Name, c.Agents, c.Pending, c.Mismatch)
+		}
+	}
+	// PC partagé en v2, pas encore enregistré : le port de son agent rejoint les ports sondés.
+	if p := cases[1].Probes["c"]; !slices.Equal(p, []int{3389, 9770}) {
+		t.Errorf("ports sondés : %v", p)
+	}
+	if p := cases[0].Probes["d"]; !slices.Equal(p, []int{22}) {
+		t.Errorf("ports sondés d'un PC enregistré : %v", p)
+	}
+	// Enregistré puis invitation refusée : jamais retentée ; retiré : de nouveau sans agent.
+	a := cases[0].Access
+	now := time.Unix(cases[0].Now, 0)
+	a.MarkPaired("c", a.Devices[2].Agent.Pin)
+	a.MarkTried("e", a.Invites[1].Expires)
+	if len(a.Pending(cases[0].Self, now)) != 0 || a.LocalDevice(a.Devices[2], cases[0].Self).Agent == nil {
+		t.Errorf("après l'enregistrement : %v", a.Pending(cases[0].Self, now))
+	}
+	a.Unpair("c")
+	if a.LocalDevice(a.Devices[2], cases[0].Self).Agent != nil {
+		t.Error("PC retiré toujours joint par son agent")
+	}
+	// Accès retiré : invitations et enregistrements oubliés.
+	if res, err := a.Apply(map[string]string{}, "device", nil, now); err != nil || res != Withdrawn || a.Invites != nil || a.Paired != nil {
+		t.Errorf("retrait : %v %v %+v", res, err, a)
 	}
 }

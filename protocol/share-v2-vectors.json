@@ -1196,5 +1196,675 @@
       "afterWork": true,
       "afterPoll": false
     }
+  ],
+  "received": [
+    {
+      "name": "invitations à utiliser, PC enregistré, agent réinstallé, partage v1",
+      "self": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+      "now": 1790600000,
+      "access": {
+        "owner": "owner",
+        "ownerName": "Hugo",
+        "user": "slaynAW",
+        "gist": "8f3a1c2b4d5e6f708192a3b4c5d6e7f8",
+        "myName": "Léa",
+        "active": true,
+        "revision": 1,
+        "devices": [
+          {
+            "id": "a",
+            "name": "PC streaming",
+            "mac": "3C:7C:3F:1A:2B:4C",
+            "host": "192.168.1.20",
+            "wolPort": 9,
+            "probePorts": [
+              3389,
+              445
+            ]
+          },
+          {
+            "id": "b",
+            "name": "Bureau",
+            "mac": "00:11:22:33:44:55",
+            "host": "bureau.local",
+            "wolPort": 9,
+            "probePorts": [
+              3389,
+              445,
+              22,
+              139
+            ],
+            "agent": {
+              "port": 9770,
+              "key": "ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4"
+            }
+          },
+          {
+            "id": "c",
+            "name": "Salon",
+            "mac": "00:11:22:33:44:66",
+            "host": "192.168.1.30",
+            "wolPort": 9,
+            "probePorts": [
+              3389
+            ],
+            "agent": {
+              "port": 9770,
+              "key": "gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc",
+              "pin": "EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c"
+            }
+          },
+          {
+            "id": "d",
+            "name": "Atelier",
+            "mac": "00:11:22:33:44:77",
+            "host": "atelier.local",
+            "wolPort": 9,
+            "probePorts": [
+              22
+            ],
+            "agent": {
+              "port": 9771,
+              "key": "",
+              "pin": "43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U"
+            }
+          },
+          {
+            "id": "e",
+            "name": "Grenier",
+            "mac": "00:11:22:33:44:77",
+            "host": "atelier.local",
+            "wolPort": 9,
+            "probePorts": [
+              22
+            ],
+            "agent": {
+              "port": 9771,
+              "key": "",
+              "pin": "qZP16nKyOmYQTq5dZVkUJ6jEo0v6SQR3HaB1xGi9GgM"
+            }
+          }
+        ],
+        "requested": 0,
+        "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+        "invites": [
+          {
+            "device": "c",
+            "code": "7KQ29MXP",
+            "role": "wake",
+            "expires": 1790600600
+          },
+          {
+            "device": "e",
+            "code": "7KQ29MXP",
+            "role": "wake",
+            "expires": 1790600600
+          }
+        ],
+        "paired": {
+          "d": "43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U",
+          "e": "UFNMalCiW-CS5M5YDfanwb0egkvDoArwbyrsqdtPw1k"
+        }
+      },
+      "agents": [
+        "b",
+        "d"
+      ],
+      "probes": {
+        "a": [
+          3389,
+          445
+        ],
+        "b": [
+          3389,
+          445,
+          22,
+          139
+        ],
+        "c": [
+          3389,
+          9770
+        ],
+        "d": [
+          22
+        ],
+        "e": [
+          22,
+          9771
+        ]
+      },
+      "pending": [
+        "c",
+        "e"
+      ],
+      "mismatch": false
+    },
+    {
+      "name": "invitation expirée, invitation déjà refusée",
+      "self": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+      "now": 1790600000,
+      "access": {
+        "owner": "owner",
+        "ownerName": "Hugo",
+        "user": "slaynAW",
+        "gist": "8f3a1c2b4d5e6f708192a3b4c5d6e7f8",
+        "myName": "Léa",
+        "active": true,
+        "revision": 1,
+        "devices": [
+          {
+            "id": "a",
+            "name": "PC streaming",
+            "mac": "3C:7C:3F:1A:2B:4C",
+            "host": "192.168.1.20",
+            "wolPort": 9,
+            "probePorts": [
+              3389,
+              445
+            ]
+          },
+          {
+            "id": "b",
+            "name": "Bureau",
+            "mac": "00:11:22:33:44:55",
+            "host": "bureau.local",
+            "wolPort": 9,
+            "probePorts": [
+              3389,
+              445,
+              22,
+              139
+            ],
+            "agent": {
+              "port": 9770,
+              "key": "ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4"
+            }
+          },
+          {
+            "id": "c",
+            "name": "Salon",
+            "mac": "00:11:22:33:44:66",
+            "host": "192.168.1.30",
+            "wolPort": 9,
+            "probePorts": [
+              3389
+            ],
+            "agent": {
+              "port": 9770,
+              "key": "gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc",
+              "pin": "EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c"
+            }
+          },
+          {
+            "id": "d",
+            "name": "Atelier",
+            "mac": "00:11:22:33:44:77",
+            "host": "atelier.local",
+            "wolPort": 9,
+            "probePorts": [
+              22
+            ],
+            "agent": {
+              "port": 9771,
+              "key": "",
+              "pin": "43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U"
+            }
+          },
+          {
+            "id": "e",
+            "name": "Grenier",
+            "mac": "00:11:22:33:44:77",
+            "host": "atelier.local",
+            "wolPort": 9,
+            "probePorts": [
+              22
+            ],
+            "agent": {
+              "port": 9771,
+              "key": "",
+              "pin": "qZP16nKyOmYQTq5dZVkUJ6jEo0v6SQR3HaB1xGi9GgM"
+            }
+          }
+        ],
+        "requested": 0,
+        "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+        "invites": [
+          {
+            "device": "c",
+            "code": "7KQ29MXP",
+            "role": "wake",
+            "expires": 1790600000
+          },
+          {
+            "device": "d",
+            "code": "7KQ29MXP",
+            "role": "wake",
+            "expires": 1790600600
+          }
+        ],
+        "tried": {
+          "d": 1790600600
+        }
+      },
+      "agents": [
+        "b"
+      ],
+      "probes": {
+        "a": [
+          3389,
+          445
+        ],
+        "b": [
+          3389,
+          445,
+          22,
+          139
+        ],
+        "c": [
+          3389,
+          9770
+        ],
+        "d": [
+          22,
+          9771
+        ],
+        "e": [
+          22,
+          9771
+        ]
+      },
+      "pending": [],
+      "mismatch": false
+    },
+    {
+      "name": "demande modifiée en route",
+      "self": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+      "now": 1790600000,
+      "access": {
+        "owner": "owner",
+        "ownerName": "Hugo",
+        "user": "slaynAW",
+        "gist": "8f3a1c2b4d5e6f708192a3b4c5d6e7f8",
+        "myName": "Léa",
+        "active": true,
+        "revision": 1,
+        "devices": [
+          {
+            "id": "a",
+            "name": "PC streaming",
+            "mac": "3C:7C:3F:1A:2B:4C",
+            "host": "192.168.1.20",
+            "wolPort": 9,
+            "probePorts": [
+              3389,
+              445
+            ]
+          },
+          {
+            "id": "b",
+            "name": "Bureau",
+            "mac": "00:11:22:33:44:55",
+            "host": "bureau.local",
+            "wolPort": 9,
+            "probePorts": [
+              3389,
+              445,
+              22,
+              139
+            ],
+            "agent": {
+              "port": 9770,
+              "key": "ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4"
+            }
+          },
+          {
+            "id": "c",
+            "name": "Salon",
+            "mac": "00:11:22:33:44:66",
+            "host": "192.168.1.30",
+            "wolPort": 9,
+            "probePorts": [
+              3389
+            ],
+            "agent": {
+              "port": 9770,
+              "key": "gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc",
+              "pin": "EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c"
+            }
+          },
+          {
+            "id": "d",
+            "name": "Atelier",
+            "mac": "00:11:22:33:44:77",
+            "host": "atelier.local",
+            "wolPort": 9,
+            "probePorts": [
+              22
+            ],
+            "agent": {
+              "port": 9771,
+              "key": "",
+              "pin": "43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U"
+            }
+          },
+          {
+            "id": "e",
+            "name": "Grenier",
+            "mac": "00:11:22:33:44:77",
+            "host": "atelier.local",
+            "wolPort": 9,
+            "probePorts": [
+              22
+            ],
+            "agent": {
+              "port": 9771,
+              "key": "",
+              "pin": "qZP16nKyOmYQTq5dZVkUJ6jEo0v6SQR3HaB1xGi9GgM"
+            }
+          }
+        ],
+        "requested": 0,
+        "identity": "R3jkMw0MDxEJjkNdGb5fddB3yRfVA5baGEfmprhkCuA",
+        "invites": [
+          {
+            "device": "c",
+            "code": "7KQ29MXP",
+            "role": "wake",
+            "expires": 1790600600
+          }
+        ],
+        "paired": {
+          "d": "43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U"
+        }
+      },
+      "agents": [
+        "b"
+      ],
+      "probes": {
+        "a": [
+          3389,
+          445
+        ],
+        "b": [
+          3389,
+          445,
+          22,
+          139
+        ],
+        "c": [
+          3389,
+          9770
+        ],
+        "d": [
+          22,
+          9771
+        ],
+        "e": [
+          22,
+          9771
+        ]
+      },
+      "pending": [],
+      "mismatch": true
+    },
+    {
+      "name": "appareil sans identité wolagent/2",
+      "self": "",
+      "now": 1790600000,
+      "access": {
+        "owner": "owner",
+        "ownerName": "Hugo",
+        "user": "slaynAW",
+        "gist": "8f3a1c2b4d5e6f708192a3b4c5d6e7f8",
+        "myName": "Léa",
+        "active": true,
+        "revision": 1,
+        "devices": [
+          {
+            "id": "a",
+            "name": "PC streaming",
+            "mac": "3C:7C:3F:1A:2B:4C",
+            "host": "192.168.1.20",
+            "wolPort": 9,
+            "probePorts": [
+              3389,
+              445
+            ]
+          },
+          {
+            "id": "b",
+            "name": "Bureau",
+            "mac": "00:11:22:33:44:55",
+            "host": "bureau.local",
+            "wolPort": 9,
+            "probePorts": [
+              3389,
+              445,
+              22,
+              139
+            ],
+            "agent": {
+              "port": 9770,
+              "key": "ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4"
+            }
+          },
+          {
+            "id": "c",
+            "name": "Salon",
+            "mac": "00:11:22:33:44:66",
+            "host": "192.168.1.30",
+            "wolPort": 9,
+            "probePorts": [
+              3389
+            ],
+            "agent": {
+              "port": 9770,
+              "key": "gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc",
+              "pin": "EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c"
+            }
+          },
+          {
+            "id": "d",
+            "name": "Atelier",
+            "mac": "00:11:22:33:44:77",
+            "host": "atelier.local",
+            "wolPort": 9,
+            "probePorts": [
+              22
+            ],
+            "agent": {
+              "port": 9771,
+              "key": "",
+              "pin": "43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U"
+            }
+          },
+          {
+            "id": "e",
+            "name": "Grenier",
+            "mac": "00:11:22:33:44:77",
+            "host": "atelier.local",
+            "wolPort": 9,
+            "probePorts": [
+              22
+            ],
+            "agent": {
+              "port": 9771,
+              "key": "",
+              "pin": "qZP16nKyOmYQTq5dZVkUJ6jEo0v6SQR3HaB1xGi9GgM"
+            }
+          }
+        ],
+        "requested": 0,
+        "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+        "invites": [
+          {
+            "device": "c",
+            "code": "7KQ29MXP",
+            "role": "wake",
+            "expires": 1790600600
+          }
+        ],
+        "paired": {
+          "d": "43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U"
+        }
+      },
+      "agents": [
+        "b"
+      ],
+      "probes": {
+        "a": [
+          3389,
+          445
+        ],
+        "b": [
+          3389,
+          445,
+          22,
+          139
+        ],
+        "c": [
+          3389,
+          9770
+        ],
+        "d": [
+          22,
+          9771
+        ],
+        "e": [
+          22,
+          9771
+        ]
+      },
+      "pending": [],
+      "mismatch": false
+    },
+    {
+      "name": "accès en attente",
+      "self": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+      "now": 1790600000,
+      "access": {
+        "owner": "owner",
+        "ownerName": "Hugo",
+        "user": "slaynAW",
+        "gist": "8f3a1c2b4d5e6f708192a3b4c5d6e7f8",
+        "myName": "Léa",
+        "active": false,
+        "revision": 1,
+        "devices": [
+          {
+            "id": "a",
+            "name": "PC streaming",
+            "mac": "3C:7C:3F:1A:2B:4C",
+            "host": "192.168.1.20",
+            "wolPort": 9,
+            "probePorts": [
+              3389,
+              445
+            ]
+          },
+          {
+            "id": "b",
+            "name": "Bureau",
+            "mac": "00:11:22:33:44:55",
+            "host": "bureau.local",
+            "wolPort": 9,
+            "probePorts": [
+              3389,
+              445,
+              22,
+              139
+            ],
+            "agent": {
+              "port": 9770,
+              "key": "ZLCnlEApAJ9CmwzAdcWna9TivmH-wN2eczSUBjfjli4"
+            }
+          },
+          {
+            "id": "c",
+            "name": "Salon",
+            "mac": "00:11:22:33:44:66",
+            "host": "192.168.1.30",
+            "wolPort": 9,
+            "probePorts": [
+              3389
+            ],
+            "agent": {
+              "port": 9770,
+              "key": "gAKSp4rN4m6vnA1EFs5obwBs-Zx1iFj6LjkHPMQ6ogc",
+              "pin": "EAUBzp4cM6NL--0StuFPuLBsu7D1u4x_xbroAaOqa2c"
+            }
+          },
+          {
+            "id": "d",
+            "name": "Atelier",
+            "mac": "00:11:22:33:44:77",
+            "host": "atelier.local",
+            "wolPort": 9,
+            "probePorts": [
+              22
+            ],
+            "agent": {
+              "port": 9771,
+              "key": "",
+              "pin": "43WdMLfODfmZ6qKxWN4uNSFFDdcitskkvbcdVGUza2U"
+            }
+          },
+          {
+            "id": "e",
+            "name": "Grenier",
+            "mac": "00:11:22:33:44:77",
+            "host": "atelier.local",
+            "wolPort": 9,
+            "probePorts": [
+              22
+            ],
+            "agent": {
+              "port": 9771,
+              "key": "",
+              "pin": "qZP16nKyOmYQTq5dZVkUJ6jEo0v6SQR3HaB1xGi9GgM"
+            }
+          }
+        ],
+        "requested": 0,
+        "identity": "Ag3CKVtMpppENWyGT_hqo8uAJtfOO2TbQCz699pJFeQ",
+        "invites": [
+          {
+            "device": "c",
+            "code": "7KQ29MXP",
+            "role": "wake",
+            "expires": 1790600600
+          }
+        ]
+      },
+      "agents": [
+        "b"
+      ],
+      "probes": {
+        "a": [
+          3389,
+          445
+        ],
+        "b": [
+          3389,
+          445,
+          22,
+          139
+        ],
+        "c": [
+          3389,
+          9770
+        ],
+        "d": [
+          22,
+          9771
+        ],
+        "e": [
+          22,
+          9771
+        ]
+      },
+      "pending": [],
+      "mismatch": false
+    }
   ]
 }
