@@ -613,6 +613,7 @@ private fun RightSelector(current: ShareRight?, allowFull: Boolean, onChange: (S
             when (right) {
                 null -> R.string.share_right_none
                 ShareRight.WAKE -> R.string.share_right_wake
+                ShareRight.VIEW -> R.string.share_right_view
                 ShareRight.FULL -> R.string.share_right_full
             },
         )

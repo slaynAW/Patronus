@@ -29,9 +29,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/slaynaw/wakeonlan/agent/protocol2"
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 )
@@ -234,9 +236,31 @@ type payload struct {
 
 // Content est ce que reçoit l'appareil autorisé.
 type Content struct {
-	OwnerName     string         `json:"ownerName"`
-	RecipientName string         `json:"recipientName"`
-	Devices       []model.Device `json:"devices"`
+	OwnerName     string `json:"ownerName"`
+	RecipientName string `json:"recipientName"`
+	// Identity est l'empreinte wolagent/2 de l'appareil destinataire, telle que reçue dans sa demande
+	// (partage v2) : l'appareil vérifie que c'est la sienne avant d'utiliser Invites.
+	Identity string         `json:"identity,omitempty"`
+	Devices  []model.Device `json:"devices"`
+	// Invites sont les invitations wolagent/2 en attente, réservées à Identity (partage v2).
+	Invites []AgentInvite `json:"invites,omitempty"`
+}
+
+// AgentInvite est une invitation wolagent/2 transmise par le partage : l'appareil destinataire
+// l'utilise (« pair ») pour se faire enregistrer par le PC.
+type AgentInvite struct {
+	// Device est l'identifiant du PC dans Content.Devices.
+	Device string `json:"device"`
+	// Code est le code d'appairage, normalisé (secret : jamais écrit dans les journaux).
+	Code string `json:"code"`
+	// Role est le rôle que donnera l'agent ; Expires, la fin de validité (secondes Unix).
+	Role    string `json:"role"`
+	Expires int64  `json:"expires"`
+}
+
+// String masque le code.
+func (i AgentInvite) String() string {
+	return fmt.Sprintf("AgentInvite(device=%s, role=%s, expires=%d, code=***)", i.Device, i.Role, i.Expires)
 }
 
 // Opened est un fichier d'accès vérifié et déchiffré.
@@ -417,5 +441,38 @@ func Open(data []byte, ownerPublic string, device *ecdh.PrivateKey, minRevision 
 		return Opened{}, fmt.Errorf("%w : %v", ErrInvalid, err)
 	}
 	c.Devices = checked.Devices
+	if err := checkV2(&c); err != nil {
+		return Opened{}, fmt.Errorf("%w : %v", ErrInvalid, err)
+	}
 	return Opened{Revision: p.Revision, IssuedAt: p.IssuedAt, Content: c}, nil
+}
+
+// checkV2 vérifie les champs du partage v2 (docs/PARTAGE.md, « Partage v2 ») : empreinte de
+// l'appareil destinataire, et invitations qui désignent chacune un PC du contenu joint par
+// l'empreinte de son agent. Les codes sont normalisés.
+func checkV2(c *Content) error {
+	if c.Identity != "" && !validIdentity(c.Identity) {
+		return errors.New("empreinte de l'appareil destinataire invalide")
+	}
+	if len(c.Invites) == 0 {
+		c.Invites = nil
+		return nil
+	}
+	if c.Identity == "" {
+		return errors.New("invitations sans empreinte de l'appareil destinataire")
+	}
+	seen := map[string]bool{}
+	for i, inv := range c.Invites {
+		j := slices.IndexFunc(c.Devices, func(d model.Device) bool { return d.ID == inv.Device })
+		if j < 0 || c.Devices[j].Agent == nil || !c.Devices[j].Agent.HasPin() || seen[inv.Device] {
+			return errors.New("invitation pour un PC absent, sans empreinte d'agent, ou en double")
+		}
+		seen[inv.Device] = true
+		code, err := protocol2.NormalizeCode(inv.Code)
+		if _, ok := protocol2.ParseRole(inv.Role); err != nil || !ok || inv.Expires < 1 || inv.Expires > protocol2.MaxExpires {
+			return errors.New("invitation invalide")
+		}
+		c.Invites[i].Code = code
+	}
+	return nil
 }

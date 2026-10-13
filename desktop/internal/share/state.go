@@ -1,6 +1,7 @@
 package share
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/slaynaw/wakeonlan/agent/protocol2"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 )
 
@@ -18,14 +20,30 @@ import (
 type Right string
 
 const (
-	// RightWake : démarrer et voir l'état (la clé de l'agent n'est pas transmise).
+	// RightWake : démarrer et voir l'état. L'agent n'est pas joint : ni clé, ni enregistrement.
 	RightWake Right = "wake"
-	// RightFull : démarrer, éteindre, redémarrer, mettre en veille.
+	// RightView : démarrer et consulter (état, journal, mesures, fiche du PC). Partage v2 seulement :
+	// l'agent enregistre l'appareil de la personne avec le rôle « wake ».
+	RightView Right = "view"
+	// RightFull : démarrer, éteindre, redémarrer, mettre en veille. Partage v2 : rôle « control » ;
+	// partage v1 : la clé de l'agent est transmise.
 	RightFull Right = "full"
 )
 
 // Valid indique un droit connu.
-func (r Right) Valid() bool { return r == RightWake || r == RightFull }
+func (r Right) Valid() bool { return r == RightWake || r == RightView || r == RightFull }
+
+// AgentRole renvoie le rôle wolagent/2 donné à l'appareil de la personne (partage v2), ou "" pour
+// « démarrer », qui ne joint pas l'agent.
+func (r Right) AgentRole() string {
+	switch r {
+	case RightView:
+		return protocol2.RoleWake.String()
+	case RightFull:
+		return protocol2.RoleControl.String()
+	}
+	return ""
+}
 
 // MaxPeople borne le nombre de personnes autorisées.
 const MaxPeople = 50
@@ -57,6 +75,12 @@ type Owner struct {
 	Published map[string]string `json:"published,omitempty"`
 	// Withdrawn liste les clés des appareils dont le fichier reste à supprimer du Gist.
 	Withdrawn []string `json:"withdrawn,omitempty"`
+	// Pairings suit, par personne et par PC partagé en v2, l'invitation créée sur l'agent ou
+	// l'enregistrement de son appareil (docs/PARTAGE.md, « Partage v2 »). Jamais exporté.
+	Pairings []Pairing `json:"pairings,omitempty"`
+	// Revocations liste les appareils à retirer des PC (accès retiré ou réduit) : à appliquer dès
+	// que cet appareil joint le PC en administrateur. Gardée dans l'export complet.
+	Revocations []Revocation `json:"revocations,omitempty"`
 }
 
 // Person est une personne (un appareil) autorisée.
@@ -64,9 +88,47 @@ type Person struct {
 	Name string `json:"name"`
 	// Device est la clé publique de réception de son appareil.
 	Device string `json:"device"`
-	Added  int64  `json:"added"`
+	// Identity est l'empreinte wolagent/2 de son appareil, reçue dans sa demande (paramètre « id ») :
+	// vide pour une demande d'une application qui ne connaît que le partage v1.
+	Identity string `json:"identity,omitempty"`
+	Added    int64  `json:"added"`
 	// Rights associe l'identifiant de chaque PC partagé au droit accordé.
 	Rights map[string]Right `json:"rights"`
+}
+
+// Pairing est l'appairage wolagent/2 d'une personne sur un PC (partage v2).
+type Pairing struct {
+	// Person est la clé de réception de la personne (Person.Device) ; Device, l'identifiant du PC.
+	Person string `json:"person"`
+	Device string `json:"device"`
+	// Identity est l'empreinte wolagent/2 de l'appareil de la personne ; Role, le rôle de l'invitation.
+	Identity string `json:"identity"`
+	Role     string `json:"role"`
+	// Invite, Code et Expires (secondes Unix) décrivent l'invitation en attente. Le code est secret :
+	// jamais exporté ni écrit dans les journaux.
+	Invite  string `json:"invite,omitempty"`
+	Code    string `json:"code,omitempty"`
+	Expires int64  `json:"expires,omitempty"`
+	// Registered : l'appareil de la personne figure dans le registre du PC.
+	Registered bool `json:"registered,omitempty"`
+}
+
+// String masque le code de l'invitation.
+func (p Pairing) String() string {
+	code := ""
+	if p.Code != "" {
+		code = "***"
+	}
+	return fmt.Sprintf("Pairing(device=%s, role=%s, invite=%s, code=%s, expires=%d, registered=%t)",
+		p.Device, p.Role, p.Invite, code, p.Expires, p.Registered)
+}
+
+// Revocation est un appareil à retirer d'un PC : invitations réservées à son empreinte à annuler,
+// puis enregistrement à supprimer.
+type Revocation struct {
+	// Device est l'identifiant du PC ; Identity, l'empreinte wolagent/2 de l'appareil à retirer.
+	Device   string `json:"device"`
+	Identity string `json:"identity"`
 }
 
 // Access est un partage reçu (ou demandé) d'une autre personne.
@@ -112,26 +174,55 @@ func (o *Owner) Person(device string) int {
 	return slices.IndexFunc(o.People, func(p Person) bool { return p.Device == device })
 }
 
-// Content construit ce que reçoit une personne : ses PC autorisés, dans l'ordre de la configuration,
-// sans la clé de l'agent pour un accès « démarrer ». L'empreinte wolagent/2 de l'agent n'est jamais
-// transmise : l'identité de la personne n'est pas enregistrée par l'agent, elle passe par la clé
-// (wolagent/1) jusqu'au partage v2 (docs/PROTOCOLE-V2.md, §10).
-func (o *Owner) Content(p Person, devices []model.Device) Content {
-	c := Content{OwnerName: o.Name, RecipientName: p.Name, Devices: []model.Device{}}
+// Content construit ce que reçoit une personne : ses PC autorisés, dans l'ordre de la configuration
+// (règles : docs/PARTAGE.md, « Partage v2 ») :
+//   - « démarrer » : le PC sans agent ;
+//   - partage v2 (demande avec empreinte, agent joint par la sienne) : l'empreinte de l'agent, sans
+//     clé, une fois l'invitation créée ou l'appareil enregistré, et l'invitation tant qu'elle est
+//     valable ; avant, le PC sans agent ;
+//   - partage v1 : la clé de l'agent pour « démarrer et éteindre », jamais son empreinte.
+//
+// now sert à écarter les invitations expirées.
+func (o *Owner) Content(p Person, devices []model.Device, now time.Time) Content {
+	c := Content{OwnerName: o.Name, RecipientName: p.Name, Identity: p.Identity, Devices: []model.Device{}}
 	for _, d := range devices {
 		right, ok := p.Rights[d.ID]
 		if !ok || !right.Valid() {
 			continue
 		}
 		d = d.Clone()
-		if right == RightWake {
+		switch {
+		case right == RightWake || d.Agent == nil:
 			d.Agent = nil
-		} else if d.Agent != nil {
-			d.Agent.Pin = ""
+		case p.Identity != "" && d.Agent.HasPin():
+			pairing := o.pairing(p, d.ID)
+			if pairing == nil {
+				d.Agent = nil
+				break
+			}
+			d.Agent = &model.AgentSettings{Port: d.Agent.Port, Pin: d.Agent.Pin}
+			if pairing.Code != "" && pairing.Expires > now.Unix() {
+				c.Invites = append(c.Invites, AgentInvite{Device: d.ID, Code: pairing.Code, Role: pairing.Role, Expires: pairing.Expires})
+			}
+		case right == RightFull && d.CanShutdown() && d.Agent.HasKey():
+			d.Agent = &model.AgentSettings{Port: d.Agent.Port, Key: d.Agent.Key}
+		default:
+			d.Agent = nil
 		}
 		c.Devices = append(c.Devices, d)
 	}
 	return c
+}
+
+// pairing renvoie l'appairage v2 de la personne sur un PC, pour son empreinte actuelle (nil sinon).
+func (o *Owner) pairing(p Person, device string) *Pairing {
+	i := slices.IndexFunc(o.Pairings, func(x Pairing) bool {
+		return x.Person == p.Device && x.Device == device && x.Identity == p.Identity
+	})
+	if i < 0 {
+		return nil
+	}
+	return &o.Pairings[i]
 }
 
 // Fingerprint est l'empreinte d'un contenu (pour ne republier que ce qui a changé).
@@ -162,7 +253,7 @@ func (o *Owner) Prepare(devices []model.Device, now time.Time, all bool) (Public
 	pub := Publication{Files: map[string]*string{}, Fingerprints: map[string]string{}}
 	revision := max(o.Revision+1, now.UnixMilli())
 	for _, p := range o.People {
-		c := o.Content(p, devices)
+		c := o.Content(p, devices, now)
 		fp := Fingerprint(c)
 		pub.Fingerprints[p.Device] = fp
 		if !all && o.Published[p.Device] == fp {
@@ -207,33 +298,87 @@ func (o *Owner) Commit(p Publication) {
 }
 
 // Grant autorise (ou met à jour) une personne ; son fichier sera publié à la prochaine publication.
+// Son appareil est retiré des PC qu'il ne doit plus joindre par l'agent : droit réduit à « démarrer »
+// ou retiré, ou demande arrivée avec une autre empreinte.
 func (o *Owner) Grant(p Person) error {
 	if i := o.Person(p.Device); i >= 0 {
-		p.Added = o.People[i].Added
+		old := o.People[i]
+		p.Added = old.Added
 		o.People[i] = p
+		o.revokeUnwanted(old)
 	} else {
 		if len(o.People) >= MaxPeople {
 			return fmt.Errorf("%d personnes au maximum", MaxPeople)
 		}
 		o.People = append(o.People, p)
 	}
+	// Un retrait en attente ne doit pas défaire un accès accordé de nouveau.
+	o.Revocations = slices.DeleteFunc(o.Revocations, func(r Revocation) bool { return o.wants(r.Device, r.Identity) })
 	o.Withdrawn = slices.DeleteFunc(o.Withdrawn, func(d string) bool { return d == p.Device })
 	delete(o.Published, p.Device)
 	return nil
 }
 
-// Withdraw retire une personne ; son fichier sera supprimé à la prochaine publication.
+// Withdraw retire une personne ; son fichier sera supprimé à la prochaine publication, et son
+// appareil retiré des PC où il a pu être enregistré.
 func (o *Owner) Withdraw(device string) bool {
 	i := o.Person(device)
 	if i < 0 {
 		return false
 	}
+	old := o.People[i]
 	o.People = slices.Delete(o.People, i, i+1)
+	o.revokeUnwanted(old)
 	if !slices.Contains(o.Withdrawn, device) {
 		o.Withdrawn = append(o.Withdrawn, device)
 	}
 	delete(o.Published, device)
 	return true
+}
+
+// wants indique qu'une personne autorisée doit joindre ce PC par l'agent avec cette empreinte.
+func (o *Owner) wants(device, identity string) bool {
+	return slices.ContainsFunc(o.People, func(p Person) bool {
+		return p.Identity == identity && p.Rights[device].AgentRole() != ""
+	})
+}
+
+// revokeUnwanted suit la modification (ou le retrait) d'une personne, dont old est l'état précédent :
+// son appareil est mis en file de retrait des PC qu'il ne doit plus joindre, et ses appairages devenus
+// inutiles sont oubliés. Un PC accordé en v2 est retiré même sans appairage connu (sauvegarde
+// restaurée) : retirer un appareil absent ne change rien.
+func (o *Owner) revokeUnwanted(old Person) {
+	if old.Identity != "" {
+		for device, right := range old.Rights {
+			if right.AgentRole() != "" && !o.wants(device, old.Identity) {
+				o.revoke(device, old.Identity)
+			}
+		}
+	}
+	var current *Person
+	if i := o.Person(old.Device); i >= 0 {
+		current = &o.People[i]
+	}
+	o.Pairings = slices.DeleteFunc(o.Pairings, func(x Pairing) bool {
+		if x.Person != old.Device || (current != nil && current.Identity == x.Identity && current.Rights[x.Device].AgentRole() != "") {
+			return false
+		}
+		if !o.wants(x.Device, x.Identity) {
+			o.revoke(x.Device, x.Identity)
+		}
+		return true
+	})
+	slices.SortFunc(o.Revocations, func(a, b Revocation) int {
+		return cmp.Or(cmp.Compare(a.Device, b.Device), cmp.Compare(a.Identity, b.Identity))
+	})
+}
+
+// revoke met en file le retrait d'un appareil d'un PC (une seule fois).
+func (o *Owner) revoke(device, identity string) {
+	r := Revocation{Device: device, Identity: identity}
+	if !slices.Contains(o.Revocations, r) {
+		o.Revocations = append(o.Revocations, r)
+	}
 }
 
 // --- Côté « je reçois » ---
@@ -311,6 +456,9 @@ type ExportedOwner struct {
 	Gist      string   `json:"gist"`
 	Revision  int64    `json:"revision"`
 	People    []Person `json:"people"`
+	// Revocations : retraits pas encore appliqués sur les PC (partage v2). Les appairages, eux, ne sont
+	// pas exportés : l'application les retrouve dans le registre des PC.
+	Revocations []Revocation `json:"revocations,omitempty"`
 }
 
 // Export prépare la sauvegarde du côté « je partage ».
@@ -323,7 +471,8 @@ func (o *Owner) Export() (ExportedOwner, error) {
 	if people == nil {
 		people = []Person{}
 	}
-	return ExportedOwner{Key: o.Key, PublicKey: OwnerPublic(key), Name: o.Name, User: o.User, Gist: o.Gist, Revision: o.Revision, People: people}, nil
+	return ExportedOwner{Key: o.Key, PublicKey: OwnerPublic(key), Name: o.Name, User: o.User, Gist: o.Gist, Revision: o.Revision,
+		People: people, Revocations: slices.Clone(o.Revocations)}, nil
 }
 
 // Owner vérifie une sauvegarde et renvoie l'état correspondant (connexion GitHub à refaire).
@@ -336,7 +485,7 @@ func (e ExportedOwner) Owner() (*Owner, error) {
 		return nil, ErrInvalid
 	}
 	for _, p := range e.People {
-		if !ValidName(p.Name) || !ValidDeviceKey(p.Device) {
+		if !ValidName(p.Name) || !ValidDeviceKey(p.Device) || (p.Identity != "" && !validIdentity(p.Identity)) {
 			return nil, ErrInvalid
 		}
 		for _, r := range p.Rights {
@@ -345,5 +494,17 @@ func (e ExportedOwner) Owner() (*Owner, error) {
 			}
 		}
 	}
-	return &Owner{Key: e.Key, Name: e.Name, User: e.User, Gist: e.Gist, Revision: e.Revision, People: slices.Clone(e.People)}, nil
+	for _, r := range e.Revocations {
+		if r.Device == "" || !validIdentity(r.Identity) {
+			return nil, ErrInvalid
+		}
+	}
+	return &Owner{Key: e.Key, Name: e.Name, User: e.User, Gist: e.Gist, Revision: e.Revision, People: slices.Clone(e.People),
+		Revocations: slices.Clone(e.Revocations)}, nil
+}
+
+// validIdentity vérifie une empreinte wolagent/2 d'appareil (B64, sous sa forme canonique).
+func validIdentity(s string) bool {
+	pin, err := protocol2.ParsePin(s)
+	return err == nil && pin.String() == s
 }
