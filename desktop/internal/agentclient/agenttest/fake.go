@@ -57,7 +57,8 @@ type v2State struct {
 	pin     protocol2.Pin
 	devices map[protocol2.Pin]string // rôle
 	names   map[protocol2.Pin]string
-	invites map[string]string // code normalisé → rôle
+	order   []protocol2.Pin                 // ordre d'ajout, pour la liste des appareils
+	invites map[string]protocol2.InviteInfo // par code normalisé
 }
 
 // Start démarre un faux agent.
@@ -122,17 +123,32 @@ func (s *Server) EnableV2() protocol2.Pin {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.v2 = &v2State{cert: tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}, pin: pin,
-		devices: map[protocol2.Pin]string{}, names: map[protocol2.Pin]string{}, invites: map[string]string{}}
+		devices: map[protocol2.Pin]string{}, names: map[protocol2.Pin]string{}, invites: map[string]protocol2.InviteInfo{}}
 	return pin
 }
 
 // Invite crée une invitation à usage unique pour le rôle donné ; renvoie son code.
 func (s *Server) Invite(role string) string {
-	code := protocol2.NewCode()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.v2.invites[code] = role
-	return code
+	return s.invite(role, "", time.Hour).Code
+}
+
+// invite crée une invitation (verrou pris).
+func (s *Server) invite(role, name string, ttl time.Duration) protocol2.InviteInfo {
+	code := protocol2.NewCode()
+	inv := protocol2.InviteInfo{ID: protocol2.NewCode(), Code: code, Role: role, Name: name, Expires: time.Now().Add(ttl).Unix(),
+		Agent: s.v2.pin.String()}
+	s.v2.invites[code] = inv
+	return inv
+}
+
+// register enregistre un appareil (verrou pris).
+func (s *Server) register(device protocol2.Pin, role, name string) {
+	if _, known := s.v2.devices[device]; !known {
+		s.v2.order = append(s.v2.order, device)
+	}
+	s.v2.devices[device], s.v2.names[device] = role, name
 }
 
 // Register autorise un appareil wolagent/2 avec un rôle ("" : le retire).
@@ -143,7 +159,80 @@ func (s *Server) Register(device protocol2.Pin, role string) {
 		delete(s.v2.devices, device)
 		return
 	}
-	s.v2.devices[device] = role
+	s.register(device, role, s.v2.names[device])
+}
+
+// Invites renvoie le nombre d'invitations en attente.
+func (s *Server) Invites() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.v2.invites)
+}
+
+// administer exécute une commande d'administration (§6.2) pour l'appareil self, de rôle admin.
+func (s *Server) administer(self protocol2.Pin, req protocol2.Request) protocol2.Response {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	resp := protocol2.Response{ID: req.ID, ResponseBody: protocol.ResponseBody{OK: true, Code: protocol2.CodeOK}, Role: s.v2.devices[self]}
+	refuse := func(code string) protocol2.Response {
+		resp.OK, resp.Code, resp.Message = false, code, "refusé : "+code
+		return resp
+	}
+	admins := 0
+	for _, role := range s.v2.devices {
+		if role == "admin" {
+			admins++
+		}
+	}
+	target, _ := protocol2.ParsePin(req.Device)
+	switch req.Cmd {
+	case protocol2.CmdDevices:
+		resp.Devices = []protocol2.DeviceInfo{}
+		for _, pin := range s.v2.order {
+			if role, ok := s.v2.devices[pin]; ok {
+				resp.Devices = append(resp.Devices, protocol2.DeviceInfo{Device: pin.String(), Name: s.v2.names[pin], Role: role,
+					Added: 1790000000, Via: "pair", Self: pin == self})
+			}
+		}
+	case protocol2.CmdDevicesRevoke, protocol2.CmdDevicesRole, protocol2.CmdDevicesRename:
+		role, known := s.v2.devices[target]
+		switch {
+		case !known:
+			return refuse(protocol2.CodeBadRequest)
+		case req.Cmd == protocol2.CmdDevicesRename:
+			s.v2.names[target] = req.Name
+		case role == "admin" && admins == 1 && (req.Cmd == protocol2.CmdDevicesRevoke || req.Role != "admin"):
+			return refuse(protocol2.CodeLastAdmin)
+		case req.Cmd == protocol2.CmdDevicesRevoke:
+			delete(s.v2.devices, target)
+		default:
+			if _, ok := protocol2.ParseRole(req.Role); !ok {
+				return refuse(protocol2.CodeBadRequest)
+			}
+			s.v2.devices[target] = req.Role
+		}
+	case protocol2.CmdInvite:
+		if _, ok := protocol2.ParseRole(req.Role); !ok || req.TTL < protocol2.MinInviteTTL || req.TTL > protocol2.MaxInviteTTL {
+			return refuse(protocol2.CodeBadRequest)
+		}
+		inv := s.invite(req.Role, req.Name, time.Duration(req.TTL)*time.Second)
+		resp.Invite = &inv
+	case protocol2.CmdInvites:
+		resp.Invites = []protocol2.InviteInfo{}
+		for _, inv := range s.v2.invites {
+			inv.Code, inv.Agent = "", ""
+			resp.Invites = append(resp.Invites, inv)
+		}
+	case protocol2.CmdInvitesCancel:
+		for code, inv := range s.v2.invites {
+			if inv.ID == req.Invite {
+				delete(s.v2.invites, code)
+				return resp
+			}
+		}
+		return refuse(protocol2.CodeBadRequest)
+	}
+	return resp
 }
 
 // Device renvoie le rôle et le nom d'un appareil wolagent/2 ("" s'il n'est pas autorisé).
@@ -378,7 +467,7 @@ func (s *Server) serveV2(conn net.Conn, r *bufio.Reader) {
 			invited, ok := s.v2.invites[code]
 			if err == nil && ok {
 				delete(s.v2.invites, code)
-				s.v2.devices[device], s.v2.names[device] = invited, req.Name
+				s.register(device, invited.Role, req.Name)
 			}
 			s.mu.Unlock()
 			if err != nil || !ok {
@@ -386,7 +475,7 @@ func (s *Server) serveV2(conn net.Conn, r *bufio.Reader) {
 				return
 			}
 			reply(protocol2.Response{ID: req.ID, ResponseBody: protocol.ResponseBody{OK: true, Code: protocol2.CodeOK,
-				Message: "appareil ajouté"}, Role: invited, Device: device.String()})
+				Message: "appareil ajouté"}, Role: invited.Role, Device: device.String()})
 		case req.Cmd == protocol2.CmdMigrate && role != "":
 			reply(protocol2.Reply{ID: req.ID, Code: protocol2.CodeAlreadyPaired, Message: "appareil déjà appairé"})
 		case req.Cmd == protocol2.CmdMigrate && nc == nil:
@@ -406,7 +495,7 @@ func (s *Server) serveV2(conn net.Conn, r *bufio.Reader) {
 				return
 			}
 			s.mu.Lock()
-			s.v2.devices[device], s.v2.names[device] = "control", name
+			s.register(device, "control", name)
 			s.mu.Unlock()
 			reply(protocol2.Response{ID: req.ID, ResponseBody: protocol.ResponseBody{OK: true, Code: protocol2.CodeOK,
 				Message: "appareil migré"}, Role: "control", Device: device.String()})
@@ -417,6 +506,10 @@ func (s *Server) serveV2(conn net.Conn, r *bufio.Reader) {
 			have, _ := protocol2.ParseRole(role)
 			if need, ok := protocol2.MinRole(req.Cmd); ok && have < need {
 				reply(protocol2.Reply{ID: req.ID, Code: protocol2.CodeInsufficientRole, Message: "rôle insuffisant"})
+				continue
+			}
+			if need, _ := protocol2.MinRole(req.Cmd); need == protocol2.RoleAdmin {
+				reply(s.administer(device, req))
 				continue
 			}
 			_, by := s.Device(device)

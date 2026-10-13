@@ -249,6 +249,10 @@ seul. La fiche du PC affiche *Chiffré et authentifié* et son empreinte, à com
 nouveaux appairages s'y font directement : le QR code de `wol-agent pair` contient l'empreinte de l'agent et un code à
 usage unique, sans aucune clé secrète, et l'application n'envoie ce code qu'à l'agent qui présente cette empreinte.
 Téléphone sous Android 8 ou 9, ou application antérieure à 1.12 : `wol-agent pair --v1` affiche l'ancien QR code.
+Un appareil appairé avec le QR code de `wol-agent pair` en est **administrateur** : sur la fiche du PC, *Appareils
+autorisés* liste les appareils (rôle, nom, dernière connexion), en retire un ou change ses droits (consulter, démarrer,
+contrôler, administrer), et *Inviter un appareil* affiche un QR code à usage unique pour un autre téléphone ou
+ordinateur, sans passer par le PC.
 
 ## 8. Développement
 

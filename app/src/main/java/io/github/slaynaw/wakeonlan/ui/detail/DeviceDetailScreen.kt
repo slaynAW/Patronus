@@ -74,6 +74,7 @@ import io.github.slaynaw.wakeonlan.ui.devices.DeviceItem
 import io.github.slaynaw.wakeonlan.ui.devices.DeviceMenu
 import io.github.slaynaw.wakeonlan.ui.devices.DevicesViewModel
 import io.github.slaynaw.wakeonlan.ui.devices.ResArg
+import io.github.slaynaw.wakeonlan.ui.edit.roleLabel
 import io.github.slaynaw.wakeonlan.ui.history.HistoryRow
 import io.github.slaynaw.wakeonlan.ui.history.HistoryUiState
 import io.github.slaynaw.wakeonlan.ui.history.HistoryViewModel
@@ -92,6 +93,7 @@ fun DeviceDetailScreen(
     onEdit: (String) -> Unit,
     onOpenHistory: (String) -> Unit,
     onOpenMetrics: (String) -> Unit = {},
+    onOpenAdmin: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -144,6 +146,7 @@ fun DeviceDetailScreen(
         onDelete = { item?.let { dialogs.pendingDelete = it.device } },
         onClearNotice = { item?.let { vm.clearNotice(it.device) } },
         onOpenMetrics = { onOpenMetrics(deviceId) },
+        onOpenAdmin = { onOpenAdmin(deviceId) },
     )
 
     DeviceDialogs(dialogs, onPower = vm::power, onDelete = vm::delete, onConfigure = onEdit)
@@ -168,6 +171,7 @@ fun DeviceDetailContent(
     onDelete: () -> Unit,
     onClearNotice: () -> Unit,
     onOpenMetrics: () -> Unit = {},
+    onOpenAdmin: () -> Unit = {},
 ) {
     Scaffold(
         containerColor = WolPalette.Background,
@@ -240,6 +244,13 @@ fun DeviceDetailContent(
                 // Températures et utilisation dans le temps (agent et archives).
                 WolCard(onClick = onOpenMetrics) {
                     KeyValueRow(stringResource(R.string.detail_metrics), stringResource(R.string.metrics_open), valueColor = WolPalette.Blue, icon = WolIcons.Chart)
+                }
+            }
+            // Ce téléphone administre le PC (wolagent/2) : appareils autorisés et invitations.
+            val agentStatus = item.status.agent
+            if (item.status.state == PowerState.ONLINE && agentStatus?.proto == Wolagent2.ALPN && agentStatus.role == "admin") {
+                WolCard(onClick = onOpenAdmin) {
+                    KeyValueRow(stringResource(R.string.admin_title), stringResource(R.string.admin_open), valueColor = WolPalette.Blue, icon = WolIcons.Users)
                 }
             }
             if (hasAgent) SpecsCard(item, now)
@@ -425,6 +436,11 @@ internal fun InfoCard(item: DeviceItem) {
         device.agent?.shortPin?.let { pin ->
             RowDivider()
             KeyValueRow(stringResource(R.string.detail_agent_pin), pin, mono = true)
+        }
+        // Rôle de ce téléphone sur l'agent (wolagent/2).
+        if (online && agent?.proto == Wolagent2.ALPN && agent.role.isNotEmpty()) {
+            RowDivider()
+            KeyValueRow(stringResource(R.string.detail_role), roleLabel(agent.role))
         }
     }
 }

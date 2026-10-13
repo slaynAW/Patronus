@@ -462,6 +462,11 @@ type callParams struct {
 	Level   string `json:"level"`
 	// Pairing : appairage wolagent/2 à faire avant d'enregistrer la fiche (lien v=2).
 	Pairing *pairingRequest `json:"pairing"`
+	// Administration des appareils autorisés par un PC : rôle, validité d'une invitation (secondes),
+	// invitation visée.
+	Role   string `json:"role"`
+	TTL    int64  `json:"ttl"`
+	Invite string `json:"invite"`
 }
 
 // pairingRequest : empreinte de l'agent et code d'appairage lus dans un lien v=2.
@@ -585,6 +590,19 @@ func (s *Service) dispatch(method string, p callParams) (any, error) {
 		return s.power(p.ID, agentclient.Action(p.Action), p.Force)
 	case "testAgent":
 		return s.testAgent(p.ID, p.Host, p.Port, p.Key), nil
+	case "agentAdmin":
+		return s.agentAdmin(p.ID), nil
+	case "agentAdminChange":
+		target, value := p.Device, p.Role
+		switch p.Action {
+		case "rename":
+			value = p.Name
+		case "cancel":
+			target = p.Invite
+		}
+		return s.agentAdminChange(p.ID, p.Action, target, value), nil
+	case "agentInvite":
+		return s.agentInvite(p.ID, p.Role, p.TTL, p.Name), nil
 	case "parsePairing":
 		info, err := pairing.Parse(p.Text)
 		if err != nil {

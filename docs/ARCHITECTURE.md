@@ -8,8 +8,9 @@ Patronus/
 │   ├── model/      Device, AppConfig, MacAddress, validation
 │   ├── wol/        paquet magique, adresses de diffusion, envoi UDP
 │   ├── status/     sondes (agent / TCP / ping), machine à états, surveillance
-│   ├── agent/      client des agents (wolagent/2 dès que l'empreinte est connue, sinon wolagent/1), clé, lien
-│   │               d'appairage, passage automatique en wolagent/2 (AgentUpgrade)
+│   ├── agent/      client des agents (wolagent/2 dès que l'empreinte est connue, sinon wolagent/1), clé, liens
+│   │               d'appairage v=1 et v=2, appairage par code, administration des appareils autorisés, passage
+│   │               automatique en wolagent/2 (AgentUpgrade)
 │   ├── agent2/     protocole wolagent/2 : empreintes, codes et liens, preuves de migration, trames, session TLS
 │   ├── history/    historique sur 30 jours : fusion avec le journal des agents, déduction des changements
 │   ├── config/     JSON versionné + migrations, export/import chiffré
@@ -22,9 +23,10 @@ Patronus/
 │   ├── share/      ShareManager : connexion GitHub, publication des accès, vérification des accès reçus
 │   ├── network/    suivi du Wi-Fi/Ethernet, autorisation « réseau local »
 │   ├── ui/         écrans Compose : onglets (vue d'ensemble, appareils, réglages), fiche d'un PC,
-│   │               historique, édition ; thème sombre commun avec Windows
+│   │               historique, édition (appairage par QR code), appareils autorisés (admin) ; thème sombre
+│   │               commun avec Windows
 │   ├── AppContainer.kt    assemblage des dépendances (injection manuelle)
-│   ├── DeviceActions.kt   réveil / extinction / test d'agent
+│   ├── DeviceActions.kt   réveil / extinction / test d'agent / appairage / administration des appareils
 │   ├── AgentUpgradeTracker.kt  passage automatique des PC en wolagent/2
 │   └── HistoryTracker.kt  tenue de l'historique (surveillance, demandes, journal des agents)
 ├── desktop/     Go + WebView2 — application Windows (même interface et mêmes fonctions qu'Android)

@@ -229,6 +229,44 @@
     agent_authenticated: "Authentifié · %1$s",
     agent_authenticated_v2: "Chiffré et authentifié · %1$s",
     detail_agent_pin: "Empreinte du PC",
+    detail_role: "Droits de cet ordinateur",
+    admin_open: "gérer les appareils",
+    admin_title: "Appareils autorisés",
+    admin_devices: "Appareils",
+    admin_invites: "Invitations en attente",
+    admin_help: "Chaque appareil a sa propre identité : en retirer un ne change rien pour les autres. Le dernier administrateur ne peut être retiré ou rétrogradé que sur le PC (« wol-agent devices »).",
+    admin_self: "%1$s (cet ordinateur)",
+    admin_added: "ajouté le %1$s (%2$s)",
+    admin_seen: "vu le %1$s",
+    admin_via_pair: "code d’appairage",
+    admin_via_migrate: "passage en wolagent/2",
+    admin_via_local: "sur le PC",
+    admin_role_of: "Rôle de %1$s",
+    admin_rename: "Renommer",
+    admin_rename_title: "Renommer « %1$s »",
+    admin_revoke: "Retirer",
+    admin_revoke_title: "Retirer « %1$s » ?",
+    admin_revoke_text: "Cet appareil ne pourra plus rien demander à ce PC ; ses connexions ouvertes sont fermées sur-le-champ. Pour le réautoriser, il faudra l’appairer de nouveau.",
+    admin_demote_self_title: "Passer cet ordinateur en « %1$s » ?",
+    admin_demote_self_text: "Cet ordinateur ne pourra plus gérer les appareils de ce PC. Seul un autre administrateur, ou le PC lui-même (« wol-agent devices »), pourra lui rendre ce rôle.",
+    admin_demote_self: "Changer le rôle",
+    admin_revoke_self_text: "C’est cet ordinateur : il ne pourra plus rien demander à ce PC, ni gérer ses appareils. Pour le réautoriser, il faudra l’appairer de nouveau (« wol-agent pair » sur le PC).",
+    admin_invite: "Inviter un appareil",
+    admin_invite_text: "Créez un code à usage unique pour un autre téléphone ou ordinateur : il le scannera (ou collera le lien) dans « Ajouter un PC ».",
+    admin_invite_role: "Rôle donné",
+    admin_invite_ttl: "Validité",
+    admin_invite_name: "Nom de l’appareil (facultatif)",
+    admin_invite_create: "Créer l’invitation",
+    admin_invite_ready: "Sur l’autre appareil : « Ajouter un PC » → « Scanner le QR code » ou « Coller le lien ». Le code ne sert qu’une fois, jusqu’au %1$s.",
+    admin_invite_until: "rôle « %1$s » · jusqu’au %2$s",
+    admin_invite_cancel: "Annuler l’invitation",
+    admin_ttl_600: "10 minutes",
+    admin_ttl_3600: "1 heure",
+    admin_ttl_86400: "24 heures",
+    admin_ttl_604800: "7 jours",
+    admin_failed: "Modification impossible",
+    admin_last_admin: "C’est le dernier administrateur de ce PC : il ne peut être retiré ou rétrogradé que sur le PC (« wol-agent devices »).",
+    admin_not_admin: "Cet ordinateur n’a plus le rôle « Administrer » sur ce PC.",
     detail_agent_pin_help: "Identité de l’agent de ce PC (wolagent/2), vérifiée à chaque connexion. Elle doit correspondre à celle qu’affiche « wol-agent status » sur le PC.",
     agent_not_configured: "Non installé",
     agent_configured: "Configuré",
@@ -929,6 +967,7 @@
     for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i];
     return 0;
   }
+  const roleLabel = (role) => S["role_" + role] || role;
   const agentErrorLabel = (code, reason) =>
     (code === "REJECTED" && S["agent_error_" + reason]) || S["agent_error_" + code] || S.agent_error_PROTOCOL;
   const actionLabel = (a) => ({ shutdown: S.action_shutdown, reboot: S.action_reboot, sleep: S.action_sleep })[a];
@@ -2656,6 +2695,11 @@
         rows.push({ key: "agentPin", label: S.detail_agent_pin, text: d.agentPin, cls: "mono", title: S.detail_agent_pin_help,
           onClick: () => alertDialog(S.detail_agent_pin, S.detail_agent_pin_help) });
       }
+      const role = online && s.agent?.proto === "wolagent/2" ? s.agent.role : "";
+      if (role === "admin") {
+        rows.push({ key: "role", label: S.detail_role, text: `${roleLabel(role)} · ${S.admin_open}`, iconName: "users",
+          onClick: () => openAdminSheet(d.id) });
+      } else if (role) rows.push({ key: "role", label: S.detail_role, text: roleLabel(role) });
 
       const keys = rows.map((r) => r.key).join("|");
       if (info.dataset.keys !== keys) {
@@ -3283,6 +3327,173 @@
   }
 
   // ---------------------------------------------------------------------------------------------
+  // Appareils autorisés par un PC (wolagent/2, rôle « admin ») : rôles, noms, retraits, invitations
+  // ---------------------------------------------------------------------------------------------
+  const ROLES = ["view", "wake", "control", "admin"];
+  const INVITE_TTLS = [600, 3600, 86400, 604800];
+  const dayFmt = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" });
+  const dayTimeFmt = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" });
+
+  function openAdminSheet(deviceId) {
+    const d = deviceById(deviceId);
+    if (!d) return;
+    const content = h("div", { class: "admin" });
+    const sheet = openSheet({
+      title: S.admin_title,
+      subtitle: d.name,
+      body: [content],
+      foot: [h("div", { class: "grow" }), btn("sec", S.close, () => sheet.close()), btn("primary", S.admin_invite, inviteDialog, "plus")],
+    });
+    load();
+
+    const failureText = (r) => r.error || (r.reason === "last_admin" ? S.admin_last_admin
+      : r.reason === "insufficient_role" ? S.admin_not_admin : agentErrorLabel(r.code, r.reason));
+
+    async function load() {
+      let r;
+      try {
+        r = await api.call("agentAdmin", { id: deviceId });
+      } catch (e) {
+        r = { ok: false, error: errorMessage(e) };
+      }
+      if (!r.ok) {
+        content.replaceChildren(h("div", { class: "result ko" }, icon("warning", "small"), h("span", { text: failureText(r) })));
+        return;
+      }
+      const parts = [h("div", { class: "form-title", text: S.admin_devices }), h("div", { class: "rights" }, r.devices.map(deviceRow))];
+      if (r.invites.length) {
+        parts.push(h("div", { class: "form-title", text: S.admin_invites }), h("div", { class: "rights" }, r.invites.map(inviteRow)));
+      }
+      parts.push(h("p", { class: "muted small", text: S.admin_help }));
+      content.replaceChildren(...parts);
+    }
+
+    async function change(params) {
+      let r;
+      try {
+        r = await api.call("agentAdminChange", { id: deviceId, ...params });
+      } catch (e) {
+        r = { ok: false, error: errorMessage(e) };
+      }
+      if (!r.ok) alertDialog(S.admin_failed, failureText(r));
+      load();
+    }
+
+    function deviceRow(dev) {
+      const roleSel = h("select", { "aria-label": fmt(S.admin_role_of, dev.name) },
+        ...ROLES.map((role) => h("option", { value: role, text: roleLabel(role) })));
+      roleSel.value = dev.role;
+      roleSel.addEventListener("change", () => {
+        const role = roleSel.value;
+        if (!dev.self || dev.role !== "admin" || role === "admin") {
+          change({ action: "role", device: dev.device, role });
+          return;
+        }
+        // Cet ordinateur renonce à son rôle d'administrateur : il ne pourra plus revenir ici.
+        roleSel.value = dev.role;
+        const dialog = openDialog({
+          iconName: "warning",
+          title: fmt(S.admin_demote_self_title, roleLabel(role)),
+          body: h("p", { text: S.admin_demote_self_text }),
+          actions: [
+            { label: S.cancel, onClick: () => dialog.close() },
+            { label: S.admin_demote_self, kind: "danger", onClick: () => { dialog.close(); change({ action: "role", device: dev.device, role }); } },
+          ],
+        });
+      });
+      const via = S["admin_via_" + dev.via] || dev.via;
+      const meta = [fmt(S.admin_added, dayFmt.format(new Date(dev.added * 1000)), via)];
+      if (dev.seen) meta.push(fmt(S.admin_seen, dayTimeFmt.format(new Date(dev.seen * 1000))));
+      return h("div", { class: "right-row admin-row" },
+        h("span", { class: "ni" }, icon(dev.self ? "monitor" : "users", "", 16)),
+        h("div", { class: "admin-who" },
+          h("b", { text: dev.self ? fmt(S.admin_self, dev.name) : dev.name }),
+          h("small", { class: "mono", text: dev.short }),
+          h("small", { class: "muted", text: meta.join(" · ") })),
+        roleSel,
+        iconBtn("edit", S.admin_rename, () => renameDialog(dev), "flat"),
+        iconBtn("delete", S.admin_revoke, () => revokeDialog(dev), "flat"));
+    }
+
+    function inviteRow(inv) {
+      return h("div", { class: "right-row admin-row" },
+        h("span", { class: "ni" }, icon("clock", "", 16)),
+        h("div", { class: "admin-who" },
+          h("b", { text: inv.name || S.admin_invite }),
+          h("small", { class: "muted", text: fmt(S.admin_invite_until, roleLabel(inv.role), dayTimeFmt.format(new Date(inv.expires * 1000))) })),
+        iconBtn("close", S.admin_invite_cancel, () => change({ action: "cancel", invite: inv.id }), "flat"));
+    }
+
+    function renameDialog(dev) {
+      const input = field({ label: S.field_name, value: dev.name, onInput: (v) => dialog.setActions(actions(v)), onEnter: () => submit(input.input.value) });
+      const submit = (v) => {
+        if (!v.trim()) return;
+        dialog.close();
+        change({ action: "rename", device: dev.device, name: v.trim() });
+      };
+      const actions = (v) => [{ label: S.cancel, onClick: () => dialog.close() }, { label: S.save, disabled: !v.trim(), onClick: () => submit(v) }];
+      const dialog = openDialog({ iconName: "edit", title: fmt(S.admin_rename_title, dev.name), body: input.wrap, actions: actions(dev.name) });
+      input.input.focus();
+    }
+
+    function revokeDialog(dev) {
+      const dialog = openDialog({
+        iconName: "warning",
+        title: fmt(S.admin_revoke_title, dev.name),
+        body: h("p", { text: dev.self ? S.admin_revoke_self_text : S.admin_revoke_text }),
+        actions: [
+          { label: S.cancel, onClick: () => dialog.close() },
+          { label: S.admin_revoke, kind: "danger", onClick: () => { dialog.close(); change({ action: "revoke", device: dev.device }); } },
+        ],
+      });
+    }
+
+    function inviteDialog() {
+      const roleSel = h("select", { "aria-label": S.admin_invite_role }, ...ROLES.map((role) => h("option", { value: role, text: roleLabel(role) })));
+      roleSel.value = "control";
+      const ttlSel = h("select", { "aria-label": S.admin_invite_ttl }, ...INVITE_TTLS.map((t) => h("option", { value: String(t), text: S["admin_ttl_" + t] })));
+      const name = field({ label: S.admin_invite_name });
+      let busy = false;
+      const dialog = openDialog({
+        iconName: "plus",
+        title: S.admin_invite,
+        body: [h("p", { text: S.admin_invite_text }),
+          h("div", { class: "rights" },
+            h("div", { class: "right-row" }, h("b", { text: S.admin_invite_role }), roleSel),
+            h("div", { class: "right-row" }, h("b", { text: S.admin_invite_ttl }), ttlSel)),
+          name.wrap],
+        actions: [{ label: S.cancel, onClick: () => dialog.close() }, { label: S.admin_invite_create, onClick: create }],
+      });
+
+      async function create() {
+        if (busy) return;
+        busy = true;
+        let r;
+        try {
+          r = await api.call("agentInvite", { id: deviceId, role: roleSel.value, ttl: Number(ttlSel.value), name: name.input.value });
+        } catch (e) {
+          r = { ok: false, error: errorMessage(e) };
+        } finally {
+          busy = false;
+        }
+        if (!r.ok) {
+          alertDialog(S.admin_failed, failureText(r));
+          return;
+        }
+        dialog.close();
+        load();
+        const ready = openDialog({
+          iconName: "share",
+          title: S.admin_invite,
+          body: [h("p", { text: fmt(S.admin_invite_ready, dayTimeFmt.format(new Date(r.expires * 1000))) }), sharing.qrView(r.qr),
+            sharing.codeView(r.code), sharing.linkBox(r.link)],
+          actions: [{ label: S.share_copy_link, kind: "sec", onClick: () => sharing.copy(r.link) }, { label: S.close, onClick: () => ready.close() }],
+        });
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------------------------
   // Fiche « ajouter / modifier un PC » (EditDeviceScreen)
   // ---------------------------------------------------------------------------------------------
   async function openEditSheet(id) {
@@ -3544,7 +3755,6 @@
     }
   }
 
-  const roleLabel = (role) => S["role_" + role] || role;
   /** Échéance d'un code : « 14:32 » le jour même, sinon « 15 oct. 14:32 ». */
   function untilLabel(ms) {
     const at = new Date(ms);
@@ -4225,7 +4435,7 @@
       };
     }
 
-    return { sections, copy, codeView };
+    return { sections, copy, codeView, qrView, linkBox };
   })();
 
   // ---------------------------------------------------------------------------------------------
