@@ -11,6 +11,12 @@ Chaque section « ## X.Y.Z » est affichée dans les applications au moment de p
 - **Pour la personne qui reçoit l'accès**, rien à faire : le PC apparaît d'abord en « démarrer », puis avec ses droits dès qu'il a enregistré son appareil (Android 10 ou plus). Si l'application indique « Demande modifiée en route », quittez ce partage et refaites la demande.
 - Une personne dont l'application est plus ancienne reste en partage par clé : demandez-lui de mettre à jour son application, puis de vous renvoyer une demande.
 
+### Rappel des nouveautés de la 1.12.0
+
+- **Connexion chiffrée avec vos PC** (avec l'agent 1.11.0) : échanges chiffrés (TLS 1.3), une identité propre à chaque téléphone ou ordinateur, et l'empreinte du PC vérifiée à chaque connexion. Les PC déjà appairés y passent d'eux-mêmes, sans rien rescanner (Android 10 ou plus).
+- **QR code d'appairage sans clé secrète** et **appareils autorisés** : droits par appareil, retrait d'un téléphone perdu, invitation d'un autre appareil depuis la fiche du PC.
+- Mettez à jour l'agent de vos PC (1.11.0) : les applications passent alors d'elles-mêmes en connexion chiffrée.
+
 ## 1.12.0
 
 - **Connexion chiffrée avec vos PC** (avec l'agent 1.11.0) : tous les échanges avec l'agent sont désormais chiffrés (TLS 1.3), et chaque téléphone ou ordinateur a sa propre identité, gardée dans le Keystore Android (ou chiffrée par Windows) et jamais exportée. Les PC déjà appairés y passent d'eux-mêmes, sans rien rescanner : leur fiche affiche « Chiffré et authentifié » et l'empreinte du PC, vérifiée à chaque connexion. Il faut Android 10 ou plus ; un téléphone sous Android 8 ou 9 continue comme avant.
