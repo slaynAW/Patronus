@@ -1,11 +1,14 @@
 package io.github.slaynaw.wakeonlan
 
+import io.github.slaynaw.wakeonlan.core.agent.AgentAdmin
 import io.github.slaynaw.wakeonlan.core.agent.AgentClient
 import io.github.slaynaw.wakeonlan.core.agent.AgentError
 import io.github.slaynaw.wakeonlan.core.agent.AgentPairing
 import io.github.slaynaw.wakeonlan.core.agent.AgentResult
 import io.github.slaynaw.wakeonlan.core.agent.AgentStatus
 import io.github.slaynaw.wakeonlan.core.agent.PowerAction
+import io.github.slaynaw.wakeonlan.core.agent2.InviteInfo
+import io.github.slaynaw.wakeonlan.core.agent2.Pin
 import io.github.slaynaw.wakeonlan.core.history.HistoryKind
 import io.github.slaynaw.wakeonlan.core.model.AgentSettings
 import io.github.slaynaw.wakeonlan.core.model.Device
@@ -96,6 +99,44 @@ class DeviceActions(
             }
         }
 
+    // --- Administration des appareils autorisés par un PC (wolagent/2, rôle « admin », §6.2) ---
+    // Journalisée sans code d'appairage ni empreinte complète.
+
+    /** Appareils autorisés et invitations en attente du PC [device]. */
+    suspend fun agentAdmin(device: Device): AgentResult<AgentAdmin> {
+        val agent = device.agent ?: return AgentResult.Failure(AgentError.NO_KEY)
+        return agentClient.admin(device.host, agent).also { logAdmin(device, "appareils autorisés lus", it) }
+    }
+
+    /** Invitation à usage unique pour un autre appareil ; la réponse est la seule à contenir le code. */
+    suspend fun agentInvite(device: Device, role: String, ttlSeconds: Long, name: String): AgentResult<InviteInfo> {
+        val agent = device.agent ?: return AgentResult.Failure(AgentError.NO_KEY)
+        return agentClient.invite(device.host, agent, role, ttlSeconds, name)
+            .also { logAdmin(device, "invitation créée (rôle $role, ${ttlSeconds / 60} min)", it) }
+    }
+
+    suspend fun agentAdminChange(device: Device, change: AdminChange): AgentResult<Unit> {
+        val agent = device.agent ?: return AgentResult.Failure(AgentError.NO_KEY)
+        val host = device.host
+        val (result, what) = when (change) {
+            is AdminChange.Revoke -> agentClient.revokeDevice(host, agent, change.device) to "appareil ${short(change.device)} retiré"
+            is AdminChange.SetRole -> agentClient.setDeviceRole(host, agent, change.device, change.role) to
+                "appareil ${short(change.device)} : rôle ${change.role}"
+            is AdminChange.Rename -> agentClient.renameDevice(host, agent, change.device, change.name) to "appareil ${short(change.device)} renommé"
+            is AdminChange.CancelInvite -> agentClient.cancelInvite(host, agent, change.id) to "invitation annulée"
+        }
+        logAdmin(device, what, result)
+        return result
+    }
+
+    private fun short(pin: String) = Pin.parse(pin)?.short() ?: "?"
+
+    private fun logAdmin(device: Device, what: String, result: AgentResult<*>) = when (result) {
+        is AgentResult.Success -> DiagnosticLog.i("agent", "« ${device.name} » : $what")
+        is AgentResult.Failure ->
+            DiagnosticLog.w("agent", "« ${device.name} » : $what — échec ${result.error} ${result.code.orEmpty()}${result.detail?.let { " — $it" }.orEmpty()}")
+    }
+
     suspend fun testAgent(host: String, agent: AgentSettings, deviceId: String? = null): AgentResult<AgentStatus> =
         agentClient.status(host, agent).also { r ->
             when (r) {
@@ -106,4 +147,15 @@ class DeviceActions(
                 is AgentResult.Failure -> DiagnosticLog.w("action", "test de l'agent $host:${agent.port} : ${r.error}${r.detail?.let { " — $it" }.orEmpty()}")
             }
         }
+}
+
+/** Modification demandée par un administrateur (docs/PROTOCOLE-V2.md, §6.2). [device] : empreinte complète de l'appareil. */
+sealed interface AdminChange {
+    data class Revoke(val device: String) : AdminChange
+
+    data class SetRole(val device: String, val role: String) : AdminChange
+
+    data class Rename(val device: String, val name: String) : AdminChange
+
+    data class CancelInvite(val id: String) : AdminChange
 }

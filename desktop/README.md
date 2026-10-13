@@ -56,7 +56,11 @@ Avec l'agent 1.11.0 ou plus, l'application passe d'elle-même au protocole chiff
 - la **clé de l'agent est effacée** de l'application, qui n'en a plus besoin. Seule exception : un PC partagé avec le
   droit « démarrer et éteindre » la garde, car ce partage la transmet (jusqu'à la prochaine version du partage) ;
 - la fiche du PC affiche *Chiffré et authentifié* et son **empreinte** (`7KQ2-9MXP-4D1Z`), à comparer avec celle de
-  `wol-agent status` sur le PC. `wol-agent devices` y liste les appareils autorisés, et retire celui qu'on veut.
+  `wol-agent status` sur le PC. `wol-agent devices` y liste les appareils autorisés, et retire celui qu'on veut ;
+- si cet ordinateur est **administrateur** du PC (appairé avec le QR code de `wol-agent pair`), la ligne *Droits de cet
+  ordinateur* de la fiche ouvre *Appareils autorisés* : rôle, nom et retrait de chaque appareil, invitations en attente,
+  et *Inviter un appareil* (QR code et lien à usage unique, de 10 minutes à 7 jours). Le dernier administrateur ne peut
+  être retiré ou rétrogradé que sur le PC.
 
 L'**identité de cet ordinateur** (clé ECDSA P-256) est créée au premier besoin, chiffrée par DPAPI, et ne quitte jamais
 ce PC : elle n'est ni dans les sauvegardes ni dans le partage. Sur un nouveau PC (ou après une réinstallation de

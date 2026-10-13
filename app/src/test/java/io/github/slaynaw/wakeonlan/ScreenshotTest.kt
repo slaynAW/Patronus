@@ -28,6 +28,8 @@ import io.github.slaynaw.wakeonlan.core.agent.SpecsGpu
 import io.github.slaynaw.wakeonlan.core.agent.SpecsMemory
 import io.github.slaynaw.wakeonlan.core.agent.SpecsModule
 import io.github.slaynaw.wakeonlan.core.agent.SpecsOs
+import io.github.slaynaw.wakeonlan.core.agent2.DeviceInfo
+import io.github.slaynaw.wakeonlan.core.agent2.InviteInfo
 import io.github.slaynaw.wakeonlan.core.share.ShareAccess
 import io.github.slaynaw.wakeonlan.core.share.ShareCrypto
 import io.github.slaynaw.wakeonlan.core.share.ShareInvite
@@ -52,6 +54,8 @@ import io.github.slaynaw.wakeonlan.core.wol.InterfaceAddress4
 import io.github.slaynaw.wakeonlan.data.StoredSpecs
 import io.github.slaynaw.wakeonlan.network.LanState
 import io.github.slaynaw.wakeonlan.network.LanTransport
+import io.github.slaynaw.wakeonlan.ui.admin.AdminContent
+import io.github.slaynaw.wakeonlan.ui.admin.AdminUiState
 import io.github.slaynaw.wakeonlan.ui.detail.DeviceDetailContent
 import io.github.slaynaw.wakeonlan.ui.detail.InfoCard
 import io.github.slaynaw.wakeonlan.ui.detail.SpecsCard
@@ -312,6 +316,32 @@ class ScreenshotTest {
                 now = Instant.ofEpochMilli(now),
             )
         }
+    }
+
+    /** Appareils autorisés par un PC (ce téléphone administrateur), avec une invitation en attente. */
+    @Test
+    fun appareilsAutorises() = capture("9-appareils-autorises") {
+        val day = now / 1000
+        AdminContent(
+            state = AdminUiState(
+                loading = false,
+                deviceName = "PC Bureau",
+                devices = listOf(
+                    DeviceInfo("qL5cBtCXCWvDGqMUWJ3gNeR0P1MukyXvb6K8OoRKVHw", "Pixel 8a", "admin", day - 86_400 * 3, "pair", day - 60, self = true),
+                    DeviceInfo("AL5cBtCXCWvDGqMUWJ3gNeR0P1MukyXvb6K8OoRKVHw", "PC portable", "control", day - 86_400 * 40, "migrate", day - 7_200),
+                    DeviceInfo("BL5cBtCXCWvDGqMUWJ3gNeR0P1MukyXvb6K8OoRKVHw", "Tablette du salon", "view", day - 86_400, "pair"),
+                ),
+                invites = listOf(InviteInfo("i1", role = "wake", name = "Pixel de Léa", expires = day + 3_600)),
+            ),
+            snackbar = remember { SnackbarHostState() },
+            onBack = {},
+            onRefresh = {},
+            onChange = {},
+            onInvite = { _, _, _ -> },
+            onDismissCreated = {},
+            onDismissFailure = {},
+            onCopy = {},
+        )
     }
 
     /** Puce graphique intégrée : même température que le processeur, courbe GPU en pointillés. */

@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import io.github.slaynaw.wakeonlan.ui.admin.AdminScreen
 import io.github.slaynaw.wakeonlan.ui.detail.DeviceDetailScreen
 import io.github.slaynaw.wakeonlan.ui.edit.EditDeviceScreen
 import io.github.slaynaw.wakeonlan.ui.history.HistoryScreen
@@ -29,6 +30,10 @@ data class EditDeviceRoute(val deviceId: String? = null)
 /** Mesures d'un PC dans le temps (températures, utilisation, journal archivé). */
 @Serializable
 data class MetricsRoute(val deviceId: String)
+
+/** Appareils autorisés par un PC (wolagent/2, rôle « admin »). */
+@Serializable
+data class AdminRoute(val deviceId: String)
 
 /** Historique complet ; [deviceId] nul = tous les PC. */
 @Serializable
@@ -53,6 +58,13 @@ fun WolApp() {
                 onEdit = { id -> nav.navigate(EditDeviceRoute(id)) },
                 onOpenHistory = { id -> nav.navigate(HistoryRoute(id)) },
                 onOpenMetrics = { id -> nav.navigate(MetricsRoute(id)) },
+                onOpenAdmin = { id -> nav.navigate(AdminRoute(id)) },
+            )
+        }
+        composable<AdminRoute> { entry ->
+            AdminScreen(
+                deviceId = entry.toRoute<AdminRoute>().deviceId,
+                onBack = { nav.leave(entry) },
             )
         }
         composable<MetricsRoute> { entry ->

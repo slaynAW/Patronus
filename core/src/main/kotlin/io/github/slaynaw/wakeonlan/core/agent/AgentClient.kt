@@ -2,6 +2,8 @@ package io.github.slaynaw.wakeonlan.core.agent
 
 import io.github.slaynaw.wakeonlan.core.agent2.Commands
 import io.github.slaynaw.wakeonlan.core.agent2.DeviceIdentity
+import io.github.slaynaw.wakeonlan.core.agent2.DeviceInfo
+import io.github.slaynaw.wakeonlan.core.agent2.InviteInfo
 import io.github.slaynaw.wakeonlan.core.agent2.PairingCode
 import io.github.slaynaw.wakeonlan.core.agent2.Pin
 import io.github.slaynaw.wakeonlan.core.agent2.Request2
@@ -72,6 +74,9 @@ enum class AgentError {
 
 /** Résultat d'un appairage avec un code : rôle donné par l'agent ; [already] si cet appareil était déjà enregistré. */
 data class AgentPairing(val role: String, val already: Boolean = false)
+
+/** État d'un agent vu par un administrateur : appareils autorisés et invitations en attente (sans leur code). */
+data class AgentAdmin(val devices: List<DeviceInfo>, val invites: List<InviteInfo>)
 
 sealed interface AgentResult<out T> {
     data class Success<T>(val value: T) : AgentResult<T>
@@ -223,6 +228,71 @@ class AgentClient(
                     is AgentResult.Failure -> body
                 }
             }
+        }
+    }
+
+    // --- Administration des appareils autorisés (docs/PROTOCOLE-V2.md, §6.2), rôle « admin », wolagent/2 seulement ---
+    // Un refus de l'agent est un [AgentError.REJECTED] dont le code donne la cause : « insufficient_role »,
+    // « last_admin » (dernier administrateur : seulement sur le PC), « bad_request »…
+
+    /** Lit les appareils autorisés et les invitations en attente, sur une seule session. */
+    suspend fun admin(host: String, agent: AgentSettings): AgentResult<AgentAdmin> = adminSession(host, agent) { session ->
+        val devices = adminRequest(session, Request2(cmd = Commands.DEVICES))
+        if (devices is AgentResult.Failure) return@adminSession devices
+        val invites = adminRequest(session, Request2(cmd = Commands.INVITES))
+        if (invites is AgentResult.Failure) return@adminSession invites
+        AgentResult.Success(
+            AgentAdmin(
+                (devices as AgentResult.Success).value.devices.orEmpty(),
+                (invites as AgentResult.Success).value.invites.orEmpty(),
+            ),
+        )
+    }
+
+    /**
+     * Crée une invitation à usage unique pour [role], valable [ttlSeconds] ; [name] : nom que portera l'appareil invité
+     * (vide : celui qu'il donnera). La réponse est la seule à contenir le code.
+     */
+    suspend fun invite(host: String, agent: AgentSettings, role: String, ttlSeconds: Long, name: String = ""): AgentResult<InviteInfo> =
+        adminSession(host, agent) { session ->
+            val request = Request2(cmd = Commands.INVITE, role = role, ttl = ttlSeconds, name = name.ifBlank { null })
+            when (val r = adminRequest(session, request)) {
+                is AgentResult.Success -> r.value.invite?.takeIf { it.code.isNotEmpty() }?.let { AgentResult.Success(it) }
+                    ?: protocolError("invitation absente de la réponse")
+                is AgentResult.Failure -> r
+            }
+        }
+
+    suspend fun revokeDevice(host: String, agent: AgentSettings, device: String): AgentResult<Unit> =
+        adminChange(host, agent, Request2(cmd = Commands.DEVICES_REVOKE, device = device))
+
+    suspend fun setDeviceRole(host: String, agent: AgentSettings, device: String, role: String): AgentResult<Unit> =
+        adminChange(host, agent, Request2(cmd = Commands.DEVICES_ROLE, device = device, role = role))
+
+    suspend fun renameDevice(host: String, agent: AgentSettings, device: String, name: String): AgentResult<Unit> =
+        adminChange(host, agent, Request2(cmd = Commands.DEVICES_RENAME, device = device, name = name))
+
+    suspend fun cancelInvite(host: String, agent: AgentSettings, id: String): AgentResult<Unit> =
+        adminChange(host, agent, Request2(cmd = Commands.INVITES_CANCEL, invite = id))
+
+    private suspend fun adminChange(host: String, agent: AgentSettings, request: Request2): AgentResult<Unit> =
+        adminSession(host, agent) { session ->
+            when (val r = adminRequest(session, request)) {
+                is AgentResult.Success -> AgentResult.Success(Unit)
+                is AgentResult.Failure -> r
+            }
+        }
+
+    /** L'administration n'existe qu'en wolagent/2 : un PC dont l'empreinte est inconnue n'est pas contacté. */
+    private suspend fun <T> adminSession(host: String, agent: AgentSettings, run: (Wolagent2Session) -> AgentResult<T>): AgentResult<T> =
+        if (!agent.hasPin) AgentResult.Failure(AgentError.NO_KEY, "PC pas encore passé en wolagent/2") else session(host, agent, run)
+
+    /** Une requête d'administration ; un refus devient un échec (UNREGISTERED pour un appareil retiré). */
+    private fun adminRequest(session: Wolagent2Session, request: Request2): AgentResult<Response2> {
+        val response = session.request(request)
+        return when (val body = fromV2(response)) {
+            is AgentResult.Success -> AgentResult.Success(response)
+            is AgentResult.Failure -> body
         }
     }
 

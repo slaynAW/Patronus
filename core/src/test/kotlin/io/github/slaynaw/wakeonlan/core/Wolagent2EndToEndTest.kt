@@ -165,6 +165,39 @@ class Wolagent2EndToEndTest {
     }
 
     @Test
+    fun `administration des appareils par le client unifie`() = runBlocking {
+        val agentPin = local.pin
+        fun invite(role: String) = client.connect("127.0.0.1", port, local, agentPin).use { admin ->
+            admin.request(Request2(cmd = Commands.INVITE, role = role, ttl = 120)).invite!!.code
+        }
+        val phone = TestIdentities.newDevice()
+        val app = AgentClient(deviceName = { "Pixel admin" }, identity = { phone })
+        val settings = AgentSettings(port = port, key = "", pin = agentPin.toString())
+        assertTrue(app.pair("127.0.0.1", settings, invite("admin")) is AgentResult.Success)
+        val tablet = TestIdentities.newDevice()
+        assertTrue(AgentClient(identity = { tablet }).pair("127.0.0.1", settings, invite("view")) is AgentResult.Success)
+
+        val state = app.admin("127.0.0.1", settings)
+        assertTrue(state is AgentResult.Success && state.value.devices.any { it.self && it.device == phone.pin.toString() }, "$state")
+        val created = app.invite("127.0.0.1", settings, "control", 600, "Invité CI")
+        assertTrue(created is AgentResult.Success && created.value.agent == agentPin.toString() && created.value.code.length == 8, "$created")
+        val listed = (app.admin("127.0.0.1", settings) as AgentResult.Success).value.invites
+        val pending = listed.first { it.name == "Invité CI" }
+        assertEquals("", pending.code, "code absent de la liste")
+        assertEquals(AgentResult.Success(Unit), app.cancelInvite("127.0.0.1", settings, pending.id))
+        assertEquals(AgentResult.Success(Unit), app.setDeviceRole("127.0.0.1", settings, tablet.pin.toString(), "wake"))
+        assertEquals(AgentResult.Success(Unit), app.renameDevice("127.0.0.1", settings, tablet.pin.toString(), "Tablette CI"))
+        assertEquals(AgentResult.Success(Unit), app.revokeDevice("127.0.0.1", settings, tablet.pin.toString()))
+        // Sans empreinte (PC encore en wolagent/1) : rien n'est envoyé.
+        val v1 = app.admin("127.0.0.1", AgentSettings(port = port, key = "x"))
+        assertTrue(v1 is AgentResult.Failure && v1.error == AgentError.NO_KEY, "$v1")
+        // Nettoyage par le PC (le dernier administrateur ne peut être retiré que sur le PC).
+        client.connect("127.0.0.1", port, local, agentPin).use { admin ->
+            assertTrue(admin.request(Request2(cmd = Commands.DEVICES_REVOKE, device = phone.pin.toString(), force = true)).ok)
+        }
+    }
+
+    @Test
     fun `empreinte differente refusee avant tout envoi`() {
         val wrong = Pin.of("autre agent".toByteArray())
         val e = assertThrows<Wolagent2Exception> { client.connect("127.0.0.1", port, TestIdentities.newDevice(), wrong) }
