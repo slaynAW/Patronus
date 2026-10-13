@@ -568,13 +568,24 @@
     <string name="share_right_none">Non partagé</string>
     <string name="share_right_wake">Démarrer</string>
     <string name="share_right_view">Démarrer et consulter</string>
+    <string name="share_v1_note">%1$s utilise une version antérieure de Patronus. Pour « Démarrer et consulter », ou pour l’extinction des PC en connexion chiffrée, demandez-lui de mettre à jour son application et de vous renvoyer une demande.</string>
+    <string name="share_v2_note">Chaque PC enregistrera l’appareil de %1$s avec ces droits, sans transmettre de clé, dès que ce téléphone le joindra en administrateur.</string>
+    <string name="share_agent_invited">invitation envoyée</string>
+    <string name="share_agent_pending">en attente du PC</string>
+    <string name="share_agent_not_admin">ce téléphone doit en être administrateur</string>
+    <string name="share_agent_not_admin_help">Pour partager ce PC sans transmettre de clé, ce téléphone doit en être administrateur : sur le PC, « wol-agent devices role %1$s admin », ou depuis un appareil administrateur (Appareils autorisés → Administrer).</string>
+    <string name="share_revocations">Retraits en attente</string>
+    <plurals name="share_revocations_help">
+        <item quantity="one">%1$d appareil à retirer des PC dès que ce téléphone les joindra en administrateur.</item>
+        <item quantity="many">%1$d appareils à retirer des PC dès que ce téléphone les joindra en administrateur.</item>
+        <item quantity="other">%1$d appareils à retirer des PC dès que ce téléphone les joindra en administrateur.</item>
+    </plurals>
     <string name="share_right_full">Démarrer et éteindre</string>
-    <string name="share_right_v2_note">Les PC passés en connexion chiffrée (wolagent/2) se partagent pour l’instant en « Démarrer » : le partage de l’extinction arrive avec la prochaine version du partage.</string>
     <string name="share_grant">Autoriser</string>
     <string name="share_person_waiting">%1$s · publication en attente</string>
     <string name="share_revoke">Retirer l’accès</string>
     <string name="share_revoke_title">Retirer l’accès de %1$s ?</string>
-    <string name="share_revoke_text">Ses PC partagés disparaîtront de son application à sa prochaine vérification. S’il pouvait éteindre certains PC, changez aussi la clé de leur agent.</string>
+    <string name="share_revoke_text">Ses PC partagés disparaîtront de son application à sa prochaine vérification, et son appareil sera retiré des PC qui l’ont enregistré dès que ce téléphone les joindra. Si sa demande venait d’une version antérieure et qu’il pouvait éteindre certains PC, changez aussi la clé de leur agent.</string>
     <string name="share_stop">Arrêter le partage</string>
     <string name="share_stop_help">Supprime l’espace de partage : tous les accès sont retirés.</string>
     <string name="share_stop_title">Arrêter le partage ?</string>

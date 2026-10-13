@@ -421,6 +421,8 @@ type v2Vectors struct {
 	InvalidRequests []string    `json:"invalidRequests"`
 	Contents        []v2Content `json:"contents"`
 	InvalidContents []v2Content `json:"invalidContents"`
+	// Plans : décisions sur un PC (PlanAgent), puis leur résultat enregistré (ApplyAgent).
+	Plans []v2Plan `json:"plans"`
 }
 
 func buildV2Vectors(t *testing.T) v2Vectors {
@@ -446,6 +448,7 @@ func buildV2Vectors(t *testing.T) v2Vectors {
 	v.Request.Link, v.Request.Fields = req.Link(), req
 	v.InvalidRequests = invalidRequests(req)
 	v.Contents, v.InvalidContents = v2Contents(t)
+	v.Plans = v2Plans(t)
 	return v
 }
 
@@ -495,6 +498,23 @@ func TestV2Vectors(t *testing.T) {
 	owner, _ := ParseOwnerPrivate(v.OwnerPrivate)
 	device, _ := ParseDevicePrivate(v.DevicePrivate)
 	checkContents(t, owner, device, v.Contents, v.InvalidContents)
+	for n, p := range v.Plans {
+		o := p.owner()
+		now := time.Unix(p.Now, 0)
+		if work, poll := o.AgentWork(p.Device, now); work != p.Work || poll != p.Poll {
+			t.Errorf("%s : travail %t %t", p.Name, work, poll)
+		}
+		if plan := o.PlanAgent(p.Device, p.view(), now); !reflect.DeepEqual(plan, p.Plan) {
+			t.Errorf("%s : plan %+v", p.Name, plan)
+		}
+		if n == 2 {
+			o.Withdraw(p.People[1].Device)
+		}
+		o.ApplyAgent(p.Device, p.Plan, p.Res)
+		if !reflect.DeepEqual(nonNil(o.Pairings), p.AfterPairings) || !reflect.DeepEqual(nonNil(o.Revocations), p.AfterRevocations) {
+			t.Errorf("%s : après %v %v", p.Name, o.Pairings, o.Revocations)
+		}
+	}
 }
 
 // TestWriteV2Vectors régénère protocol/share-v2-vectors.json (WOL_WRITE_SHARE_VECTORS=1).

@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
                 launch { container.historyTracker.run() }
                 launch { container.specsTracker.run() }
                 launch { container.agentUpgrades.run() }
+                launch { container.shareAgents.run() }
                 launch { container.share.run() }
                 launch { container.backups.run() }
                 launch { container.archives.run() }

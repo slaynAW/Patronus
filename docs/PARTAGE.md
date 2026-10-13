@@ -28,32 +28,56 @@ seul « PC streaming », en **démarrage seulement**. Les applications Android e
 3. Vous : **Ajouter une demande** → scannez son QR code (ou collez le lien qu'elle vous a envoyé).
    **Vérifiez que le code affiché est le même que sur son téléphone** (de vive voix ou par téléphone) : c'est ce qui
    garantit que la demande vient bien de son appareil.
-4. Choisissez pour chaque PC : *non partagé*, *démarrer* ou *démarrer et éteindre*, puis **Autoriser**.
+4. Choisissez pour chaque PC : *non partagé*, *démarrer*, *démarrer et consulter* ou *démarrer et éteindre*, puis
+   **Autoriser**.
 5. L'application de Léa télécharge elle-même son accès (en général dans la minute) : le PC streaming apparaît
    avec la mention « partagé par … ». Les changements que vous faites ensuite (adresse, nom…) lui parviennent seuls.
 
 ### Ce que la personne autorisée peut faire
 
-| | Démarrer | Démarrer et éteindre |
-|---|---|---|
-| Voir le PC et son état (allumé, éteint…) | ✅ | ✅ |
-| Démarrer le PC | ✅ | ✅ |
-| Éteindre, redémarrer, mettre en veille | ❌ (la clé de l'agent n'est pas envoyée) | ✅ |
-| Lire l'historique du PC (journal de l'agent : qui a démarré, éteint…) | ❌ | ✅ |
-| Modifier, exporter, partager à son tour | ❌ | ❌ |
+| | Démarrer | Démarrer et consulter | Démarrer et éteindre |
+|---|---|---|---|
+| Voir le PC et son état (allumé, éteint…) | ✅ | ✅ | ✅ |
+| Démarrer le PC | ✅ | ✅ | ✅ |
+| Lire l'historique, les mesures et la fiche du PC | ❌ | ✅ | ✅ |
+| Éteindre, redémarrer, mettre en veille | ❌ | ❌ | ✅ |
+| Modifier, exporter, partager à son tour | ❌ | ❌ | ❌ |
+
+« Démarrer et consulter » demande le partage sans clé (ci-dessous). Avec « démarrer », l'application de la personne
+ne contacte jamais l'agent du PC.
+
+### Partage sans clé (applications 1.13)
+
+Quand la personne utilise une application 1.13 ou plus récente, et que le PC est en connexion chiffrée (`wolagent/2`),
+la clé de l'agent n'est plus transmise : le PC **enregistre l'appareil de la personne**, avec ses seuls droits, grâce
+à une invitation réservée à cet appareil. Tout se fait seul, à une condition : votre téléphone ou votre ordinateur doit
+être **administrateur** du PC (c'est le cas d'un appareil appairé avec le QR code de `wol-agent pair`).
+
+- Dans *Partage*, chaque PC partagé de cette façon indique où il en est : « invitation envoyée » (l'appareil de la
+  personne l'utilisera dès qu'il joindra le PC), « en attente du PC » (votre appareil la créera dès que le PC
+  répondra), ou rien une fois l'appareil enregistré.
+- « … doit en être administrateur » : votre appareil n'est pas administrateur de ce PC (appareil passé de `wolagent/1`
+  à `wolagent/2`, par exemple). Sur le PC, `wol-agent devices role <empreinte> admin`, avec l'empreinte affichée par
+  l'application ; ou depuis un appareil administrateur : *Appareils autorisés* → *Administrer*. En attendant, le PC
+  reste partagé en « démarrer ».
+- Une personne dont l'application est plus ancienne reste en partage par clé (droits « démarrer » et « démarrer et
+  éteindre ») : demandez-lui de mettre à jour son application et de vous renvoyer une demande.
 
 ### Retirer un accès
 
 *Partage* → la personne → **Retirer l'accès** : son fichier est supprimé et les PC disparaissent de son application à
-la vérification suivante. Si elle avait le droit d'éteindre, changez aussi la clé de l'agent des PC concernés
-(`wol-agent rotate-key`, puis mettez la nouvelle clé dans votre application) : un appareil qui ne se connecte plus
-garderait sinon la dernière version reçue.
+la vérification suivante. Partagés sans clé, ces PC retirent aussi son appareil dès que le vôtre les joint
+(« Retraits en attente » jusque-là) ; pour un effet immédiat : `wol-agent devices revoke` sur le PC. Si la personne
+avait reçu la clé d'un agent (partage par clé, droit d'éteindre), changez aussi cette clé (`wol-agent rotate-key`,
+puis mettez la nouvelle clé dans votre application) : un appareil qui ne se connecte plus garderait sinon la dernière
+version reçue.
 
 ### Changer de téléphone ou de PC
 
-- **Personne qui partage** : l'export complet (protégé par mot de passe) contient votre clé de partage et la liste des
-  personnes autorisées. Après l'import sur le nouvel appareil, reconnectez-vous à GitHub : les accès continuent.
-  Sans cette sauvegarde, il faudrait inviter à nouveau tout le monde.
+- **Personne qui partage** : l'export complet (protégé par mot de passe) contient votre clé de partage, la liste des
+  personnes autorisées et les retraits pas encore appliqués sur les PC. Après l'import sur le nouvel appareil,
+  reconnectez-vous à GitHub : les accès continuent. Pour le partage sans clé, le nouvel appareil doit aussi être
+  administrateur des PC. Sans cette sauvegarde, il faudrait inviter à nouveau tout le monde.
 - **Personne qui reçoit** : la clé de réception ne quitte jamais l'appareil ; refaites une demande d'accès.
 
 ## Sécurité
@@ -65,6 +89,8 @@ garderait sinon la dernière version reçue.
 | Une fausse invitation ou une fausse demande (message intercepté) | Code de vérification à comparer : il dépend des deux clés et diffère si l'une a été remplacée. |
 | Une personne autorisée transmet son accès | Le fichier ne se lit qu'avec la clé de **son** appareil ; l'application ne permet ni d'exporter ni d'afficher les PC reçus hors de la liste, et n'affiche jamais la clé d'agent reçue. |
 | Retour à une ancienne version d'un fichier (réaccorder un accès retiré) | Numéro de révision croissant, vérifié par l'appareil. |
+| Une invitation (partage sans clé) lue ou interceptée | Réservée à l'identité de l'appareil destinataire : inutilisable par un autre appareil, même avec le code. Valable 7 jours au plus, à usage unique. |
+| Accès retiré, mais l'appareil garde ses données | Partage sans clé : l'appareil est retiré du PC lui-même ; il n'a jamais eu de clé d'agent à réutiliser. |
 | Vol du jeton GitHub de la personne qui partage | Droit « gist » uniquement : pas d'accès aux dépôts (donc pas au code de l'application). Le jeton est chiffré sur l'appareil et jamais exporté. |
 
 Limites : une personne autorisée voit les PC qu'on lui partage (nom, adresse, adresse MAC) ; l'historique des

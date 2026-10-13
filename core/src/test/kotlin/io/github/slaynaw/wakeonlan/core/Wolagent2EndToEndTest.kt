@@ -17,6 +17,14 @@ import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2Exception
 import io.github.slaynaw.wakeonlan.core.model.AgentSettings
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.model.MacAddress
+import io.github.slaynaw.wakeonlan.core.share.RoleChange
+import io.github.slaynaw.wakeonlan.core.share.ShareAgents
+import io.github.slaynaw.wakeonlan.core.share.ShareOwner
+import io.github.slaynaw.wakeonlan.core.share.SharePerson
+import io.github.slaynaw.wakeonlan.core.share.ShareRight
+import io.github.slaynaw.wakeonlan.core.share.agentWork
+import io.github.slaynaw.wakeonlan.core.share.applyAgent
+import io.github.slaynaw.wakeonlan.core.share.planAgent
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -192,6 +200,63 @@ class Wolagent2EndToEndTest {
         val v1 = app.admin("127.0.0.1", AgentSettings(port = port, key = "x"))
         assertTrue(v1 is AgentResult.Failure && v1.error == AgentError.NO_KEY, "$v1")
         // Nettoyage par le PC (le dernier administrateur ne peut être retiré que sur le PC).
+        client.connect("127.0.0.1", port, local, agentPin).use { admin ->
+            assertTrue(admin.request(Request2(cmd = Commands.DEVICES_REVOKE, device = phone.pin.toString(), force = true)).ok)
+        }
+    }
+
+    @Test
+    fun `partage v2 sur le vrai agent`() = runBlocking {
+        val agentPin = local.pin
+        val phone = TestIdentities.newDevice()
+        val app = AgentClient(deviceName = { "Pixel propriétaire" }, identity = { phone })
+        val settings = AgentSettings(port = port, key = "", pin = agentPin.toString())
+        val adminCode = client.connect("127.0.0.1", port, local, agentPin).use { admin ->
+            admin.request(Request2(cmd = Commands.INVITE, role = "admin", ttl = 120)).invite!!.code
+        }
+        assertTrue(app.pair("127.0.0.1", settings, adminCode) is AgentResult.Success)
+
+        // Léa demande l'accès avec l'empreinte de son appareil ; « démarrer et éteindre » sur ce PC.
+        val lea = TestIdentities.newDevice()
+        val now = System.currentTimeMillis() / 1000
+        var owner = ShareOwner(
+            key = "", publicKey = "", name = "Hugo",
+            people = listOf(SharePerson("Léa", "lea", rights = mapOf("pc" to ShareRight.FULL), identity = lea.pin.toString())),
+        )
+        val first = app.shareSync("127.0.0.1", settings) { view -> owner.planAgent("pc", view, now) }
+        assertNull(first.failure, "${first.failure}")
+        val created = first.result.created.getValue(lea.pin.toString())
+        assertEquals("control", created.role)
+        assertTrue(created.expires >= now + ShareAgents.INVITE_TTL_SECONDS - 60, "$created")
+        owner = owner.applyAgent("pc", first.plan!!, first.result).first
+        val listed = (app.admin("127.0.0.1", settings) as AgentResult.Success).value.invites.single { it.id == created.id }
+        assertEquals(lea.pin.toString(), listed.device, "invitation réservée à l'appareil de Léa")
+        assertEquals(created.code, owner.pairings.single().code)
+
+        // Rien de plus à faire tant que l'invitation attend.
+        assertEquals(false to true, owner.agentWork("pc", now))
+        val idle = app.shareSync("127.0.0.1", settings) { view -> owner.planAgent("pc", view, now) }
+        assertTrue(idle.plan!!.isEmpty && idle.result.created.isEmpty(), "${idle.plan}")
+
+        // Léa utilise l'invitation : enregistrée avec le rôle « control », constaté à la session suivante.
+        val leaApp = AgentClient(deviceName = { "Pixel de Léa" }, identity = { lea })
+        assertEquals(AgentResult.Success(AgentPairing("control")), leaApp.pair("127.0.0.1", settings, created.code))
+        val second = app.shareSync("127.0.0.1", settings) { view -> owner.planAgent("pc", view, now) }
+        val secondPlan = second.plan!!
+        assertEquals(listOf(RoleChange(lea.pin.toString(), "control")), secondPlan.registered)
+        owner = owner.applyAgent("pc", secondPlan, second.result).first
+        assertTrue(owner.pairings.single().registered && owner.pairings.single().code.isEmpty())
+
+        // Accès retiré : son appareil est retiré du PC.
+        owner = owner.withdraw("lea")
+        val third = app.shareSync("127.0.0.1", settings) { view -> owner.planAgent("pc", view, now) }
+        val thirdPlan = third.plan!!
+        assertEquals(listOf(lea.pin.toString()), thirdPlan.revoke)
+        owner = owner.applyAgent("pc", thirdPlan, third.result).first
+        assertTrue(owner.revocations.isEmpty() && owner.pairings.isEmpty())
+        val gone = leaApp.status("127.0.0.1", settings)
+        assertTrue(gone is AgentResult.Failure && gone.error == AgentError.UNREGISTERED, "$gone")
+
         client.connect("127.0.0.1", port, local, agentPin).use { admin ->
             assertTrue(admin.request(Request2(cmd = Commands.DEVICES_REVOKE, device = phone.pin.toString(), force = true)).ok)
         }

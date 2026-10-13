@@ -3,6 +3,9 @@ package io.github.slaynaw.wakeonlan.core
 import io.github.slaynaw.wakeonlan.core.config.ConfigCodec
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.share.AgentInvite
+import io.github.slaynaw.wakeonlan.core.share.AgentPlan
+import io.github.slaynaw.wakeonlan.core.share.PlanResult
+import io.github.slaynaw.wakeonlan.core.share.AgentView
 import io.github.slaynaw.wakeonlan.core.share.ExportedShareOwner
 import io.github.slaynaw.wakeonlan.core.share.ShareContent
 import io.github.slaynaw.wakeonlan.core.share.ShareCrypto
@@ -14,6 +17,11 @@ import io.github.slaynaw.wakeonlan.core.share.SharePerson
 import io.github.slaynaw.wakeonlan.core.share.ShareRequest
 import io.github.slaynaw.wakeonlan.core.share.ShareRevocation
 import io.github.slaynaw.wakeonlan.core.share.ShareRight
+import io.github.slaynaw.wakeonlan.core.share.ShareAgents
+import io.github.slaynaw.wakeonlan.core.share.agentWork
+import io.github.slaynaw.wakeonlan.core.share.applyAgent
+import io.github.slaynaw.wakeonlan.core.share.needsKey
+import io.github.slaynaw.wakeonlan.core.share.planAgent
 import kotlinx.serialization.Serializable
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -49,12 +57,22 @@ class ShareV2Test {
     data class ContentVector(val name: String, val plaintext: String, val identity: String = "", val invites: List<AgentInvite> = emptyList())
 
     @Serializable
+    data class Plan(
+        val name: String, val device: String, val now: Long,
+        val people: List<SharePerson>, val pairings: List<SharePairing>, val revocations: List<ShareRevocation>,
+        val view: AgentView, val work: Boolean, val poll: Boolean, val plan: AgentPlan, val result: PlanResult,
+        val afterPairings: List<SharePairing>, val afterRevocations: List<ShareRevocation>,
+        val afterWork: Boolean, val afterPoll: Boolean,
+    )
+
+    @Serializable
     data class Vectors(
         val ownerPrivate: String, val ownerPublic: String, val devicePrivate: String, val devicePublic: String,
         val now: Long, val ownerName: String, val devices: List<Device>, val pairings: List<SharePairing>,
         val cases: List<Case>, val revocations: Revocations,
         val request: RequestVector, val invalidRequests: List<String>,
         val contents: List<ContentVector>, val invalidContents: List<ContentVector>,
+        val plans: List<Plan>,
     )
 
     private val dir = System.getProperty("wol.protocolDir") ?: "../protocol"
@@ -93,6 +111,57 @@ class ShareV2Test {
             assertEquals(step.pairings, o.pairings, "étape ${n + 1} : appairages")
             assertEquals(step.revocations, o.revocations, "étape ${n + 1} : retraits")
         }
+    }
+
+    @Test
+    fun `plans sur un PC identiques a Windows`() {
+        for ((n, p) in v.plans.withIndex()) {
+            var o = ShareOwner(key = "", publicKey = "", name = "Hugo", people = p.people, pairings = p.pairings, revocations = p.revocations)
+            assertEquals(p.work to p.poll, o.agentWork(p.device, p.now), "${p.name} : travail")
+            assertEquals(p.plan, o.planAgent(p.device, p.view, p.now), "${p.name} : plan")
+            // Troisième scénario : Paul est retiré pendant l'échange.
+            if (n == 2) o = o.withdraw(p.people[1].device)
+            o = o.applyAgent(p.device, p.plan, p.result).first
+            assertEquals(p.afterPairings, o.pairings, "${p.name} : appairages")
+            assertEquals(p.afterRevocations, o.revocations, "${p.name} : retraits")
+            assertEquals(p.afterWork to p.afterPoll, o.agentWork(p.device, p.now), "${p.name} : travail après")
+        }
+        // Échec avant les invitations : rien ne change.
+        val p = v.plans.first()
+        val o = ShareOwner(key = "", publicKey = "", name = "Hugo", people = p.people, pairings = p.pairings, revocations = p.revocations)
+        val (same, changed) = o.applyAgent(p.device, p.plan, PlanResult())
+        assertFalse(changed)
+        assertEquals(o, same)
+    }
+
+    @Test
+    fun `droits possibles et cle gardee`() {
+        val cases = listOf(
+            listOf(ShareRight.WAKE, true, true, true, ShareRight.WAKE),
+            listOf(ShareRight.VIEW, true, true, false, ShareRight.VIEW),
+            listOf(ShareRight.VIEW, false, true, true, ShareRight.WAKE),
+            listOf(ShareRight.VIEW, true, false, true, ShareRight.WAKE),
+            listOf(ShareRight.FULL, true, true, false, ShareRight.FULL),
+            listOf(ShareRight.FULL, false, true, true, ShareRight.FULL),
+            listOf(ShareRight.FULL, true, false, true, ShareRight.FULL),
+            listOf(ShareRight.FULL, false, true, false, ShareRight.WAKE),
+            listOf(ShareRight.FULL, true, false, false, ShareRight.WAKE),
+        )
+        for (c in cases) {
+            assertEquals(c[4], ShareAgents.allowedRight(c[0] as ShareRight, c[1] as Boolean, c[2] as Boolean, c[3] as Boolean), c.toString())
+        }
+        val o = ShareOwner(
+            key = "", publicKey = "", name = "Hugo",
+            people = listOf(
+                SharePerson("Léa", "a", rights = mapOf("c" to ShareRight.FULL, "d" to ShareRight.VIEW), identity = v.request.fields.identity),
+                SharePerson("Paul", "b", rights = mapOf("d" to ShareRight.FULL, "e" to ShareRight.WAKE)),
+            ),
+        )
+        assertFalse(o.needsKey("c", true))
+        assertTrue(o.needsKey("c", false))
+        assertTrue(o.needsKey("d", true))
+        assertFalse(o.needsKey("e", true))
+        assertFalse(o.needsKey("z", true))
     }
 
     @Test

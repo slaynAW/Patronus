@@ -2,10 +2,13 @@ package io.github.slaynaw.wakeonlan.share
 
 import android.content.Context
 import io.github.slaynaw.wakeonlan.BuildConfig
+import io.github.slaynaw.wakeonlan.core.agent.AgentClient
+import io.github.slaynaw.wakeonlan.core.agent.AgentResult
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.share.ExportedShareOwner
 import io.github.slaynaw.wakeonlan.core.share.GitHubDeviceCode
 import io.github.slaynaw.wakeonlan.core.share.ShareAccess
+import io.github.slaynaw.wakeonlan.core.share.ShareAgents
 import io.github.slaynaw.wakeonlan.core.share.ShareCrypto
 import io.github.slaynaw.wakeonlan.core.share.ShareException
 import io.github.slaynaw.wakeonlan.core.share.ShareGitHub
@@ -16,6 +19,11 @@ import io.github.slaynaw.wakeonlan.core.share.SharePerson
 import io.github.slaynaw.wakeonlan.core.share.ShareRequest
 import io.github.slaynaw.wakeonlan.core.share.ShareRight
 import io.github.slaynaw.wakeonlan.core.share.ShareSyncResult
+import io.github.slaynaw.wakeonlan.core.share.agentWork
+import io.github.slaynaw.wakeonlan.core.share.applyAgent
+import io.github.slaynaw.wakeonlan.core.share.isV2
+import io.github.slaynaw.wakeonlan.core.share.needsKey
+import io.github.slaynaw.wakeonlan.core.share.planAgent
 import io.github.slaynaw.wakeonlan.data.ConfigRepository
 import io.github.slaynaw.wakeonlan.data.ShareRepository
 import io.github.slaynaw.wakeonlan.diagnostics.DiagnosticLog
@@ -58,7 +66,30 @@ data class ShareUiState(
     val publishing: Boolean = false,
     val publishError: String? = null,
     val syncErrors: Map<String, String> = emptyMap(),
-)
+    /** PC où le partage v2 attend que ce téléphone en devienne administrateur. */
+    val notAdmin: Set<String> = emptySet(),
+    /** Empreinte courte de ce téléphone (wolagent/2), pour le rendre administrateur d'un PC. */
+    val selfPin: String? = null,
+) {
+    /** Où en est l'enregistrement de l'appareil d'une personne sur un PC partagé en v2 (null : rien à signaler). */
+    fun agentState(person: SharePerson, device: Device, nowSeconds: Long): AgentState? {
+        val o = owner ?: return null
+        if (person.rights[device.id]?.agentRole == null || !person.isV2(device.isPinned)) return null
+        val pairing = o.pairings.firstOrNull { it.person == person.device && it.device == device.id && it.identity == person.identity }
+        return when {
+            pairing?.registered == true -> AgentState.REGISTERED
+            pairing != null && pairing.code.isNotEmpty() && pairing.expires > nowSeconds -> AgentState.INVITED
+            device.id in notAdmin -> AgentState.NOT_ADMIN
+            else -> AgentState.PENDING
+        }
+    }
+}
+
+/** Enregistrement de l'appareil d'une personne sur un PC (partage v2). */
+enum class AgentState { REGISTERED, INVITED, PENDING, NOT_ADMIN }
+
+/** PC joint par l'empreinte de son agent : partage v2 possible. */
+val Device.isPinned: Boolean get() = hasHost && agent?.hasPin == true
 
 /** Demande d'accès lue par la personne qui partage. */
 data class ShareRequestInfo(val request: ShareRequest, val code: String, val rights: Map<String, ShareRight>?)
@@ -81,6 +112,8 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
         val publishError: String? = null,
         val publishFailedAt: Long = 0,
         val syncErrors: Map<String, String> = emptyMap(),
+        val notAdmin: Set<String> = emptySet(),
+        val selfPin: String? = null,
     )
 
     private val runtime = MutableStateFlow(Runtime())
@@ -101,6 +134,8 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
             publishing = rt.publishing,
             publishError = rt.publishError,
             syncErrors = rt.syncErrors,
+            notAdmin = rt.notAdmin,
+            selfPin = rt.selfPin,
         )
     }.stateIn(scope, SharingStarted.Eagerly, ShareUiState())
 
@@ -116,11 +151,60 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
     val pendingLink = MutableStateFlow<String?>(null)
 
     /**
-     * Ce PC est-il partagé avec le droit « démarrer et éteindre » ? Ce partage (wolagent/1) transmet la clé de son
-     * agent, qui est donc gardée quand il passe en wolagent/2 (docs/PROTOCOLE-V2.md, §9).
+     * Ce PC, joint par l'empreinte de son agent, est-il partagé en v1 avec le droit « démarrer et éteindre » (personne
+     * dont la demande ne porte pas d'empreinte) ? Ce partage transmet la clé de son agent, qui est donc gardée ; le
+     * partage v2 n'en a pas besoin (docs/PARTAGE.md, « Partage v2 »).
      */
-    suspend fun sharedWithControl(deviceId: String): Boolean =
-        repo.current().owner?.people?.any { it.rights[deviceId] == ShareRight.FULL } == true
+    suspend fun sharedWithControl(deviceId: String): Boolean = repo.current().owner?.needsKey(deviceId, pinned = true) == true
+
+    /**
+     * Partage v2 sur un PC : quelque chose à faire (premier élément), ou des invitations à surveiller (second).
+     */
+    fun agentWork(deviceId: String, nowSeconds: Long): Pair<Boolean, Boolean> =
+        state.value.owner?.agentWork(deviceId, nowSeconds) ?: (false to false)
+
+    /**
+     * Note les PC où le partage v2 attend que ce téléphone en devienne administrateur ; l'empreinte courte du téléphone
+     * ([selfPin], lue dans le Keystore hors du fil principal) accompagne alors l'aide affichée.
+     */
+    fun setNotAdmin(deviceId: String, notAdmin: Boolean, selfPin: () -> String?) {
+        val rt = runtime.value
+        if ((deviceId in rt.notAdmin) == notAdmin) return
+        if (notAdmin) DiagnosticLog.i(AREA, "partage v2 en attente sur [${deviceId.take(8)}] : ce téléphone n'en est pas administrateur")
+        runtime.update { it.copy(notAdmin = if (notAdmin) it.notAdmin + deviceId else it.notAdmin - deviceId) }
+        if (notAdmin && rt.selfPin == null) {
+            scope.launch(Dispatchers.IO) { selfPin()?.let { pin -> runtime.update { it.copy(selfPin = pin) } } }
+        }
+    }
+
+    /**
+     * Mène une session du partage v2 sur un PC administré par ce téléphone (docs/PARTAGE.md, « Partage v2 ») :
+     * invitations réservées aux appareils des personnes autorisées, rôles, retraits ; puis enregistre le résultat (même
+     * partiel) et republie. Renvoie l'échec éventuel.
+     */
+    suspend fun syncAgent(device: Device, client: AgentClient): AgentResult.Failure? {
+        val agent = device.agent ?: return null
+        val now = System.currentTimeMillis() / 1000
+        val sync = client.shareSync(device.host, agent) { view -> state.value.owner?.planAgent(device.id, view, now) }
+        val plan = sync.plan ?: return sync.failure
+        var changed = false
+        if (sync.result.changed || sync.result.created.isNotEmpty()) {
+            repo.update { st ->
+                val owner = st.owner ?: return@update st
+                val (next, c) = owner.applyAgent(device.id, plan, sync.result)
+                changed = c
+                st.copy(owner = next)
+            }
+            DiagnosticLog.i(
+                AREA,
+                "« ${device.name} » : partage v2 : ${sync.result.created.size} invitation(s) créée(s) sur ${plan.invite.size}, " +
+                    "${plan.cancel.size} annulée(s), ${plan.revoke.size} appareil(s) retiré(s), ${plan.roles.size} rôle(s) aligné(s), " +
+                    "${plan.registered.size} enregistré(s)" + if (plan.skipped.isNotEmpty()) ", administrateurs laissés tels quels" else "",
+            )
+        }
+        if (changed) scope.launch { publish() }
+        return sync.failure
+    }
 
     /** Tant que l'application est visible : publication des changements, vérification des accès reçus. */
     suspend fun run(): Unit = coroutineScope {
@@ -277,16 +361,26 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
             throw ShareException(ShareException.Reason.INVALID, "cette demande répond à l'invitation d'une autre personne")
         }
         val known = owner.person(request.device)
-        DiagnosticLog.i(AREA, "demande lue : « ${request.name} » (${DiagnosticLog.keyId(request.device)}), ${if (known != null) "personne déjà autorisée" else "nouvelle personne"}")
+        DiagnosticLog.i(
+            AREA,
+            "demande lue : « ${request.name} » (${DiagnosticLog.keyId(request.device)}), " +
+                "${if (known != null) "personne déjà autorisée" else "nouvelle personne"}, " +
+                if (request.identity.isNotEmpty()) "partage v2" else "partage v1 (application antérieure)",
+        )
         return ShareRequestInfo(request, ShareCrypto.verificationCode(owner.publicKey, request.device), known?.rights)
     }
 
-    /** Autorise une personne (ou modifie ses droits) puis publie. */
-    suspend fun grant(device: String, name: String, rights: Map<String, ShareRight>) {
+    /**
+     * Autorise une personne (ou modifie ses droits) puis publie. [identity] : empreinte wolagent/2 de son appareil, lue
+     * dans sa demande (vide : application qui ne connaît que le partage v1). Chaque droit est ramené à ce que le PC
+     * permet ([ShareAgents.allowedRight]).
+     */
+    suspend fun grant(device: String, name: String, rights: Map<String, ShareRight>, identity: String) {
+        if (identity.isNotEmpty() && !ShareCrypto.isValidIdentity(identity)) throw ShareException(ShareException.Reason.INVALID, "demande invalide")
         val devices = config.current().devices.associateBy { it.id }
         val granted = rights.mapNotNull { (id, right) ->
             val d = devices[id] ?: return@mapNotNull null
-            id to if (right == ShareRight.FULL && !(d.canShutdown && d.agent?.hasKey == true)) ShareRight.WAKE else right
+            id to ShareAgents.allowedRight(right, identity.isNotEmpty(), d.isPinned, d.canShutdown && d.agent?.hasKey == true)
         }.toMap()
         val summary = granted.entries.joinToString(", ") { (id, right) -> "${devices[id]?.name} = ${right.name.lowercase()}" }
         DiagnosticLog.i(AREA, "autorisation de « $name » (${DiagnosticLog.keyId(device)}) : ${granted.size} PC retenus sur ${rights.size} ($summary)")
@@ -298,7 +392,7 @@ class ShareManager(context: Context, private val scope: CoroutineScope, private 
         try {
             repo.update { st ->
                 val owner = st.owner ?: throw ShareException(ShareException.Reason.UNAUTHORIZED, "le partage n'est pas activé")
-                st.copy(owner = owner.grant(SharePerson(name, device, System.currentTimeMillis(), granted)))
+                st.copy(owner = owner.grant(SharePerson(name, device, System.currentTimeMillis(), granted, identity)))
             }
         } catch (e: CancellationException) {
             throw e

@@ -79,6 +79,12 @@ class AppContainer(private val context: Context) {
     /** Passage automatique des PC du téléphone en wolagent/2 (connexion chiffrée, identité propre au téléphone). */
     val agentUpgrades = AgentUpgradeTracker(repository, statusMonitor.statuses, agentClient, prober, share, scope)
 
+    /** Partage v2 : invitations, rôles et retraits sur les PC administrés par ce téléphone. */
+    val shareAgents = ShareAgentTracker(
+        repository, statusMonitor.statuses, agentClient, share, scope,
+        selfPin = { runCatching { identity.get()?.pin?.short() }.getOrNull() },
+    )
+
     /** Sauvegardes automatiques (GitHub et dossier), chiffrées par un mot de passe dédié. */
     val backups = BackupManager(context, scope, repository, share, history)
 

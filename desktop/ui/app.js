@@ -575,13 +575,21 @@
     share_rights: "PC partagés",
     share_right_none: "Non partagé",
     share_right_wake: "Démarrer",
+    share_right_view: "Démarrer et consulter",
     share_right_full: "Démarrer et éteindre",
-    share_right_v2_note: "Les PC passés en connexion chiffrée (wolagent/2) se partagent pour l’instant en « Démarrer » : le partage de l’extinction arrive avec la prochaine version du partage.",
+    share_v1_note: "%1$s utilise une version antérieure de Patronus. Pour « Démarrer et consulter », ou pour l’extinction des PC en connexion chiffrée, demandez-lui de mettre à jour son application et de vous renvoyer une demande.",
+    share_v2_note: "Chaque PC enregistrera l’appareil de %1$s avec ces droits, sans transmettre de clé, dès que cet ordinateur le joindra en administrateur.",
+    share_agent_invited: "invitation envoyée",
+    share_agent_pending: "en attente du PC",
+    share_agent_not_admin: "cet ordinateur doit en être administrateur",
+    share_agent_not_admin_help: "Pour partager ce PC sans transmettre de clé, cet ordinateur doit en être administrateur : sur le PC, « wol-agent devices role %1$s admin », ou depuis un appareil administrateur (Appareils autorisés → Administrer).",
+    share_revocations: "Retraits en attente",
+    share_revocations_help: "%1$d appareil(s) à retirer des PC dès que cet ordinateur les joindra en administrateur.",
     share_grant: "Autoriser",
     share_person_waiting: "%1$s · publication en attente",
     share_revoke: "Retirer l’accès",
     share_revoke_title: "Retirer l’accès de %1$s ?",
-    share_revoke_text: "Ses PC partagés disparaîtront de son application à sa prochaine vérification. S’il pouvait éteindre certains PC, changez aussi la clé de leur agent.",
+    share_revoke_text: "Ses PC partagés disparaîtront de son application à sa prochaine vérification, et son appareil sera retiré des PC qui l’ont enregistré dès que cet ordinateur les joindra. Si sa demande venait d’une version antérieure et qu’il pouvait éteindre certains PC, changez aussi la clé de leur agent.",
     share_stop: "Arrêter le partage",
     share_stop_help: "Supprime l’espace de partage : tous les accès sont retirés.",
     share_stop_title: "Arrêter le partage ?",
@@ -4154,7 +4162,7 @@
               return;
             }
             dialog.close();
-            rightsDialog({ name: r.name, device: r.device, code: r.code, rights: r.rights || {}, isNew: !r.rights });
+            rightsDialog({ name: r.name, device: r.device, identity: r.identity || "", code: r.code, rights: r.rights || {}, isNew: !r.rights });
           } catch (e) {
             snackbar(errorMessage(e));
           }
@@ -4162,28 +4170,56 @@
       });
     }
 
+    /**
+     * Droits possibles sur un PC (docs/PARTAGE.md, « Partage v2 ») : « Démarrer et consulter » demande le partage v2
+     * (demande avec empreinte, PC joint par l'empreinte de son agent) ; « Démarrer et éteindre », le partage v2 ou la
+     * clé de l'agent (partage v1).
+     */
+    function rightsFor(d, identity) {
+      const v2 = !!identity && !!d.agentPin;
+      return ["wake", ...(v2 ? ["view"] : []), ...(v2 || d.shareControl ? ["full"] : [])];
+    }
+
+    /** Où en est l'enregistrement de l'appareil d'une personne sur un PC partagé en v2 ("" : rien à signaler). */
+    function agentStateText(st) {
+      if (!st) return "";
+      if (st.state === "invited") return S.share_agent_invited;
+      if (st.state === "pending") return S.share_agent_pending;
+      if (st.state === "notAdmin") return S.share_agent_not_admin;
+      return "";
+    }
+
     /** Choix des PC partagés et des droits (nouvelle personne ou modification). */
-    function rightsDialog({ name, device, code, rights, isNew }) {
+    function rightsDialog({ name, device, identity, code, rights, isNew, agents }) {
       const chosen = { ...rights };
+      const labels = { wake: S.share_right_wake, view: S.share_right_view, full: S.share_right_full };
       const rows = ownDevices().map((d) => {
+        const allowed = rightsFor(d, identity);
         const selectEl = h("select", { "aria-label": d.name },
           h("option", { value: "", text: S.share_right_none }),
-          h("option", { value: "wake", text: S.share_right_wake }),
-          d.shareControl ? h("option", { value: "full", text: S.share_right_full }) : null);
-        selectEl.value = chosen[d.id] === "full" && !d.shareControl ? "wake" : chosen[d.id] || "";
+          ...allowed.map((r) => h("option", { value: r, text: labels[r] })));
+        if (chosen[d.id] && !allowed.includes(chosen[d.id])) chosen[d.id] = "wake";
+        selectEl.value = chosen[d.id] || "";
         selectEl.addEventListener("change", () => {
           if (selectEl.value) chosen[d.id] = selectEl.value;
           else delete chosen[d.id];
           refresh();
         });
-        return h("div", { class: "right-row" }, h("span", { class: "ni" }, icon("monitor", "", 16)), h("b", { text: d.name }), selectEl);
+        const stateText = agentStateText(agents?.[d.id]);
+        const title = h("b", { text: d.name });
+        const label = stateText ? h("div", { class: "right-name" }, title, h("small", { class: "muted", text: stateText })) : title;
+        return h("div", { class: "right-row" }, h("span", { class: "ni" }, icon("monitor", "", 16)), label, selectEl);
       });
       const body = [];
       if (code) {
         body.push(h("p", { text: fmt(S.share_verify, name) }), codeView(code), h("p", { class: "muted small", text: S.share_verify_help }));
       }
       body.push(h("div", { class: "form-title", text: S.share_rights }), h("div", { class: "rights" }, rows));
-      if (ownDevices().some((d) => d.canShutdown && !d.shareControl)) body.push(h("p", { class: "muted small", text: S.share_right_v2_note }));
+      if (!identity && ownDevices().some((d) => d.agentPin)) body.push(h("p", { class: "muted small", text: fmt(S.share_v1_note, name) }));
+      if (identity && ownDevices().some((d) => d.agentPin)) body.push(h("p", { class: "muted small", text: fmt(S.share_v2_note, name) }));
+      if (Object.values(agents || {}).some((st) => st.state === "notAdmin")) {
+        body.push(h("p", { class: "muted small", text: fmt(S.share_agent_not_admin_help, state.share.owner?.selfPin || "…") }));
+      }
       const dialog = openDialog({ iconName: "users", title: fmt(isNew ? S.share_grant_title : S.share_edit_title, name), body, actions: [] });
       refresh();
       function refresh() {
@@ -4194,7 +4230,7 @@
           disabled: !Object.keys(chosen).length,
           onClick: async () => {
             try {
-              await api.call("shareGrant", { device, name, rights: chosen });
+              await api.call("shareGrant", { device, name, identity: identity || "", rights: chosen });
               dialog.close();
               snackbar(fmt(S.share_granted, name));
             } catch (e) {
@@ -4383,10 +4419,15 @@
         settingItem("paste", S.share_add_request, S.share_add_request_help, requestPasteDialog),
       ];
       for (const p of o.people) {
-        const summary = p.devices.join(", ");
+        const summary = ownDevices().filter((d) => p.rights[d.id]).map((d) => {
+          const stateText = agentStateText(p.agents?.[d.id]);
+          return stateText ? `${d.name} (${stateText})` : d.name;
+        }).join(", ");
         items.push(settingItem("users", p.name, p.published || o.publishing ? summary : fmt(S.share_person_waiting, summary),
-          () => rightsDialog({ name: p.name, device: p.device, rights: Object.fromEntries(Object.entries(p.rights).filter(([id]) => names.has(id))), isNew: false })));
+          () => rightsDialog({ name: p.name, device: p.device, identity: p.identity || "", agents: p.agents,
+            rights: Object.fromEntries(Object.entries(p.rights).filter(([id]) => names.has(id))), isNew: false })));
       }
+      if (o.revocations > 0) items.push(settingItem("warning", S.share_revocations, fmt(S.share_revocations_help, o.revocations), null, { chevron: false }));
       const status = o.publishing ? S.share_publishing : o.error || S.share_account_help;
       const account = settingItem("cloud", fmt(S.share_account, o.user), status);
       if (o.error) account.querySelector(".supporting").classList.add("bad");
@@ -4424,7 +4465,7 @@
         update() {
           const sh = state.share || { received: [] };
           const now = Date.now();
-          const next = JSON.stringify([sh, ownDevices().map((d) => [d.id, d.name, d.canShutdown, d.shareControl])]);
+          const next = JSON.stringify([sh, ownDevices().map((d) => [d.id, d.name, d.canShutdown, d.shareControl, d.agentPin])]);
           // Les durées (« vérifié il y a… ») sont rafraîchies chaque minute.
           if (next === sig && Math.floor(now / 60000) === minute) return;
           sig = next;

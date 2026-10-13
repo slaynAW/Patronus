@@ -45,6 +45,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -60,9 +61,11 @@ import io.github.slaynaw.wakeonlan.core.share.ShareAccess
 import io.github.slaynaw.wakeonlan.core.share.ShareException
 import io.github.slaynaw.wakeonlan.core.share.ShareInvite
 import io.github.slaynaw.wakeonlan.core.share.ShareRight
+import io.github.slaynaw.wakeonlan.share.AgentState
 import io.github.slaynaw.wakeonlan.share.ShareManager
 import io.github.slaynaw.wakeonlan.share.ShareRequestView
 import io.github.slaynaw.wakeonlan.share.ShareUiState
+import io.github.slaynaw.wakeonlan.share.isPinned
 import io.github.slaynaw.wakeonlan.ui.common.ButtonKind
 import io.github.slaynaw.wakeonlan.ui.theme.MonoStyle
 import io.github.slaynaw.wakeonlan.ui.common.RowDivider
@@ -116,14 +119,28 @@ fun ColumnScope.ShareSections(
                     { onDialog(if (ownDevices.isEmpty()) ShareDialog.NoDevices else ShareDialog.AddRequest) },
                 )
                 val names = ownDevices.associate { it.id to it.name }
+                val states = agentStateLabels()
                 owner.people.forEach { person ->
                     RowDivider()
-                    val summary = ownDevices.filter { person.rights.containsKey(it.id) }.joinToString(", ") { it.name }
+                    val summary = ownDevices.filter { person.rights.containsKey(it.id) }.joinToString(", ") { d ->
+                        share.agentState(person, d, now / 1000)?.let { states[it] }?.let { "${d.name} ($it)" } ?: d.name
+                    }
                     SettingItem(
                         icon = WolIcons.Users,
                         title = person.name,
                         text = if (owner.published.containsKey(person.device) || share.publishing) summary else stringResource(R.string.share_person_waiting, summary),
-                        onClick = { onDialog(ShareDialog.Rights(person.name, person.device, null, person.rights.filterKeys { it in names }, isNew = false)) },
+                        onClick = {
+                            onDialog(ShareDialog.Rights(person.name, person.device, null, person.rights.filterKeys { it in names }, isNew = false, person.identity))
+                        },
+                    )
+                }
+                if (owner.revocations.isNotEmpty()) {
+                    RowDivider()
+                    SettingItem(
+                        icon = WolIcons.Warning,
+                        title = stringResource(R.string.share_revocations),
+                        text = pluralStringResource(R.plurals.share_revocations_help, owner.revocations.size, owner.revocations.size),
+                        chevron = false,
                     )
                 }
                 RowDivider()
@@ -177,7 +194,15 @@ sealed interface ShareDialog {
     data object NoDevices : ShareDialog
     data object AddRequest : ShareDialog
     data class Paste(val invite: Boolean) : ShareDialog
-    data class Rights(val name: String, val device: String, val code: String?, val rights: Map<String, ShareRight>, val isNew: Boolean) : ShareDialog
+    /** [identity] : empreinte wolagent/2 de l'appareil de la personne (partage v2), vide pour une demande antérieure. */
+    data class Rights(
+        val name: String,
+        val device: String,
+        val code: String?,
+        val rights: Map<String, ShareRight>,
+        val isNew: Boolean,
+        val identity: String = "",
+    ) : ShareDialog
     data class Revoke(val name: String, val device: String) : ShareDialog
     data object Stop : ShareDialog
     data object RequestAccess : ShareDialog
@@ -211,7 +236,9 @@ fun ShareDialogHost(
     fun readRequest(text: String) {
         try {
             val info = manager.readRequest(text)
-            onDialog(ShareDialog.Rights(info.request.name, info.request.device, info.code, info.rights.orEmpty(), isNew = info.rights == null))
+            onDialog(
+                ShareDialog.Rights(info.request.name, info.request.device, info.code, info.rights.orEmpty(), isNew = info.rights == null, info.request.identity),
+            )
         } catch (e: ShareException) {
             fail(e)
         }
@@ -305,10 +332,11 @@ fun ShareDialogHost(
         is ShareDialog.Rights -> RightsDialog(
             dialog = dialog,
             devices = ownDevices,
+            share = share,
             onGrant = { rights ->
                 scope.launch {
                     try {
-                        manager.grant(dialog.device, dialog.name, rights)
+                        manager.grant(dialog.device, dialog.name, rights, dialog.identity)
                         close()
                         toast(R.string.share_granted, dialog.name)
                     } catch (e: ShareException) {
@@ -553,15 +581,45 @@ private fun PasteDialog(title: String, text: String, placeholder: String, onConf
     )
 }
 
+/** Libellés courts de l'enregistrement sur un PC (partage v2) ; rien pour un appareil enregistré. */
+@Composable
+private fun agentStateLabels(): Map<AgentState, String> = mapOf(
+    AgentState.INVITED to stringResource(R.string.share_agent_invited),
+    AgentState.PENDING to stringResource(R.string.share_agent_pending),
+    AgentState.NOT_ADMIN to stringResource(R.string.share_agent_not_admin),
+)
+
+/**
+ * Droits possibles sur un PC (docs/PARTAGE.md, « Partage v2 ») : « démarrer et consulter » demande le partage v2
+ * (demande avec empreinte, PC joint par l'empreinte de son agent) ; « démarrer et éteindre », le partage v2 ou la clé de
+ * l'agent (partage v1).
+ */
+private fun allowedRights(device: Device, identity: String): List<ShareRight> {
+    val v2 = identity.isNotEmpty() && device.isPinned
+    val hasKey = device.canShutdown && device.agent?.hasKey == true
+    return listOf(ShareRight.WAKE) + listOfNotNull(ShareRight.VIEW.takeIf { v2 }, ShareRight.FULL.takeIf { v2 || hasKey })
+}
+
 @Composable
 private fun RightsDialog(
     dialog: ShareDialog.Rights,
     devices: List<Device>,
+    share: ShareUiState,
     onGrant: (Map<String, ShareRight>) -> Unit,
     onRevoke: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val chosen = remember { mutableStateMapOf<String, ShareRight>().apply { putAll(dialog.rights) } }
+    val chosen = remember {
+        mutableStateMapOf<String, ShareRight>().apply {
+            for ((id, right) in dialog.rights) {
+                val d = devices.firstOrNull { it.id == id } ?: continue
+                put(id, right.takeIf { it in allowedRights(d, dialog.identity) } ?: ShareRight.WAKE)
+            }
+        }
+    }
+    val person = share.owner?.person(dialog.device)
+    val now = System.currentTimeMillis() / 1000
+    val states = agentStateLabels()
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(WolIcons.Users, contentDescription = null, tint = WolPalette.Blue) },
@@ -574,22 +632,36 @@ private fun RightsDialog(
                     Text(stringResource(R.string.share_verify_help), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
                 }
                 SectionLabel(stringResource(R.string.share_rights), Modifier.padding(top = 4.dp))
+                var notAdmin = false
                 devices.forEach { d ->
-                    val full = d.canShutdown && d.agent?.hasKey == true
+                    val state = person?.let { share.agentState(it, d, now) }
+                    if (state == AgentState.NOT_ADMIN) notAdmin = true
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(WolIcons.Monitor, contentDescription = null, tint = WolPalette.Text2, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(10.dp))
-                        Text(d.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Column(Modifier.weight(1f)) {
+                            Text(d.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            state?.let { states[it] }?.let {
+                                Text(it, style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
                         RightSelector(
-                            current = chosen[d.id]?.let { if (it == ShareRight.FULL && !full) ShareRight.WAKE else it },
-                            allowFull = full,
+                            current = chosen[d.id],
+                            allowed = allowedRights(d, dialog.identity),
                             onChange = { if (it == null) chosen.remove(d.id) else chosen[d.id] = it },
                         )
                     }
                 }
-                // PC passés en wolagent/2 : plus de clé à transmettre, « démarrer » seulement jusqu'au partage v2.
-                if (devices.any { it.canShutdown && it.agent?.hasKey != true }) {
-                    Text(stringResource(R.string.share_right_v2_note), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
+                if (devices.any { it.isPinned }) {
+                    val note = if (dialog.identity.isEmpty()) R.string.share_v1_note else R.string.share_v2_note
+                    Text(stringResource(note, dialog.name), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
+                }
+                if (notAdmin) {
+                    Text(
+                        stringResource(R.string.share_agent_not_admin_help, share.selfPin ?: "…"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = WolPalette.Text2,
+                    )
                 }
                 if (!dialog.isNew) {
                     WolButton(stringResource(R.string.share_revoke), onRevoke, Modifier.fillMaxWidth(), ButtonKind.DANGER)
@@ -606,7 +678,7 @@ private fun RightsDialog(
 }
 
 @Composable
-private fun RightSelector(current: ShareRight?, allowFull: Boolean, onChange: (ShareRight?) -> Unit) {
+private fun RightSelector(current: ShareRight?, allowed: List<ShareRight>, onChange: (ShareRight?) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val label = @Composable { right: ShareRight? ->
         stringResource(
@@ -624,7 +696,7 @@ private fun RightSelector(current: ShareRight?, allowFull: Boolean, onChange: (S
             Icon(WolIcons.ChevronDown, contentDescription = null, modifier = Modifier.size(16.dp))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            (listOf(null, ShareRight.WAKE) + listOfNotNull(ShareRight.FULL.takeIf { allowFull })).forEach { right ->
+            (listOf(null) + allowed).forEach { right ->
                 DropdownMenuItem(text = { Text(label(right)) }, onClick = {
                     expanded = false
                     onChange(right)
