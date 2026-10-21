@@ -2,16 +2,22 @@ package io.github.slaynaw.wakeonlan
 
 import android.content.Intent
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import io.github.slaynaw.wakeonlan.security.AppLock
 import io.github.slaynaw.wakeonlan.ui.WolApp
+import io.github.slaynaw.wakeonlan.ui.lock.LockedApp
 import io.github.slaynaw.wakeonlan.ui.theme.WolTheme
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -42,11 +48,21 @@ class MainActivity : ComponentActivity() {
         }
 
         if (savedInstanceState == null) handleLink(intent)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) hideFromRecentsWhenLocked(container.appLock)
 
         setContent {
             WolTheme {
-                WolApp()
+                // Verrouillage à l'ouverture (facultatif) : l'application reste dessous, masquée et inaccessible.
+                LockedApp(container.appLock) { WolApp() }
             }
+        }
+    }
+
+    /** Verrouillage à l'ouverture : pas d'aperçu de l'application dans les applications récentes. */
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    private fun hideFromRecentsWhenLocked(lock: AppLock) {
+        lifecycleScope.launch {
+            lock.state.map { it.open && it.available }.distinctUntilChanged().collect { setRecentsScreenshotEnabled(!it) }
         }
     }
 
@@ -59,6 +75,16 @@ class MainActivity : ComponentActivity() {
     private fun handleLink(intent: Intent?) {
         val data = intent?.takeIf { it.action == Intent.ACTION_VIEW }?.dataString ?: return
         if (data.startsWith("wolshare://", ignoreCase = true)) appContainer.share.pendingLink.value = data
+    }
+
+    override fun onStart() {
+        super.onStart()
+        appContainer.appLock.onStart()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        appContainer.appLock.onStop()
     }
 
     override fun onResume() {

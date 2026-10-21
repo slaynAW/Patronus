@@ -8,7 +8,8 @@
    [MISES-A-JOUR.md](MISES-A-JOUR.md)) et, **si vous l'utilisez**, pour le **partage des PC** : uniquement des fichiers
    chiffrés pour un seul appareil et signés (voir [PARTAGE.md](PARTAGE.md)).
 2. **Moindre privilège.** L'application ne demande que : Internet (sockets), état du réseau, l'autorisation « réseau local »
-   d'Android 17, et l'installation de sa propre mise à jour (toujours confirmée par l'utilisateur). Pas de caméra (le QR code est lu par Play Services), pas de localisation, pas de stockage.
+   d'Android 17, l'installation de sa propre mise à jour (toujours confirmée par l'utilisateur) et, pour le verrouillage
+   facultatif, l'empreinte ou le visage (fenêtre d'Android : l'application n'apprend que « réussi » ou « refusé »). Pas de caméra (le QR code est lu par Play Services), pas de localisation, pas de stockage.
 3. **Défense en profondeur** côté agent : filtrage réseau + authentification forte + limitation des tentatives + pare-feu.
 
 ## Sur le téléphone
@@ -17,7 +18,8 @@
 |---|---|
 | Chiffrement au repos | Toute la configuration (PC, clés d'agent) est chiffrée en AES-256-GCM avec une clé générée dans le **Keystore Android** (TEE / Titan M2 sur Pixel). La clé n'est pas extractible, même par root. L'historique (30 jours) est chiffré de la même façon, avec une clé distincte. |
 | Pas de sauvegarde cloud | `allowBackup=false` et règles d'extraction excluant tout : les secrets ne partent pas dans Google Drive. L'export chiffré sert de sauvegarde. |
-| Captures d'écran | Bloquées pendant l'affichage en clair d'une clé d'agent (`FLAG_SECURE`). |
+| Captures d'écran | Bloquées pendant l'affichage en clair d'une clé d'agent (`FLAG_SECURE`). Avec le verrouillage à l'ouverture, pas d'aperçu de l'application dans les applications récentes (Android 13 ou plus). |
+| Verrouillage facultatif | *Réglages → Sécurité*, contre une personne qui emprunte le téléphone déverrouillé : empreinte, visage ou code du téléphone (fenêtre d'Android, aucune bibliothèque) avant d'éteindre, redémarrer ou mettre en veille un PC, de gérer ses appareils autorisés ou d'en inviter un, de modifier les accès partagés, d'exporter la configuration ou d'afficher une clé d'agent ; et/ou à l'ouverture, puis après une minute en arrière-plan. Une authentification vaut une minute, tant que l'application reste au premier plan. Modifier ces réglages la demande toujours. Réglages propres au téléphone, ni exportés ni sauvegardés ; sans verrouillage de l'écran du téléphone, rien ne peut être demandé. |
 | Journaux | Les objets contenant des secrets masquent ceux-ci dans `toString()` (testé). Journal de diagnostic chiffré (AES-256-GCM, clé de données protégée par le Keystore), sans aucun secret ; il ne quitte le téléphone que dans un rapport exporté par l'utilisateur et chiffré par son mot de passe ([DIAGNOSTIC.md](DIAGNOSTIC.md)). |
 | Données illisibles | Configuration, partage ou historique illisibles (clé Keystore perdue, fichier abîmé) : fichier mis de côté, jamais écrasé, et incident signalé à l'utilisateur. |
 | Réseau | Trafic HTTP en clair interdit (`network_security_config`) ; sockets attachées au Wi-Fi/Ethernet. |
@@ -37,6 +39,7 @@
 | Téléchargement de l'agent | Même vérification que les mises à jour (manifeste signé, taille, SHA-256), uniquement à la demande. Pour l'installer sur cet ordinateur, le fichier (dans `%LOCALAPPDATA%\WakeOnLan\Agent`, vidé au démarrage) est verrouillé contre toute modification, son empreinte revérifiée sur le fichier verrouillé, puis l'installation est lancée avec l'invite administrateur ; le verrou tient jusqu'à la fin de l'installation, puis le fichier est effacé. |
 | Interface | Page intégrée à l'exécutable, sans contenu distant ; seules les adresses du dépôt peuvent être ouvertes dans le navigateur (liste blanche). Le presse-papiers n'est lu que pour un lien `wolagent://`. |
 | Clés | Jamais envoyées à la liste des PC affichée ; seulement au formulaire de modification. |
+| Verrouillage | Pas de verrou propre à l'application : celui de la session Windows (touches Windows + L) en tient lieu, et la configuration n'est lisible que dans votre session. |
 | Journal de diagnostic | `diagnostics\` : chaque évènement chiffré en AES-256-GCM, clé de données protégée par DPAPI ; aucun secret (paramètres des actions filtrés : ni mot de passe, ni clé, ni texte collé). Rapport exporté uniquement à la demande, chiffré par mot de passe ([DIAGNOSTIC.md](DIAGNOSTIC.md)). Un arrêt brutal du moteur est d'abord écrit en clair par Go dans `diagnostics\plantage.txt` (traces d'exécution), puis versé dans le journal chiffré au lancement suivant. |
 | Exécutable | Compilé par la CI (`-trimpath`, sans CGO), somme SHA-256 publiée. Non signé par un éditeur (avertissement SmartScreen au premier lancement). |
 
@@ -105,6 +108,11 @@ Les menaces prises en compte, leur protection actuelle et celle prévue sont dé
   ([PARTAGE.md](PARTAGE.md#retirer-un-accès)). Avec les applications 1.13 et un PC en `wolagent/2` (partage v2), aucune
   clé n'est transmise : le PC enregistre l'appareil de la personne grâce à une invitation réservée, et votre appareil
   l'en retire dès qu'il joint le PC après le retrait de l'accès.
+- **Le verrouillage de l'application est un verrou d'interface** (facultatif, Android) : il arrête une personne qui
+  emprunte votre téléphone déverrouillé, pas quelqu'un qui connaît son code (accepté, comme pour une application
+  bancaire), et ne remplace ni le verrouillage du téléphone ni le retrait d'un appareil perdu (*Appareils autorisés*
+  depuis un autre appareil administrateur, ou `wol-agent devices revoke` sur le PC). C'est l'application qui le
+  demande, pas le PC : le téléphone garde ses droits sur les PC.
 - **APK hors Play Store** : téléchargez l'APK depuis les Releases du dépôt ; sa provenance et l'empreinte de son certificat
   se vérifient ([SECURITY.md](../SECURITY.md)). Android refuse toute « mise à jour » signée par une autre clé
   ([SIGNATURE.md](SIGNATURE.md)).

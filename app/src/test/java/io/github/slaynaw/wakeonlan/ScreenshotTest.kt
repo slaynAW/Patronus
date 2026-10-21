@@ -54,6 +54,7 @@ import io.github.slaynaw.wakeonlan.core.wol.InterfaceAddress4
 import io.github.slaynaw.wakeonlan.data.StoredSpecs
 import io.github.slaynaw.wakeonlan.network.LanState
 import io.github.slaynaw.wakeonlan.network.LanTransport
+import io.github.slaynaw.wakeonlan.security.AppLockState
 import io.github.slaynaw.wakeonlan.ui.admin.AdminContent
 import io.github.slaynaw.wakeonlan.ui.admin.AdminUiState
 import io.github.slaynaw.wakeonlan.ui.detail.DeviceDetailContent
@@ -68,6 +69,7 @@ import io.github.slaynaw.wakeonlan.ui.devices.DevicesUiState
 import io.github.slaynaw.wakeonlan.ui.history.HistoryContent
 import io.github.slaynaw.wakeonlan.ui.history.HistoryItem
 import io.github.slaynaw.wakeonlan.ui.history.HistoryUiState
+import io.github.slaynaw.wakeonlan.ui.lock.LockScreenContent
 import io.github.slaynaw.wakeonlan.ui.main.MainScaffold
 import io.github.slaynaw.wakeonlan.ui.main.MainTab
 import io.github.slaynaw.wakeonlan.ui.overview.OverviewTab
@@ -392,7 +394,10 @@ class ScreenshotTest {
     @Test
     fun reglages() = capture("5-reglages") {
         MainScaffold(MainTab.SETTINGS, {}, remember { SnackbarHostState() }, showAddButton = false, onAddDevice = {}) { padding ->
-            SettingsContent(padding, AppSettings(), deviceCount = items.size, busy = false, version = "1.2.0", {}, {}, {}, {}, {}, {})
+            SettingsContent(
+                padding, AppSettings(), deviceCount = items.size, busy = false, version = "1.2.0", {}, {}, {}, {}, {}, {},
+                lock = AppLockState(actions = true, available = true),
+            )
         }
     }
 
@@ -457,4 +462,7 @@ class ScreenshotTest {
             OverviewTab(devicesState.copy(items = emptyList()), padding, {}, {}, {}, {}, {}, {})
         }
     }
+
+    @Test
+    fun verrouillage() = capture("10-verrouillage") { LockScreenContent(onUnlock = {}) }
 }

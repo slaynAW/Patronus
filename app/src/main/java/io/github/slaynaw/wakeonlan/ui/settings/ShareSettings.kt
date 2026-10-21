@@ -61,6 +61,7 @@ import io.github.slaynaw.wakeonlan.core.share.ShareAccess
 import io.github.slaynaw.wakeonlan.core.share.ShareException
 import io.github.slaynaw.wakeonlan.core.share.ShareInvite
 import io.github.slaynaw.wakeonlan.core.share.ShareRight
+import io.github.slaynaw.wakeonlan.security.rememberSensitiveGate
 import io.github.slaynaw.wakeonlan.share.AgentState
 import io.github.slaynaw.wakeonlan.share.ShareManager
 import io.github.slaynaw.wakeonlan.share.ShareRequestView
@@ -228,6 +229,9 @@ fun ShareDialogHost(
     val context = LocalContext.current
     val resources = LocalResources.current
     val scope = rememberCoroutineScope()
+    // Autoriser, retirer, arrêter le partage : empreinte, visage ou code si le verrouillage le demande.
+    val gate = rememberSensitiveGate()
+    val shareReason = stringResource(R.string.lock_reason_share)
     val close = { onDialog(null) }
     fun fail(e: Throwable) = onDialog(ShareDialog.Error(e.message.orEmpty().replaceFirstChar { it.uppercase() }))
     fun toast(id: Int, vararg args: Any) = scope.launch { snackbar.showSnackbar(resources.getString(id, *args)) }
@@ -336,13 +340,15 @@ fun ShareDialogHost(
             devices = ownDevices,
             share = share,
             onGrant = { rights ->
-                scope.launch {
-                    try {
-                        manager.grant(dialog.device, dialog.name, rights, dialog.identity)
-                        close()
-                        toast(R.string.share_granted, dialog.name)
-                    } catch (e: ShareException) {
-                        fail(e)
+                gate.run(shareReason) {
+                    scope.launch {
+                        try {
+                            manager.grant(dialog.device, dialog.name, rights, dialog.identity)
+                            close()
+                            toast(R.string.share_granted, dialog.name)
+                        } catch (e: ShareException) {
+                            fail(e)
+                        }
                     }
                 }
             },
@@ -354,10 +360,12 @@ fun ShareDialogHost(
             text = stringResource(R.string.share_revoke_text),
             action = stringResource(R.string.share_revoke),
             onConfirm = {
-                scope.launch {
-                    manager.revoke(dialog.device)
-                    close()
-                    toast(R.string.share_revoked, dialog.name)
+                gate.run(shareReason) {
+                    scope.launch {
+                        manager.revoke(dialog.device)
+                        close()
+                        toast(R.string.share_revoked, dialog.name)
+                    }
                 }
             },
             onDismiss = close,
@@ -367,12 +375,14 @@ fun ShareDialogHost(
             text = stringResource(R.string.share_stop_text),
             action = stringResource(R.string.share_stop),
             onConfirm = {
-                scope.launch {
-                    try {
-                        manager.stop()
-                        close()
-                    } catch (e: ShareException) {
-                        fail(e)
+                gate.run(shareReason) {
+                    scope.launch {
+                        try {
+                            manager.stop()
+                            close()
+                        } catch (e: ShareException) {
+                            fail(e)
+                        }
                     }
                 }
             },

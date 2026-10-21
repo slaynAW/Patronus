@@ -179,7 +179,8 @@ Commandes utiles : `wol-agent pair` (réafficher le QR code), `wol-agent status`
   arrêt forcé ou plantage. Avec l'agent 1.4.0, l'historique est **commun** au téléphone et au PC Windows : chaque demande
   (démarrage, extinction…) y figure avec l'appareil qui l'a faite (« par Pixel 8 »).
 - **Ajouter un PC** : QR code de l'agent, lien collé, ou saisie manuelle (nom + adresse MAC suffisent pour le démarrage ; ajoutez l'IP pour l'état en temps réel).
-- **Réglages** : fréquence de vérification (3 s par défaut), délai d'attente du démarrage, confirmation, **partage**
+- **Réglages** : fréquence de vérification (3 s par défaut), délai d'attente du démarrage, confirmation, **sécurité**
+  (Android : empreinte, visage ou code du téléphone avant les actions sensibles et/ou à l'ouverture), **partage**
   (*Partager mes PC*, *PC partagés avec moi*), **export / import** (la sauvegarde complète contient aussi l'historique,
   ajouté à celui de l'appareil qui l'importe), historique (affichage complet, effacement).
 - **Partage** : *Partager mes PC* → connexion GitHub (une fois) → *Inviter une personne* ; elle *Demande un accès* et vous
@@ -224,6 +225,7 @@ Détails : **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** et **[docs/PROTOCOLE
 | Menace | Protection |
 |---|---|
 | Vol / analyse du téléphone | Configuration chiffrée AES-256-GCM avec une clé du **Keystore Android** (matériel sécurisé, non exportable) ; sauvegarde cloud Android désactivée. |
+| Téléphone déverrouillé emprunté | Verrouillage facultatif (*Réglages → Sécurité*) : empreinte, visage ou code du téléphone avant d'éteindre un PC, de gérer ses appareils, de partager ou d'exporter, et/ou à l'ouverture de l'application. |
 | Copie de la configuration sur le PC Windows | Fichier chiffré par **DPAPI** (lié à la session Windows) : illisible depuis un autre compte ou un autre PC. L'historique est chiffré de la même façon sur les deux applications. |
 | Quelqu'un sur le réseau envoie une fausse commande | Chaque commande est signée **HMAC-SHA256** avec une clé de 256 bits propre à chaque PC ; la clé ne circule jamais. |
 | Rejeu d'une commande capturée | Défi aléatoire (nonce) à chaque connexion : une signature n'est valable qu'une fois. |
@@ -290,7 +292,7 @@ l'inventaire de leurs composants ; la provenance de chaque fichier est attestée
 ## 9. Pistes d'amélioration
 
 Voir **[docs/AMELIORATIONS.md](docs/AMELIORATIONS.md)** : accès à distance via VPN (WireGuard/Tailscale) ou relais, widget d'écran d'accueil,
-tuile de réglages rapides, raccourcis, notifications, verrouillage biométrique, découverte automatique des PC, planification, groupes…
+tuile de réglages rapides, raccourcis, notifications, découverte automatique des PC, planification, groupes…
 
 ## 10. Dépannage
 

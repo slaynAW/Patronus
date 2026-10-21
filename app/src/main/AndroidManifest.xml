@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <!-- Mises à jour intégrées : installation de la nouvelle version (confirmée par l'utilisateur). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Verrouillage facultatif de l'application : empreinte ou visage (permission accordée sans demande). -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
     <application
         android:name=".WolApplication"

@@ -64,6 +64,9 @@ import io.github.slaynaw.wakeonlan.core.model.AppSettings
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.share.ShareException
 import io.github.slaynaw.wakeonlan.core.share.ShareLinks
+import io.github.slaynaw.wakeonlan.security.AppLockState
+import io.github.slaynaw.wakeonlan.security.rememberAuthenticator
+import io.github.slaynaw.wakeonlan.security.rememberSensitiveGate
 import io.github.slaynaw.wakeonlan.share.ShareUiState
 import io.github.slaynaw.wakeonlan.ui.common.ButtonKind
 import io.github.slaynaw.wakeonlan.ui.common.RowDivider
@@ -110,6 +113,20 @@ fun SettingsTab(
     val now = rememberNow(periodMs = 30_000)
     val scope = rememberCoroutineScope()
     val busy by vm.busy.collectAsStateWithLifecycle()
+    val lock by container.appLock.state.collectAsStateWithLifecycle()
+    val gate = rememberSensitiveGate()
+    val authenticator = rememberAuthenticator()
+    val lockTitle = stringResource(R.string.lock_title)
+    val lockReason = stringResource(R.string.lock_reason_settings)
+    val exportReason = stringResource(R.string.lock_reason_export)
+    // Modifier le verrouillage demande toujours l'empreinte, le visage ou le code : on ne le désactive pas en
+    // empruntant le téléphone, et l'activer prouve qu'il fonctionne.
+    fun changeLock(apply: () -> Unit) = authenticator.authenticate(lockTitle, lockReason) { ok ->
+        if (ok) {
+            container.appLock.onAuthenticated()
+            apply()
+        }
+    }
     val importStep by vm.importStep.collectAsStateWithLifecycle()
     val sharingImported by vm.sharingImported.collectAsStateWithLifecycle()
 
@@ -188,7 +205,7 @@ fun SettingsTab(
         busy = busy,
         version = BuildConfig.VERSION_NAME,
         onUpdateSettings = { vm.updateSettings(it) },
-        onExport = { showExportDialog = true },
+        onExport = { gate.run(exportReason) { showExportDialog = true } },
         onExportDiagnostic = { showDiagnosticDialog = true },
         onImport = { importLauncher.launch(arrayOf("application/json", "text/*", "application/octet-stream")) },
         onOpenHistory = onOpenHistory,
@@ -218,6 +235,9 @@ fun SettingsTab(
         onPickBackupFolder = { backupFolderLauncher.launch(null) },
         onBackupNow = vm::backupNow,
         archive = archive,
+        lock = lock,
+        onLockActions = { enabled -> changeLock { container.appLock.setActions(enabled) } },
+        onLockOpen = { enabled -> changeLock { container.appLock.setOpen(enabled) } },
     )
 
     if (sharingImported) {
@@ -328,6 +348,30 @@ fun SettingsTab(
     }
 }
 
+/** Réglage à interrupteur : titre, explication et bouton. */
+@Composable
+private fun SwitchSetting(title: String, help: String, checked: Boolean, onChange: (Boolean) -> Unit, enabled: Boolean = true) {
+    Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = if (enabled) Color.Unspecified else WolPalette.Text3)
+            Text(help, style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = onChange,
+            enabled = enabled,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = WolPalette.Blue,
+                uncheckedThumbColor = WolPalette.Text2,
+                uncheckedTrackColor = WolPalette.Surface3,
+                uncheckedBorderColor = WolPalette.Line2,
+            ),
+        )
+    }
+}
+
 /** Contenu de l'onglet (sans état propre : aperçus et captures d'écran). */
 @Composable
 fun SettingsContent(
@@ -355,6 +399,9 @@ fun SettingsContent(
     onPickBackupFolder: () -> Unit = {},
     onBackupNow: () -> Unit = {},
     archive: ArchiveUiState = ArchiveUiState(),
+    lock: AppLockState = AppLockState(),
+    onLockActions: (Boolean) -> Unit = {},
+    onLockOpen: (Boolean) -> Unit = {},
 ) {
     Column(
         Modifier
@@ -388,22 +435,38 @@ fun SettingsContent(
                 onChange = { v -> onUpdateSettings { it.copy(wakeTimeoutSeconds = v) } },
             )
             RowDivider()
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.setting_confirm), style = MaterialTheme.typography.titleSmall)
-                    Text(stringResource(R.string.setting_confirm_help), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
-                }
-                Spacer(Modifier.width(12.dp))
-                Switch(
-                    checked = settings.confirmPowerActions,
-                    onCheckedChange = { checked -> onUpdateSettings { it.copy(confirmPowerActions = checked) } },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = WolPalette.Blue,
-                        uncheckedThumbColor = WolPalette.Text2,
-                        uncheckedTrackColor = WolPalette.Surface3,
-                        uncheckedBorderColor = WolPalette.Line2,
-                    ),
+            SwitchSetting(
+                title = stringResource(R.string.setting_confirm),
+                help = stringResource(R.string.setting_confirm_help),
+                checked = settings.confirmPowerActions,
+                onChange = { checked -> onUpdateSettings { it.copy(confirmPowerActions = checked) } },
+            )
+        }
+
+        SectionLabel(stringResource(R.string.section_security), Modifier.padding(top = 6.dp))
+        WolCard {
+            SwitchSetting(
+                title = stringResource(R.string.setting_lock_actions),
+                help = stringResource(R.string.setting_lock_actions_help),
+                checked = lock.actions && lock.available,
+                enabled = lock.available,
+                onChange = onLockActions,
+            )
+            RowDivider()
+            SwitchSetting(
+                title = stringResource(R.string.setting_lock_open),
+                help = stringResource(R.string.setting_lock_open_help),
+                checked = lock.open && lock.available,
+                enabled = lock.available,
+                onChange = onLockOpen,
+            )
+            if (!lock.available) {
+                RowDivider()
+                Text(
+                    stringResource(R.string.setting_lock_unavailable),
+                    Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = WolPalette.Text2,
                 )
             }
         }

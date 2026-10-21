@@ -19,6 +19,7 @@ import io.github.slaynaw.wakeonlan.data.SpecsRepository
 import io.github.slaynaw.wakeonlan.diagnostics.DiagnosticLog
 import io.github.slaynaw.wakeonlan.network.LanNetworkMonitor
 import io.github.slaynaw.wakeonlan.network.LocalNetworkAccess
+import io.github.slaynaw.wakeonlan.security.AppLock
 import io.github.slaynaw.wakeonlan.share.ShareManager
 import io.github.slaynaw.wakeonlan.update.AppUpdater
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -49,6 +50,9 @@ class AppContainer(private val context: Context) {
 
     val network = LanNetworkMonitor(context)
     val repository = ConfigRepository(context)
+
+    /** Verrouillage facultatif par empreinte, visage ou code du téléphone (réglage propre à ce téléphone). */
+    val appLock = AppLock.create(context)
 
     /** Identité wolagent/2 de ce téléphone (Android 10 ou plus), créée dans le Keystore au premier besoin. */
     private val identity = KeystoreIdentity()

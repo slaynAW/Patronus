@@ -56,6 +56,7 @@ import io.github.slaynaw.wakeonlan.core.agent2.DeviceInfo
 import io.github.slaynaw.wakeonlan.core.agent2.InviteInfo
 import io.github.slaynaw.wakeonlan.core.agent2.Pin
 import io.github.slaynaw.wakeonlan.core.agent2.ResponseCode
+import io.github.slaynaw.wakeonlan.security.rememberSensitiveGate
 import io.github.slaynaw.wakeonlan.ui.common.BusySpinner
 import io.github.slaynaw.wakeonlan.ui.common.ButtonKind
 import io.github.slaynaw.wakeonlan.ui.common.RowDivider
@@ -93,13 +94,17 @@ fun AdminScreen(deviceId: String, onBack: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    // Retrait, rôle, nom, invitation : empreinte, visage ou code si le verrouillage le demande.
+    val gate = rememberSensitiveGate()
+    val adminReason = stringResource(R.string.lock_reason_admin)
+    val inviteReason = stringResource(R.string.lock_reason_invite)
     AdminContent(
         state = state,
         snackbar = snackbar,
         onBack = onBack,
         onRefresh = vm::load,
-        onChange = vm::change,
-        onInvite = vm::invite,
+        onChange = { change -> gate.run(adminReason) { vm.change(change) } },
+        onInvite = { role, ttl, name -> gate.run(inviteReason) { vm.invite(role, ttl, name) } },
         onDismissCreated = vm::dismissCreated,
         onDismissFailure = vm::dismissFailure,
         onCopy = { text ->
