@@ -3,7 +3,8 @@
 Propositions à valider ensemble. L'architecture actuelle a été pensée pour les accueillir sans refonte.
 
 > Réalisé depuis : **application Windows** (mêmes fonctions et même interface que l'application Android, sauvegardes
-> interchangeables) — voir [desktop/README.md](../desktop/README.md).
+> interchangeables) — voir [desktop/README.md](../desktop/README.md) ; **verrouillage facultatif** de l'application
+> Android (n° 5, 1.14.0) — voir [SECURITE.md](SECURITE.md).
 
 ## Priorité haute (fort intérêt au quotidien)
 
@@ -13,7 +14,7 @@ Propositions à valider ensemble. L'architecture actuelle a été pensée pour l
 | 2 | **Réveil à distance via un relais** sur le réseau local (Raspberry Pi, NAS, ou un PC toujours allumé avec l'agent) | Le paquet magique ne traverse pas Internet : un relais authentifié (même protocole signé, nouvelle commande `wake <mac>`) l'émet localement. | Moyen |
 | 3 | **Widget d'écran d'accueil** (Glance) avec voyant + bouton par PC | Démarrer un PC sans ouvrir l'application. | Moyen |
 | 4 | **Tuile de réglages rapides** et **raccourcis d'application** (appui long sur l'icône) | Un geste pour allumer le PC principal. | Faible |
-| 5 | **Verrouillage biométrique** (empreinte / visage) optionnel avant une extinction | Évite une extinction par quelqu'un qui emprunte le téléphone. | Faible |
+| 5 | ~~**Verrouillage biométrique** (empreinte / visage) optionnel avant une extinction~~ *Réalisé (1.14.0)* | Évite une extinction par quelqu'un qui emprunte le téléphone. | Faible |
 
 ## Priorité moyenne
 
@@ -42,6 +43,6 @@ Propositions à valider ensemble. L'architecture actuelle a été pensée pour l
 
 ## Recommandation
 
-Commencer par **1 (VPN)**, **4 (tuile / raccourcis)**, **5 (biométrie)** et **10 (extinction différée annulable)** : peu d'effort,
+Commencer par **1 (VPN)**, **4 (tuile / raccourcis)** et **10 (extinction différée annulable)** : peu d'effort,
 gain immédiat. Puis **2 (relais)** si le réveil hors de la maison est important, et **12 (assistant de diagnostic)** pour
 fiabiliser la mise en place sur de nouveaux PC.

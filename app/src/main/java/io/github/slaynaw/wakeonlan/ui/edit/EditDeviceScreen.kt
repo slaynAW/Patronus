@@ -69,6 +69,7 @@ import io.github.slaynaw.wakeonlan.core.agent.AgentError
 import io.github.slaynaw.wakeonlan.core.agent2.PairingCode
 import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2
 import io.github.slaynaw.wakeonlan.core.model.DeviceField
+import io.github.slaynaw.wakeonlan.security.rememberSensitiveGate
 import io.github.slaynaw.wakeonlan.ui.common.BusySpinner
 import io.github.slaynaw.wakeonlan.ui.common.ButtonKind
 import io.github.slaynaw.wakeonlan.ui.common.ScanFailure
@@ -98,6 +99,9 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var showAdvanced by rememberSaveable { mutableStateOf(false) }
     var keyVisible by rememberSaveable { mutableStateOf(false) }
+    // Clé wolagent/1 affichée en clair : empreinte, visage ou code si le verrouillage le demande.
+    val gate = rememberSensitiveGate()
+    val keyReason = stringResource(R.string.lock_reason_key)
     var scanFailure by remember { mutableStateOf<ScanFailure?>(null) }
 
     LaunchedEffect(state.done) { if (state.done) onDone() }
@@ -226,7 +230,7 @@ fun EditDeviceScreen(deviceId: String?, onDone: () -> Unit) {
                             keyboard = KeyboardOptions(keyboardType = KeyboardType.Password),
                             visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
                             trailing = {
-                                TextButton(onClick = { keyVisible = !keyVisible }) {
+                                TextButton(onClick = { if (keyVisible) keyVisible = false else gate.run(keyReason) { keyVisible = true } }) {
                                     Text(stringResource(if (keyVisible) R.string.hide else R.string.show), color = WolPalette.Blue)
                                 }
                             },

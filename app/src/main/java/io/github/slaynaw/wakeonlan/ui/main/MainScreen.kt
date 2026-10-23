@@ -57,6 +57,7 @@ import io.github.slaynaw.wakeonlan.diagnostics.CrashReporter
 import io.github.slaynaw.wakeonlan.diagnostics.DataKind
 import io.github.slaynaw.wakeonlan.diagnostics.DataNotices
 import io.github.slaynaw.wakeonlan.network.LocalNetworkAccess
+import io.github.slaynaw.wakeonlan.security.rememberSensitiveGate
 import io.github.slaynaw.wakeonlan.ui.common.DeviceDialogs
 import io.github.slaynaw.wakeonlan.ui.common.WolIcons
 import io.github.slaynaw.wakeonlan.ui.common.rememberDeviceDialogState
@@ -150,8 +151,12 @@ fun MainScreen(
     // Retour depuis un autre onglet : d'abord la vue d'ensemble.
     BackHandler(enabled = tab != MainTab.OVERVIEW) { tab = MainTab.OVERVIEW }
 
+    // Extinction, redémarrage, veille : empreinte, visage ou code si le verrouillage le demande (après la confirmation).
+    val gate = rememberSensitiveGate()
+    val powerReason = stringResource(R.string.lock_reason_power)
+    val power = { device: Device, action: PowerAction, force: Boolean -> gate.run(powerReason) { vm.power(device, action, force) } }
     val requestPower = { device: Device, action: PowerAction ->
-        dialogs.requestPower(device, action, state.settings.confirmPowerActions, vm::power)
+        dialogs.requestPower(device, action, state.settings.confirmPowerActions, power)
     }
 
     MainScaffold(
@@ -196,7 +201,7 @@ fun MainScreen(
         }
     }
 
-    DeviceDialogs(dialogs, onPower = vm::power, onDelete = vm::delete, onConfigure = onEditDevice)
+    DeviceDialogs(dialogs, onPower = power, onDelete = vm::delete, onConfigure = onEditDevice)
 
     if (showUpdate && update.available != null) {
         UpdateDialog(

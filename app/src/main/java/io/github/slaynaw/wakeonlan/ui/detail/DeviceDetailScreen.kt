@@ -46,8 +46,10 @@ import io.github.slaynaw.wakeonlan.appContainer
 import io.github.slaynaw.wakeonlan.core.agent.AgentTemperatures
 import io.github.slaynaw.wakeonlan.core.agent.PowerAction
 import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2
+import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.status.PowerState
 import io.github.slaynaw.wakeonlan.core.status.StatusNotice
+import io.github.slaynaw.wakeonlan.security.rememberSensitiveGate
 import io.github.slaynaw.wakeonlan.ui.common.ButtonKind
 import io.github.slaynaw.wakeonlan.ui.common.DeviceDialogs
 import io.github.slaynaw.wakeonlan.ui.common.KeyValueRow
@@ -126,8 +128,12 @@ fun DeviceDetailScreen(
         }
     }
 
+    // Extinction, redémarrage, veille : empreinte, visage ou code si le verrouillage le demande (après la confirmation).
+    val gate = rememberSensitiveGate()
+    val powerReason = stringResource(R.string.lock_reason_power)
+    val power = { device: Device, action: PowerAction, force: Boolean -> gate.run(powerReason) { vm.power(device, action, force) } }
     val requestPower = { action: PowerAction ->
-        item?.let { dialogs.requestPower(it.device, action, state.settings.confirmPowerActions, vm::power) }
+        item?.let { dialogs.requestPower(it.device, action, state.settings.confirmPowerActions, power) }
     }
 
     DeviceDetailContent(
@@ -149,7 +155,7 @@ fun DeviceDetailScreen(
         onOpenAdmin = { onOpenAdmin(deviceId) },
     )
 
-    DeviceDialogs(dialogs, onPower = vm::power, onDelete = vm::delete, onConfigure = onEdit)
+    DeviceDialogs(dialogs, onPower = power, onDelete = vm::delete, onConfigure = onEdit)
 }
 
 /** Contenu de la fiche (sans état propre : aperçus et captures d'écran). */

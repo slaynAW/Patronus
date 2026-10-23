@@ -136,7 +136,7 @@ Flux étudiés :
 | Id | Menace | Adv. | Actuel | Prévu | Résiduel |
 |---|---|---|---|---|---|
 | T26 | Vol d'un téléphone verrouillé | M6 | Données chiffrées par une clé du Keystore | Identité dans StrongBox ; révocation depuis un autre appareil | — |
-| T27 | Téléphone déverrouillé utilisé par un tiers | M6 | L'application est utilisable | Révocation ; verrouillage biométrique facultatif *(à venir)* | Tant que l'appareil n'est pas révoqué |
+| T27 | Téléphone déverrouillé utilisé par un tiers | M6 | L'application est utilisable | Révocation ; verrouillage facultatif de l'application Android (1.14.0) : empreinte, visage ou code du téléphone avant les actions sensibles et/ou à l'ouverture | Sans ce verrouillage, tant que l'appareil n'est pas révoqué ; avec, la minute qui suit une authentification, ou une personne qui connaît le code du téléphone. Windows : verrouillage de la session |
 | T28 | Fuite d'un export complet | M4, M6 | Chiffré par mot de passe | Les identités `wolagent/2` ne sont pas exportées : un nouvel appareil s'appaire à nouveau (QR code ou invitation d'un appareil administrateur) | Clés `wolagent/1` encore présentes tant que la migration n'est pas finie |
 | T29 | Rapport de diagnostic transmis à un tiers | M4 | Sans clé, sans jeton, sans mot de passe ; chiffré | Inchangé | — |
 
