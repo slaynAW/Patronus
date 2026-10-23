@@ -3,6 +3,7 @@ package io.github.slaynaw.wakeonlan.core.agent
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import kotlinx.serialization.json.JsonElement
 import java.security.MessageDigest
 import java.util.Base64
 import javax.crypto.Mac
@@ -95,6 +96,8 @@ data class AgentStatus(
     val proto: String = "",
     /** Rôle de cet appareil sur l'agent (wolagent/2). */
     val role: String = "",
+    /** Mesures décrites par l'agent lui-même : mémoire, batterie… (agent 1.13.0 ou plus), déjà validées. */
+    val measures: List<AgentMeasure> = emptyList(),
 )
 
 /** Gravité d'un problème de disque. */
@@ -407,6 +410,8 @@ internal data class ResponseBody(
     val metrics: AgentMetrics? = null,
     val disks: AgentDisks? = null,
     val specs: AgentSpecs? = null,
+    /** Agent 1.13.0 ou plus : lues élément par élément ([AgentMeasures.parse]). */
+    val measures: JsonElement? = null,
     /** Agent 1.11.0 ou plus (docs/PROTOCOLE-V2.md, §9). */
     val protocols: List<String> = emptyList(),
     val pin: String = "",
@@ -416,6 +421,6 @@ internal data class ResponseBody(
 ) {
     fun toStatus() = AgentStatus(
         hostname, os, arch, version, uptime, temperatures, disks,
-        protocols = protocols, pin = pin, proto = proto, role = role,
+        protocols = protocols, pin = pin, proto = proto, role = role, measures = AgentMeasures.parse(measures),
     )
 }

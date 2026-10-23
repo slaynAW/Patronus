@@ -40,6 +40,7 @@ type Server struct {
 	history  *protocol.History
 	temps    *protocol.Temperatures
 	disks    *protocol.Disks
+	measures []protocol.Measure
 	specs    *protocol.Specs
 	metrics  map[string][]protocol.MetricsRow
 	commands []string
@@ -94,6 +95,13 @@ func (s *Server) SetTemperatures(t *protocol.Temperatures) {
 func (s *Server) SetDisks(d *protocol.Disks) {
 	s.mu.Lock()
 	s.disks = d
+	s.mu.Unlock()
+}
+
+// SetMeasures définit les mesures jointes à « status » (nil : agent antérieur à 1.13.0).
+func (s *Server) SetMeasures(m []protocol.Measure) {
+	s.mu.Lock()
+	s.measures = m
 	s.mu.Unlock()
 }
 
@@ -372,6 +380,7 @@ func (s *Server) answer(body protocol.RequestBody) protocol.ResponseBody {
 		s.mu.Lock()
 		resp.Temperatures = s.temps
 		resp.Disks = s.disks
+		resp.Measures = s.measures
 		s.mu.Unlock()
 	}
 	if body.Cmd == protocol.CmdHistory || body.Cmd == protocol.CmdWakes {

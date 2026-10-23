@@ -79,7 +79,7 @@ une nouvelle version des applications ne provoque pas de mise à jour de l'agent
 |---|---|
 | `wol-agent install [--port 9770] [--name "PC Bureau"] [--ip 192.168.1.20] [--no-firewall] [--firewall-public]` | Installe / met à jour le service |
 | `wol-agent pair [--role admin\|control\|wake\|view] [--ttl 600] [--ip …] [--png qr.png] [--invert] [--v1]` | Affiche un QR code (ou l'enregistre en PNG) et un lien d'appairage `wolagent/2` : code à usage unique, aucune clé secrète. Rôle `admin` par défaut, valable 600 s (`--ttl` : de 60 s à 7 jours, `10m` ou `2h` acceptés). `--v1` : ancien lien, avec la clé de l'agent |
-| `wol-agent status` | État du service, configuration, carte réseau détectée, type des réseaux Windows (alerte si « Public »), températures, disques (espace, santé, erreurs), fiche du PC (processeur, mémoire, cartes graphiques, carte mère, système), derniers évènements du journal (avec la cause des arrêts anormaux) |
+| `wol-agent status` | État du service, configuration, carte réseau détectée, type des réseaux Windows (alerte si « Public »), températures, disques (espace, santé, erreurs), ressources (mémoire, batterie), fiche du PC (processeur, mémoire, cartes graphiques, carte mère, système), derniers évènements du journal (avec la cause des arrêts anormaux) |
 | `wol-agent diagnostic` | Rapport de diagnostic chiffré par un mot de passe (état, configuration sans la clé, journaux), à transmettre pour analyser un problème ([docs/DIAGNOSTIC.md](../docs/DIAGNOSTIC.md)). Terminal administrateur recommandé. |
 | `wol-agent rotate-key` | Nouvelle clé `wolagent/1` ; l'ancienne est immédiatement refusée (ré-appairer). Sans effet sur les appareils passés en `wolagent/2` |
 | `wol-agent devices [revoke\|role\|rename] <empreinte> [rôle\|nom]` | Appareils autorisés en `wolagent/2` (voir ci-dessous) : liste, retrait, rôle (`view`, `wake`, `control`, `admin`), nom |
@@ -224,6 +224,20 @@ disent pourquoi :
 
 `wol-agent status` affiche les températures lues et le détail : cartes graphiques vues par Windows, LHM trouvé (ou
 non), ses réglages, la réponse de son serveur web et la présence du pilote PawnIO.
+
+## Ressources : mémoire et batterie (agent 1.13.0)
+
+La réponse à `status` contient aussi des **mesures décrites par l'agent lui-même** : nom, valeur, unité, jauge et
+seuils ([docs/PROTOCOLE.md](../docs/PROTOCOLE.md#mesures-measures-agent-1130-ou-plus)). Les applications les
+affichent dans la carte « Ressources » de la fiche du PC, y compris celles qu'une future version de l'agent ajoutera.
+
+| Mesure | Windows | Linux (NAS compris) | Seuils |
+|---|---|---|---|
+| Mémoire vive utilisée, en % (« 6,4 Go sur 16 Go ») | `GlobalMemoryStatusEx` | `/proc/meminfo` (`MemTotal` − `MemAvailable`) | orange dès 90 %, rouge dès 97 % |
+| Batterie d'un portable, en % (« en charge », « sur batterie », « sur secteur », « chargée ») | `GetSystemPowerStatus` | `/sys/class/power_supply` (batterie du système, pas celle d'une souris) | orange à 20 %, rouge à 10 % |
+
+Relevé au plus toutes les 5 secondes, quand une application le demande. macOS : pas encore de mesure. Un PC sans
+batterie n'envoie que la mémoire.
 
 ## Compilation
 

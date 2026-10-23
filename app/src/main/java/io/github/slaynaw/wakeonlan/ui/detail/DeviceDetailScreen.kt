@@ -245,6 +245,8 @@ fun DeviceDetailContent(
             // sinon la latence (celle d'un PC avec agent est dans les informations).
             val hasAgent = item.device.agent?.ready == true
             if (item.device.hasHost && hasAgent) TempsCard(item, now) else if (item.device.hasHost) LatencyCard(item, now)
+            // Mémoire, batterie… : décrites par l'agent lui-même (agent 1.13.0).
+            item.status.agent?.measures?.takeIf { item.status.state == PowerState.ONLINE && it.isNotEmpty() }?.let { MeasuresCard(it) }
             InfoCard(item)
             if (item.device.agent?.ready == true) {
                 // Températures et utilisation dans le temps (agent et archives).

@@ -125,10 +125,18 @@ func TestReadFitsInStatus(t *testing.T) {
 	temp := 61.5
 	body := protocol.ResponseBody{OK: true, Code: "ok", Hostname: long, OS: "windows", Arch: "amd64", Version: "1.9.0",
 		Temperatures: &protocol.Temperatures{CPU: &temp, GPU: &temp, CPULoad: &temp, GPULoad: &temp, GPUName: long, LHM: "no-sensor"}, Disks: r.Read()}
+	// Et les mesures décrites par l'agent, au maximum de leur nombre et de leur taille.
+	label, unit, text := strings.Repeat("é", protocol.MaxMeasureLabel), strings.Repeat("é", protocol.MaxMeasureUnit), strings.Repeat("é", protocol.MaxMeasureText)
+	big := -123456789.123
+	for i := 0; i < protocol.MaxMeasures; i++ {
+		body.Measures = append(body.Measures, protocol.Measure{ID: strings.Repeat("m", 23) + string(rune('a'+i)), Label: label, Value: big, Unit: unit,
+			Min: &big, Max: &big, Warn: &big, Crit: &big, Low: true, Text: text})
+	}
 	raw, _ := json.Marshal(body)
-	// Marge pour l'enveloppe signée (nonces, signature, encodage).
-	if len(raw) > protocol.MaxLineBytes*3/4 {
-		t.Errorf("réponse trop grande : %d octets (limite %d)", len(raw), protocol.MaxLineBytes)
+	// Enveloppe signée de wolagent/1, la plus contrainte : le corps y est une chaîne JSON échappée.
+	line, _ := json.Marshal(protocol.Response{Body: string(raw), Mac: strings.Repeat("f", 64)})
+	if len(line)+1 > protocol.MaxLineBytes {
+		t.Errorf("réponse trop grande : %d octets (limite %d)", len(line)+1, protocol.MaxLineBytes)
 	}
 	if len(body.Disks.Volumes) != maxVolumes || len(body.Disks.Drives) != maxDrives || len([]rune(body.Disks.Drives[0].Name)) != maxName {
 		t.Errorf("plafonds : %d lecteurs, %d disques", len(body.Disks.Volumes), len(body.Disks.Drives))

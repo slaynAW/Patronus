@@ -69,10 +69,45 @@ et comparées en temps constant.
 | `metrics` | réponse à `metrics` (agent 1.8.0) : `day` (jour demandé, UTC, « 2026-10-03 », vide pour la seule liste), `days` (jours enregistrés sur le PC, 90 au plus, du plus ancien au plus récent), `rows` : une ligne par minute `{t, n, ct, ctx, gt, gtx, cl, clx, gl, glx}` (début de la minute en secondes, nombre de relevés, puis moyenne et maximum de la température du processeur et de la carte graphique en °C, de l'utilisation du processeur et de la carte graphique en % ; absents si non lus). Réponse de 512 Kio au plus. |
 | `temperatures` | réponse à `status`, agent 1.5.0 ou plus, absent si aucun capteur n'est lisible : `cpu` et `gpu` en °C (arrondis au dixième, absents si illisibles), `cpuLoad` et `gpuLoad` : utilisation en % de 0 à 100, mesurée sur une seconde comme le Gestionnaire des tâches (agent 1.7.0 ; `gpuLoad` est celle de la carte `gpuName`), `gpuName` (nom de la carte), `gpuShared` = `true` quand la carte graphique est intégrée au processeur sans sonde à part et que `gpu` est la température de la puce, celle du processeur (agent 1.6.1), `cpuHint` = `lhm` quand la température du processeur manque parce que LibreHardwareMonitor ne la fournit pas (Windows), précisé par `lhm` (agent 1.6.0) : `not-running` (ne tourne pas), `web-off` (serveur web désactivé), `auth` (serveur web protégé par mot de passe), `no-sensor` (pas de capteur du processeur : pilote PawnIO absent…) |
 | `disks` | réponse à `status`, agent 1.9.0 ou plus, absent tant qu'aucun relevé n'a réussi : `volumes` (lecteurs fixes : `mount` « C: », `label`, `fs`, `total` et `free` en octets ; 12 au plus), `drives` (disques physiques, 8 au plus : `name`, `media` `ssd` / `hdd`, `bus` « NVMe », « SATA »…, `size` en octets, `health` donné par le système : `ok`, `warning`, `bad` ou absent, `temp` / `tempMax` en °C, `wear` usure en %, `hours` heures de fonctionnement, `readErrors` / `writeErrors` erreurs non corrigées), `errors` : erreurs d'accès aux disques signalées par Windows sur 30 jours et `lastError` la plus récente (secondes Unix). Relevés en arrière-plan (lecteurs toutes les 30 s, santé toutes les 10 min, erreurs toutes les 30 min) : la réponse reste immédiate |
+| `measures` | réponse à `status`, agent 1.13.0 ou plus, absent si rien n'est lisible : mesures **décrites par l'agent lui-même** (8 au plus), que les applications affichent même si elles ne les connaissent pas (voir « Mesures » ci-dessous). Aujourd'hui `mem` (mémoire vive utilisée, Windows et Linux) et `battery` (charge de la batterie d'un portable, Windows et Linux), relues au plus toutes les 5 s |
 | `specs` | réponse à `specs` (agent 1.10.0), lecture seule autorisée dès que `status` l'est ; jamais jointe à `status` (elle ne change qu'avec le matériel : les applications la gardent et la relisent au plus une fois par jour). `model` (fabricant et modèle d'un PC de marque ou d'un portable, absent pour un PC monté soi-même), `cpu` : `name`, `cores`, `threads` (tous processeurs confondus), `mhz` (fréquence de base), `count` (nombre de processeurs, absent pour un seul) ; `memory` : `total` (mémoire installée, octets), `slots` (emplacements), `modules` (16 au plus : `slot` « DIMM_A2 », `size` en octets, `type` « DDR4 », `mts` vitesse en MT/s, `maker`, `part`) ; `gpus` (4 au plus, carte dédiée d'abord : `name`, `vram` mémoire dédiée en octets, `driver`, `integrated` = `true` pour une puce intégrée au processeur) ; `board` : `maker`, `model`, `bios`, `biosDate` (« 2024-03-12 ») ; `os` : `name` (« Windows 11 Pro »), `version` (« 24H2, build 26100.2314 »). Chaque texte fait 80 caractères au plus ; une information illisible est absente. Lue dans les tables SMBIOS du micrologiciel (Windows et Linux), le registre et WMI (Windows), `/proc` et `/sys` (Linux), `sysctl` (macOS) ; **aucun numéro de série ni identifiant unique n'est lu**. Réponse de 64 Kio au plus. |
 | `history` | réponse à `history` uniquement (voir ci-dessous) |
 | `protocols` | protocoles acceptés par l'agent (agent 1.11.0 ou plus), par exemple `["wolagent/1","wolagent/2"]` : les applications qui connaissent [`wolagent/2`](PROTOCOLE-V2.md) y migrent d'elles-mêmes (§9) |
 | `pin` | empreinte `wolagent/2` de l'agent (B64, 43 caractères), quand il sert `wolagent/2` (agent 1.11.0 ou plus). Signée par la clé comme le reste de la réponse, elle permet aux applications de vérifier l'agent avant de migrer ([§9](PROTOCOLE-V2.md#9-migration-depuis-wolagent1)) |
+
+### Mesures (`measures`, agent 1.13.0 ou plus)
+
+Chaque mesure se décrit elle-même : une nouvelle mesure de l'agent (ventilateur, onduleur…) s'affiche dans les
+applications sans les mettre à jour, avec son nom, son unité, sa jauge et sa gravité.
+
+```json
+"measures":[{"id":"mem","label":"Mémoire","value":41.5,"unit":"%","min":0,"max":100,"warn":90,"crit":97,"text":"6,4 Go sur 16 Go"},
+            {"id":"battery","label":"Batterie","value":18,"unit":"%","min":0,"max":100,"warn":20,"crit":10,"low":true,"text":"sur batterie"}]
+```
+
+| Champ | Description |
+|---|---|
+| `id` | identifiant stable, obligatoire : `^[a-z0-9][a-z0-9._-]{0,23}$` (« mem », « fan.cpu ») |
+| `label` | nom affiché, obligatoire : 1 à 24 caractères, pas seulement des espaces |
+| `value` | valeur, obligatoire : nombre fini, \|valeur\| ≤ 10¹² |
+| `unit` | unité affichée après la valeur (« % », « °C », « tr/min »), 8 caractères au plus |
+| `min`, `max` | bornes d'une jauge, ensemble et `min` < `max` |
+| `warn`, `crit` | seuils à surveiller (orange) et grave (rouge) : atteints quand la valeur leur est **au moins égale** |
+| `low` | `true` : seuils atteints quand la valeur leur est **au plus égale** (batterie faible) |
+| `text` | précision affichée avec la valeur (« 6,4 Go sur 16 Go », « en charge »), 32 caractères au plus |
+
+Les textes ne contiennent ni caractère de contrôle, ni caractère de mise en forme (inversion du sens de lecture…),
+ni caractère de remplacement (texte mal encodé). Ces limites gardent la réponse à `status` sous la limite d'une
+ligne (8 Kio), disques compris.
+
+**Lecture, élément par élément** (mêmes règles en Go et en Kotlin, vérifié par les vecteurs communs
+`protocol/measure-vectors.json`) : une liste illisible est vide sans rendre la réponse illisible ; une mesure sans
+`id`, `label` ou `value` valide, ou avec une `unit` invalide (la valeur serait trompeuse), est ignorée ; un autre
+champ facultatif invalide est ignoré seul (`min` et `max` ensemble) ; seule la première mesure d'un `id` compte, et
+8 au plus. Gravité : `crit` d'abord, puis `warn`.
+
+Seuils de l'agent : mémoire à surveiller dès 90 %, grave dès 97 % ; batterie faible à 20 %, très faible à 10 %.
+Un agent plus ancien n'envoie pas `measures` : la carte « Ressources » n'apparaît pas.
 
 ### Journal du PC (`history`)
 

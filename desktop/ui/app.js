@@ -127,6 +127,7 @@
     detail_load_gpu: "Utilisation GPU",
     detail_metrics: "Mesures",
     disks_title: "Disques",
+    measures_title: "Ressources",
     disk_free: "%1$s libres sur %2$s",
     disk_used: "%1$s utilisés",
     disk_health_ok: "Bon état",
@@ -2564,8 +2565,9 @@
     const temps = tempsCard();
     const specs = specsCard();
     const disks = disksCard();
+    const measures = measuresCard();
     const recent = sideHistory();
-    const inner = h("div", { class: "side-inner" }, h("div", { class: "side-top" }, more, closeButton), hero, notice, acts, hint, temps.el, latency.el, info, specs.el, disks.el, recent.el);
+    const inner = h("div", { class: "side-inner" }, h("div", { class: "side-top" }, more, closeButton), hero, notice, acts, hint, temps.el, latency.el, measures.el, info, specs.el, disks.el, recent.el);
     const placeholder = h("div", { class: "placeholder" }, h("span", { class: "ni" }, icon("monitor", "", 28)), h("span", { text: S.select_hint }));
     sideEl.append(inner, placeholder);
 
@@ -2625,6 +2627,7 @@
       if (d.hasAgent) specs.update(d, now);
       else specs.el.classList.add("hidden");
       disks.update(st === "ONLINE" && s.agent ? s.agent.disks : null, now);
+      measures.update(st === "ONLINE" && s.agent ? s.agent.measures : null);
       recent.update(d, now);
     }
 
@@ -2855,6 +2858,50 @@
     }
 
     return { el, update };
+  }
+
+  /**
+   * Ressources du PC sélectionné : mesures décrites par l'agent lui-même (mémoire, batterie… ; agent 1.13.0), déjà
+   * validées par le moteur, avec leur gravité. Une mesure inconnue de l'application s'affiche de la même façon.
+   */
+  function measuresCard() {
+    const body = h("div", { class: "disks" });
+    const el = h("section", { class: "side-disks hidden" }, h("div", { class: "hist-head" }, S.measures_title), body);
+    let sig = "";
+
+    function row(m) {
+      const level = m.level === "crit" ? "bad" : m.level === "warn" ? "warn" : "";
+      const value = measureValue(m);
+      const gauge = m.min != null && m.max != null
+        ? h("div", { class: "bar" + (level ? " " + level : "") }, h("i", { style: `width:${measureGauge(m).toFixed(1)}%` }))
+        : null;
+      return h("div", { class: "vol" },
+        h("div", { class: "vol-line" }, h("span", { class: "vol-name", text: m.label }),
+          h("span", { class: "vol-free" + (level ? " " + level : ""), text: m.text ? `${value} · ${m.text}` : value })),
+        gauge);
+    }
+
+    function update(list) {
+      const items = list || [];
+      el.classList.toggle("hidden", !items.length);
+      const next = JSON.stringify(items);
+      if (!items.length || next === sig) return;
+      sig = next;
+      body.replaceChildren(...items.map(row));
+    }
+
+    return { el, update };
+  }
+
+  /** Valeur d'une mesure : entière en %, sinon au dixième ; espace insécable avant l'unité. */
+  function measureValue(m) {
+    const text = m.value.toLocaleString("fr-FR", { maximumFractionDigits: m.unit === "%" ? 0 : 1 });
+    return m.unit ? `${text}\u00a0${m.unit}` : text;
+  }
+
+  /** Remplissage de la jauge d'une mesure, en % (au moins 1 pour rester visible). */
+  function measureGauge(m) {
+    return Math.min(100, Math.max(1, ((m.value - m.min) / (m.max - m.min)) * 100));
   }
 
   /** Historique discret du panneau de détail : derniers évènements du PC sélectionné. */

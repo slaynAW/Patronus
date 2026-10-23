@@ -49,6 +49,7 @@ type Server struct {
 	history  *history.Log
 	temps    func() *protocol.Temperatures
 	disks    func() *protocol.Disks
+	measures func() []protocol.Measure
 	specs    func() *protocol.Specs
 	metrics  Metrics
 	now      func() time.Time
@@ -96,6 +97,10 @@ func (s *Server) SetTemperatures(read func() *protocol.Temperatures) { s.temps =
 // SetDisks branche la lecture des disques, jointe aux réponses à « status » (elle doit répondre tout
 // de suite : voir disks.Reader).
 func (s *Server) SetDisks(read func() *protocol.Disks) { s.disks = read }
+
+// SetMeasures branche les mesures décrites par l'agent (mémoire, batterie), jointes aux réponses à
+// « status » (elle doit répondre tout de suite : voir measures.Cache).
+func (s *Server) SetMeasures(read func() []protocol.Measure) { s.measures = read }
 
 // SetSpecs branche la fiche du PC (commande « specs » ; voir specs.Cache).
 func (s *Server) SetSpecs(read func() *protocol.Specs) { s.specs = read }
@@ -383,6 +388,9 @@ func (s *Server) run(body protocol.RequestBody, who requester) protocol.Response
 		}
 		if s.disks != nil {
 			resp.Disks = s.disks()
+		}
+		if s.measures != nil {
+			resp.Measures = s.measures()
 		}
 		return resp
 	}

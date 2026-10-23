@@ -1,0 +1,110 @@
+{
+  "description": "Mesures décrites par l'agent (réponse à « status », agent 1.13.0) : validation élément par élément et gravité. Mêmes résultats attendus du Go (agent/protocol.ParseMeasures) et du Kotlin (core AgentMeasures.parse). Dans « expected », un champ absent vaut null (nombres) ou \"\" (textes).",
+  "cases": [
+    {
+      "name": "mémoire et batterie",
+      "input": [
+        {"id": "mem", "label": "Mémoire", "value": 41.5, "unit": "%", "min": 0, "max": 100, "warn": 85, "crit": 95, "text": "6,4 Go sur 16 Go"},
+        {"id": "battery", "label": "Batterie", "value": 18, "unit": "%", "min": 0, "max": 100, "warn": 20, "crit": 10, "low": true, "text": "sur batterie"}
+      ],
+      "expected": [
+        {"id": "mem", "label": "Mémoire", "value": 41.5, "unit": "%", "min": 0, "max": 100, "warn": 85, "crit": 95, "low": false, "text": "6,4 Go sur 16 Go", "level": ""},
+        {"id": "battery", "label": "Batterie", "value": 18, "unit": "%", "min": 0, "max": 100, "warn": 20, "crit": 10, "low": true, "text": "sur batterie", "level": "warn"}
+      ]
+    },
+    {
+      "name": "seuils atteints exactement, vers le haut et vers le bas",
+      "input": [
+        {"id": "a", "label": "A", "value": 85, "warn": 85, "crit": 95},
+        {"id": "b", "label": "B", "value": 95.5, "warn": 85, "crit": 95},
+        {"id": "c", "label": "C", "value": 10, "warn": 20, "crit": 10, "low": true},
+        {"id": "d", "label": "D", "value": 21, "warn": 20, "crit": 10, "low": true},
+        {"id": "e", "label": "E", "value": -3.25, "unit": "°C"}
+      ],
+      "expected": [
+        {"id": "a", "label": "A", "value": 85, "unit": "", "min": null, "max": null, "warn": 85, "crit": 95, "low": false, "text": "", "level": "warn"},
+        {"id": "b", "label": "B", "value": 95.5, "unit": "", "min": null, "max": null, "warn": 85, "crit": 95, "low": false, "text": "", "level": "crit"},
+        {"id": "c", "label": "C", "value": 10, "unit": "", "min": null, "max": null, "warn": 20, "crit": 10, "low": true, "text": "", "level": "crit"},
+        {"id": "d", "label": "D", "value": 21, "unit": "", "min": null, "max": null, "warn": 20, "crit": 10, "low": true, "text": "", "level": ""},
+        {"id": "e", "label": "E", "value": -3.25, "unit": "°C", "min": null, "max": null, "warn": null, "crit": null, "low": false, "text": "", "level": ""}
+      ]
+    },
+    {
+      "name": "mesures invalides ignorées",
+      "input": [
+        42, "mem", null, [], true,
+        {"label": "Sans identifiant", "value": 1},
+        {"id": "Mem", "label": "Majuscule", "value": 1},
+        {"id": "-x", "label": "Tiret au début", "value": 1},
+        {"id": "abcdefghijklmnopqrstuvwxy", "label": "Identifiant de 25 signes", "value": 1},
+        {"id": 7, "label": "Identifiant nombre", "value": 1},
+        {"id": "l1", "value": 1},
+        {"id": "l2", "label": "", "value": 1},
+        {"id": "l3", "label": "   ", "value": 1},
+        {"id": "l4", "label": "ééééééééééééééééééééééééé", "value": 1},
+        {"id": "l5", "label": "Cloche\u0007", "value": 1},
+        {"id": "l6", "label": "Sens‮inversé", "value": 1},
+        {"id": "l7", "label": "Mal encodé �", "value": 1},
+        {"id": "l8", "label": "Demi \ud800 caractère", "value": 1},
+        {"id": "v1", "label": "Valeur texte", "value": "42"},
+        {"id": "v2", "label": "Valeur nulle", "value": null},
+        {"id": "v3", "label": "Sans valeur"},
+        {"id": "v4", "label": "Trop grande", "value": 1e13},
+        {"id": "v5", "label": "Démesurée", "value": 1e400},
+        {"id": "v6", "label": "Booléen", "value": true},
+        {"id": "u1", "label": "Unité trop longue", "value": 1, "unit": "123456789"},
+        {"id": "u2", "label": "Unité nombre", "value": 1, "unit": 5},
+        {"id": "ok", "label": "éééééééééééééééééééééééé", "value": 1e12, "unit": ""}
+      ],
+      "expected": [
+        {"id": "ok", "label": "éééééééééééééééééééééééé", "value": 1e12, "unit": "", "min": null, "max": null, "warn": null, "crit": null, "low": false, "text": "", "level": ""}
+      ]
+    },
+    {
+      "name": "champs facultatifs invalides ignorés",
+      "input": [
+        {"id": "f1", "label": "Min seul", "value": 5, "min": 0},
+        {"id": "f2", "label": "Min égal au max", "value": 5, "min": 10, "max": 10},
+        {"id": "f3", "label": "Seuils texte", "value": 5, "warn": "4", "crit": null},
+        {"id": "f4", "label": "Bas texte", "value": 5, "warn": 6, "low": "true"},
+        {"id": "f5", "label": "Texte trop long", "value": 5, "text": "123456789012345678901234567890123"},
+        {"id": "f6", "label": "Texte avec tabulation", "value": 5, "text": "a\tb"},
+        {"id": "f7", "label": "Unité nulle", "value": 5, "unit": null, "max": 100, "min": 0}
+      ],
+      "expected": [
+        {"id": "f1", "label": "Min seul", "value": 5, "unit": "", "min": null, "max": null, "warn": null, "crit": null, "low": false, "text": "", "level": ""},
+        {"id": "f2", "label": "Min égal au max", "value": 5, "unit": "", "min": null, "max": null, "warn": null, "crit": null, "low": false, "text": "", "level": ""},
+        {"id": "f3", "label": "Seuils texte", "value": 5, "unit": "", "min": null, "max": null, "warn": null, "crit": null, "low": false, "text": "", "level": ""},
+        {"id": "f4", "label": "Bas texte", "value": 5, "unit": "", "min": null, "max": null, "warn": 6, "crit": null, "low": false, "text": "", "level": ""},
+        {"id": "f5", "label": "Texte trop long", "value": 5, "unit": "", "min": null, "max": null, "warn": null, "crit": null, "low": false, "text": "", "level": ""},
+        {"id": "f6", "label": "Texte avec tabulation", "value": 5, "unit": "", "min": null, "max": null, "warn": null, "crit": null, "low": false, "text": "", "level": ""},
+        {"id": "f7", "label": "Unité nulle", "value": 5, "unit": "", "min": 0, "max": 100, "warn": null, "crit": null, "low": false, "text": "", "level": ""}
+      ]
+    },
+    {
+      "name": "doublons et nombre maximal",
+      "input": [
+        {"id": "m1", "label": "Premier", "value": 1},
+        {"id": "m1", "label": "Doublon", "value": 2},
+        {"id": "m2", "label": "M2", "value": 2},
+        {"id": "m3", "label": "M3", "value": 3},
+        {"id": "m4", "label": "M4", "value": 4},
+        {"id": "m5", "label": "M5", "value": 5},
+        {"id": "m6", "label": "M6", "value": 6},
+        {"id": "m7", "label": "M7", "value": 7},
+        {"id": "m8", "label": "M8", "value": 8},
+        {"id": "m9", "label": "M9", "value": 9}
+      ],
+      "expected": [
+        {"id": "m1", "label": "Premier", "value": 1, "unit": "", "min": null, "max": null, "warn": null, "crit": null, "low": false, "text": "", "level": ""},
+        {"id": "m2", "label": "M2", "value": 2, "unit": "", "min": null, "max": null, "warn": null, "crit": null, "low": false, "text": "", "level": ""},
+        {"id": "m3", "label": "M3", "value": 3, "unit": "", "min": null, "max": null, "warn": null, "crit": null, "low": false, "text": "", "level": ""},
+        {"id": "m4", "label": "M4", "value": 4, "unit": "", "min": null, "max": null, "warn": null, "crit": null, "low": false, "text": "", "level": ""},
+        {"id": "m5", "label": "M5", "value": 5, "unit": "", "min": null, "max": null, "warn": null, "crit": null, "low": false, "text": "", "level": ""},
+        {"id": "m6", "label": "M6", "value": 6, "unit": "", "min": null, "max": null, "warn": null, "crit": null, "low": false, "text": "", "level": ""},
+        {"id": "m7", "label": "M7", "value": 7, "unit": "", "min": null, "max": null, "warn": null, "crit": null, "low": false, "text": "", "level": ""},
+        {"id": "m8", "label": "M8", "value": 8, "unit": "", "min": null, "max": null, "warn": null, "crit": null, "low": false, "text": "", "level": ""}
+      ]
+    }
+  ]
+}

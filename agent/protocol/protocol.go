@@ -216,6 +216,9 @@ type ResponseBody struct {
 	Temperatures *Temperatures `json:"temperatures,omitempty"`
 	// Disks n'est renseigné que pour la commande « status » (agent 1.9.0 ou plus).
 	Disks *Disks `json:"disks,omitempty"`
+	// Measures n'est renseigné que pour la commande « status » (agent 1.13.0 ou plus) : mesures décrites
+	// par l'agent lui-même (mémoire, batterie…), lues par ParseMeasures.
+	Measures MeasureList `json:"measures,omitempty"`
 	// Specs n'est renseigné que pour la commande « specs » (agent 1.10.0 ou plus).
 	Specs *Specs `json:"specs,omitempty"`
 	// Protocols liste les protocoles acceptés par l'agent (agent 1.11.0 ou plus) : la présence de

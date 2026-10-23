@@ -183,6 +183,7 @@
     <string name="detail_load_gpu">Utilisation GPU</string>
     <string name="detail_metrics">Mesures</string>
     <string name="disks_title">Disques</string>
+    <string name="measures_title">Ressources</string>
     <string name="disk_free">%1$s libres sur %2$s</string>
     <string name="disk_health_ok">Bon état</string>
     <string name="disk_health_warning">À surveiller</string>

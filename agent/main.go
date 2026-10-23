@@ -25,6 +25,7 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/internal/dsm"
 	"github.com/slaynaw/wakeonlan/agent/internal/history"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
+	"github.com/slaynaw/wakeonlan/agent/internal/measures"
 	"github.com/slaynaw/wakeonlan/agent/internal/metrics"
 	"github.com/slaynaw/wakeonlan/agent/internal/netinfo"
 	"github.com/slaynaw/wakeonlan/agent/internal/pairing"
@@ -167,6 +168,8 @@ func cmdRun(args []string) error {
 		defer stopDisks()
 		go diskReader.Run(diskCtx)
 		srv.SetDisks(diskReader.Read)
+		// Mesures décrites par l'agent lui-même (mémoire, batterie), relues au plus toutes les 5 s.
+		srv.SetMeasures(measures.NewCache(measures.Read).Get)
 		// Fiche du PC : lue une fois au démarrage, puis toutes les quelques heures.
 		specsCache := specs.NewCache(specs.Read)
 		specsCache.Warm()
@@ -450,6 +453,7 @@ func cmdStatus(args []string) error {
 			fmt.Println("                " + line)
 		}
 	}
+	fmt.Printf("Ressources    : %s\n", describeMeasures(measures.Read()))
 	for i, line := range describeSpecs(specs.Read()) {
 		if i == 0 {
 			fmt.Printf("Fiche du PC   : %s\n", line)
@@ -599,6 +603,31 @@ func describeDisks(d *protocol.Disks) []string {
 		return []string{"aucun disque lu"}
 	}
 	return lines
+}
+
+// describeMeasures décrit les mesures jointes à l'état (mémoire, batterie), comme les applications.
+func describeMeasures(list []protocol.Measure) string {
+	var parts []string
+	for _, m := range list {
+		s := m.Label + " " + strings.Replace(strconv.FormatFloat(m.Value, 'f', -1, 64), ".", ",", 1)
+		if m.Unit != "" {
+			s += " " + m.Unit
+		}
+		if m.Text != "" {
+			s += " (" + m.Text + ")"
+		}
+		switch m.Level() {
+		case protocol.LevelWarn:
+			s += ", À SURVEILLER"
+		case protocol.LevelCrit:
+			s += ", CRITIQUE"
+		}
+		parts = append(parts, s)
+	}
+	if len(parts) == 0 {
+		return "non disponibles sur ce PC"
+	}
+	return strings.Join(parts, " · ")
 }
 
 // describeSpecs décrit la fiche du PC (une ligne par élément).
