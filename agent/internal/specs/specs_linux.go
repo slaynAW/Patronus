@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/slaynaw/wakeonlan/agent/internal/dsm"
 	"github.com/slaynaw/wakeonlan/agent/protocol"
 )
 
@@ -56,5 +57,8 @@ func read() protocol.Specs {
 		kernel = unix.ByteSliceToString(uts.Release[:])
 	}
 	s.OS = linuxOS(string(release), kernel)
+	if dsm.Detect() {
+		applyDSM(&s, dsm.Version(), dsm.Model())
+	}
 	return s
 }

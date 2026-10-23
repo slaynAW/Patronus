@@ -294,6 +294,21 @@ func gpuName(vendor, device string) string {
 	return short + " " + device
 }
 
+// applyDSM : sur un NAS Synology, la version de DSM (« DSM 7.2.2-72806 Update 3 ») et le modèle du NAS
+// (« Synology DS218+ ») plutôt que les champs génériques de Linux et du micrologiciel.
+func applyDSM(s *protocol.Specs, version, model string) {
+	if v := clean(version); v != "" {
+		o := &protocol.SpecsOS{Name: v}
+		if s.OS != nil {
+			o.Version = s.OS.Version
+		}
+		s.OS = o
+	}
+	if m := clean(model); m != "" {
+		s.Model = "Synology " + m
+	}
+}
+
 // linuxOS lit /etc/os-release (« Ubuntu 24.04.1 LTS ») et la version du noyau.
 func linuxOS(release, kernel string) *protocol.SpecsOS {
 	values := map[string]string{}

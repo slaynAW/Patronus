@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/slaynaw/wakeonlan/agent/internal/config"
 	"github.com/slaynaw/wakeonlan/agent/internal/disks"
+	"github.com/slaynaw/wakeonlan/agent/internal/dsm"
 	"github.com/slaynaw/wakeonlan/agent/internal/history"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
 	"github.com/slaynaw/wakeonlan/agent/internal/metrics"
@@ -46,7 +48,8 @@ Utilisation : wol-agent <commande> [options]
 
 Commandes :
   install      Installe l'agent comme service (démarrage automatique) et affiche le QR code d'appairage.
-               Options : --port 9770, --name "PC Bureau", --ip 192.168.1.20, --no-firewall, --firewall-public
+               Options : --port 9770, --name "PC Bureau", --ip 192.168.1.20, --no-firewall, --firewall-public,
+               --no-pair (sans appairage : réinstallation au démarrage d'un NAS, docs/NAS-SYNOLOGY.md)
   pair         Affiche un QR code / lien d'appairage wolagent/2 : code à usage unique, aucune clé secrète.
                Options : --role admin|control|wake|view (admin), --ttl 600 (secondes ou durée : 10m, 2h ;
                de 60 s à 7 jours), --ip, --png fichier.png, --invert,
@@ -253,6 +256,7 @@ func cmdInstall(args []string) error {
 	ip := fs.String("ip", "", "adresse IP à utiliser pour l'appairage (détectée automatiquement)")
 	noFirewall := fs.Bool("no-firewall", false, "ne pas modifier le pare-feu")
 	firewallPublic := fs.Bool("firewall-public", false, "Windows : autoriser aussi les réseaux « publics » (déconseillé)")
+	noPair := fs.Bool("no-pair", false, "ne pas afficher d'appairage (réinstallation au démarrage d'un NAS)")
 	pause := fs.Bool("pause", false, "attendre une touche à la fin")
 	_ = fs.Parse(args)
 
@@ -284,6 +288,10 @@ func cmdInstall(args []string) error {
 		if cfg, err = config.New(*name, *port); err != nil {
 			return err
 		}
+		if dsm.Detect() {
+			// Pas de veille sur un NAS Synology : l'application l'indique au lieu de tenter.
+			cfg.Commands = slices.DeleteFunc(cfg.Commands, func(c string) bool { return c == "sleep" })
+		}
 	}
 	if err := config.Save(cfgPath, cfg); err != nil {
 		return fmt.Errorf("enregistrement de la configuration : %w", err)
@@ -311,6 +319,13 @@ func cmdInstall(args []string) error {
 	}
 	fmt.Printf("✔ Agent installé (%s) et démarré sur le port TCP %d.\n", opts.Binary, cfg.Port)
 	fmt.Printf("  Configuration : %s\n\n", cfgPath)
+	if dsm.Detect() {
+		warnDSMData()
+	}
+	if *noPair {
+		fmt.Println("Appairage : « sudo wol-agent pair ».")
+		return nil
+	}
 	// Le service vient de démarrer : l'invitation passe par lui dès qu'il écoute.
 	pairOpts := pairingOptions{IP: *ip, Role: protocol2.RoleAdmin, TTL: protocol2.DefaultInviteTTL * time.Second, Wait: serviceStartWait}
 	if err := showPairingFor(cfg, cfgPath, pairOpts); err != nil {
@@ -320,6 +335,16 @@ func cmdInstall(args []string) error {
 		warnBlockedNetwork(true)
 	}
 	return nil
+}
+
+// warnDSMData : sur un NAS Synology, une mise à jour de DSM peut effacer /etc, et avec lui l'identité de
+// l'agent et ses appareils autorisés ; ils restent sur un volume si /etc/wol-agent y mène (docs/NAS-SYNOLOGY.md).
+func warnDSMData() {
+	if info, err := os.Lstat(config.Dir()); err == nil && info.Mode()&os.ModeSymlink == 0 {
+		fmt.Println("⚠ NAS Synology : une mise à jour de DSM peut effacer " + config.Dir() + " (identité de l'agent,")
+		fmt.Println("  appareils autorisés). Gardez ce dossier sur un volume : voir docs/NAS-SYNOLOGY.md.")
+		fmt.Println()
+	}
 }
 
 func cmdPair(args []string) error {

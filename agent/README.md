@@ -35,7 +35,10 @@ chmod +x wol-agent-linux-amd64
 sudo ./wol-agent-linux-amd64 install
 ```
 - copie dans `/usr/local/bin/wol-agent`, configuration dans `/etc/wol-agent/config.json` (macOS : `/Library/Application Support/WolAgent/`) ;
-- Linux : service `wol-agent.service` durci ; ouverture du port si `firewalld` ou `ufw` est actif. Journal : `journalctl -u wol-agent`.
+- Linux : service `wol-agent.service` durci (système en lecture seule, écriture dans `/etc/wol-agent` seulement) ;
+  ouverture du port si `firewalld` ou `ufw` est actif. Journal : `journalctl -u wol-agent`.
+- **NAS Synology** (DSM 7) : voir [docs/NAS-SYNOLOGY.md](../docs/NAS-SYNOLOGY.md) (données sur le volume, tâche au
+  démarrage avec `install --no-pair`).
 
 À la fin, un **QR code** s'affiche : dans l'application, *Ajouter un PC* → *Scanner le QR code*. Il ne contient aucune
 clé secrète : l'adresse du PC, l'empreinte de l'agent et un code d'appairage à usage unique, valable 10 minutes
@@ -139,10 +142,14 @@ antérieures continuent en `wolagent/1`.
 
 | Action | Windows | Linux | macOS |
 |---|---|---|---|
-| Éteindre | `shutdown /s` (arrêt **complet**, sans démarrage rapide) | `systemctl poweroff` | `shutdown -h now` |
-| Redémarrer | `shutdown /r` | `systemctl reboot` | `shutdown -r now` |
-| Veille | `SetSuspendState` (veille S3 / moderne) | `systemctl suspend` | `pmset sleepnow` |
-| Forcer | `/f` (ferme les applications) | `--ignore-inhibitors` | — |
+| Éteindre | `shutdown /s` (arrêt **complet**, sans démarrage rapide) | `systemctl poweroff` ; NAS Synology : `synopoweroff` (outil de DSM) | `shutdown -h now` |
+| Redémarrer | `shutdown /r` | `systemctl reboot` ; NAS Synology : `synopoweroff -r` | `shutdown -r now` |
+| Veille | `SetSuspendState` (veille S3 / moderne) | `systemctl suspend` ; refusée sur un NAS Synology | `pmset sleepnow` |
+| Forcer | `/f` (ferme les applications) | `--ignore-inhibitors` ; sans effet sur un NAS Synology | — |
+
+Sur un NAS Synology, l'outil de DSM est lancé par deux unités systemd ponctuelles (`wol-agent-poweroff.service`,
+`wol-agent-reboot.service`), hors du bac à sable de l'agent : DSM arrête proprement ses paquets et ses volumes, et
+refuse pendant une opération critique (mise à jour, réparation d'un volume).
 
 L'agent répond au téléphone **avant** d'exécuter l'action (délai minimal 1,5 s).
 
