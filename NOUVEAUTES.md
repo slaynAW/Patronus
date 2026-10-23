@@ -6,6 +6,7 @@ Chaque section « ## X.Y.Z » est affichée dans les applications au moment de p
 ## 1.14.1
 
 - **Plus de déconnexion de GitHub à tort** : quand GitHub freinait un moment des écritures trop rapprochées (partage, sauvegardes), l'application croyait la connexion révoquée et vous déconnectait. Elle garde désormais la connexion et réessaie quelques minutes plus tard ; seule une connexion vraiment expirée ou révoquée demande de vous reconnecter.
+- **Partage** : « Afficher ma demande » est aussi proposé pour un partage déjà actif. Une personne dont la demande venait d'une version antérieure peut ainsi la renvoyer, et vous lui donnez tous les droits, y compris sur un PC en connexion chiffrée comme un NAS.
 - **NAS Synology** (avec l'agent 1.12.1) : l'installation de l'agent s'arrêtait sur certains NAS avant d'afficher le QR code d'appairage. Elle va désormais jusqu'au bout.
 
 ## 1.14.0
