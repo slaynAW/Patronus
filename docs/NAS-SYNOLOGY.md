@@ -24,7 +24,9 @@ DSM 6 n'est pas pris en charge (pas de systemd).
 
 ## 2. Installer
 
-Connectez-vous en SSH avec un compte administrateur (`ssh nom@192.168.1.x`), puis passez en root : `sudo -i`.
+Connectez-vous en SSH avec un compte administrateur (`ssh nom@192.168.1.x`), puis **passez en root** : `sudo -i`
+(mot de passe du compte). L'invite se termine alors par `#` ; toutes les commandes ci-dessous en ont besoin (sinon :
+« Permission denied »).
 
 ```sh
 uname -m    # x86_64 : wol-agent-linux-amd64 ; aarch64 : wol-agent-linux-arm64 ; armv7l : wol-agent-linux-arm

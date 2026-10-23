@@ -95,7 +95,8 @@ func Install(opts Options) error {
 	if err := run("systemctl", "daemon-reload"); err != nil {
 		return err
 	}
-	if err := run("systemctl", "enable", "--now", unitName); err != nil {
+	// Sans « --now » : le systemctl de DSM (NAS Synology) ne le connaît pas ; le redémarrage qui suit démarre le service.
+	if err := run("systemctl", "enable", unitName); err != nil {
 		return err
 	}
 	if err := run("systemctl", "restart", unitName); err != nil {
@@ -109,7 +110,8 @@ func Install(opts Options) error {
 
 // Uninstall arrête et supprime le service.
 func Uninstall() error {
-	_ = run("systemctl", "disable", "--now", unitName)
+	_ = run("systemctl", "stop", unitName)
+	_ = run("systemctl", "disable", unitName)
 	for _, path := range []string{unitPath, unitDir + dsm.PowerOffUnit, unitDir + dsm.RebootUnit} {
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err

@@ -5,6 +5,10 @@ compilé par la CI. **Ajoutez une section (numéro supérieur) à chaque modific
 numéro que les agents installés comparent au leur pour proposer la mise à jour. Le texte de la section est
 affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
+## 1.12.1
+
+- **NAS Synology** : `wol-agent install` s'arrêtait avant le QR code d'appairage (la version de systemd de DSM ne connaît pas `systemctl enable --now`). Elle va désormais jusqu'au bout, et `uninstall` arrête bien le service.
+
 ## 1.12.0
 
 - **NAS Synology (DSM 7)** : l'agent s'y installe comme sur un PC Linux (guide NAS-SYNOLOGY.md dans la documentation du projet). Extinction et redémarrage par l'outil de DSM, qui arrête proprement les paquets et les volumes et refuse pendant une opération critique ; fiche avec le modèle du NAS et la version de DSM ; `install --no-pair` pour la tâche qui remet l'agent en place après une mise à jour de DSM.
