@@ -426,6 +426,35 @@ class ShareTest {
     @Serializable
     data class AndroidFile(val file: String, val revision: Long)
 
+    @Test
+    fun `refus 403 de GitHub sans perte de la connexion`() {
+        val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        // Limite secondaire : écritures trop rapprochées.
+        server.createContext("/gists/0123456789abcdef0123456789abcdef") {
+            it.responseHeaders.add("Retry-After", "60")
+            it.reply(403, """{"message":"You have exceeded a secondary rate limit."}""")
+        }
+        server.createContext("/gists/fedcba9876543210fedcba9876543210") { it.reply(403, """{"message":"You have exceeded a secondary rate limit and have been temporarily blocked."}""") }
+        server.createContext("/gists/00000000000000000000000000000000") { it.reply(403, """{"message":"Resource not accessible\u0007"}""") }
+        server.createContext("/user") { it.reply(401, """{"message":"Bad credentials"}""") }
+        server.start()
+        try {
+            val base = "http://127.0.0.1:${server.address.port}"
+            val gh = ShareGitHub("client", api = base, web = base, pollUnitMillis = 1)
+            fun reason(block: suspend () -> Unit) = (runCatching { runBlocking { block() } }.exceptionOrNull() as ShareException)
+            assertEquals(ShareException.Reason.RATE_LIMITED, reason { gh.updateGist("tok", "0123456789abcdef0123456789abcdef", mapOf("a.json" to "{}")) }.reason)
+            assertEquals(ShareException.Reason.RATE_LIMITED, reason { gh.updateGist("tok", "fedcba9876543210fedcba9876543210", mapOf("a.json" to "{}")) }.reason)
+            val other = reason { gh.updateGist("tok", "00000000000000000000000000000000", mapOf("a.json" to "{}")) }
+            assertEquals(ShareException.Reason.NETWORK, other.reason)
+            assertEquals("GitHub refuse l'opération (403 : Resource not accessible)", other.message)
+            assertFalse(other.isTransient)
+            // Seul un 401 signifie une connexion expirée ou révoquée.
+            assertEquals(ShareException.Reason.UNAUTHORIZED, reason { gh.user("tok") }.reason)
+        } finally {
+            server.stop(0)
+        }
+    }
+
     private fun HttpExchange.reply(code: Int, body: String = "", etag: String? = null) {
         etag?.let { responseHeaders.add("ETag", it) }
         val bytes = body.toByteArray()

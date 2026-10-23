@@ -220,6 +220,44 @@ func TestGitHubRateLimit(t *testing.T) {
 	}
 }
 
+// Un 403 avec un jeton n'est pas une connexion révoquée : limite secondaire (écritures trop
+// rapprochées) ou opération interdite. Seul un 401 fait oublier le jeton.
+func TestGitHubForbiddenKeepsConnection(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/0123456789abcdef0123456789abcdef"):
+			w.Header().Set("Retry-After", "60")
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"message":"You have exceeded a secondary rate limit."}`))
+		case strings.HasSuffix(r.URL.Path, "/fedcba9876543210fedcba9876543210"):
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"message":"You have exceeded a secondary rate limit and have been temporarily blocked."}`))
+		case r.URL.Path == "/user":
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"message":"Bad credentials"}`))
+		default:
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"message":"Resource not accessible\u0007"}`))
+		}
+	}))
+	defer srv.Close()
+	gh := &GitHub{API: srv.URL, Client: srv.Client()}
+	ctx := context.Background()
+	files := map[string]*string{"a.json": nil}
+	for _, id := range []string{"0123456789abcdef0123456789abcdef", "fedcba9876543210fedcba9876543210"} {
+		if err := gh.UpdateGist(ctx, "tok", id, files); !errors.Is(err, ErrRateLimited) {
+			t.Errorf("limite secondaire %s : %v", id, err)
+		}
+	}
+	err := gh.UpdateGist(ctx, "tok", "00000000000000000000000000000000", files)
+	if err == nil || errors.Is(err, ErrUnauthorized) || err.Error() != "GitHub refuse l'opération (403 : Resource not accessible)" {
+		t.Errorf("refus : %v", err)
+	}
+	if _, err := gh.User(ctx, "tok"); !errors.Is(err, ErrUnauthorized) {
+		t.Errorf("401 : %v", err)
+	}
+}
+
 // Pendant la validation du code, l'application peut perdre l'accès à Internet (connexion coupée,
 // GitHub indisponible) : l'attente continue tant que le code est valable, puis la suite réessaie.
 func TestGitHubLoginSurvivesNetworkLoss(t *testing.T) {

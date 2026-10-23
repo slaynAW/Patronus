@@ -5,6 +5,7 @@ Chaque section « ## X.Y.Z » est affichée dans les applications au moment de p
 
 ## 1.14.1
 
+- **Plus de déconnexion de GitHub à tort** : quand GitHub freinait un moment des écritures trop rapprochées (partage, sauvegardes), l'application croyait la connexion révoquée et vous déconnectait. Elle garde désormais la connexion et réessaie quelques minutes plus tard ; seule une connexion vraiment expirée ou révoquée demande de vous reconnecter.
 - **NAS Synology** (avec l'agent 1.12.1) : l'installation de l'agent s'arrêtait sur certains NAS avant d'afficher le QR code d'appairage. Elle va désormais jusqu'au bout.
 
 ## 1.14.0
