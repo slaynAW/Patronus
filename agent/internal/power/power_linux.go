@@ -1,10 +1,19 @@
 package power
 
-import "os/exec"
+import (
+	"fmt"
+	"os/exec"
+	"strings"
+
+	"github.com/slaynaw/wakeonlan/agent/internal/dsm"
+)
 
 type systemController struct{}
 
 func (systemController) Do(action Action, force bool) error {
+	if dsm.Detect() {
+		return dsmDo(action)
+	}
 	args := map[Action][]string{
 		Shutdown: {"poweroff"},
 		Reboot:   {"reboot"},
@@ -28,4 +37,29 @@ func (systemController) Do(action Action, force bool) error {
 		return exec.Command("shutdown", "-r", "now").Run()
 	}
 	return unsupported(action)
+}
+
+// dsmDo : sur un NAS Synology, l'extinction et le redémarrage passent par l'outil de DSM (synopoweroff),
+// lancé par systemd hors du bac à sable de l'agent (unités écrites par « wol-agent install »). DSM arrête
+// proprement ses paquets et ses volumes, et refuse pendant une opération critique : « forcer » est donc sans
+// effet. La veille n'existe pas sur un NAS.
+func dsmDo(action Action) error {
+	unit, err := dsmUnit(action)
+	if err != nil {
+		return err
+	}
+	if out, err := exec.Command("systemctl", "start", "--no-block", unit).CombinedOutput(); err != nil {
+		return fmt.Errorf("%s : %v (%s) ; relancez « wol-agent install »", unit, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func dsmUnit(action Action) (string, error) {
+	switch action {
+	case Shutdown:
+		return dsm.PowerOffUnit, nil
+	case Reboot:
+		return dsm.RebootUnit, nil
+	}
+	return "", fmt.Errorf("%s non prise en charge sur un NAS Synology", action.Label())
 }

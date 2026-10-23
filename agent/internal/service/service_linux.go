@@ -6,13 +6,17 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/slaynaw/wakeonlan/agent/internal/dsm"
 )
 
 const (
+	unitDir  = "/etc/systemd/system/"
 	unitName = "wol-agent.service"
-	unitPath = "/etc/systemd/system/" + unitName
+	unitPath = unitDir + unitName
 )
 
 // DefaultBinary est l'emplacement d'installation de l'exécutable.
@@ -28,9 +32,12 @@ Wants=network-online.target
 ExecStart=%s run --config %s
 Restart=always
 RestartSec=5
-# Durcissement : l'agent n'écrit rien sur le disque et n'a besoin que du réseau et de systemctl.
+# Durcissement : l'agent n'a besoin que du réseau, de systemctl et de son dossier (identité, appareils
+# autorisés, journal, mesures), le seul où il écrit. ReadWriteDirectories, ancien nom de ReadWritePaths,
+# est compris par toutes les versions de systemd (DSM compris).
 NoNewPrivileges=yes
 ProtectSystem=full
+ReadWriteDirectories=%s
 ProtectHome=yes
 PrivateTmp=yes
 ProtectKernelTunables=yes
@@ -43,6 +50,29 @@ LockPersonality=yes
 WantedBy=multi-user.target
 `
 
+// unitFile : service de l'agent, qui n'écrit que dans le dossier de sa configuration.
+func unitFile(binary, config string) string {
+	return fmt.Sprintf(unitTemplate, binary, strconv.Quote(config), filepath.Dir(config))
+}
+
+// dsmUnitTemplate : unité ponctuelle qui éteint ou redémarre un NAS Synology avec l'outil de DSM, démarrée
+// par l'agent (sans [Install] : jamais au démarrage).
+const dsmUnitTemplate = `[Unit]
+Description=Patronus - %s du NAS demandé par l'agent (outil de DSM)
+
+[Service]
+Type=oneshot
+ExecStart=%s
+`
+
+// dsmUnits : unités d'extinction et de redémarrage d'un NAS Synology, par nom.
+func dsmUnits() map[string]string {
+	return map[string]string{
+		dsm.PowerOffUnit: fmt.Sprintf(dsmUnitTemplate, "extinction", dsm.PowerOffTool),
+		dsm.RebootUnit:   fmt.Sprintf(dsmUnitTemplate, "redémarrage", dsm.PowerOffTool+" -r"),
+	}
+}
+
 // Install installe (ou met à jour) le service systemd et ouvre le pare-feu s'il est actif.
 func Install(opts Options) error {
 	if _, err := exec.LookPath("systemctl"); err != nil {
@@ -52,9 +82,15 @@ func Install(opts Options) error {
 	if err := CopySelf(opts.Binary); err != nil {
 		return err
 	}
-	unit := fmt.Sprintf(unitTemplate, opts.Binary, strconv.Quote(opts.Config))
-	if err := os.WriteFile(unitPath, []byte(unit), 0o644); err != nil {
+	if err := os.WriteFile(unitPath, []byte(unitFile(opts.Binary, opts.Config)), 0o644); err != nil {
 		return err
+	}
+	if dsm.Detect() {
+		for name, unit := range dsmUnits() {
+			if err := os.WriteFile(unitDir+name, []byte(unit), 0o644); err != nil {
+				return err
+			}
+		}
 	}
 	if err := run("systemctl", "daemon-reload"); err != nil {
 		return err
@@ -74,8 +110,10 @@ func Install(opts Options) error {
 // Uninstall arrête et supprime le service.
 func Uninstall() error {
 	_ = run("systemctl", "disable", "--now", unitName)
-	if err := os.Remove(unitPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
+	for _, path := range []string{unitPath, unitDir + dsm.PowerOffUnit, unitDir + dsm.RebootUnit} {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
 	}
 	_ = run("systemctl", "daemon-reload")
 	return nil

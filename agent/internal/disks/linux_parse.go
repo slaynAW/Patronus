@@ -38,9 +38,10 @@ func unescape(s string) string {
 	return strings.NewReplacer(`\040`, " ", `\011`, "\t", `\134`, `\`).Replace(s)
 }
 
-// physicalBlock indique un disque physique de /sys/block (pas une image, la mémoire ou un volume logique).
+// physicalBlock indique un disque physique de /sys/block (pas une image, la mémoire, un volume logique ni le
+// module de démarrage interne d'un NAS Synology).
 func physicalBlock(name string) bool {
-	for _, p := range []string{"loop", "ram", "zram", "dm-", "md", "sr", "fd", "nbd"} {
+	for _, p := range []string{"loop", "ram", "zram", "dm-", "md", "sr", "fd", "nbd", "synoboot"} {
 		if strings.HasPrefix(name, p) {
 			return false
 		}

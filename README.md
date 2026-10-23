@@ -143,6 +143,9 @@ chmod +x wol-agent-linux-amd64
 sudo ./wol-agent-linux-amd64 install     # installe dans /usr/local/bin + service systemd, affiche le QR code
 ```
 
+**NAS Synology** (DSM 7) : guide pas à pas dans **[docs/NAS-SYNOLOGY.md](docs/NAS-SYNOLOGY.md)** (données sur le
+volume, tâche au démarrage, extinction par l'outil de DSM).
+
 **macOS**
 ```bash
 chmod +x wol-agent-darwin-arm64

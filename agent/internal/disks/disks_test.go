@@ -52,7 +52,7 @@ tmpfs /run tmpfs rw 0 0
 			t.Errorf("montage %d : %+v, attendu %+v", i, got[i], want[i])
 		}
 	}
-	for name, want := range map[string]bool{"nvme0n1": true, "sda": true, "loop0": false, "zram0": false, "dm-1": false, "sr0": false} {
+	for name, want := range map[string]bool{"nvme0n1": true, "sda": true, "sata1": true, "loop0": false, "zram0": false, "dm-1": false, "sr0": false, "synoboot": false} {
 		if physicalBlock(name) != want {
 			t.Errorf("%s : %v", name, !want)
 		}

@@ -303,6 +303,17 @@ func TestLinuxParsing(t *testing.T) {
 	if o := linuxOS("", ""); o == nil || o.Name != "Linux" {
 		t.Errorf("%+v", o)
 	}
+
+	// NAS Synology : DSM et le modèle du NAS, le noyau gardé.
+	s := protocol.Specs{Model: "", OS: linuxOS("", "4.4.302+")}
+	applyDSM(&s, "DSM 7.2.2-72806 Update 3", "DS218+\n")
+	if s.Model != "Synology DS218+" || s.OS == nil || s.OS.Name != "DSM 7.2.2-72806 Update 3" || s.OS.Version != "noyau 4.4.302+" {
+		t.Errorf("DSM : %q %+v", s.Model, s.OS)
+	}
+	applyDSM(&s, "", "")
+	if s.Model != "Synology DS218+" || s.OS.Name != "DSM 7.2.2-72806 Update 3" {
+		t.Errorf("valeurs illisibles : %q %+v", s.Model, s.OS)
+	}
 }
 
 // maxSpecs : fiche la plus longue possible.
