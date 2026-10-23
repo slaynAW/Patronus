@@ -24,9 +24,9 @@ DSM 6 n'est pas pris en charge (pas de systemd).
 
 ## 2. Installer
 
-Connectez-vous en SSH avec un compte administrateur (`ssh nom@192.168.1.x`), puis **passez en root** : `sudo -i`
-(mot de passe du compte). L'invite se termine alors par `#` ; toutes les commandes ci-dessous en ont besoin (sinon :
-« Permission denied »).
+Connectez-vous en SSH avec un compte administrateur (`ssh nom@192.168.1.x`). Chaque commande ci-dessous commence par
+**`sudo`** (le mot de passe du compte est demandé la première fois) : sans lui, « Permission denied ». Le dossier de
+l'agent est réservé à root, d'où les chemins complets plutôt qu'un `cd`.
 
 ```sh
 uname -m    # x86_64 : wol-agent-linux-amd64 ; aarch64 : wol-agent-linux-arm64 ; armv7l : wol-agent-linux-arm
@@ -36,15 +36,14 @@ Les commandes ci-dessous prennent `wol-agent-linux-amd64` (DS218+, DS220+, DS920
 remplacez le nom si `uname -m` en indique un autre.
 
 ```sh
-mkdir -p /volume1/patronus-agent
-chmod 700 /volume1/patronus-agent
-ln -s /volume1/patronus-agent /etc/wol-agent
-cd /volume1/patronus-agent
-curl -fLO https://github.com/slaynAW/Patronus/releases/latest/download/wol-agent-linux-amd64
-curl -fLO https://github.com/slaynAW/Patronus/releases/latest/download/SHA256SUMS.txt
-grep ' wol-agent-linux-amd64$' SHA256SUMS.txt | sha256sum -c -
-chmod 700 wol-agent-linux-amd64
-./wol-agent-linux-amd64 install --name "NAS"
+sudo mkdir -p /volume1/patronus-agent
+sudo chmod 700 /volume1/patronus-agent
+sudo ln -s /volume1/patronus-agent /etc/wol-agent
+sudo curl -fL -o /volume1/patronus-agent/wol-agent-linux-amd64 https://github.com/slaynAW/Patronus/releases/latest/download/wol-agent-linux-amd64
+sudo curl -fL -o /volume1/patronus-agent/SHA256SUMS.txt https://github.com/slaynAW/Patronus/releases/latest/download/SHA256SUMS.txt
+sudo sh -c "cd /volume1/patronus-agent && grep ' wol-agent-linux-amd64$' SHA256SUMS.txt | sha256sum -c -"
+sudo chmod 700 /volume1/patronus-agent/wol-agent-linux-amd64
+sudo /volume1/patronus-agent/wol-agent-linux-amd64 install --name "NAS"
 ```
 
 - **`/volume1/patronus-agent`** garde les données de l'agent (son identité, les appareils autorisés, le journal, les
@@ -55,9 +54,9 @@ chmod 700 wol-agent-linux-amd64
 - À la fin, un **QR code** s'affiche : sur le téléphone, *Ajouter un PC* → *Scanner le QR code*, puis *Enregistrer*.
   Application Windows : *Ajouter un PC* → *Coller le lien*, avec le lien `wolagent://…` affiché sous le QR code, ou
   invitez cet ordinateur depuis le téléphone (fiche du NAS → *Appareils autorisés*). Le code ne sert qu'une fois,
-  pendant 10 minutes : `wol-agent pair` en affiche un autre.
+  pendant 10 minutes : `sudo wol-agent pair` en affiche un autre.
 - Si le QR code annonce une autre adresse que celle du NAS sur votre réseau (Docker, VPN…) :
-  `wol-agent pair --ip 192.168.1.x`.
+  `sudo wol-agent pair --ip 192.168.1.x`.
 
 ## 3. Garder l'agent après une mise à jour de DSM
 
@@ -70,11 +69,13 @@ l'utilisateur* :
 - *Paramètres de tâche* → *Script défini par l'utilisateur* :
 
 ```sh
-[ -e /etc/wol-agent ] || ln -s /volume1/patronus-agent /etc/wol-agent
-/volume1/patronus-agent/wol-agent-linux-amd64 install --no-pair
+[ -e /etc/wol-agent ] || sudo ln -s /volume1/patronus-agent /etc/wol-agent
+sudo /volume1/patronus-agent/wol-agent-linux-amd64 install --no-pair
 ```
 
-`--no-pair` réinstalle sans créer de code d'appairage : rien de secret dans le résultat de la tâche. Une fois la tâche
+Gardez l'utilisateur **root** pour la tâche : `sudo` n'y demande pas de mot de passe (avec un autre utilisateur, il
+l'attendrait et la tâche échouerait). `--no-pair` réinstalle sans créer de code d'appairage : rien de secret dans le
+résultat de la tâche. Une fois la tâche
 créée, vous pouvez **désactiver SSH**.
 
 ## 4. Éteindre, redémarrer, allumer
@@ -93,11 +94,12 @@ créée, vous pouvez **désactiver SSH**.
 - **Température** : celle du processeur si DSM charge son capteur (`coretemp` sur les processeurs Intel) ; sinon
   elle n'apparaît pas. DSM affiche l'état thermique dans *Panneau de configuration* → *Centre d'infos*.
 - **Mises à jour** : pas de mise à jour automatique en dehors de Windows. Quand la fiche du NAS signale une nouvelle
-  version, refaites les commandes `curl`, `sha256sum` et `chmod` de l'étape 2 dans `/volume1/patronus-agent`, puis
-  `./wol-agent-linux-amd64 install --no-pair` (ou redémarrez le NAS).
+  version, refaites les deux commandes `curl`, la vérification `sha256sum` et le `chmod` de l'étape 2, puis
+  `sudo /volume1/patronus-agent/wol-agent-linux-amd64 install --no-pair` (ou redémarrez le NAS) ;
+  `sudo wol-agent version` affiche la version installée.
 - **Sécurité** : l'agent tourne en root (il faut l'être pour éteindre), dans un service systemd durci qui n'écrit que
   dans son dossier ; il n'accepte que les adresses du réseau local, et seulement les appareils appairés (TLS mutuel,
   [SECURITE.md](SECURITE.md)). Pour piloter le NAS hors de chez vous, passez par un VPN, jamais par une redirection
   de port.
-- **Désinstaller** : `sudo wol-agent uninstall`, supprimez la tâche du planificateur, puis `rm /etc/wol-agent` et
-  `rm -r /volume1/patronus-agent`.
+- **Désinstaller** : `sudo wol-agent uninstall`, supprimez la tâche du planificateur, puis `sudo rm /etc/wol-agent` et
+  `sudo rm -r /volume1/patronus-agent`.
