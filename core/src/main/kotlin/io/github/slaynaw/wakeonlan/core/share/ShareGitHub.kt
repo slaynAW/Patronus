@@ -288,9 +288,8 @@ class ShareGitHub(
                 code == HttpURLConnection.HTTP_NOT_MODIFIED -> return Response(code, "", etag)
                 code == HttpURLConnection.HTTP_NOT_FOUND -> throw ShareException(ShareException.Reason.NOT_FOUND, "espace de partage introuvable")
                 code == HttpURLConnection.HTTP_UNAUTHORIZED -> throw unauthorized()
-                code == 429 || (code == HttpURLConnection.HTTP_FORBIDDEN && (token == null || limited)) ->
-                    throw ShareException(ShareException.Reason.RATE_LIMITED, "GitHub limite temporairement les requêtes : réessayez dans quelques minutes")
-                code == HttpURLConnection.HTTP_FORBIDDEN -> throw unauthorized()
+                code == 429 || (code == HttpURLConnection.HTTP_FORBIDDEN && (token == null || limited)) -> throw rateLimited()
+                code == HttpURLConnection.HTTP_FORBIDDEN -> throw forbidden(connection)
                 code !in 200..299 -> throw status(code)
             }
             val text = if (code == HttpURLConnection.HTTP_NO_CONTENT) "" else read(connection.inputStream, limit)
@@ -355,6 +354,31 @@ class ShareGitHub(
     )
 
     private fun unauthorized() = ShareException(ShareException.Reason.UNAUTHORIZED, "connexion GitHub expirée ou révoquée : reconnectez-vous")
+
+    private fun rateLimited() = ShareException(ShareException.Reason.RATE_LIMITED, "GitHub limite temporairement les requêtes : réessayez dans quelques minutes")
+
+    /**
+     * Refus 403 avec un jeton : limite secondaire de GitHub (écritures trop rapprochées, « Retry-After ») ou opération
+     * interdite. Le jeton n'est pas en cause : seul un 401 le fait oublier (sinon, déconnexion à tort).
+     */
+    private fun forbidden(connection: HttpURLConnection): ShareException {
+        val message = errorMessage(connection)
+        val limit = message.contains("rate limit", ignoreCase = true) || message.contains("abuse", ignoreCase = true)
+        if (connection.getHeaderField("Retry-After") != null || limit) return rateLimited()
+        return ShareException(ShareException.Reason.NETWORK, "GitHub refuse l'opération (403${if (message.isEmpty()) "" else " : $message"})")
+    }
+
+    /** Message d'erreur de GitHub (champ « message », 200 caractères au plus), vide s'il est illisible. */
+    private fun errorMessage(connection: HttpURLConnection): String = try {
+        val text = connection.errorStream?.let { read(it, 16 * 1024) }.orEmpty()
+        json.parseToJsonElement(text).jsonObject["message"]?.jsonPrimitive?.contentOrNull.orEmpty().filterNot { it.isISOControl() }.take(200)
+    } catch (e: IOException) {
+        ""
+    } catch (e: SerializationException) {
+        ""
+    } catch (e: IllegalArgumentException) {
+        ""
+    }
 
     private fun network(e: IOException) = ShareException(ShareException.Reason.NETWORK, "GitHub injoignable : vérifiez la connexion Internet", e)
 

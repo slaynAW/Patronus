@@ -577,7 +577,7 @@
     share_right_wake: "Démarrer",
     share_right_view: "Démarrer et consulter",
     share_right_full: "Démarrer et éteindre",
-    share_v1_note: "%1$s utilise une version antérieure de Patronus. Pour « Démarrer et consulter », ou pour l’extinction des PC en connexion chiffrée, demandez-lui de mettre à jour son application et de vous renvoyer une demande.",
+    share_v1_note: "%1$s a envoyé sa demande depuis une version antérieure de Patronus. Pour « Démarrer et consulter », ou pour l’extinction des PC en connexion chiffrée : mise à jour de son application, puis, sur son appareil, « PC partagés avec moi » → votre partage → « Afficher ma demande » ; ajoutez cette demande ici avec « Ajouter une demande ». Ses accès actuels sont gardés.",
     share_v2_note: "Chaque PC enregistrera l’appareil de %1$s avec ces droits, sans transmettre de clé, dès que cet ordinateur le joindra en administrateur.",
     share_agent_invited: "invitation envoyée",
     share_agent_pending: "en attente du PC",
@@ -4365,7 +4365,8 @@
       if (a.mismatch) body.push(h("p", { class: "bad", text: S.share_access_mismatch }));
       const leaveLabel = a.active ? S.share_leave : a.removed ? S.share_remove : S.share_cancel_request;
       const actions = [{ label: leaveLabel, kind: "danger", onClick: () => { dialog.close(); leaveDialog(a, leaveLabel); } }];
-      if (!a.active && !a.removed) actions.push({ label: S.share_show_request, kind: "sec", onClick: () => { dialog.close(); showRequest(a.owner); } });
+      // Aussi pour un partage actif : renvoyer la demande donne l'empreinte de cet ordinateur (partage v2).
+      if (!a.removed) actions.push({ label: S.share_show_request, kind: "sec", onClick: () => { dialog.close(); showRequest(a.owner); } });
       actions.push({ label: S.share_sync_now, kind: "sec", onClick: () => { api.call("shareSync").catch(() => {}); dialog.close(); } });
       actions.push({ label: S.close, onClick: () => dialog.close() });
       const dialog = openDialog({ iconName: "monitor", title: fmt(S.share_access_title, a.ownerName), body, actions });

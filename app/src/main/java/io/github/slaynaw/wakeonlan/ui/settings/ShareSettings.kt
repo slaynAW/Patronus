@@ -777,7 +777,8 @@ private fun AccessDialog(
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
-                if (!access.active && !access.removed) {
+                // Aussi pour un partage actif : renvoyer la demande donne l'empreinte de ce téléphone (partage v2).
+                if (!access.removed) {
                     WolButton(stringResource(R.string.share_show_request), onShowRequest, Modifier.fillMaxWidth(), icon = WolIcons.Share)
                 }
                 WolButton(stringResource(R.string.share_sync_now), onSync, Modifier.fillMaxWidth(), icon = WolIcons.Refresh)

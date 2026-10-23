@@ -586,7 +586,7 @@
     <string name="share_right_none">Non partagé</string>
     <string name="share_right_wake">Démarrer</string>
     <string name="share_right_view">Démarrer et consulter</string>
-    <string name="share_v1_note">%1$s utilise une version antérieure de Patronus. Pour « Démarrer et consulter », ou pour l’extinction des PC en connexion chiffrée, demandez-lui de mettre à jour son application et de vous renvoyer une demande.</string>
+    <string name="share_v1_note">%1$s a envoyé sa demande depuis une version antérieure de Patronus. Pour « Démarrer et consulter », ou pour l’extinction des PC en connexion chiffrée : mise à jour de son application, puis, sur son appareil, « PC partagés avec moi » → votre partage → « Afficher ma demande » ; ajoutez cette demande ici avec « Ajouter une demande ». Ses accès actuels sont gardés.</string>
     <string name="share_v2_note">Chaque PC enregistrera l’appareil de %1$s avec ces droits, sans transmettre de clé, dès que ce téléphone le joindra en administrateur.</string>
     <string name="share_agent_invited">invitation envoyée</string>
     <string name="share_agent_pending">en attente du PC</string>

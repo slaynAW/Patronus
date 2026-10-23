@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // Stockage des fichiers d'accès : un « Gist » secret du compte GitHub de la personne qui partage.
@@ -68,6 +69,33 @@ func statusError(code int) error {
 }
 
 var errUnreadable = &transientError{"réponse de GitHub illisible"}
+
+// forbiddenError : refus 403 avec un jeton. Limite secondaire de GitHub (écritures trop rapprochées,
+// « Retry-After ») ou opération interdite : le jeton n'est pas en cause, seul un 401 le fait oublier
+// (sinon, déconnexion à tort).
+func forbiddenError(resp *http.Response, body []byte) error {
+	var e struct {
+		Message string `json:"message"`
+	}
+	_ = json.Unmarshal(body, &e)
+	msg := strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, e.Message)
+	if r := []rune(msg); len(r) > 200 {
+		msg = string(r[:200])
+	}
+	lower := strings.ToLower(msg)
+	if resp.Header.Get("Retry-After") != "" || strings.Contains(lower, "rate limit") || strings.Contains(lower, "abuse") {
+		return ErrRateLimited
+	}
+	if msg == "" {
+		return errors.New("GitHub refuse l'opération (403)")
+	}
+	return fmt.Errorf("GitHub refuse l'opération (403 : %s)", msg)
+}
 
 // retryAttempts borne les tentatives d'une étape de la connexion (voir Retry).
 const retryAttempts = 5
@@ -415,7 +443,7 @@ func (g *GitHub) apiLimit(ctx context.Context, method, path, token, etag string,
 		// Sans jeton, un refus ne peut venir que de la limite de requêtes.
 		return nil, ErrRateLimited
 	case resp.StatusCode == http.StatusForbidden:
-		return nil, ErrUnauthorized
+		return nil, forbiddenError(resp, data)
 	case resp.StatusCode < 200 || resp.StatusCode > 299:
 		return nil, statusError(resp.StatusCode)
 	}

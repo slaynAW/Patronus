@@ -60,8 +60,11 @@ la clé de l'agent n'est plus transmise : le PC **enregistre l'appareil de la pe
   à `wolagent/2`, par exemple). Sur le PC, `wol-agent devices role <empreinte> admin`, avec l'empreinte affichée par
   l'application ; ou depuis un appareil administrateur : *Appareils autorisés* → *Administrer*. En attendant, le PC
   reste partagé en « démarrer ».
-- Une personne dont l'application est plus ancienne reste en partage par clé (droits « démarrer » et « démarrer et
-  éteindre ») : demandez-lui de mettre à jour son application et de vous renvoyer une demande.
+- Une personne dont la demande vient d'une application plus ancienne reste en partage par clé (droits « démarrer » et
+  « démarrer et éteindre » ; un PC passé en connexion chiffrée sans clé, comme un NAS appairé par QR code, ne se partage
+  alors qu'en « démarrer ») : après la mise à jour de son application, elle vous renvoie sa demande (*PC partagés avec
+  moi* → votre partage → *Afficher ma demande*), que vous ajoutez avec *Ajouter une demande*. Ses accès actuels sont
+  gardés, et tous les droits deviennent possibles.
 
 Du côté de la personne qui reçoit l'accès, rien à faire : sa demande porte l'empreinte de son appareil (sur Android,
 à partir d'Android 10). Le PC apparaît d'abord en « démarrer » ; dès qu'il répond, son appareil utilise l'invitation
