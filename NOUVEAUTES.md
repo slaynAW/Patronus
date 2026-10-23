@@ -3,6 +3,10 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.14.1
+
+- **NAS Synology** (avec l'agent 1.12.1) : l'installation de l'agent s'arrêtait sur certains NAS avant d'afficher le QR code d'appairage. Elle va désormais jusqu'au bout.
+
 ## 1.14.0
 
 - **Verrouillage facultatif** (Android) : dans *Réglages → Sécurité*, l'empreinte, le visage ou le code du téléphone peuvent être demandés avant les actions sensibles (éteindre un PC, gérer ses appareils autorisés, modifier les accès partagés, exporter la configuration, afficher une clé d'agent) et/ou à l'ouverture de l'application. Activé, il empêche une personne qui emprunte votre téléphone déverrouillé d'éteindre vos PC à votre place.
