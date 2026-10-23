@@ -24,6 +24,9 @@ Anciennement **Wake On LAN** (jusqu'à la version 1.5.0).
 - 💽 **Disques** (agent 1.9.0) : espace libre de chaque lecteur, santé de chaque SSD ou disque dur (état donné par
   Windows, température, usure, heures de fonctionnement, erreurs) et erreurs d'accès signalées par Windows ; un lecteur
   plein à 90 % ou un disque à surveiller est signalé dans la liste des PC.
+- 🧮 **Ressources** (agent 1.13.0) : mémoire vive utilisée et batterie des portables, avec jauge, en orange puis en
+  rouge au-delà des seuils ; les mesures sont décrites par l'agent, et les applications affichent aussi celles que
+  ses versions suivantes ajouteront.
 - 💥 **Plantages et arrêts anormaux expliqués** (agent 1.9.0) : écran bleu avec son code, arrêt forcé avec le bouton,
   coupure de courant ou blocage, erreur matérielle fatale, dans l'historique et les archives.
 - 🧾 **Fiche du PC** (agent 1.10.0) : processeur, mémoire vive (barrettes, type, vitesse), carte graphique, carte mère
@@ -176,7 +179,7 @@ Commandes utiles : `wol-agent pair` (réafficher le QR code), `wol-agent status`
 - **Fiche d'un PC** : état, actions, **températures en direct** du processeur et de la carte graphique (tracé
   défilant des 5 dernières minutes : le PC affiché est vérifié chaque seconde) ou, sans agent, **latence en direct**
   (tracé de la dernière minute ; les traits rouges marquent les sondes sans réponse), adresse IP / MAC, latence,
-  système, « allumé depuis », agent, **fiche du PC** (processeur, mémoire, carte graphique, carte mère), disques, et un **historique discret**
+  système, « allumé depuis », agent, **ressources** (mémoire, batterie), **fiche du PC** (processeur, mémoire, carte graphique, carte mère), disques, et un **historique discret**
   des derniers évènements (*Tout afficher* : 30 jours, groupés par jour). « ≈ » signale une heure constatée par
   l'application (à quelques secondes près) plutôt que relevée par l'agent ; « arrêt inattendu » : coupure de courant,
   arrêt forcé ou plantage. Avec l'agent 1.4.0, l'historique est **commun** au téléphone et au PC Windows : chaque demande

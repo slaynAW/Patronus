@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.slaynaw.wakeonlan.core.agent.AgentDisks
 import io.github.slaynaw.wakeonlan.core.agent.AgentDrive
+import io.github.slaynaw.wakeonlan.core.agent.AgentMeasure
 import io.github.slaynaw.wakeonlan.core.agent.AgentSpecs
 import io.github.slaynaw.wakeonlan.core.agent.AgentStatus
 import io.github.slaynaw.wakeonlan.core.agent.AgentTemperatures
@@ -166,6 +167,10 @@ class ScreenshotTest {
                         ),
                         errors = 5,
                         lastError = now / 1000 - 26 * 3600,
+                    ),
+                    measures = listOf(
+                        AgentMeasure("mem", "Mémoire", 41.0, "%", 0.0, 100.0, 90.0, 97.0, text = "13 Go sur 31,9 Go"),
+                        AgentMeasure("fan.cpu", "Ventilateur processeur", 1180.0, "tr/min"),
                     ),
                 ),
             ),

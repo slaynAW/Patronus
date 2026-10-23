@@ -5,6 +5,7 @@ applications comme un PC :
 
 - **état** fiable, utilisation du processeur, température du processeur quand DSM la fournit au noyau ;
 - **volumes** (espace libre) et disques (modèle, type) ; leur santé S.M.A.R.T. reste dans le Gestionnaire de stockage de DSM ;
+- **mémoire** utilisée (agent 1.13.0), dans la carte « Ressources » ;
 - **fiche** : modèle du NAS (« Synology DS218+ »), version de DSM, processeur, mémoire ;
 - **journal** des démarrages et arrêts sur 30 jours, **mesures** sur 90 jours ;
 - **extinction** et **redémarrage** par l'outil de DSM, **allumage** par Wake-on-LAN. La veille n'existe pas sur un NAS.

@@ -166,7 +166,7 @@ func fromV2(resp protocol2.Response) (*responseBody, error) {
 	return &responseBody{
 		OK: &ok, Code: &code, Message: resp.Message,
 		Hostname: resp.Hostname, OS: resp.OS, Arch: resp.Arch, Version: resp.Version, Uptime: resp.Uptime,
-		History: resp.History, Metrics: resp.Metrics, Temperatures: resp.Temperatures, Disks: resp.Disks,
+		History: resp.History, Metrics: resp.Metrics, Temperatures: resp.Temperatures, Disks: resp.Disks, Measures: resp.Measures,
 		Specs: resp.Specs, Protocols: resp.Protocols, Role: resp.Role, proto: protocol2.ALPN,
 	}, nil
 }

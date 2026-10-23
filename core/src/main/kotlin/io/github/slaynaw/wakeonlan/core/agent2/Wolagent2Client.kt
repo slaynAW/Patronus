@@ -2,6 +2,7 @@ package io.github.slaynaw.wakeonlan.core.agent2
 
 import io.github.slaynaw.wakeonlan.core.agent.AgentDisks
 import io.github.slaynaw.wakeonlan.core.agent.AgentHistory
+import io.github.slaynaw.wakeonlan.core.agent.AgentMeasures
 import io.github.slaynaw.wakeonlan.core.agent.AgentMetrics
 import io.github.slaynaw.wakeonlan.core.agent.AgentSpecs
 import io.github.slaynaw.wakeonlan.core.agent.AgentStatus
@@ -10,6 +11,7 @@ import io.github.slaynaw.wakeonlan.core.net.NetworkBinder
 import io.github.slaynaw.wakeonlan.core.net.connectBound
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.IOException
@@ -91,6 +93,8 @@ data class Response2(
     val metrics: AgentMetrics? = null,
     val disks: AgentDisks? = null,
     val specs: AgentSpecs? = null,
+    /** Agent 1.13.0 ou plus : lues élément par élément ([AgentMeasures.parse]). */
+    val measures: JsonElement? = null,
     val protocols: List<String> = emptyList(),
     val role: String = "",
     val device: String = "",
@@ -102,7 +106,7 @@ data class Response2(
 ) {
     fun toStatus() = AgentStatus(
         hostname, os, arch, version, uptime, temperatures, disks,
-        protocols = protocols, proto = Wolagent2.ALPN, role = role,
+        protocols = protocols, proto = Wolagent2.ALPN, role = role, measures = AgentMeasures.parse(measures),
     )
 }
 

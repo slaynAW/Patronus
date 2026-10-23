@@ -203,6 +203,7 @@ flowchart LR
 | Vecteurs cryptographiques communs, calculés indépendamment | `protocol/test-vectors.json` |
 | Vecteurs de `wolagent/2` : agent (Go), application Android (`core`, `Wolagent2Test`) et une troisième implémentation indépendante (Python, OpenSSL), à chaque build ; fuzzing des analyseurs | `protocol/v2-vectors.json`, `.github/scripts/check-v2-vectors.py` |
 | Scénario d'historique commun Kotlin ↔ Go (fusion, doublons, conservation) | `protocol/history-vectors.json` |
+| Mesures décrites par l'agent, lues élément par élément en Go et en Kotlin (validation, gravité) | `protocol/measure-vectors.json` |
 | Tests de l'application Windows (Linux + Windows : DPAPI, ping, cartes réseau), tests de bout en bout contre l'agent (`wolagent/1`, `wolagent/2`, passage automatique) | CI |
 | Démarrage réel de l'application Windows (fenêtre WebView2, interface, pont Go ↔ JS) | CI (`WOL_SELFTEST`) |
 | Lint Android, `go vet` pour Windows/Linux/macOS, `gofmt` | CI |

@@ -125,6 +125,8 @@ type Status struct {
 	Temperatures *protocol.Temperatures `json:"temperatures,omitempty"`
 	// Disks : espace des lecteurs et santé des disques (agent 1.9.0 ou plus).
 	Disks *protocol.Disks `json:"disks,omitempty"`
+	// Measures : mesures décrites par l'agent (agent 1.13.0 ou plus), validées, avec leur gravité.
+	Measures []Measure `json:"measures,omitempty"`
 	// Protocols : protocoles servis par l'agent (1.11.0 ou plus).
 	Protocols []string `json:"protocols,omitempty"`
 	// Pin : empreinte wolagent/2 de l'agent, annoncée dans les réponses wolagent/1 signées par la clé.
@@ -133,6 +135,24 @@ type Status struct {
 	Proto string `json:"proto"`
 	// Role : rôle de cet ordinateur sur l'agent (wolagent/2).
 	Role string `json:"role,omitempty"`
+}
+
+// Measure : mesure décrite par l'agent, avec sa gravité pour l'interface (« », « warn », « crit »).
+type Measure struct {
+	protocol.Measure
+	Level string `json:"level,omitempty"`
+}
+
+// measures ajoute la gravité de chaque mesure.
+func measures(list protocol.MeasureList) []Measure {
+	if len(list) == 0 {
+		return nil
+	}
+	out := make([]Measure, len(list))
+	for i, m := range list {
+		out[i] = Measure{Measure: m, Level: m.Level()}
+	}
+	return out
 }
 
 // Client dialogue avec les agents.
@@ -160,7 +180,7 @@ func (c *Client) Status(ctx context.Context, host string, agent model.AgentSetti
 		return Status{}, err
 	}
 	return Status{Hostname: body.Hostname, OS: body.OS, Arch: body.Arch, Version: body.Version, Uptime: body.Uptime,
-		Temperatures: body.Temperatures, Disks: body.Disks, Protocols: body.Protocols, Pin: body.Pin, Proto: body.proto,
+		Temperatures: body.Temperatures, Disks: body.Disks, Measures: measures(body.Measures), Protocols: body.Protocols, Pin: body.Pin, Proto: body.proto,
 		Role: body.Role}, nil
 }
 
@@ -253,6 +273,8 @@ type responseBody struct {
 	Temperatures *protocol.Temperatures `json:"temperatures"`
 	// Disks : réponse à « status » d'un agent 1.9.0 ou plus.
 	Disks *protocol.Disks `json:"disks"`
+	// Measures : réponse à « status » d'un agent 1.13.0 ou plus, lue élément par élément.
+	Measures protocol.MeasureList `json:"measures"`
 	// Specs : réponse à « specs » d'un agent 1.10.0 ou plus.
 	Specs *protocol.Specs `json:"specs"`
 	// Protocols et Pin : agent 1.11.0 ou plus (docs/PROTOCOLE-V2.md, §9).

@@ -82,6 +82,23 @@ func TestStatusDisks(t *testing.T) {
 	}
 }
 
+func TestStatusMeasures(t *testing.T) {
+	s, settings := start(t, agenttest.Normal)
+	if st, err := New().Status(context.Background(), "127.0.0.1", settings); err != nil || st.Measures != nil {
+		t.Fatalf("agent sans mesures : %+v %v", st.Measures, err)
+	}
+	warn, crit := 90.0, 97.0
+	s.SetMeasures([]protocol.Measure{
+		{ID: "mem", Label: "Mémoire", Value: 98, Unit: "%", Warn: &warn, Crit: &crit, Text: "15,7 Go sur 16 Go"},
+		// Invalide (identifiant en majuscules) : ignorée par la lecture, sans gêner le reste.
+		{ID: "Bad", Label: "Invalide", Value: 1},
+	})
+	st, err := New().Status(context.Background(), "127.0.0.1", settings)
+	if err != nil || len(st.Measures) != 1 || st.Measures[0].ID != "mem" || st.Measures[0].Level != protocol.LevelCrit {
+		t.Fatalf("mesures : %+v %v", st.Measures, err)
+	}
+}
+
 func TestSpecs(t *testing.T) {
 	s, settings := start(t, agenttest.Normal)
 	// Agent antérieur à 1.10.0 : commande refusée.

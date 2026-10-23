@@ -354,6 +354,25 @@ func TestStatusDisks(t *testing.T) {
 	}
 }
 
+func TestStatusMeasures(t *testing.T) {
+	warn := 90.0
+	cfg, _, addr := startServer(t, nil, func(s *Server) {
+		s.SetMeasures(func() []protocol.Measure {
+			return []protocol.Measure{{ID: "mem", Label: "Mémoire", Value: 41.5, Unit: "%", Warn: &warn, Text: "6,4 Go sur 16 Go"}}
+		})
+	})
+	body := decodeBody(t, first(exchange(t, addr, cfg.Key, `{"cmd":"status"}`)))
+	if !body.OK || len(body.Measures) != 1 || body.Measures[0].ID != "mem" || *body.Measures[0].Warn != 90 {
+		t.Fatalf("mesures : %+v", body.Measures)
+	}
+	// Rien de lisible : champ absent.
+	cfg, _, addr = startServer(t, nil, func(s *Server) { s.SetMeasures(func() []protocol.Measure { return nil }) })
+	resp, _ := exchange(t, addr, cfg.Key, `{"cmd":"status"}`)
+	if strings.Contains(resp.Body, "measures") {
+		t.Errorf("champ vide envoyé : %s", resp.Body)
+	}
+}
+
 func TestSpecsCommand(t *testing.T) {
 	specs := &protocol.Specs{
 		CPU:    &protocol.SpecsCPU{Name: "AMD Ryzen 7 5800X", Cores: 8, Threads: 16},
