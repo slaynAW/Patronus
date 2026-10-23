@@ -4,8 +4,9 @@ Ce document décrit ce que Patronus protège, contre qui, et comment. Il sert de
 `wolagent/2` ([PROTOCOLE-V2.md](PROTOCOLE-V2.md)) et sera relu à chaque étape de la feuille de route (hub sur le NAS,
 notifications, accès à distance).
 
-- **État couvert** : Patronus 1.13.0 et agent 1.11.0 : `wolagent/2` en service, partage v2 compris, `wolagent/1`
-  gardé pendant la transition (applications et agents plus anciens, téléphones sous Android 8 ou 9).
+- **État couvert** : Patronus 1.14.0 et agent 1.12.0 : `wolagent/2` en service, partage v2 compris, `wolagent/1`
+  gardé pendant la transition (applications et agents plus anciens, téléphones sous Android 8 ou 9) ; verrouillage
+  facultatif de l'application Android ; agent sur PC (Windows, Linux, macOS) et NAS Synology.
 - **Signaler une faille** : [SECURITY.md](../SECURITY.md). Détail des mesures actuelles : [SECURITE.md](SECURITE.md).
 
 ## 1. Système étudié
@@ -164,9 +165,9 @@ Flux étudiés :
 ## 7. Exigences de sécurité
 
 Exigences tirées des menaces ci-dessus. La spécification `wolagent/2` indique comment elle répond à chacune ; la
-dernière colonne donne leur état dans Patronus 1.13.0 et l'agent 1.11.0.
+dernière colonne donne leur état dans Patronus 1.14.0 et l'agent 1.12.0.
 
-| Id | Exigence | Menaces | 1.13.0 |
+| Id | Exigence | Menaces | 1.14.0 |
 |---|---|---|---|
 | R1 | Tout échange application ↔ agent est chiffré et authentifié (TLS 1.3 uniquement, AEAD, confidentialité persistante). | T1, T2, T3 | Oui en `wolagent/2` ; Android 8 et 9 restent en `wolagent/1` |
 | R2 | Authentification mutuelle par clés publiques épinglées, sans autorité de certification. | T4, T5 | Oui |

@@ -5,6 +5,12 @@ compilé par la CI. **Ajoutez une section (numéro supérieur) à chaque modific
 numéro que les agents installés comparent au leur pour proposer la mise à jour. Le texte de la section est
 affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
+## 1.12.0
+
+- **NAS Synology (DSM 7)** : l'agent s'y installe comme sur un PC Linux (guide NAS-SYNOLOGY.md dans la documentation du projet). Extinction et redémarrage par l'outil de DSM, qui arrête proprement les paquets et les volumes et refuse pendant une opération critique ; fiche avec le modèle du NAS et la version de DSM ; `install --no-pair` pour la tâche qui remet l'agent en place après une mise à jour de DSM.
+- **Linux** : sous systemd, l'appairage chiffré, le journal et les mesures sont enfin enregistrés (le service ne pouvait pas écrire dans son dossier). Relancez `sudo wol-agent install` avec cette version.
+- **Correctif de sécurité** : agent compilé avec Go 1.26.10, qui corrige une faille de la vérification des certificats (mises à jour, connexion chiffrée).
+
 ## 1.11.0
 
 - **Protocole chiffré wolagent/2** : l'agent l'accepte désormais sur le même port, à côté du protocole actuel. Les applications 1.13 l'utilisent : tous les échanges sont chiffrés, chaque téléphone ou PC a sa propre identité et ses droits (consulter, démarrer, éteindre, administrer), et peut être retiré seul. Les appareils déjà appairés y passent d'eux-mêmes, sans rescanner le QR code. Les applications plus anciennes continuent de fonctionner comme avant.
