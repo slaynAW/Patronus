@@ -5,6 +5,10 @@ compilé par la CI. **Ajoutez une section (numéro supérieur) à chaque modific
 numéro que les agents installés comparent au leur pour proposer la mise à jour. Le texte de la section est
 affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
+## 1.13.0
+
+- **Ressources** : l'agent transmet la mémoire vive utilisée (Windows, Linux, NAS Synology) et la charge de la batterie d'un portable (Windows, Linux), affichées sur la fiche du PC par les applications 1.15. `wol-agent status` les affiche aussi.
+
 ## 1.12.1
 
 - **NAS Synology** : `wol-agent install` s'arrêtait avant le QR code d'appairage (la version de systemd de DSM ne connaît pas `systemctl enable --now`). Elle va désormais jusqu'au bout, et `uninstall` arrête bien le service.

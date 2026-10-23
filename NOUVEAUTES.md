@@ -3,6 +3,10 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.15.0
+
+- **Ressources** (avec l'agent 1.13.0) : la fiche d'un PC allumé affiche la mémoire vive utilisée et, sur un portable, la charge de la batterie, avec une jauge, en orange puis en rouge au-delà des seuils (mémoire à 90 % puis 97 %, batterie à 20 % puis 10 %). Ces mesures sont décrites par l'agent lui-même : celles qu'ajouteront ses prochaines versions s'afficheront sans mettre à jour l'application.
+
 ## 1.14.1
 
 - **Plus de déconnexion de GitHub à tort** : quand GitHub freinait un moment des écritures trop rapprochées (partage, sauvegardes), l'application croyait la connexion révoquée et vous déconnectait. Elle garde désormais la connexion et réessaie quelques minutes plus tard ; seule une connexion vraiment expirée ou révoquée demande de vous reconnecter.
