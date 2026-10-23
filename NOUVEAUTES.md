@@ -3,6 +3,12 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 1.14.0
+
+- **Verrouillage facultatif** (Android) : dans *Réglages → Sécurité*, l'empreinte, le visage ou le code du téléphone peuvent être demandés avant les actions sensibles (éteindre un PC, gérer ses appareils autorisés, modifier les accès partagés, exporter la configuration, afficher une clé d'agent) et/ou à l'ouverture de l'application. Activé, il empêche une personne qui emprunte votre téléphone déverrouillé d'éteindre vos PC à votre place.
+- **NAS Synology** (avec l'agent 1.12.0) : l'agent s'installe sur un NAS sous DSM 7, qui apparaît alors comme un PC : état, volumes, fiche, journal, mesures, extinction et redémarrage par l'outil de DSM, allumage par Wake-on-LAN. Le guide pas à pas est dans la documentation du projet (NAS-SYNOLOGY.md).
+- **Correctif de sécurité** : l'application Windows est compilée avec Go 1.26.10, qui corrige une faille de la vérification des certificats.
+
 ## 1.13.0
 
 - **Partage sans clé** (avec l'agent 1.11.0) : un PC en connexion chiffrée se partage désormais sans transmettre sa clé. Le PC enregistre lui-même l'appareil de la personne, avec ses seuls droits, grâce à une invitation à usage unique réservée à cet appareil ; tout se fait seul dès que le PC répond. Il suffit que votre téléphone ou votre ordinateur en soit administrateur (c'est le cas s'il a été appairé avec le QR code de « wol-agent pair »).
