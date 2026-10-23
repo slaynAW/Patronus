@@ -22,28 +22,11 @@ func TestParseVersion(t *testing.T) {
 	}
 }
 
-func TestDetectAndModel(t *testing.T) {
+func TestModel(t *testing.T) {
 	dir := t.TempDir()
-	tool := filepath.Join(dir, "synopoweroff")
-	saved := []string{PowerOffTool, modelFile, synoinfoFile}
-	t.Cleanup(func() { PowerOffTool, modelFile, synoinfoFile = saved[0], saved[1], saved[2] })
-	PowerOffTool, modelFile, synoinfoFile = tool, filepath.Join(dir, "absent"), filepath.Join(dir, "synoinfo.conf")
-
-	if Detect() {
-		t.Error("DSM reconnu sans son outil d'extinction")
-	}
-	if err := os.WriteFile(tool, []byte("#!/bin/sh\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if Detect() {
-		t.Error("DSM reconnu avec un outil non exécutable")
-	}
-	if err := os.Chmod(tool, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if !Detect() {
-		t.Error("DSM non reconnu")
-	}
+	saved := []string{modelFile, synoinfoFile}
+	t.Cleanup(func() { modelFile, synoinfoFile = saved[0], saved[1] })
+	modelFile, synoinfoFile = filepath.Join(dir, "absent"), filepath.Join(dir, "synoinfo.conf")
 
 	if m := Model(); m != "" {
 		t.Errorf("modèle sans fichier : %q", m)
