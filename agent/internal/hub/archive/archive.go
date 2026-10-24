@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/slaynaw/wakeonlan/agent/hubprotocol"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/store"
 	"github.com/slaynaw/wakeonlan/agent/protocol"
 )
@@ -29,6 +30,7 @@ const (
 const (
 	historyPrefix = "history-"
 	metricsPrefix = "metrics-"
+	eventsPrefix  = "events-"
 	suffix        = ".bin"
 	// MaxEvents borne les évènements d'une réponse (hub.history), à reprendre ensuite.
 	MaxEvents = 2000
@@ -110,21 +112,21 @@ func (a *Archive) load(pc, m string) ([]protocol.HistoryEvent, error) {
 }
 
 // AddEvents garde les évènements du journal d'un agent qui manquent à l'archive, ou qui précisent un
-// évènement déjà gardé (cause d'un arrêt anormal) ; renvoie le nombre d'évènements ajoutés ou précisés.
-func (a *Archive) AddEvents(pc string, events []protocol.HistoryEvent) (int, error) {
+// évènement déjà gardé (cause d'un arrêt anormal) ; renvoie les évènements ajoutés ou précisés.
+func (a *Archive) AddEvents(pc string, events []protocol.HistoryEvent) ([]protocol.HistoryEvent, error) {
 	d, err := dir(pc)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	byMonth := map[string][][]byte{}
-	changed := 0
+	var changed []protocol.HistoryEvent
 	for _, e := range events {
 		m := month(e.T)
 		evs, err := a.load(pc, m)
 		if err != nil {
-			return changed, err
+			return nil, err
 		}
 		next, added := protocol.MergeEvent(slices.Clone(evs), e)
 		if !added {
@@ -132,16 +134,16 @@ func (a *Archive) AddEvents(pc string, events []protocol.HistoryEvent) (int, err
 		}
 		raw, err := json.Marshal(e)
 		if err != nil {
-			return changed, err
+			return nil, err
 		}
 		byMonth[m] = append(byMonth[m], raw)
 		a.events[pc][m] = next
-		changed++
+		changed = append(changed, e)
 	}
 	for m, records := range byMonth {
 		if err := a.st.Append(d+"/"+historyPrefix+m+suffix, records...); err != nil {
 			delete(a.events[pc], m) // relu au prochain accès
-			return changed, err
+			return nil, err
 		}
 	}
 	return changed, nil
@@ -185,6 +187,58 @@ func (a *Archive) Events(pc string, from int64) (events []protocol.HistoryEvent,
 		return events[:MaxEvents], true, first, nil
 	}
 	return events, false, first, nil
+}
+
+// AddHubEvents garde des évènements détectés par le hub (tous PC confondus, un journal par mois).
+func (a *Archive) AddHubEvents(events ...hubprotocol.Event) error {
+	byMonth := map[string][][]byte{}
+	for _, e := range events {
+		raw, err := json.Marshal(e)
+		if err != nil {
+			return err
+		}
+		m := month(e.T)
+		byMonth[m] = append(byMonth[m], raw)
+	}
+	for m, records := range byMonth {
+		if err := a.st.Append(eventsPrefix+m+suffix, records...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// HubEvents renvoie les évènements du hub à partir de since, dans l'ordre, MaxEvents au plus (more : il
+// en reste après le dernier).
+func (a *Archive) HubEvents(since int64) (events []hubprotocol.Event, more bool, err error) {
+	names, err := a.st.List("")
+	if err != nil {
+		return nil, false, err
+	}
+	for _, name := range names {
+		m, ok := strings.CutPrefix(name, eventsPrefix)
+		if !ok || strings.TrimSuffix(m, suffix) < month(since) {
+			continue
+		}
+		records, err := a.st.Records(name)
+		if err != nil {
+			return nil, false, err
+		}
+		for _, r := range records {
+			var e hubprotocol.Event
+			if json.Unmarshal(r, &e) != nil {
+				return nil, false, fmt.Errorf("évènements du hub illisibles (%s)", name)
+			}
+			if e.T >= since {
+				events = append(events, e)
+			}
+		}
+	}
+	slices.SortStableFunc(events, func(x, y hubprotocol.Event) int { return cmp.Compare(x.T, y.T) })
+	if len(events) > MaxEvents {
+		return events[:MaxEvents], true, nil
+	}
+	return events, false, nil
 }
 
 // metricsDay est un jour de mesures gardé.
@@ -313,6 +367,18 @@ func (a *Archive) Prune(retentionDays int) (int, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	removed := 0
+	roots, err := a.st.List("")
+	if err != nil {
+		return 0, err
+	}
+	for _, name := range roots {
+		if m, ok := strings.CutPrefix(name, eventsPrefix); ok && len(strings.TrimSuffix(m, suffix)) == 7 && strings.TrimSuffix(m, suffix) < limit {
+			if err := a.st.Remove(name); err != nil {
+				return removed, err
+			}
+			removed++
+		}
+	}
 	for _, pc := range pcs {
 		names, err := a.st.List("pc/" + pc)
 		if err != nil {

@@ -153,6 +153,8 @@ type Request struct {
 	Day  string `json:"day,omitempty"`
 	// Réglages (hub.settings) : durée de conservation, en jours ; absente, les réglages sont seulement lus.
 	Retention int `json:"retention,omitempty"`
+	// Since : hub.events, début des évènements voulus (secondes Unix).
+	Since int64 `json:"since,omitempty"`
 }
 
 // Sondes des appareils sans agent (§6.2).
@@ -213,6 +215,30 @@ type Response struct {
 	Metrics *protocol.Metrics `json:"metrics,omitempty"`
 	// Settings : hub.settings.
 	Settings *Settings `json:"settings,omitempty"`
+	// Events : hub.events, dans l'ordre (More : il en reste après le dernier).
+	Events []Event `json:"events,omitzero"`
+}
+
+// Évènements détectés par le hub (§6.5). Ce sont des codes : les applications rédigent elles-mêmes le
+// texte, avec leurs propres noms de PC (T38).
+const (
+	EventOnline    = "online"     // de nouveau en ligne
+	EventOffline   = "offline"    // plus rien ne répond
+	EventAgentDown = "agent_down" // agent arrêté depuis plus de 2 minutes, PC allumé
+	EventProblem   = "problem"    // refus d'un agent (X : revoked, pin_mismatch, rate_limited)
+	EventLost      = "lost"       // arrêt inattendu noté par l'agent (X : cause, bsod, button, power, hardware)
+	EventDisk      = "disk"       // disque à surveiller (X : health) ou lecteur plein à 90 % (X : full)
+	EventMeasure   = "measure"    // mesure grave pendant plus de 5 minutes (X : identifiant de la mesure)
+	EventWake      = "wake"       // paquet magique envoyé par le hub (I : appareil à l'origine, ou « local »)
+)
+
+// Event est un évènement détecté par le hub.
+type Event struct {
+	T  int64  `json:"t"`           // heure, secondes Unix (horloge du hub)
+	PC string `json:"pc"`          // identifiant du PC
+	K  string `json:"k"`           // type (Event…)
+	X  string `json:"x,omitempty"` // précision : un code ou un identifiant de mesure, jamais du texte libre
+	I  string `json:"i,omitempty"` // empreinte courte de l'appareil à l'origine (réveil)
 }
 
 // Settings sont les réglages du hub.

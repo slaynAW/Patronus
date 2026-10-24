@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -72,7 +73,20 @@ type entry struct {
 	// Archive : derniers relevés du journal et de la liste des jours de mesures, jours encore à lire.
 	history, metrics time.Time
 	missing          []string
+	// Évènements (§6.5) : début d'un épisode en cours, et ce qui en a déjà été signalé.
+	downSince time.Time
+	critSince map[string]time.Time // mesures graves, par identifiant
+	reported  map[string]bool      // agent_down, problem:<code>, disk:full, disk:health, measure:<id>
+	// Réveils envoyés par le hub, à noter au journal de l'agent dès qu'il répond.
+	wakes []int64
 }
+
+// Délais avant de signaler un épisode (§6.5).
+const (
+	agentDownAfter = 2 * time.Minute
+	measureAfter   = 5 * time.Minute
+	fullPercent    = 90
+)
 
 // New prépare la surveillance des PC de list ; arch garde leur journal et leurs mesures.
 func New(list *fleet.Fleet, dialer *agents.Dialer, arch *archive.Archive, logger *log.Logger) *Monitor {
@@ -188,6 +202,7 @@ func (m *Monitor) check(ctx context.Context, p fleet.PC) {
 		return // retiré pendant le relevé
 	}
 	e.busy = false
+	events := m.detect(p, e, r, now)
 	if e.state.State != r.state {
 		e.state.Since = now.Unix()
 	}
@@ -218,6 +233,95 @@ func (m *Monitor) check(ctx context.Context, p fleet.PC) {
 		e.refused = 0
 	}
 	e.next = now.Add(every)
+	if len(events) > 0 && m.archive != nil {
+		if err := m.archive.AddHubEvents(events...); err != nil {
+			m.logger.Printf("évènements du hub : %v", err)
+		}
+	}
+}
+
+// detect déduit les évènements d'un relevé (sous verrou, avant la mise à jour de l'état) : changements
+// d'état, puis épisodes signalés une fois chacun (agent arrêté, refus, disque, mesure grave).
+func (m *Monitor) detect(p fleet.PC, e *entry, r result, now time.Time) []hubprotocol.Event {
+	var out []hubprotocol.Event
+	add := func(k, x string) { out = append(out, hubprotocol.Event{T: now.Unix(), PC: p.ID, K: k, X: x}) }
+	if e.reported == nil {
+		e.reported, e.critSince = map[string]bool{}, map[string]time.Time{}
+	}
+	// once signale un épisode la première fois que cond est vraie, et l'oublie quand elle cesse de l'être.
+	once := func(key string, cond bool, k, x string) {
+		switch {
+		case cond && !e.reported[key]:
+			e.reported[key] = true
+			add(k, x)
+		case !cond:
+			delete(e.reported, key)
+		}
+	}
+	prev := e.state.State
+	if prev != r.state && prev != hubprotocol.StateUnknown {
+		switch r.state {
+		case hubprotocol.StateOnline:
+			add(hubprotocol.EventOnline, "")
+		case hubprotocol.StateOffline:
+			add(hubprotocol.EventOffline, "")
+		}
+	}
+	if r.state == hubprotocol.StateAgentDown {
+		if e.downSince.IsZero() {
+			e.downSince = now
+		}
+	} else {
+		e.downSince = time.Time{}
+	}
+	once("agent_down", !e.downSince.IsZero() && now.Sub(e.downSince) >= agentDownAfter, hubprotocol.EventAgentDown, "")
+	for _, code := range []string{hubprotocol.ProblemRevoked, hubprotocol.ProblemPinMismatch, hubprotocol.ProblemBlocked} {
+		once("problem:"+code, r.problem == code, hubprotocol.EventProblem, code)
+	}
+	if r.agent == nil {
+		return out // disques et mesures : seulement quand l'agent a répondu
+	}
+	full, health := false, false
+	if d := r.agent.Disks; d != nil {
+		for _, v := range d.Volumes {
+			if v.Total > 0 && v.Free <= v.Total && (v.Total-v.Free)*100/v.Total >= fullPercent {
+				full = true
+			}
+		}
+		for _, dr := range d.Drives {
+			if dr.Health == protocol.DriveWarning || dr.Health == protocol.DriveUnhealthy {
+				health = true
+			}
+		}
+	}
+	once("disk:full", full, hubprotocol.EventDisk, "full")
+	once("disk:health", health, hubprotocol.EventDisk, "health")
+	crit := map[string]bool{}
+	for _, ms := range r.agent.Measures {
+		if ms.Level() == protocol.LevelCrit {
+			crit[ms.ID] = true
+			if _, ok := e.critSince[ms.ID]; !ok {
+				e.critSince[ms.ID] = now
+			}
+		}
+	}
+	for id, since := range e.critSince {
+		if !crit[id] {
+			delete(e.critSince, id)
+		}
+		once("measure:"+id, crit[id] && now.Sub(since) >= measureAfter, hubprotocol.EventMeasure, id)
+	}
+	return out
+}
+
+// NoteWake note un réveil envoyé par le hub, pour le signaler au journal de l'agent (commande « wakes »)
+// dès qu'il répond : le journal du PC indique alors « démarrage demandé par » le hub.
+func (m *Monitor) NoteWake(id string, t int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if e, ok := m.entries[id]; ok && len(e.wakes) < 16 {
+		e.wakes = append(e.wakes, t)
+	}
 }
 
 // session renvoie la session ouverte avec l'agent, ou en ouvre une ; fresh indique une nouvelle session.
@@ -276,6 +380,7 @@ func (m *Monitor) checkAgent(ctx context.Context, p fleet.PC) result {
 		case protocol2.CodeOK:
 			body := resp.ResponseBody
 			latency := time.Since(start)
+			m.reportWakes(ctx, p, sess)
 			m.collect(ctx, p, sess)
 			return result{state: hubprotocol.StateOnline, latency: latency, agent: &body}
 		case protocol2.CodeUnknownDevice:
@@ -285,6 +390,26 @@ func (m *Monitor) checkAgent(ctx context.Context, p fleet.PC) result {
 			// busy, forbidden… : le PC répond, l'état n'est pas lu cette fois.
 			return result{state: hubprotocol.StateOnline, latency: time.Since(start)}
 		}
+	}
+}
+
+// reportWakes signale à l'agent les réveils envoyés par le hub (§8).
+func (m *Monitor) reportWakes(parent context.Context, p fleet.PC, sess *client.Session) {
+	m.mu.Lock()
+	wakes := slices.Clone(m.entries[p.ID].wakes)
+	m.mu.Unlock()
+	if len(wakes) == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(parent, m.timeout)
+	defer cancel()
+	if resp, err := sess.Do(ctx, protocol2.Request{Cmd: "wakes", Wakes: wakes}); err != nil || !resp.OK {
+		return // retenté au prochain relevé
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if e := m.entries[p.ID]; e != nil {
+		e.wakes = e.wakes[len(wakes):]
 	}
 }
 
@@ -307,12 +432,10 @@ func (m *Monitor) collect(parent context.Context, p fleet.PC, sess *client.Sessi
 		resp, err := sess.Do(ctx, protocol2.Request{Cmd: "history"})
 		cancel()
 		if err == nil && resp.OK && resp.History != nil {
-			if n, err := m.archive.AddEvents(p.ID, resp.History.Events); err != nil {
+			if added, err := m.archive.AddEvents(p.ID, resp.History.Events); err != nil {
 				m.logger.Printf("archive de « %s » : %v", p.Name, err)
 			} else {
-				if n > 0 {
-					m.logger.Printf("archive de « %s » : %d évènement(s) ajouté(s)", p.Name, n)
-				}
+				m.lost(p, added)
 				m.mu.Lock()
 				e.history = now
 				m.mu.Unlock()
@@ -357,6 +480,28 @@ func (m *Monitor) collect(parent context.Context, p fleet.PC, sess *client.Sessi
 		m.mu.Lock()
 		e.missing = e.missing[1:]
 		m.mu.Unlock()
+	}
+}
+
+// lost signale les arrêts inattendus que vient de noter l'agent, survenus depuis que le PC est confié au
+// hub (les plus anciens, importés au premier relevé, ne sont pas des nouvelles).
+func (m *Monitor) lost(p fleet.PC, added []protocol.HistoryEvent) {
+	var events []hubprotocol.Event
+	for _, e := range added {
+		if e.K != protocol.HistoryLost || e.T < p.Added {
+			continue
+		}
+		cause := ""
+		switch e.R {
+		case protocol.LostBSOD, protocol.LostButton, protocol.LostPower, protocol.LostHardware:
+			cause = e.R
+		}
+		events = append(events, hubprotocol.Event{T: e.T, PC: p.ID, K: hubprotocol.EventLost, X: cause})
+	}
+	if len(events) > 0 {
+		if err := m.archive.AddHubEvents(events...); err != nil {
+			m.logger.Printf("évènements du hub : %v", err)
+		}
 	}
 }
 

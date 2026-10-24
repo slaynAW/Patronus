@@ -24,6 +24,7 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/archive"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/fleet"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/settings"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/wake"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
 	"github.com/slaynaw/wakeonlan/agent/protocol"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
@@ -63,6 +64,10 @@ type Config struct {
 	States   func() []hubprotocol.PCState
 	Archive  *archive.Archive   // journal et mesures gardés des PC
 	Settings *settings.Settings // réglages du hub
+	// Wake envoie le paquet magique (wake.Send par défaut) ; NoteWake le signale au journal de l'agent
+	// (monitor.Monitor.NoteWake ; nil : rien).
+	Wake     func(ctx context.Context, mac string) (int, error)
+	NoteWake func(pc string, t int64)
 	Logger   *log.Logger
 	Now      func() time.Time // time.Now par défaut
 }
@@ -93,6 +98,9 @@ func New(cfg Config) (*Server, error) {
 	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
+	}
+	if cfg.Wake == nil {
+		cfg.Wake = wake.Send
 	}
 	allow := config.Config{Allow: config.DefaultAllow}
 	networks, err := allow.Networks()
@@ -475,6 +483,54 @@ func (sess *session) command(req hubprotocol.Request, d devices.Device) ([]byte,
 	switch req.Cmd {
 	case hubprotocol.CmdHistory, hubprotocol.CmdMetrics:
 		return sess.archived(req, d)
+	case hubprotocol.CmdEvents:
+		events, more, err := s.cfg.Archive.HubEvents(req.Since)
+		if err != nil {
+			s.cfg.Logger.Printf("évènements du hub : %v", err)
+			return bad(protocol2.CodeBusy, "évènements illisibles")
+		}
+		known := map[string]bool{}
+		for _, p := range s.cfg.Fleet.List() {
+			known[p.ID] = true
+		}
+		resp := ok()
+		resp.Events, resp.More = []hubprotocol.Event{}, more
+		for _, e := range events {
+			if known[e.PC] {
+				resp.Events = append(resp.Events, e)
+			}
+		}
+		return encode(resp), false
+	case hubprotocol.CmdWake:
+		p, found := s.cfg.Fleet.Get(req.PC)
+		switch {
+		case !found:
+			return bad(protocol2.CodeBadRequest, "PC introuvable")
+		case p.MAC == "":
+			return bad(protocol2.CodeBadRequest, "adresse MAC inconnue : ajoutez-la au PC")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		sent, err := s.cfg.Wake(ctx, p.MAC)
+		if err != nil {
+			s.cfg.Logger.Printf("réveil de « %s » impossible : %v", p.Name, err)
+			return bad(protocol2.CodeBusy, "paquet magique non envoyé : "+err.Error())
+		}
+		now := s.cfg.Now().Unix()
+		by := d.Pin.Short()
+		if sess.local {
+			by = devices.ByLocal
+		}
+		if err := s.cfg.Archive.AddHubEvents(hubprotocol.Event{T: now, PC: p.ID, K: hubprotocol.EventWake, I: by}); err != nil {
+			s.cfg.Logger.Printf("évènements du hub : %v", err)
+		}
+		if p.Agent != nil && s.cfg.NoteWake != nil {
+			s.cfg.NoteWake(p.ID, now)
+		}
+		s.cfg.Logger.Printf("réveil de « %s » demandé par %s (%d paquets)", p.Name, d.Name, sent)
+		resp := ok()
+		resp.Message = fmt.Sprintf("paquet magique envoyé (%d paquets)", sent)
+		return encode(resp), false
 	case hubprotocol.CmdSettings:
 		if req.Retention != 0 {
 			v := s.cfg.Settings.Get()

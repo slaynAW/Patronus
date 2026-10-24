@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -314,4 +315,77 @@ func hasBoot(events []protocol.HistoryEvent, t int64) bool {
 		}
 	}
 	return false
+}
+
+// TestDetect : changements d'état, puis épisodes signalés une fois chacun, après leur délai.
+func TestDetect(t *testing.T) {
+	m := &Monitor{}
+	now := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
+	p := fleet.PC{ID: "pc"}
+	e := &entry{state: hubprotocol.PCState{State: hubprotocol.StateUnknown}}
+	step := func(r result, after time.Duration) []hubprotocol.Event {
+		now = now.Add(after)
+		out := m.detect(p, e, r, now)
+		e.state.State = r.state
+		return out
+	}
+	kinds := func(evs []hubprotocol.Event) []string {
+		var out []string
+		for _, ev := range evs {
+			out = append(out, ev.K+":"+ev.X)
+		}
+		return out
+	}
+	expect := func(what string, got []hubprotocol.Event, want ...string) {
+		t.Helper()
+		if g := kinds(got); !slices.Equal(g, want) {
+			t.Errorf("%s : %v, attendu %v", what, g, want)
+		}
+	}
+	online := result{state: hubprotocol.StateOnline, agent: &protocol.ResponseBody{}}
+	expect("premier relevé", step(online, 0))
+	expect("éteint", step(result{state: hubprotocol.StateOffline}, time.Minute), "offline:")
+	expect("toujours éteint", step(result{state: hubprotocol.StateOffline}, time.Minute))
+	expect("rallumé", step(online, time.Minute), "online:")
+	down := result{state: hubprotocol.StateAgentDown}
+	expect("agent arrêté", step(down, time.Minute))
+	expect("agent arrêté depuis 1 min", step(down, time.Minute))
+	expect("agent arrêté depuis 2 min", step(down, time.Minute), "agent_down:")
+	expect("agent toujours arrêté", step(down, time.Minute))
+	revoked := result{state: hubprotocol.StateOnline, problem: hubprotocol.ProblemRevoked}
+	expect("hub retiré", step(revoked, time.Minute), "online:", "problem:revoked")
+	expect("toujours retiré", step(revoked, time.Minute))
+
+	v := 99.0
+	full := protocol.ResponseBody{
+		Disks:    &protocol.Disks{Volumes: []protocol.Volume{{Mount: "C:", Total: 100, Free: 9}}, Drives: []protocol.Drive{{Health: protocol.DriveWarning}}},
+		Measures: []protocol.Measure{{ID: "mem", Label: "Mémoire", Value: v, Crit: &v}},
+	}
+	busy := result{state: hubprotocol.StateOnline, agent: &full}
+	expect("disque plein et à surveiller", step(busy, time.Minute), "disk:full", "disk:health")
+	expect("mesure grave depuis 4 min", step(busy, 4*time.Minute))
+	expect("mesure grave depuis 5 min", step(busy, time.Minute), "measure:mem")
+	expect("tout reste grave", step(busy, time.Minute))
+	expect("tout redevient normal", step(online, time.Minute))
+	expect("de nouveau plein", step(busy, time.Minute), "disk:full", "disk:health")
+}
+
+// TestWakeNoted : un réveil envoyé par le hub est noté au journal de l'agent dès qu'il répond.
+func TestWakeNoted(t *testing.T) {
+	e := start(t)
+	a := hubtest.StartAgent(t)
+	pc := e.entrust(t, a)
+	e.wait(t, pc.ID, "en ligne", func(s hubprotocol.PCState) bool { return s.State == hubprotocol.StateOnline })
+	when := time.Now().Unix()
+	e.mon.NoteWake(pc.ID, when)
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, ev := range a.History.Snapshot().Events {
+			if ev.K == protocol.HistoryWake && ev.I == e.hub.Pin.Short() && ev.B == "Hub NAS" {
+				return
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("réveil absent du journal de l'agent : %+v", a.History.Snapshot().Events)
 }

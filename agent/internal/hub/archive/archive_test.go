@@ -37,19 +37,19 @@ func TestEvents(t *testing.T) {
 		{T: at("2026-10-02 09:00"), K: protocol.HistoryLost},
 		{T: at("2026-10-02 09:05"), K: protocol.HistoryCommand, A: "shutdown", C: "192.168.1.37", B: "Pixel 8"},
 	}
-	n, err := a.AddEvents(pc, journal)
-	if err != nil || n != 4 {
-		t.Fatalf("ajout : %d, %v", n, err)
+	added, err := a.AddEvents(pc, journal)
+	if err != nil || len(added) != 4 {
+		t.Fatalf("ajout : %d, %v", len(added), err)
 	}
 	// Le même journal relu dix minutes plus tard : rien de nouveau ; puis la cause de l'arrêt anormal est
 	// précisée par l'agent : seule la précision s'ajoute.
-	if n, err := a.AddEvents(pc, journal); err != nil || n != 0 {
-		t.Fatalf("même journal : %d, %v", n, err)
+	if added, err := a.AddEvents(pc, journal); err != nil || len(added) != 0 {
+		t.Fatalf("même journal : %d, %v", len(added), err)
 	}
 	precise := journal[2]
 	precise.R, precise.D = protocol.LostBSOD, "0x7E SYSTEM_THREAD_EXCEPTION_NOT_HANDLED"
-	if n, err := a.AddEvents(pc, append(journal, precise)); err != nil || n != 1 {
-		t.Fatalf("précision : %d, %v", n, err)
+	if added, err := a.AddEvents(pc, append(journal, precise)); err != nil || len(added) != 1 || added[0].R != protocol.LostBSOD {
+		t.Fatalf("précision : %+v, %v", added, err)
 	}
 	// Une nouvelle archive (redémarrage du hub) relit les mêmes évènements, la précision comprise.
 	again := New(st, time.Now)
@@ -65,8 +65,8 @@ func TestEvents(t *testing.T) {
 			t.Fatal("évènements dans le désordre")
 		}
 	}
-	if n, err := again.AddEvents(pc, journal); err != nil || n != 0 {
-		t.Fatalf("après redémarrage : %d, %v", n, err)
+	if added, err := again.AddEvents(pc, journal); err != nil || len(added) != 0 {
+		t.Fatalf("après redémarrage : %d, %v", len(added), err)
 	}
 	// À partir d'une date.
 	if events, _, _, _ := again.Events(pc, at("2026-10-02 00:00")); len(events) != 2 {

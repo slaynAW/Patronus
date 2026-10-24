@@ -261,9 +261,13 @@ func TestRoles(t *testing.T) {
 			t.Errorf("%s (view) : %+v", cmd, r)
 		}
 	}
-	// Commande connue mais pas encore servie ; commande inconnue ou de l'agent.
-	if r := call(t, w, hubprotocol.Request{Cmd: hubprotocol.CmdWake}); r.Code != protocol2.CodeUnsupported {
+	// Rôle suffisant : la commande passe (ici, PC inconnu) ; commande connue mais pas encore servie ;
+	// commande inconnue ou de l'agent.
+	if r := call(t, w, hubprotocol.Request{Cmd: hubprotocol.CmdWake, PC: "inconnu"}); r.Code != protocol2.CodeBadRequest || r.Role != "wake" {
 		t.Errorf("hub.wake (wake) : %+v", r)
+	}
+	if r := call(t, e.local(t), hubprotocol.Request{Cmd: hubprotocol.CmdSchedules}); r.Code != protocol2.CodeUnsupported {
+		t.Errorf("hub.schedules : %+v", r)
 	}
 	for _, cmd := range []string{"shutdown", "status", "migrate", "HUB.STATUS"} {
 		if r := call(t, w, hubprotocol.Request{Cmd: cmd}); r.Code != protocol2.CodeUnsupported {
@@ -287,7 +291,7 @@ func TestRoles(t *testing.T) {
 	if r := call(t, local, hubprotocol.Request{Cmd: protocol2.CmdDevicesRole, Device: pinOf(t, viewer).String(), Role: "wake"}); !r.OK {
 		t.Fatalf("passage en wake : %+v", r)
 	}
-	if r := call(t, v, hubprotocol.Request{Cmd: hubprotocol.CmdWake}); r.Code != protocol2.CodeUnsupported || r.Role != "wake" {
+	if r := call(t, v, hubprotocol.Request{Cmd: hubprotocol.CmdWake, PC: "inconnu"}); r.Code != protocol2.CodeBadRequest || r.Role != "wake" {
 		t.Errorf("rôle appliqué sur la connexion ouverte : %+v", r)
 	}
 }

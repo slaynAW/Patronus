@@ -140,7 +140,7 @@ func serve(args []string) error {
 	watch := monitor.New(pcs, dialer, arch, logger)
 	srv, err := server.New(server.Config{
 		Name: name, Version: version, Identity: id, Registry: registry, Fleet: pcs, Agents: dialer, States: watch.States,
-		Archive: arch, Settings: prefs, Logger: logger,
+		Archive: arch, Settings: prefs, NoteWake: watch.NoteWake, Logger: logger,
 	})
 	if err != nil {
 		return err

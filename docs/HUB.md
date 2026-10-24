@@ -180,7 +180,7 @@ identifiants de PC sont opaques (16 octets aléatoires en B64), propres au hub.
 | Arrêt inattendu | Évènement `lost` dans le journal de l'agent (coupure, arrêt forcé, plantage) |
 | Disque à surveiller, lecteur plein | Santé `warning` / `bad`, lecteur plein à 90 % |
 | Mesure grave | Gravité `crit` d'une mesure ([PROTOCOLE.md](PROTOCOLE.md#mesures-measures-agent-1130-ou-plus)) pendant plus de 5 min |
-| Réveil non demandé | Démarrage sans demande connue (ni application, ni hub) : signalé (prévu en 2.1, avancé ici : T13) |
+| Réveil non demandé | Démarrage sans demande connue (ni application, ni hub) : 2.1, avec les notifications (T13) |
 | Programmation | Réveil envoyé ; extinction faite, ou **reportée** car le PC n'était pas inactif |
 
 ## 8. Programmations

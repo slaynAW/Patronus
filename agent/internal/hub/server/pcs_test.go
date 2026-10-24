@@ -263,3 +263,45 @@ func TestArchiveCommands(t *testing.T) {
 		t.Fatalf("archive du PC retiré : %d évènements", len(events))
 	}
 }
+
+func TestWakeAndEvents(t *testing.T) {
+	e, a := start(t), startAgent(t)
+	var sentTo []string
+	e.srv.cfg.Wake = func(_ context.Context, mac string) (int, error) { sentTo = append(sentTo, mac); return 6, nil }
+	var noted []string
+	e.srv.cfg.NoteWake = func(pc string, _ int64) { noted = append(noted, pc) }
+	pc := e.addPC(t, a, a.invite(t, protocol2.RoleWake, e.hub.Pin)).PC
+	box := call(t, e.local(t), hubprotocol.Request{Cmd: hubprotocol.CmdPCsAdd, Name: "Box", Host: "192.168.1.1", Probe: &hubprotocol.Probe{Kind: "http"}}).PC
+
+	waker, viewer := newDevice(t), newDevice(t)
+	e.enroll(t, waker, protocol2.RoleWake, "Pixel 8")
+	e.enroll(t, viewer, protocol2.RoleView, "Tablette")
+	if r := call(t, e.dial(t, viewer), hubprotocol.Request{Cmd: hubprotocol.CmdWake, PC: pc.ID}); r.Code != protocol2.CodeInsufficientRole {
+		t.Fatalf("réveil (view) : %+v", r)
+	}
+	w := e.dial(t, waker)
+	if r := call(t, w, hubprotocol.Request{Cmd: hubprotocol.CmdWake, PC: pc.ID}); !r.OK || !strings.Contains(r.Message, "6 paquets") {
+		t.Fatalf("réveil : %+v", r)
+	}
+	if len(sentTo) != 1 || sentTo[0] != "AA:BB:CC:DD:EE:01" || len(noted) != 1 || noted[0] != pc.ID {
+		t.Fatalf("paquet : %v, noté : %v", sentTo, noted)
+	}
+	if r := call(t, w, hubprotocol.Request{Cmd: hubprotocol.CmdWake, PC: box.ID}); r.Code != protocol2.CodeBadRequest || !strings.Contains(r.Message, "MAC") {
+		t.Fatalf("appareil sans MAC : %+v", r)
+	}
+	// Évènements : le réveil, avec l'appareil à l'origine ; ceux d'un PC retiré ne sont plus donnés.
+	if err := e.srv.cfg.Archive.AddHubEvents(hubprotocol.Event{T: time.Now().Unix(), PC: box.ID, K: hubprotocol.EventOffline}); err != nil {
+		t.Fatal(err)
+	}
+	ev := call(t, e.dial(t, viewer), hubprotocol.Request{Cmd: hubprotocol.CmdEvents, Since: time.Now().Add(-time.Hour).Unix()})
+	if !ev.OK || len(ev.Events) != 2 || ev.Events[0].K != hubprotocol.EventWake || ev.Events[0].I != pinOf(t, waker).Short() || ev.Events[0].PC != pc.ID {
+		t.Fatalf("évènements : %+v", ev.Events)
+	}
+	call(t, e.local(t), hubprotocol.Request{Cmd: hubprotocol.CmdPCsRemove, PC: box.ID})
+	if ev := call(t, e.dial(t, viewer), hubprotocol.Request{Cmd: hubprotocol.CmdEvents}); len(ev.Events) != 1 {
+		t.Fatalf("après retrait : %+v", ev.Events)
+	}
+	if ev := call(t, e.dial(t, viewer), hubprotocol.Request{Cmd: hubprotocol.CmdEvents, Since: time.Now().Add(time.Hour).Unix()}); len(ev.Events) != 0 {
+		t.Fatalf("depuis plus tard : %+v", ev.Events)
+	}
+}
