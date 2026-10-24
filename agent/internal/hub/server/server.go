@@ -56,8 +56,10 @@ type Config struct {
 	Registry *devices.Registry
 	Fleet    *fleet.Fleet   // PC confiés et appareils sans agent
 	Agents   *agents.Dialer // sessions avec les agents (appairage des PC confiés)
-	Logger   *log.Logger
-	Now      func() time.Time // time.Now par défaut
+	// States donne l'état relevé de chaque PC, dans l'ordre de Fleet (monitor.Monitor.States) ; nil : aucun.
+	States func() []hubprotocol.PCState
+	Logger *log.Logger
+	Now    func() time.Time // time.Now par défaut
 }
 
 // pairTimeout borne l'appairage du hub auprès d'un agent (hub.pcs.add).
@@ -333,6 +335,13 @@ func (sess *session) command(req hubprotocol.Request, d devices.Device) ([]byte,
 		resp := ok()
 		resp.Hub = &hubprotocol.Info{
 			Name: s.cfg.Name, Version: s.cfg.Version, Pin: s.cfg.Identity.Pin.String(), Started: s.started.Unix(),
+		}
+		resp.PCs = []hubprotocol.PCInfo{}
+		for _, p := range s.cfg.Fleet.List() {
+			resp.PCs = append(resp.PCs, p.Info())
+		}
+		if s.cfg.States != nil {
+			resp.States = s.cfg.States()
 		}
 		return encode(resp), false
 

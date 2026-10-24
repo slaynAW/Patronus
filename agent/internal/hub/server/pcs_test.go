@@ -2,84 +2,34 @@ package server
 
 import (
 	"context"
-	"io"
-	"log"
-	"net"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/hubprotocol"
-	"github.com/slaynaw/wakeonlan/agent/internal/config"
 	"github.com/slaynaw/wakeonlan/agent/internal/devices"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/agents"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/fleet"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/hubtest"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
-	"github.com/slaynaw/wakeonlan/agent/internal/power"
-	agentserver "github.com/slaynaw/wakeonlan/agent/internal/server"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
-	"github.com/slaynaw/wakeonlan/agent/protocol2/client"
 )
-
-type noPower struct{}
-
-func (noPower) Do(power.Action, bool) error { return nil }
 
 // testAgent est un vrai agent wolagent/2, sur l'adresse de bouclage.
 type testAgent struct {
 	port int
 	id   *identity.Identity
 	reg  *devices.Registry
+	a    *hubtest.Agent
 }
 
 func startAgent(t *testing.T) *testAgent {
-	t.Helper()
-	dir := t.TempDir()
-	cfg, err := config.New("PC Bureau", 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	id, _, err := identity.LoadOrCreate(dir, time.Now())
-	if err != nil {
-		t.Fatal(err)
-	}
-	reg, err := devices.Open(devices.Path(dir), time.Now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	srv, err := agentserver.New(cfg, noPower{}, "1.13.0", log.New(io.Discard, "", 0))
-	if err != nil {
-		t.Fatal(err)
-	}
-	srv.EnableV2(id, reg)
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	go func() { _ = srv.Serve(ctx, ln) }()
-	return &testAgent{port: ln.Addr().(*net.TCPAddr).Port, id: id, reg: reg}
+	a := hubtest.StartAgent(t)
+	return &testAgent{port: a.Port, id: a.ID, reg: a.Registry, a: a}
 }
 
-// invite crée sur l'agent, comme le ferait une application administrateur du PC, une invitation réservée
-// à l'identité only.
 func (a *testAgent) invite(t *testing.T, role protocol2.Role, only protocol2.Pin) string {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	pin := a.id.Pin
-	sess, err := client.Dial(ctx, net.JoinHostPort("127.0.0.1", strconv.Itoa(a.port)), client.Options{Identity: a.id.Cert, Agent: &pin})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer sess.Close()
-	resp, err := sess.Do(ctx, protocol2.Request{Cmd: protocol2.CmdInvite, Role: role.String(), Device: only.String()})
-	if err != nil || !resp.OK {
-		t.Fatalf("invitation de l'agent : %+v, %v", resp, err)
-	}
-	return resp.Invite.Code
+	return a.a.Invite(t, role, only)
 }
 
 func (e *env) addPC(t *testing.T, a *testAgent, code string) hubprotocol.Response {
