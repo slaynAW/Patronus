@@ -177,6 +177,14 @@ svg.icon.small { width: 16px; height: 16px; }
   background: var(--danger-bg); color: var(--danger-text); border: 1px solid #4a2329;
 }
 .warning b { display: block; color: #ffd0d4; }
+.absence {
+  display: flex; gap: 12px; align-items: center;
+  padding: 14px 16px; border-radius: 12px;
+  background: var(--blue-soft); color: var(--text); border: 1px solid var(--focus);
+}
+.absence b { display: block; }
+.absence .grow { flex: 1; }
+.absence span { color: var(--text-2); }
 
 /* ---------- Topologie ---------- */
 
@@ -488,6 +496,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); width: 
 .admin-row .admin-who small.ok { color: var(--on); font-weight: 500; }
 .admin-row .admin-who small.bad { color: var(--danger-text); font-weight: 500; }
 .admin-row select { width: 150px; }
+.event-row .admin-who b { white-space: normal; overflow: visible; }
 .result.pending-pairing .grow { flex: 1; }
 
 /* ---------- Panneaux (édition, historique), dialogues, menus ---------- */

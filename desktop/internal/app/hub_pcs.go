@@ -37,11 +37,15 @@ type hubSnapshot struct {
 	checked time.Time
 }
 
-// DeviceHubView indique qu'un PC est confié au hub (DeviceView.Hub).
+// DeviceHubView indique qu'un PC est confié au hub (DeviceView.Hub), et son état vu par le hub.
 type DeviceHubView struct {
 	PC string `json:"pc"` // identifiant du PC sur le hub
 	// Role est le rôle du hub sur l'agent du PC (view, wake, ou control pour une extinction programmée).
 	Role string `json:"role"`
+	// State, Checked (secondes Unix, horloge du hub) et Problem : dernier relevé du hub (§6.2).
+	State   string `json:"state,omitempty"`
+	Checked int64  `json:"checked,omitempty"`
+	Problem string `json:"problem,omitempty"`
 }
 
 // runHub relit le hub toutes les hubEvery tant que la fenêtre est affichée, et dès qu'on le demande.
@@ -87,7 +91,14 @@ func (s *Service) refreshHub(ctx context.Context) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, hubTimeout)
 	defer cancel()
-	status, err := s.hubStatus(ctx, hubTarget(h))
+	var status, events hubprotocol.Response
+	err := s.agent.HubSession(ctx, hubTarget(h), func(ctx context.Context, ops agentclient.HubOps) (err error) {
+		if status, err = ops.Do(ctx, hubprotocol.Request{Cmd: hubprotocol.CmdStatus}); err != nil {
+			return err
+		}
+		events, err = ops.Do(ctx, hubprotocol.Request{Cmd: hubprotocol.CmdEvents, Since: eventsSince(h)})
+		return err
+	})
 	// Un échec n'est noté au journal que quand sa cause change (hub injoignable des heures durant).
 	cause := ""
 	if err != nil {
@@ -106,6 +117,7 @@ func (s *Service) refreshHub(ctx context.Context) {
 	if changed {
 		diag.Info(areaHub, "hub « %s » de nouveau joint", h.Name)
 	}
+	s.keepEvents(h, events)
 	s.keepSnapshot(h, status)
 }
 
@@ -139,11 +151,16 @@ func (s *Service) hubPCs() ([]hubprotocol.PCInfo, []hubprotocol.PCState) {
 
 // hubDevices renvoie, par empreinte complète de l'agent, les PC confiés au hub appairé.
 func (s *Service) hubDevices() map[string]DeviceHubView {
-	pcs, _ := s.hubPCs()
+	pcs, states := s.hubPCs()
+	byID := map[string]hubprotocol.PCState{}
+	for _, st := range states {
+		byID[st.ID] = st
+	}
 	out := map[string]DeviceHubView{}
 	for _, p := range pcs {
 		if p.Agent != "" {
-			out[p.Agent] = DeviceHubView{PC: p.ID, Role: p.Role}
+			st := byID[p.ID]
+			out[p.Agent] = DeviceHubView{PC: p.ID, Role: p.Role, State: st.State, Checked: st.Checked, Problem: st.Problem}
 		}
 	}
 	return out

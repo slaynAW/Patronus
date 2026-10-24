@@ -98,7 +98,13 @@ vérification par connexion à un port ou par page web (HTTP, HTTPS). Le hub vé
 **Réveil par le hub** : pour un PC confié dont l'adresse n'est sur aucun réseau de cet ordinateur (VPN, autre réseau),
 *Démarrer* demande aussi au hub d'envoyer le paquet magique depuis le réseau du NAS (rôle *Démarrer* sur le hub).
 
-Les évènements « Pendant votre absence » et l'historique au-delà de 30 jours viennent à l'étape suivante.
+**Pendant votre absence** : un bandeau de la vue d'ensemble signale ce que le hub a vu depuis votre dernier passage
+(PC qui ne répond plus ou de nouveau, agent arrêté, arrêt inattendu, disque à surveiller, mesure critique, réveil
+envoyé par le hub) ; *Marquer comme vus* le fait disparaître. Le hub n'envoie que des codes : les textes sont
+rédigés par l'application avec vos noms de PC, et un code inattendu est écarté. La ligne *Hub* de la fiche d'un PC
+confié indique son état vu par le hub et son âge (« répond, il y a 12 s »).
+
+L'historique et les mesures au-delà de 30 et 90 jours, lus sur le hub, viennent à l'étape suivante.
 
 ## Où sont mes données ?
 

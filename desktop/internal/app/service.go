@@ -145,10 +145,11 @@ type Service struct {
 	// des sauvegardes) ; nil si les sauvegardes sont indisponibles.
 	archives *archiver
 	// Hub appairé (verrou propre, jamais pris en tenant un autre).
-	hubMu    sync.Mutex
-	hubStore *hubstore.Store
-	hub      *hubstore.Hub
-	hubSnap  hubSnapshot
+	hubMu     sync.Mutex
+	hubStore  *hubstore.Store
+	hub       *hubstore.Hub
+	hubSnap   hubSnapshot
+	hubEvents hubEventsState
 	// hubFailed : cause du dernier relevé du hub en échec ("" : réussi).
 	hubFailed string
 	// hubWake demande un relevé du hub sans attendre.
@@ -510,6 +511,8 @@ type callParams struct {
 	PC    string `json:"pc"`
 	MAC   string `json:"mac"`
 	Probe string `json:"probe"`
+	// Until : évènements du hub vus jusqu'à cette heure (secondes Unix, horloge du hub).
+	Until int64 `json:"until"`
 }
 
 // pairingRequest : empreinte de l'agent et code d'appairage lus dans un lien v=2.
@@ -665,6 +668,10 @@ func (s *Service) dispatch(method string, p callParams) (any, error) {
 		return s.hubRetention(p.Days), nil
 	case "hubForget":
 		return s.hubForget(), nil
+	case "hubEvents":
+		return s.hubEventsView(), nil
+	case "hubEventsSeen":
+		return s.hubEventsSeen(p.Until), nil
 	case "hubEntrust":
 		return s.hubEntrust(p.ID), nil
 	case "hubRemovePC":

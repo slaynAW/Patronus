@@ -40,6 +40,9 @@ type HubView struct {
 	Short  string `json:"short"` // empreinte courte du hub
 	Role   string `json:"role"`
 	Paired int64  `json:"paired"`
+	// Unseen : évènements du hub non vus (« Pendant votre absence ») ; More : il y en a davantage.
+	Unseen int  `json:"unseen"`
+	More   bool `json:"more,omitempty"`
 }
 
 // loadHub lit le hub appairé au démarrage (dans le dossier des données, comme l'identité).
@@ -64,8 +67,12 @@ func (s *Service) hubView() *HubView {
 	if s.hub == nil {
 		return nil
 	}
-	return &HubView{Name: s.hub.Name, Host: s.hub.Host, Port: s.hub.Port, Short: shortPin(s.hub.Pin), Role: s.hub.Role,
+	v := &HubView{Name: s.hub.Name, Host: s.hub.Host, Port: s.hub.Port, Short: shortPin(s.hub.Pin), Role: s.hub.Role,
 		Paired: s.hub.Paired}
+	if s.hubEvents.pin == s.hub.Pin {
+		v.Unseen, v.More = len(s.hubEvents.events), s.hubEvents.more
+	}
+	return v
 }
 
 // currentHub renvoie une copie du hub appairé.
@@ -169,6 +176,7 @@ func (s *Service) hubPair(text string) map[string]any {
 	}
 	diag.Info(areaHub, "hub « %s » appairé (%s, rôle %s%s)", name, link.Agent.Short(), paired.Role,
 		map[bool]string{true: ", déjà connu", false: ""}[paired.Already])
+	s.refreshHubSoon()
 	return map[string]any{"ok": true, "name": name, "role": paired.Role, "already": paired.Already}
 }
 

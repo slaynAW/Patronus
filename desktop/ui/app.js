@@ -361,6 +361,31 @@
     hub_entrust_agent: "Le PC a refusé : %1$s",
     hub_entrust_hub: "Le hub a refusé : %1$s. Vérifiez que le NAS joint le PC (même réseau, pare-feu du PC).",
     hub_already_entrusted: "Ce PC est déjà confié au hub.",
+    detail_hub_state: "Confié au hub (rôle « %1$s ») · %2$s",
+    hub_seen_ago: "%1$s, il y a %2$s",
+    absence_title: "Pendant votre absence",
+    absence_text_one: "Le hub « %1$s » a vu un évènement depuis votre dernier passage.",
+    absence_text_many: "Le hub « %1$s » a vu %2$d évènements depuis votre dernier passage.",
+    absence_open: "Voir",
+    absence_seen: "Marquer comme vus",
+    absence_more: "D’autres évènements suivent : marquez ceux-ci comme vus pour les afficher.",
+    absence_none: "Rien de nouveau depuis votre dernier passage.",
+    absence_help: "Vu par le hub sur le NAS, même quand cet ordinateur était éteint. Les textes sont rédigés par l’application, avec vos noms de PC.",
+    absence_unknown_pc: "Un PC retiré du hub",
+    absence_online: "« %1$s » répond de nouveau",
+    absence_offline: "« %1$s » ne répond plus",
+    absence_agent_down: "« %1$s » est allumé, mais son agent est arrêté",
+    absence_problem: "« %1$s » : %2$s",
+    absence_lost: "« %1$s » : %2$s",
+    absence_disk_health: "« %1$s » : disque à surveiller",
+    absence_disk_full: "« %1$s » : lecteur plein à 90 %",
+    absence_measure: "« %1$s » : %2$s au niveau critique pendant plus de 5 minutes",
+    absence_wake_self: "« %1$s » démarré par le hub, à la demande de cet ordinateur",
+    absence_wake_nas: "« %1$s » démarré par le hub",
+    absence_wake_other: "« %1$s » démarré par le hub, à la demande de l’appareil %2$s",
+    measure_name_mem: "la mémoire",
+    measure_name_battery: "la batterie",
+    measure_name_other: "la mesure « %1$s »",
     message_wake_sent_hub: "Paquet magique envoyé à « %1$s » (aussi par le hub)",
     hub_error_UNREACHABLE: "hub injoignable : NAS éteint, conteneur arrêté, ou cet ordinateur sur un autre réseau",
     hub_error_REFUSED: "le NAS répond, mais le hub n’écoute pas sur ce port (conteneur arrêté ?)",
@@ -1603,6 +1628,7 @@
   // ---------------------------------------------------------------------------------------------
   function overviewView() {
     const warning = networkWarning();
+    const absence = hubUI.absenceBanner();
     const topo = topology();
     const legendItem = (color, style, label) => h("span", { class: "legend" }, h("i", { style: `border-color:${color};border-top-style:${style}` }), label);
     const topoCard = h("section", { class: "card" },
@@ -1613,11 +1639,12 @@
     const rows = h("div", { class: "rows" });
     const rowMap = new Map();
     const listCard = h("section", { class: "card" }, h("div", { class: "card-head" }, icon("list", "small"), S.devices_title, summary), rows);
-    const el = h("div", { class: "main-inner" }, warning.el, topoCard, listCard);
+    const el = h("div", { class: "main-inner" }, warning.el, absence.el, topoCard, listCard);
     return {
       el,
       update(now) {
         warning.update();
+        absence.update();
         topo.update(now);
         setText(summary, fmt(S.devices_summary, state.devices.length, state.settings.pollIntervalSeconds));
         syncList(rows, rowMap, state.devices, listRow, (row, d) => row.update(d, now));
@@ -1911,7 +1938,8 @@
 
   function emptyView() {
     const warning = networkWarning();
-    const el = h("div", { class: "main-inner narrow" }, warning.el,
+    const absence = hubUI.absenceBanner();
+    const el = h("div", { class: "main-inner narrow" }, warning.el, absence.el,
       h("div", { class: "empty" },
         logo(72),
         h("h2", { text: S.empty_title }),
@@ -1919,7 +1947,13 @@
         h("div", { class: "row-btns" },
           btn("primary big", S.action_add_device, () => openEditSheet(null), "plus"),
           btn("sec big", S.action_import_short, pickImportFile, "upload"))));
-    return { el, update: () => warning.update() };
+    return {
+      el,
+      update() {
+        warning.update();
+        absence.update();
+      },
+    };
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -2822,7 +2856,9 @@
       } else if (role) rows.push({ key: "role", label: S.detail_role, text: roleLabel(role) });
       if (state.hub && d.agentPin && !d.shared) {
         if (d.hub) {
-          rows.push({ key: "hub", label: S.detail_hub, text: fmt(S.detail_hub_entrusted, roleLabel(d.hub.role)), iconName: "nas", onClick: () => hubUI.open() });
+          const seen = hubUI.stateText(d.hub);
+          rows.push({ key: "hub", label: S.detail_hub, text: seen ? fmt(S.detail_hub_state, roleLabel(d.hub.role), seen) : fmt(S.detail_hub_entrusted, roleLabel(d.hub.role)),
+            iconName: "nas", onClick: () => hubUI.open() });
         } else if (role === "admin" && state.hub.role === "admin") {
           rows.push({ key: "hub", label: S.detail_hub, text: S.hub_entrust, iconName: "nas", onClick: () => hubUI.entrust(d.id) });
         }
@@ -3761,7 +3797,7 @@
           }
           parts.push(h("p", { class: "muted small", text: S.hub_devices_help }));
         }
-        content.replaceChildren(...parts);
+        content.replaceChildren(...parts.filter(Boolean));
       }
 
       function retentionRow(days) {
@@ -4054,7 +4090,91 @@
       }
     }
 
-    return { section, open: openHubSheet, entrust };
+    /** État d'un PC confié vu par le hub, avec son âge (« répond, il y a 12 s »). */
+    function stateText(v) {
+      if (!v?.state) return "";
+      const text = v.problem ? S["hub_pc_problem_" + v.problem] || S.hub_pc_state_unknown : S["hub_pc_state_" + v.state] || S.hub_pc_state_unknown;
+      return v.checked ? fmt(S.hub_seen_ago, text, formatDuration(Math.max(0, Date.now() - v.checked * 1000))) : text;
+    }
+
+    const EVENT_ICONS = { online: "power", offline: "power", agent_down: "warning", problem: "shield", lost: "bolt", disk: "warning", measure: "thermometer", wake: "send" };
+
+    /** Texte d'un évènement du hub : rédigé ici, à partir de ses codes (T38). */
+    function eventText(e) {
+      const who = e.name || S.absence_unknown_pc;
+      switch (e.k) {
+        case "online": return fmt(S.absence_online, who);
+        case "offline": return fmt(S.absence_offline, who);
+        case "agent_down": return fmt(S.absence_agent_down, who);
+        case "problem": return fmt(S.absence_problem, who, S["hub_pc_problem_" + e.x] || "");
+        case "lost": return fmt(S.absence_lost, who, (e.x && S["kind_lost_" + e.x]) || S.kind_lost);
+        case "disk": return fmt(e.x === "full" ? S.absence_disk_full : S.absence_disk_health, who);
+        case "measure": return fmt(S.absence_measure, who, S["measure_name_" + e.x] || fmt(S.measure_name_other, e.x));
+        case "wake": return e.self ? fmt(S.absence_wake_self, who) : e.i === "local" ? fmt(S.absence_wake_nas, who) : fmt(S.absence_wake_other, who, e.i);
+        default: return who;
+      }
+    }
+
+    function openAbsenceSheet() {
+      const content = h("div", { class: "admin" }, h("p", { class: "muted", text: S.hub_loading }));
+      const seenBtn = btn("primary", S.absence_seen, markSeen, "check");
+      seenBtn.disabled = true;
+      let last = 0;
+      const sheet = openSheet({
+        title: S.absence_title,
+        subtitle: state.hub?.name,
+        body: [content],
+        foot: [h("div", { class: "grow" }), btn("sec", S.close, () => sheet.close()), seenBtn],
+      });
+      load();
+
+      async function load() {
+        const r = await run("hubEvents");
+        if (!r.ok) {
+          content.replaceChildren(h("div", { class: "result ko" }, icon("warning", "small"), h("span", { text: failureText(r) })));
+          return;
+        }
+        last = r.events.reduce((m, e) => Math.max(m, e.t), 0);
+        seenBtn.disabled = r.events.length === 0;
+        const rows = r.events.map((e) => h("div", { class: "right-row admin-row event-row" },
+          h("span", { class: "ni" }, icon(EVENT_ICONS[e.k] || "info", "", 16)),
+          h("div", { class: "admin-who" },
+            h("b", { text: eventText(e) }),
+            h("small", { class: "muted", text: dayTimeFmt.format(new Date(e.t * 1000)) }))));
+        content.replaceChildren(...[
+          r.events.length ? h("div", { class: "rights" }, rows) : h("p", { class: "muted", text: S.absence_none }),
+          r.more ? h("p", { class: "muted small", text: S.absence_more }) : null,
+          h("p", { class: "muted small", text: S.absence_help })].filter(Boolean));
+      }
+
+      async function markSeen() {
+        if (!last) return;
+        const r = await run("hubEventsSeen", { until: last });
+        if (!r.ok) {
+          alertDialog(S.admin_failed, failureText(r));
+          return;
+        }
+        sheet.close();
+      }
+    }
+
+    /** Bandeau « Pendant votre absence » de la vue d'ensemble, quand le hub a vu des évènements. */
+    function absenceBanner() {
+      const text = h("span");
+      const el = h("div", { class: "absence hidden" }, icon("nas"), h("div", { class: "grow" }, h("b", { text: S.absence_title }), text),
+        btn("sec", S.absence_open, openAbsenceSheet));
+      return {
+        el,
+        update() {
+          const hub = state.hub;
+          const n = hub?.unseen || 0;
+          el.classList.toggle("hidden", n === 0);
+          if (n) setText(text, n === 1 ? fmt(S.absence_text_one, hub.name) : fmt(S.absence_text_many, hub.name, hub.more ? n + "+" : n));
+        },
+      };
+    }
+
+    return { section, open: openHubSheet, entrust, stateText, absenceBanner };
   })();
 
   // ---------------------------------------------------------------------------------------------
