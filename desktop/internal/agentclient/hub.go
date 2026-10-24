@@ -2,6 +2,7 @@ package agentclient
 
 import (
 	"context"
+	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/hubprotocol"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
@@ -12,6 +13,10 @@ import (
 // patronus-hub/1, son port et ses commandes. L'empreinte du hub est toujours exigée : rien n'est
 // envoyé à un service qui en présente une autre. Les refus du hub sont des erreurs de ce paquet
 // (Unregistered, Rejected avec le code du hub), comme pour un agent.
+
+// DefaultHubTimeout borne une session avec le hub, après la connexion : plus qu'avec un agent, car le
+// hub s'appaire lui-même à l'agent d'un PC qu'on lui confie (hub.pcs.add).
+const DefaultHubTimeout = 20 * time.Second
 
 // Hub est le hub tel que cet ordinateur le connaît.
 type Hub struct {
@@ -55,7 +60,11 @@ type HubOps struct{ s *client.Session }
 // HubSession ouvre une session patronus-hub/1 avec le hub et y mène run : plusieurs commandes, une
 // seule poignée de main.
 func (c *Client) HubSession(ctx context.Context, hub Hub, run func(context.Context, HubOps) error) error {
-	return c.sessionWith(ctx, hub.Host, hub.Port, hub.Pin, hubprotocol.ALPN, func(ctx context.Context, s *client.Session) error {
+	budget := c.HubTimeout
+	if budget <= 0 {
+		budget = DefaultHubTimeout
+	}
+	return c.sessionWith(ctx, hub.Host, hub.Port, hub.Pin, hubprotocol.ALPN, c.ConnectTimeout+budget, func(ctx context.Context, s *client.Session) error {
 		return run(ctx, HubOps{s: s})
 	})
 }

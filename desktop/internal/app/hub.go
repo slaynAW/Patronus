@@ -215,15 +215,10 @@ func (s *Service) hubInfo() map[string]any {
 	if status.Hub == nil {
 		return map[string]any{"ok": false, "code": agentclient.Protocol}
 	}
-	s.updateHub(h.Pin, func(n *hubstore.Hub) {
-		n.Role = status.Role
-		if name := strings.TrimSpace(status.Hub.Name); name != "" {
-			n.Name = name
-		}
-	})
+	s.keepSnapshot(h, status)
 	out := map[string]any{
 		"ok": true, "role": status.Role, "name": status.Hub.Name, "version": status.Hub.Version,
-		"started": status.Hub.Started, "short": shortPin(h.Pin), "pcs": len(status.PCs),
+		"started": status.Hub.Started, "short": shortPin(h.Pin), "pcs": s.hubPCViews(status.PCs, status.States),
 	}
 	if status.Role == protocol2.RoleAdmin.String() {
 		list := make([]map[string]any, 0, len(devices.Devices))

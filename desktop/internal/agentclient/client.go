@@ -167,6 +167,8 @@ type Client struct {
 	By string
 	// Identity fournit l'identité wolagent/2 de cet ordinateur (nil : wolagent/2 indisponible).
 	Identity func() (tls.Certificate, error)
+	// HubTimeout borne une session avec le hub après la connexion (DefaultHubTimeout si nul).
+	HubTimeout time.Duration
 }
 
 // New renvoie un client avec les délais de l'application Android (2 s / 4 s), qui se présente sous le

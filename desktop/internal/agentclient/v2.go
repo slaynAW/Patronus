@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"strconv"
+	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/protocol"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
@@ -103,13 +104,14 @@ func (c *Client) exchange2(ctx context.Context, host string, agent model.AgentSe
 // main TLS), y mène run, puis la ferme. Les délais sont ceux de wolagent/1 : connexion, puis deux
 // lectures au plus.
 func (c *Client) session(ctx context.Context, host string, agent model.AgentSettings, run func(context.Context, *client.Session) error) error {
-	return c.sessionWith(ctx, host, agent.Port, agent.Pin, "", run)
+	return c.sessionWith(ctx, host, agent.Port, agent.Pin, "", c.ConnectTimeout+2*c.ReadTimeout, run)
 }
 
 // sessionWith ouvre une session sur le transport de wolagent/2 avec le service host:port, dont
 // l'empreinte pinText est exigée, en proposant protocol (wolagent/2 si vide ; patronus-hub/1 pour le
-// hub), et y mène run.
-func (c *Client) sessionWith(ctx context.Context, host string, port int, pinText, protocol string, run func(context.Context, *client.Session) error) error {
+// hub), et y mène run ; budget borne la session entière.
+func (c *Client) sessionWith(ctx context.Context, host string, port int, pinText, protocol string, budget time.Duration,
+	run func(context.Context, *client.Session) error) error {
 	pin, err := protocol2.ParsePin(pinText)
 	if err != nil {
 		return &Error{Code: Protocol, Detail: "empreinte enregistrée invalide"}
@@ -121,7 +123,7 @@ func (c *Client) sessionWith(ctx context.Context, host string, port int, pinText
 	if err != nil {
 		return &Error{Code: NoIdentity, Detail: err.Error()}
 	}
-	ctx, cancel := context.WithTimeout(ctx, c.ConnectTimeout+2*c.ReadTimeout)
+	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 	var dialErr error
 	s, err := client.Dial(ctx, net.JoinHostPort(host, strconv.Itoa(port)), client.Options{

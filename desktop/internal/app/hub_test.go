@@ -39,7 +39,7 @@ func TestHubPairingAndAdmin(t *testing.T) {
 	info := call(t, s, "hubInfo", nil)
 	devices, _ := info["devices"].([]any)
 	if info["ok"] != true || info["role"] != "admin" || info["version"] != testhub.Version || len(devices) != 1 ||
-		info["retention"] != float64(365) || info["pcs"] != float64(0) {
+		info["retention"] != float64(365) || len(info["pcs"].([]any)) != 0 {
 		t.Fatalf("état du hub : %v", info)
 	}
 	if self, _ := devices[0].(map[string]any); self["self"] != true || self["short"] != s.identity.Existing().Pin.Short() {
