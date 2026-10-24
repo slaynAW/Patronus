@@ -23,6 +23,7 @@ import (
 
 	"github.com/slaynaw/wakeonlan/agent/internal/config"
 	"github.com/slaynaw/wakeonlan/agent/internal/devices"
+	"github.com/slaynaw/wakeonlan/agent/internal/guard"
 	"github.com/slaynaw/wakeonlan/agent/internal/history"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
 	"github.com/slaynaw/wakeonlan/agent/internal/power"
@@ -69,7 +70,7 @@ func startV2(t *testing.T, mutate func(*config.Config), setup func(*Server)) *v2
 }
 
 // lenient retire le blocage des adresses, pour enchaîner les refus dans un test.
-func lenient(s *Server) { s.limiter = newRateLimiter(1000, time.Minute, time.Minute) }
+func lenient(s *Server) { s.limiter = guard.NewLimiter(1000, time.Minute, time.Minute) }
 
 func newIdentity(t *testing.T) tls.Certificate {
 	t.Helper()
@@ -530,7 +531,7 @@ func TestV2Pairing(t *testing.T) {
 func TestV2PairingSuspension(t *testing.T) {
 	env := startV2(t, nil, lenient)
 	inv := do(t, env.local(t), protocol2.Request{Cmd: protocol2.CmdInvite}).Invite
-	for range pairingMaxFailures + 1 {
+	for range guard.PairingMaxFailures + 1 {
 		do(t, env.dial(t, newIdentity(t)), protocol2.Request{Cmd: protocol2.CmdPair, Code: "0000-0000"})
 	}
 	// Invitations annulées et appairage suspendu : même le bon code est refusé.
@@ -750,30 +751,5 @@ func TestTCPProbesAreNotFailures(t *testing.T) {
 	env.enroll(t, phone, protocol2.RoleView, "Pixel 8")
 	if resp := do(t, env.dial(t, phone), protocol2.Request{Cmd: "status"}); !resp.OK {
 		t.Fatalf("après des sondes TCP : %+v", resp)
-	}
-}
-
-func TestPairingGuard(t *testing.T) {
-	now := time.Date(2026, 10, 12, 15, 0, 0, 0, time.UTC)
-	g := newPairingGuard(func() time.Time { return now })
-	for i := range pairingMaxFailures {
-		if g.Fail() {
-			t.Fatalf("suspendu après %d échecs", i+1)
-		}
-		now = now.Add(10 * time.Second)
-	}
-	if !g.Fail() || !g.Suspended() {
-		t.Fatal("pas suspendu après 21 échecs en 10 minutes")
-	}
-	now = now.Add(pairingPause)
-	if g.Suspended() {
-		t.Error("toujours suspendu après 10 minutes")
-	}
-	// Échecs espacés de plus de 10 minutes : jamais de suspension.
-	for range 3 * pairingMaxFailures {
-		if g.Fail() {
-			t.Fatal("suspendu par des échecs espacés")
-		}
-		now = now.Add(pairingWindow / pairingMaxFailures)
 	}
 }
