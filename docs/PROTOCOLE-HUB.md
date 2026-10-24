@@ -96,7 +96,7 @@ invitation qui n'en précise pas.
 
 | Commande | Rôle minimal | Étape |
 |---|---|---|
-| `hub.status` | `view` | 2.0-C : `hub` (§4) ; les états des PC viendront avec la surveillance (2.0-D) |
+| `hub.status` | `view` | 2.0-C : `hub` (§4) ; 2.0-D : `pcs` et `states` (§6.2) |
 | `hub.events`, `hub.history`, `hub.metrics` | `view` | 2.0-D |
 | `hub.wake` | `wake` | 2.0-D |
 | `hub.pcs`, `hub.pcs.add`, `hub.pcs.update`, `hub.pcs.remove` | `admin` | 2.0-D : §6.1 |
@@ -144,6 +144,30 @@ l'application le fait (`devices.revoke` sur l'agent), ou `wol-agent devices revo
 Le hub ne joint que les adresses des réseaux privés, **sans l'adresse de bouclage** (le NAS se joint par son adresse
 sur le réseau local) : un nom d'hôte est résolu, et seules ses adresses privées sont essayées (T40). 64 PC et appareils
 au plus.
+
+### 6.2 État des PC (`hub.status`)
+
+En plus de `hub` (§4), la réponse porte `pcs` (comme `hub.pcs`, §6.1) et `states`, l'état de chacun, dans le même
+ordre :
+
+| Champ | Contenu |
+|---|---|
+| `id` | Identifiant du PC |
+| `state` | `unknown` (pas encore relevé), `online`, `offline` (rien ne répond), `agent_down` (le PC refuse la connexion au port de l'agent : il est allumé, l'agent arrêté) |
+| `since`, `checked` | Début de cet état, dernier relevé (secondes Unix, horloge du hub) |
+| `latency` | Durée du dernier relevé réussi, en millisecondes |
+| `problem` | Le PC est joint, mais pas relevé : `revoked` (l'agent ne connaît plus le hub), `pin_mismatch` (l'agent présente une autre empreinte : réinstallé, ou intermédiaire), `rate_limited` (l'agent bloque l'adresse du hub) |
+| `agent` | Dernière réponse de l'agent à `status` ([PROTOCOLE.md](PROTOCOLE.md#réponse-r) : système, températures, disques, mesures…), lue au relevé `checked` quand l'état est `online` |
+
+Les applications valident `agent` comme une réponse reçue directement d'un agent (mesures lues élément par élément,
+limites des textes).
+
+**Relevés** : `status` de chaque agent toutes les 15 s, sur une session gardée ouverte (rouverte quand l'agent la
+ferme : inactivité, 100 requêtes) ; sonde de chaque appareil toutes les 30 s ; 5 s au plus par relevé, 8 en même
+temps. Une sonde TCP compte comme réussie si le port accepte la connexion ; une page web, si elle répond (`HEAD /`,
+sans cookie ni identifiant, redirections jamais suivies, certificat non vérifié : rien n'est envoyé ni lu). Après un
+refus de l'agent, les relevés s'espacent : une minute après `revoked` ou `pin_mismatch`, délai doublé à chaque
+nouveau refus, 30 minutes au plus ; 5 minutes après `rate_limited`.
 
 ## 7. Lien d'appairage
 

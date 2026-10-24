@@ -7,7 +7,10 @@
 // (go test ./hubprotocol -run TestVectors -update).
 package hubprotocol
 
-import "github.com/slaynaw/wakeonlan/agent/protocol2"
+import (
+	"github.com/slaynaw/wakeonlan/agent/protocol"
+	"github.com/slaynaw/wakeonlan/agent/protocol2"
+)
 
 const (
 	// ALPN est le protocole applicatif annoncé dans TLS et dans le salut (§2).
@@ -195,6 +198,36 @@ type Response struct {
 	Hub     *Info                  `json:"hub,omitempty"`
 	PCs     []PCInfo               `json:"pcs,omitzero"`
 	PC      *PCInfo                `json:"pc,omitempty"`
+	// States : hub.status, état de chaque PC confié et appareil, dans l'ordre de PCs.
+	States []PCState `json:"states,omitzero"`
+}
+
+// États d'un PC vus par le hub (§6.2).
+const (
+	StateUnknown   = "unknown"    // pas encore relevé
+	StateOnline    = "online"     // l'agent répond, ou l'appareil répond à sa sonde
+	StateOffline   = "offline"    // rien ne répond
+	StateAgentDown = "agent_down" // le PC refuse la connexion au port de l'agent : il est allumé, l'agent non
+)
+
+// Problèmes du hub avec un agent (PCState.Problem) : le PC est joint, mais pas relevé.
+const (
+	ProblemRevoked     = "revoked"      // l'agent ne connaît plus le hub (retiré de ses appareils autorisés)
+	ProblemPinMismatch = "pin_mismatch" // l'agent présente une autre empreinte (réinstallé, ou intermédiaire)
+	ProblemBlocked     = "rate_limited" // l'agent bloque l'adresse du hub
+)
+
+// PCState est l'état d'un PC confié au hub ou d'un appareil sans agent.
+type PCState struct {
+	ID      string `json:"id"`
+	State   string `json:"state"`
+	Since   int64  `json:"since,omitempty"`   // début de cet état, secondes Unix
+	Checked int64  `json:"checked,omitempty"` // dernier relevé
+	Latency int64  `json:"latency,omitempty"` // durée du dernier relevé réussi, en millisecondes
+	Problem string `json:"problem,omitempty"`
+	// Agent est la dernière réponse de l'agent à « status » (état, températures, disques, mesures), lue au
+	// relevé Checked quand State vaut online.
+	Agent *protocol.ResponseBody `json:"agent,omitempty"`
 }
 
 // InviteInfo est l'invitation créée par invite : celle de wolagent/2, avec l'empreinte du hub (« hub »)

@@ -16,6 +16,7 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/internal/devices"
 	"github.com/slaynaw/wakeonlan/agent/internal/history"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
+	"github.com/slaynaw/wakeonlan/agent/internal/netinfo"
 	"github.com/slaynaw/wakeonlan/agent/internal/server"
 	"github.com/slaynaw/wakeonlan/agent/protocol"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
@@ -118,7 +119,7 @@ func openDeviceAdmin(cfg *config.Config, cfgPath string, id *identity.Identity, 
 		switch {
 		case err == nil:
 			return &deviceAdmin{session: session}, nil
-		case !connRefused(err):
+		case !netinfo.ConnRefused(err):
 			return nil, fmt.Errorf("connexion au service : %w", err)
 		case time.Now().Before(deadline):
 			time.Sleep(250 * time.Millisecond)

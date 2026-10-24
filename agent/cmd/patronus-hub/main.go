@@ -19,6 +19,7 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/internal/devices"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/agents"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/fleet"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/monitor"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/server"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/store"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
@@ -129,8 +130,10 @@ func serve(args []string) error {
 		return err
 	}
 	dialer := &agents.Dialer{Identity: id, Networks: agents.TargetNetworks()}
+	watch := monitor.New(pcs, dialer, logger)
 	srv, err := server.New(server.Config{
-		Name: name, Version: version, Identity: id, Registry: registry, Fleet: pcs, Agents: dialer, Logger: logger,
+		Name: name, Version: version, Identity: id, Registry: registry, Fleet: pcs, Agents: dialer, States: watch.States,
+		Logger: logger,
 	})
 	if err != nil {
 		return err
@@ -156,11 +159,15 @@ func serve(args []string) error {
 		}
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go watch.Run(ctx)
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-stop
 		logger.Printf("arrêt du hub")
+		cancel()
 		_ = ln.Close()
 	}()
 	return srv.Serve(ln)
