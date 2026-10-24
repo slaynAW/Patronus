@@ -316,6 +316,17 @@ jobs:
           # Identité de l'agent (créée à son démarrage) : wolagent/2 administré comme par wol-agent sur le PC.
           echo "WOL_E2E_IDENTITY=$RUNNER_TEMP/identity.key" >> "$GITHUB_ENV"
 
+      # Le vrai hub, pour HubEndToEndTest : son journal (lien d'appairage à usage unique) n'est jamais affiché.
+      - name: Hub de test
+        run: |
+          (cd agent && go build -o "$RUNNER_TEMP/patronus-hub" ./cmd/patronus-hub)
+          nohup "$RUNNER_TEMP/patronus-hub" serve --data "$RUNNER_TEMP/hub-data" --keys "$RUNNER_TEMP/hub-keys" \
+            --port 19771 --ip 127.0.0.1 --name "Hub CI" > "$RUNNER_TEMP/hub.log" 2>&1 &
+          for i in $(seq 1 50); do grep -q "lien : " "$RUNNER_TEMP/hub.log" && break; sleep 0.2; done
+          grep -q "lien : " "$RUNNER_TEMP/hub.log" || { echo "::error::le hub n'a pas démarré"; exit 1; }
+          echo "WOL_HUB_PORT=19771" >> "$GITHUB_ENV"
+          echo "WOL_HUB_LOG=$RUNNER_TEMP/hub.log" >> "$GITHUB_ENV"
+
       # Aucune clé de signature ici : l'APK est signé avec une clé de test. Seul le job « Publication
       # officielle » reçoit la clé définitive, après validation (docs/SIGNATURE.md).
       - name: Tests, lint et APK
@@ -335,6 +346,8 @@ jobs:
             core/build/test-results/test/TEST-io.github.slaynaw.wakeonlan.core.AgentEndToEndTest.xml
           grep -q 'tests="8" skipped="0" failures="0" errors="0"' \
             core/build/test-results/test/TEST-io.github.slaynaw.wakeonlan.core.Wolagent2EndToEndTest.xml
+          grep -q 'tests="2" skipped="0" failures="0" errors="0"' \
+            core/build/test-results/test/TEST-io.github.slaynaw.wakeonlan.core.HubEndToEndTest.xml
           cat "$RUNNER_TEMP/agent.log"
 
       # Rejoue la signature de publication (même script, même outil) avec une clé jetable : un

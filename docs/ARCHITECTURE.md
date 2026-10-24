@@ -12,6 +12,8 @@ Patronus/
 │   │               d'appairage v=1 et v=2, appairage par code, administration des appareils autorisés, passage
 │   │               automatique en wolagent/2 (AgentUpgrade)
 │   ├── agent2/     protocole wolagent/2 : empreintes, codes et liens, preuves de migration, trames, session TLS
+│   ├── hub/        client du hub sur le NAS (patronus-hub/1, 2.0, en cours, docs/PROTOCOLE-HUB.md) : liens, rôles,
+│   │               commandes, session
 │   ├── history/    historique sur 30 jours : fusion avec le journal des agents, déduction des changements
 │   ├── config/     JSON versionné + migrations, export/import chiffré
 │   ├── share/      partage des PC : format chiffré et signé, liens, client GitHub, QR code (docs/PARTAGE.md)
@@ -201,14 +203,14 @@ flowchart LR
 | Contrôle | Où |
 |---|---|
 | Tests unitaires `core` (plus de 60 tests : MAC, paquet, diffusion, protocole, client, config, export, états, surveillance, historique) | `./gradlew :core:test` |
-| Test de bout en bout app ↔ agent réel | CI (`AgentEndToEndTest`, `Wolagent2EndToEndTest`) |
+| Test de bout en bout app ↔ agent réel, app ↔ hub réel | CI (`AgentEndToEndTest`, `Wolagent2EndToEndTest`, `HubEndToEndTest`) |
 | Tests de l'agent (protocole, serveur, rejeu, force brute, config) sous Linux **et** Windows, détecteur de courses | CI |
 | Vecteurs cryptographiques communs, calculés indépendamment | `protocol/test-vectors.json` |
 | Vecteurs de `wolagent/2` : agent (Go), application Android (`core`, `Wolagent2Test`) et une troisième implémentation indépendante (Python, OpenSSL), à chaque build ; fuzzing des analyseurs | `protocol/v2-vectors.json`, `.github/scripts/check-v2-vectors.py` |
 | Scénario d'historique commun Kotlin ↔ Go (fusion, doublons, conservation) | `protocol/history-vectors.json` |
 | Mesures décrites par l'agent, lues élément par élément en Go et en Kotlin (validation, gravité) | `protocol/measure-vectors.json` |
 | Stockage chiffré du hub (dérivation des clés, fichiers entiers, journaux, cas refusés) : Go et une seconde implémentation en Python, à chaque build | `protocol/hub-store-vectors.json`, `.github/scripts/check-hub-store-vectors.py` |
-| Protocole du hub `patronus-hub/1` : liens d'appairage, salut, rôles et autorisation des commandes | `protocol/hub-vectors.json` |
+| Protocole du hub `patronus-hub/1` : liens d'appairage, salut, rôles et autorisation des commandes, en Go et en Kotlin (`core`, `HubTest`) | `protocol/hub-vectors.json` |
 | Tests de l'application Windows (Linux + Windows : DPAPI, ping, cartes réseau), tests de bout en bout contre l'agent (`wolagent/1`, `wolagent/2`, passage automatique) | CI |
 | Démarrage réel de l'application Windows (fenêtre WebView2, interface, pont Go ↔ JS) | CI (`WOL_SELFTEST`) |
 | Lint Android, `go vet` pour Windows/Linux/macOS, `gofmt` | CI |

@@ -9,9 +9,13 @@ import io.github.slaynaw.wakeonlan.core.agent.AgentStatus
 import io.github.slaynaw.wakeonlan.core.agent.AgentTemperatures
 import io.github.slaynaw.wakeonlan.core.net.NetworkBinder
 import io.github.slaynaw.wakeonlan.core.net.connectBound
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.IOException
@@ -146,24 +150,32 @@ class Wolagent2Client(
     /**
      * Ouvre une session avec l'agent [host]:[port]. [agent] est l'empreinte épinglée ; null seulement pour une
      * migration, dont la preuve vérifiera l'empreinte vue. [onSocket] reçoit la connexion dès sa création : la
-     * fermer interrompt l'ouverture (annulation).
+     * fermer interrompt l'ouverture (annulation). [protocol] est le protocole proposé dans TLS ; un autre que
+     * wolagent/2 (« patronus-hub/1 » pour le hub) doit aussi être celui annoncé par le salut.
      *
      * @throws Wolagent2Exception ou une [IOException] de connexion.
      */
-    fun connect(host: String, port: Int, identity: DeviceIdentity, agent: Pin?, onSocket: (Socket) -> Unit = {}): Wolagent2Session {
+    fun connect(
+        host: String,
+        port: Int,
+        identity: DeviceIdentity,
+        agent: Pin?,
+        onSocket: (Socket) -> Unit = {},
+        protocol: String = Wolagent2.ALPN,
+    ): Wolagent2Session {
         val socket = Socket()
         try {
             onSocket(socket)
             socket.connectBound(binder, InetSocketAddress(binder.resolve(host), port), connectTimeoutMs)
             socket.soTimeout = readTimeoutMs
-            readHello(socket.getInputStream())
+            readHello(socket.getInputStream(), expected = protocol.takeIf { it != Wolagent2.ALPN })
             val trust = PinningTrustManager(agent)
             val context = SSLContext.getInstance("TLSv1.3")
             context.init(arrayOf(IdentityKeyManager(identity)), arrayOf(trust), null)
             val ssl = context.socketFactory.createSocket(socket, host, port, true) as SSLSocket
             ssl.sslParameters = ssl.sslParameters.apply {
                 protocols = arrayOf("TLSv1.3")
-                applicationProtocols = arrayOf(Wolagent2.ALPN)
+                applicationProtocols = arrayOf(protocol)
                 serverNames = emptyList() // pas de SNI : l'agent est désigné par son adresse
             }
             try {
@@ -174,7 +186,7 @@ class Wolagent2Client(
                 }
                 throw e
             }
-            if (ssl.applicationProtocol != Wolagent2.ALPN) {
+            if (ssl.applicationProtocol != protocol) {
                 throw Wolagent2Exception(Wolagent2Exception.Reason.PROTOCOL, "protocole applicatif refusé")
             }
             val seen = trust.seen ?: throw Wolagent2Exception(Wolagent2Exception.Reason.PROTOCOL, "certificat de l'agent non vérifié")
@@ -185,8 +197,11 @@ class Wolagent2Client(
         }
     }
 
-    /** Lit la ligne de salut que l'agent envoie avant TLS (§3.1), sans rien lire au-delà. */
-    private fun readHello(input: InputStream) {
+    /**
+     * Lit la ligne de salut que l'agent envoie avant TLS (§3.1), sans rien lire au-delà ; [expected], s'il est
+     * donné, est le seul protocole accepté dans le salut.
+     */
+    private fun readHello(input: InputStream, expected: String?) {
         val line = ByteArrayOutputStream()
         while (true) {
             val b = input.read()
@@ -202,6 +217,8 @@ class Wolagent2Client(
                 throw Wolagent2Exception(Wolagent2Exception.Reason.RATE_LIMITED, "trop d'échecs depuis cette adresse")
             hello.error.isNotEmpty() || hello.proto.isEmpty() ->
                 throw Wolagent2Exception(Wolagent2Exception.Reason.NOT_AGENT, "salut inattendu")
+            expected != null && hello.proto != expected ->
+                throw Wolagent2Exception(Wolagent2Exception.Reason.NOT_AGENT, "ce service ne parle pas le protocole attendu")
         }
     }
 
@@ -311,23 +328,41 @@ class Wolagent2Session internal constructor(
         return exchange(Request2(cmd = Commands.MIGRATE, proof = Migration.encode(pd)))
     }
 
-    private fun exchange(request: Request2): Response2 {
+    private fun exchange(request: Request2): Response2 =
+        exchange(Wolagent2Client.json.encodeToJsonElement(Request2.serializer(), request).jsonObject, Response2.serializer())
+
+    /**
+     * Envoie une requête d'un autre protocole servi de la même façon, comme patronus-hub/1 : [request] est un objet
+     * JSON, dont le champ « id » est attribué ici ; la réponse est lue avec [serializer].
+     */
+    @Synchronized
+    fun <R> call(request: JsonObject, serializer: KSerializer<R>): R {
+        if (!pinned) throw Wolagent2Exception(Wolagent2Exception.Reason.UNPINNED, "empreinte du service non vérifiée")
+        return exchange(request, serializer)
+    }
+
+    private fun <R> exchange(request: JsonObject, serializer: KSerializer<R>): R {
         if (broken) throw Wolagent2Exception(Wolagent2Exception.Reason.PROTOCOL, "session interrompue")
-        val sent = request.copy(id = ++lastId)
+        val id = ++lastId
         try {
-            val payload = Wolagent2Client.json.encodeToString(Request2.serializer(), sent).toByteArray(Charsets.UTF_8)
-            Frames.write(socket.outputStream, payload, Wolagent2.MAX_REQUEST_BYTES)
+            val sent = JsonObject(request + ("id" to JsonPrimitive(id)))
+            Frames.write(socket.outputStream, sent.toString().toByteArray(Charsets.UTF_8), Wolagent2.MAX_REQUEST_BYTES)
             val raw = Frames.read(socket.inputStream, Wolagent2.MAX_RESPONSE_BYTES)
                 ?: throw Wolagent2Exception(Wolagent2Exception.Reason.PROTOCOL, "connexion fermée par l'agent")
-            val response = runCatching { Wolagent2Client.json.decodeFromString(Response2.serializer(), raw.toString(Charsets.UTF_8)) }
+            val text = raw.toString(Charsets.UTF_8)
+            val answered = runCatching { Wolagent2Client.json.decodeFromString(Head.serializer(), text).id }
                 .getOrElse { throw Wolagent2Exception(Wolagent2Exception.Reason.PROTOCOL, "réponse illisible", it) }
-            if (response.id != sent.id) throw Wolagent2Exception(Wolagent2Exception.Reason.PROTOCOL, "réponse à une autre requête")
-            return response
+            if (answered != id) throw Wolagent2Exception(Wolagent2Exception.Reason.PROTOCOL, "réponse à une autre requête")
+            return runCatching { Wolagent2Client.json.decodeFromString(serializer, text) }
+                .getOrElse { throw Wolagent2Exception(Wolagent2Exception.Reason.PROTOCOL, "réponse illisible", it) }
         } catch (e: IOException) {
             fail()
             throw e
         }
     }
+
+    @Serializable
+    private data class Head(val id: Long = 0)
 
     private fun fail() {
         broken = true
