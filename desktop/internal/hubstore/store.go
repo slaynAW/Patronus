@@ -26,6 +26,9 @@ type Hub struct {
 	Role string `json:"role"`
 	// Paired : date de l'appairage (secondes Unix).
 	Paired int64 `json:"paired"`
+	// EventsSeen : heure (horloge du hub, secondes Unix) du dernier évènement vu dans « Pendant votre
+	// absence » ; 0 : aucun, les évènements depuis l'appairage sont à voir.
+	EventsSeen int64 `json:"eventsSeen,omitempty"`
 }
 
 type file struct {

@@ -321,7 +321,7 @@ Une PR par étape, chacune testée en CI et fusionnée quand tout est vert :
 | 2.0-C | Hub : identité, registre des appareils (dans le stockage chiffré), serveur `patronus-hub/1`, appairage, commande `patronus-hub` ; spécification du protocole ([PROTOCOLE-HUB.md](PROTOCOLE-HUB.md)) et vecteurs : fait |
 | 2.0-D | Surveillance : agents confiés (§5.3, §7.1), sondes (§7.2), évènements (§7.3), fusion de l'historique en paquet commun, conservation et nettoyage ; tests de bout en bout contre le vrai agent : fait |
 | 2.0-E | Module `core` (Kotlin) : client `patronus-hub/1`, vérifié par les mêmes vecteurs et par un test de bout en bout contre le vrai hub : fait |
-| 2.0-F | Application Windows : réglages Hub, PC confiés, historique long, « Pendant votre absence » ; en cours (F1 : appairage, état et administration du hub ; F2 : PC confiés, appareils sans agent, réveil relayé par le hub ; éprouvés contre le vrai hub et de vrais agents par `agent/testhub`) |
+| 2.0-F | Application Windows : réglages Hub, PC confiés, historique long, « Pendant votre absence » ; en cours (F1 : appairage, état et administration du hub ; F2 : PC confiés, appareils sans agent, réveil relayé par le hub ; F3 : « Pendant votre absence », état vu par le hub ; éprouvés contre le vrai hub et de vrais agents par `agent/testhub`) |
 | 2.0-G | Application Android : idem |
 | 2.0-H | Programmations (§8), rôle `control` donné et retiré par l'application |
 | 2.0-I | Image de conteneur multi-architecture, attestation, publication ; guide `docs/HUB-SYNOLOGY.md` |
