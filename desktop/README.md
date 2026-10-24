@@ -104,7 +104,10 @@ envoyé par le hub) ; *Marquer comme vus* le fait disparaître. Le hub n'envoie 
 rédigés par l'application avec vos noms de PC, et un code inattendu est écarté. La ligne *Hub* de la fiche d'un PC
 confié indique son état vu par le hub et son âge (« répond, il y a 12 s »).
 
-L'historique et les mesures au-delà de 30 et 90 jours, lus sur le hub, viennent à l'étape suivante.
+**Historique long** : pour un PC confié, l'écran *Mesures* lit aussi ce que le hub garde (un an par défaut) : les
+mois proposés incluent ceux du hub, et chaque jour vient de l'agent, sinon du hub, sinon des archives GitHub. Le
+journal de l'agent fait foi sur la période qu'il couvre ; les évènements gardés par le hub n'y sont ajoutés qu'une
+fois, avec la cause la plus précise.
 
 ## Où sont mes données ?
 

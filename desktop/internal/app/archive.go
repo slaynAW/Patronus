@@ -732,8 +732,9 @@ type MetricsRangeView struct {
 	// Summary : moyenne et maximum de la période.
 	Summary MetricsPoint `json:"summary"`
 	Minutes int          `json:"minutes"`
-	// Agent / Archive : sources utilisées ; Notes : ce qui manque (PC injoignable, archives absentes…).
+	// Agent / Hub / Archive : sources utilisées ; Notes : ce qui manque (PC injoignable, archives absentes…).
 	Agent   bool     `json:"agent"`
+	Hub     bool     `json:"hub"`
 	Archive bool     `json:"archive"`
 	Notes   []string `json:"notes,omitempty"`
 }
@@ -759,7 +760,9 @@ func (s *Service) metricsRange(id string, fromMs, toMs int64, points int) (Metri
 	}
 	_, own := s.ownDevice(id)
 	acc := s.archiveAccess()
+	// Chaque jour vient de l'agent, sinon du hub (PC confié), sinon des archives GitHub.
 	var rows []protocol.MetricsRow
+	var rest []string
 	for day := time.Unix(from, 0).UTC().Truncate(24 * time.Hour); day.Unix() < to; day = day.AddDate(0, 0, 1) {
 		name := day.Format("2006-01-02")
 		if slices.Contains(agentDays, name) {
@@ -770,6 +773,19 @@ func (s *Service) metricsRange(id string, fromMs, toMs int64, points int) (Metri
 				continue
 			}
 			notes[agentNote(err)] = true
+		}
+		rest = append(rest, name)
+	}
+	_, _, entrusted := s.hubSource(d)
+	hubRows, err := s.hubMetrics(ctx, d, rest)
+	if err != nil {
+		notes["Hub injoignable : les mesures qu'il garde ne sont pas lues."] = true
+	}
+	for _, name := range rest {
+		if r, ok := hubRows[name]; ok {
+			rows = append(rows, r...)
+			view.Hub = true
+			continue
 		}
 		if own && acc.usable() && !d.MAC.IsZero() {
 			r, found, err := s.archiveDay(ctx, acc, d.MAC.String(), name)
@@ -782,7 +798,7 @@ func (s *Service) metricsRange(id string, fromMs, toMs int64, points int) (Metri
 			}
 		}
 	}
-	if own && !acc.usable() {
+	if own && !acc.usable() && !entrusted {
 		notes["Archives GitHub non configurées : seules les mesures gardées par le PC (90 jours) sont disponibles."] = true
 	}
 	view.Step, view.Points, view.Summary, view.Minutes = downsample(rows, from, to, points)
@@ -813,45 +829,67 @@ func (s *Service) agentDays(ctx context.Context, d model.Device) ([]string, erro
 		return nil, &agentclient.Error{Code: agentclient.NoKey}
 	}
 	a := s.archives
-	a.mu.Lock()
-	if c, ok := a.days[d.ID]; ok && s.now().Sub(c.at) < agentDaysTTL {
+	if a != nil {
+		a.mu.Lock()
+		if c, ok := a.days[d.ID]; ok && s.now().Sub(c.at) < agentDaysTTL {
+			a.mu.Unlock()
+			return c.days, c.err
+		}
 		a.mu.Unlock()
-		return c.days, c.err
 	}
-	a.mu.Unlock()
 	ctx, cancel := context.WithTimeout(ctx, archiveAgentTimeout)
 	defer cancel()
 	m, err := s.agent.Metrics(ctx, d.Host, *d.Agent, "")
-	a.mu.Lock()
-	a.days[d.ID] = cachedDays{days: m.Days, err: err, at: s.now()}
-	a.mu.Unlock()
+	if a != nil {
+		a.mu.Lock()
+		a.days[d.ID] = cachedDays{days: m.Days, err: err, at: s.now()}
+		a.mu.Unlock()
+	}
 	return m.Days, err
 }
 
 // agentDay lit un jour de mesures sur l'agent (jours passés gardés dix minutes, jour en cours 30 s).
 func (s *Service) agentDay(ctx context.Context, d model.Device, day string) ([]protocol.MetricsRow, error) {
 	cacheKey := "agent|" + d.ID + "|" + day
-	ttl := pastDayTTL
-	if day == s.now().UTC().Format("2006-01-02") {
-		ttl = todayTTL
+	if rows, ok := s.cachedRows(cacheKey, day); ok {
+		return rows, nil
 	}
-	a := s.archives
-	a.mu.Lock()
-	if c, ok := a.rows[cacheKey]; ok && s.now().Sub(c.at) < ttl {
-		a.mu.Unlock()
-		return c.rows, nil
-	}
-	a.mu.Unlock()
 	ctx, cancel := context.WithTimeout(ctx, archiveAgentTimeout)
 	defer cancel()
 	m, err := s.agent.Metrics(ctx, d.Host, *d.Agent, day)
 	if err != nil {
 		return nil, err
 	}
-	a.mu.Lock()
-	a.rows[cacheKey] = cachedRows{rows: m.Rows, at: s.now()}
-	a.mu.Unlock()
+	s.keepRows(cacheKey, m.Rows)
 	return m.Rows, nil
+}
+
+// cachedRows renvoie les mesures d'un jour gardées en cache sous key (jours passés dix minutes, jour en
+// cours 30 s).
+func (s *Service) cachedRows(key, day string) ([]protocol.MetricsRow, bool) {
+	a := s.archives
+	if a == nil {
+		return nil, false
+	}
+	ttl := pastDayTTL
+	if day == s.now().UTC().Format("2006-01-02") {
+		ttl = todayTTL
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if c, ok := a.rows[key]; ok && s.now().Sub(c.at) < ttl {
+		return c.rows, true
+	}
+	return nil, false
+}
+
+// keepRows garde en cache les mesures d'un jour.
+func (s *Service) keepRows(key string, rows []protocol.MetricsRow) {
+	if a := s.archives; a != nil {
+		a.mu.Lock()
+		a.rows[key] = cachedRows{rows: rows, at: s.now()}
+		a.mu.Unlock()
+	}
 }
 
 // archiveDay lit un jour de mesures d'un PC dans les archives (tous les Gists du mois que le mot de
@@ -916,6 +954,9 @@ func (s *Service) metricsJournal(id string, fromMs, toMs int64) (any, error) {
 			raw = append(raw, events...)
 		}
 	}
+	if events, err := s.hubJournal(ctx, d, fromMs/1000, toMs/1000); err == nil {
+		raw = append(raw, events...)
+	}
 	_, own := s.ownDevice(id)
 	if acc := s.archiveAccess(); own && acc.usable() && !d.MAC.IsZero() {
 		months, err := s.archiveMonths(ctx, acc.token, false)
@@ -958,21 +999,25 @@ func (s *Service) metricsJournal(id string, fromMs, toMs int64) (any, error) {
 
 func (s *Service) agentJournal(ctx context.Context, d model.Device) ([]protocol.HistoryEvent, error) {
 	a := s.archives
-	a.mu.Lock()
-	if c, ok := a.journals[d.ID]; ok && s.now().Sub(c.at) < agentDaysTTL {
+	if a != nil {
+		a.mu.Lock()
+		if c, ok := a.journals[d.ID]; ok && s.now().Sub(c.at) < agentDaysTTL {
+			a.mu.Unlock()
+			return c.events, nil
+		}
 		a.mu.Unlock()
-		return c.events, nil
 	}
-	a.mu.Unlock()
 	ctx, cancel := context.WithTimeout(ctx, archiveAgentTimeout)
 	defer cancel()
 	h, err := s.agent.History(ctx, d.Host, *d.Agent)
 	if err != nil {
 		return nil, err
 	}
-	a.mu.Lock()
-	a.journals[d.ID] = cachedJournal{events: h.Events, at: s.now()}
-	a.mu.Unlock()
+	if a != nil {
+		a.mu.Lock()
+		a.journals[d.ID] = cachedJournal{events: h.Events, at: s.now()}
+		a.mu.Unlock()
+	}
 	return h.Events, nil
 }
 
@@ -987,20 +1032,30 @@ func compareInt(a, b int64) int {
 }
 
 // metricsMonths renvoie les mois archivés sur GitHub (du plus récent au plus ancien).
-func (s *Service) metricsMonths(refresh bool) (any, error) {
-	acc := s.archiveAccess()
-	if !acc.usable() || s.archives == nil {
-		return map[string]any{"months": []string{}, "configured": false}, nil
-	}
+func (s *Service) metricsMonths(id string, refresh bool) (any, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), viewTimeout)
 	defer cancel()
-	months, err := s.archiveMonths(ctx, acc.token, refresh)
-	if err != nil {
-		return nil, err
+	set := map[string]bool{}
+	configured := false
+	// Mois gardés par le hub pour ce PC (s'il lui est confié), puis ceux des archives GitHub.
+	if d, ok := s.device(id); ok && id != "" {
+		for _, m := range s.hubMonths(ctx, d) {
+			set[m] = true
+		}
 	}
-	list := slices.Sorted(maps.Keys(months))
+	if acc := s.archiveAccess(); acc.usable() && s.archives != nil {
+		months, err := s.archiveMonths(ctx, acc.token, refresh)
+		if err != nil && len(set) == 0 {
+			return nil, err
+		}
+		configured = err == nil
+		for m := range months {
+			set[m] = true
+		}
+	}
+	list := slices.Sorted(maps.Keys(set))
 	slices.Reverse(list)
-	return map[string]any{"months": list, "configured": true}, nil
+	return map[string]any{"months": list, "configured": configured}, nil
 }
 
 // --- Réduction des mesures pour les graphiques ---

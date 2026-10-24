@@ -604,7 +604,7 @@ func (s *Service) dispatch(method string, p callParams) (any, error) {
 	case "metricsJournal":
 		return s.metricsJournal(p.ID, p.From, p.To)
 	case "metricsMonths":
-		return s.metricsMonths(p.Refresh)
+		return s.metricsMonths(p.ID, p.Refresh)
 	case "getHistory":
 		if p.Refresh {
 			s.refreshAgentHistories(p.ID, true)

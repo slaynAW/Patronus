@@ -159,7 +159,7 @@
     metrics_loading: "Chargement des mesures…",
     metrics_journal: "Journal",
     metrics_journal_empty: "Aucun évènement sur cette période.",
-    metrics_sources: "Une ligne par minute (trait plein : moyenne, trait fin : maximum), lue sur le PC (90 derniers jours) ou dans les archives chiffrées GitHub.",
+    metrics_sources: "Une ligne par minute (trait plein : moyenne, trait fin : maximum), lue sur le PC (90 derniers jours), sur le hub du NAS pour un PC qui lui est confié (un an par défaut), ou dans les archives chiffrées GitHub.",
     metrics_coverage: "%1$s de mesures",
     temperature_gpu_shared: "intégré au CPU",
     temperature_gpu_shared_help: "%1$s est intégré au processeur et n’a pas de sonde à part : c’est la température de la puce, la même que celle du processeur.",
@@ -3319,7 +3319,7 @@
 
     async function loadMonths() {
       try {
-        const r = await api.call("metricsMonths", {});
+        const r = await api.call("metricsMonths", { id: deviceId });
         if (!r.months?.length) return;
         const group = h("optgroup", { label: S.metrics_months });
         const monthFmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
