@@ -13,7 +13,15 @@ import io.github.slaynaw.wakeonlan.core.hub.HubLinkResult
 import io.github.slaynaw.wakeonlan.core.hub.HubProbe
 import io.github.slaynaw.wakeonlan.core.hub.HubProtocol
 import io.github.slaynaw.wakeonlan.core.hub.HubRequest
+import io.github.slaynaw.wakeonlan.core.hub.HubManager
 import io.github.slaynaw.wakeonlan.core.hub.HubService
+import io.github.slaynaw.wakeonlan.core.hub.HubStore
+import io.github.slaynaw.wakeonlan.core.hub.PairOutcome
+import io.github.slaynaw.wakeonlan.core.hub.PairedHub
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -150,6 +158,59 @@ class HubEndToEndTest {
         if (agentPort != null) {
             val wrong = service.pair(link.copy(port = agentPort), now) as AgentResult.Failure
             assertEquals(AgentError.OTHER_SERVICE, wrong.error)
+        }
+    }
+
+    /** Le gestionnaire du hub des applications (état, relevés, évènements vus, oubli), avec un troisième lien. */
+    @Test
+    fun `gestionnaire du hub`() = runBlocking {
+        val text = File(System.getenv("WOL_HUB_PAIR2")).readLines().first { "lien : " in it }.substringAfter("lien : ").trim()
+        val phone = TestIdentities.newDevice()
+        val store = MemoryHubStore()
+        val service = HubService(deviceName = { "Pixel manager CI" }, identity = { phone })
+        val manager = HubManager(this, store, service, AgentClient(), selfPin = { phone.pin.toString() })
+        // Liens refusés avant tout échange.
+        assertTrue(manager.pair("wolagent://pair?v=2&h=192.168.1.20&a=${phone.pin}&c=7KQ29MXP") is PairOutcome.BadLink)
+        assertTrue(manager.pair("n'importe quoi") is PairOutcome.BadLink)
+        val paired = manager.pair("  $text  ") as PairOutcome.Paired
+        assertTrue(!paired.already && paired.hub.isAdmin && store.hub.value == paired.hub, "$paired")
+        val state = manager.state.first { it.snapshot != null }
+        assertEquals("Hub CI", state.snapshot?.info?.name)
+        // Un autre hub n'est pas accepté en même temps.
+        val other = TestIdentities.newDevice().pin
+        assertEquals(PairOutcome.OtherHub, manager.pair("patronus://hub?v=1&h=192.168.1.30&a=$other&c=7KQ29MXP"))
+
+        // Réveil d'un appareil par le hub : évènement non vu, puis vu.
+        val box = manager.addDevice("Box manager", "192.168.1.3", "aa:bb:cc:dd:ee:03", HubProbe("http")).value()
+        assertTrue(manager.change(HubRequest(cmd = HubProtocol.WAKE, pc = box.id)) is AgentResult.Success)
+        manager.refresh()
+        val wake = manager.state.first { s -> s.unseen.any { it.k == "wake" && it.pc == box.id } }.unseen.first { it.pc == box.id }
+        manager.markSeen(wake.t)
+        manager.state.first { s -> s.unseen.none { it.pc == box.id && it.t <= wake.t } }
+        assertEquals(wake.t, store.hub.value?.eventsSeen)
+        manager.refresh()
+        assertTrue(manager.state.first { it.hub?.eventsSeen == wake.t }.unseen.none { it.pc == box.id && it.t <= wake.t })
+        assertTrue(manager.remove(box.id, emptyList()) is AgentResult.Success)
+        manager.state.first { s -> s.snapshot?.pcs?.none { it.id == box.id } == true }
+        assertEquals(730, manager.retention(730).value())
+        assertEquals(AgentError.REJECTED, (manager.retention(30) as AgentResult.Failure).error)
+
+        // Un second administrateur ; puis ce téléphone se retire en oubliant le hub.
+        val invite = manager.invite(Role.ADMIN, 600, "Second").value()
+        val second = HubManager(this, MemoryHubStore(), HubService(identity = { TestIdentities.newDevice() }), AgentClient(), selfPin = { null })
+        assertTrue(second.pair(invite.link) is PairOutcome.Paired)
+        assertTrue(manager.forget())
+        assertNull(store.hub.value)
+        assertNull(manager.state.first { it.hub == null }.snapshot)
+        coroutineContext.cancelChildren()
+    }
+
+    private class MemoryHubStore : HubStore {
+        private val flow = MutableStateFlow<PairedHub?>(null)
+        override val hub: StateFlow<PairedHub?> = flow
+        override suspend fun current(): PairedHub? = flow.value
+        override suspend fun update(transform: (PairedHub?) -> PairedHub?) {
+            flow.value = transform(flow.value)
         }
     }
 

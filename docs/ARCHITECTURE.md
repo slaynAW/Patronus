@@ -13,7 +13,8 @@ Patronus/
 │   │               automatique en wolagent/2 (AgentUpgrade)
 │   ├── agent2/     protocole wolagent/2 : empreintes, codes et liens, preuves de migration, trames, session TLS
 │   ├── hub/        hub sur le NAS (patronus-hub/1, 2.0, en cours, docs/PROTOCOLE-HUB.md) : liens, rôles, commandes,
-│   │               session, évènements admis ; HubService (appairage, relevés, administration, PC confiés, archive)
+│   │               session, évènements admis ; HubService (appairage, relevés, administration, PC confiés, archive) et
+│   │               HubManager (état, relevé périodique, évènements vus), pour l'application Android
 │   ├── history/    historique sur 30 jours : fusion avec le journal des agents, déduction des changements
 │   ├── config/     JSON versionné + migrations, export/import chiffré
 │   ├── share/      partage des PC : format chiffré et signé, liens, client GitHub, QR code (docs/PARTAGE.md)
