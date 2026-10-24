@@ -1,8 +1,7 @@
 # Hub Patronus sur le NAS (2.0) : conception
 
-> **Statut : conception soumise à validation.** Aucune ligne de code du hub n'est écrite avant que ce document et
-> les menaces qu'il ajoute ([MODELE-DE-MENACE.md](MODELE-DE-MENACE.md#f9-à-f12--hub-sur-le-nas-20-en-conception))
-> soient validés. Les choix encore ouverts sont rassemblés au §15.
+> **Statut : conception validée le 24/10/2026**, décisions du §15 retenues telles que recommandées ; réalisation en
+> cours (§14). Menaces ajoutées : [MODELE-DE-MENACE.md](MODELE-DE-MENACE.md#f9-à-f12--hub-sur-le-nas-20-en-conception).
 
 Le hub est une présence permanente à la maison : il surveille, retient et agit même quand le téléphone et les PC sont
 éteints. Il tourne dans un conteneur sur le NAS. Première cible : **Synology DS218+** (DSM 7.2, processeur Intel
@@ -53,8 +52,9 @@ l'historique est complet ; la revue de sécurité (§15, décision 4) n'a laiss�
 └────────────────────────┘
 ```
 
-- **Même base de code que l'agent** : un module Go `hub/` qui réutilise `agent/protocol`, `agent/protocol2` et son
-  client (`agent/protocol2/client`). Les règles communes encore internes à l'application Windows (fusion de
+- **Même base de code que l'agent** : le hub vit dans le module de l'agent (`agent/cmd/patronus-hub`,
+  `agent/internal/hub/…`), pour réutiliser sans les dupliquer son identité, son registre des appareils, son serveur
+  TLS, `agent/protocol2` et son client. Les règles communes encore internes à l'application Windows (fusion de
   l'historique, `desktop/internal/history`) passent dans un paquet public de `agent/`, vérifié par les mêmes vecteurs.
 - **Un seul binaire statique** (`CGO_ENABLED=0`), sans dépendance nouvelle, dans une image `scratch` d'environ
   10 Mo, multi-architecture (`amd64`, `arm64`). Le même binaire est publié seul pour les Linux sans conteneur.
@@ -213,9 +213,19 @@ allumé 4 h par jour, 70 Mo pour un PC qui ne s'éteint jamais.
 - Pas de moteur de base de données (aucune dépendance) : des fichiers **ajout seul**, une suite d'enregistrements
   chiffrés un par un, ce qui résiste à une coupure de courant (un enregistrement tronqué en fin de fichier est ignoré).
 - **AES-256-GCM**, nonce aléatoire de 96 bits par enregistrement ; une clé par fichier dérivée par **HKDF-SHA256** de
-  la clé des données, avec le chemin du fichier comme information (un enregistrement déplacé d'un fichier à l'autre
-  est refusé). `hub.db` est réécrit en entier à chaque changement (fichier temporaire puis renommage).
-- Vecteurs de test dans `protocol/hub-store-vectors.json`, comme pour les autres formats.
+  la clé des données (sans sel ; information : `patronus-hub/1 file key`, un octet nul, puis le chemin du fichier) :
+  un enregistrement déplacé d'un fichier à l'autre est refusé. `hub.db` est réécrit en entier à chaque changement
+  (fichier temporaire, écriture sur le disque, puis renommage).
+- **Fichier entier** : `PHF1`, nonce, texte chiffré et étiquette ; données authentifiées : `PHF1` puis le chemin.
+- **Journal** : `PHJ1`, puis chaque enregistrement : longueur du reste (4 octets, gros-boutiste), nonce, texte chiffré
+  et étiquette ; données authentifiées : `PHJ1`, rang de l'enregistrement (8 octets, gros-boutiste) puis le chemin.
+  Un enregistrement retiré, interverti ou modifié rend le journal illisible ; un enregistrement incomplet en fin de
+  journal est ignoré, puis remplacé au prochain ajout. 1 Mio au plus par enregistrement, 64 Mio par fichier entier.
+- La clé des données (`/keys/data.key`, PEM, `0600`) n'est jamais remplacée si elle est illisible : une nouvelle clé
+  rendrait toutes les données illisibles.
+- Vecteurs de test dans `protocol/hub-store-vectors.json` (paquet `agent/internal/hub/store`), recalculés à chaque
+  build par une seconde implémentation écrite d'après ce paragraphe, en Python sans bibliothèque externe
+  (`.github/scripts/check-hub-store-vectors.py`).
 - En clair : le nombre de PC, les mois couverts et la taille des fichiers.
 
 ### 9.3 Contre quoi protège ce chiffrement
@@ -303,10 +313,10 @@ Une PR par étape, chacune testée en CI et fusionnée quand tout est vert :
 
 | Étape | Contenu |
 |---|---|
-| 2.0-A | Ce document et le modèle de menace (validation) |
-| 2.0-B | Paquets communs (client `wolagent/2`, fusion de l'historique) ; module `hub/` : identité, registre, serveur `patronus-hub/1`, appairage ; vecteurs |
-| 2.0-C | Stockage chiffré (§9) et ses vecteurs ; conservation et nettoyage |
-| 2.0-D | Surveillance : agents confiés (§5.3, §7.1), sondes (§7.2), évènements (§7.3) ; tests de bout en bout contre le vrai agent |
+| 2.0-A | Ce document et le modèle de menace (validation) : fait |
+| 2.0-B | Stockage chiffré (§9) et ses vecteurs, recalculés par une seconde implémentation |
+| 2.0-C | Hub : identité, registre des appareils (dans le stockage chiffré), serveur `patronus-hub/1`, appairage ; spécification du protocole et vecteurs |
+| 2.0-D | Surveillance : agents confiés (§5.3, §7.1), sondes (§7.2), évènements (§7.3), fusion de l'historique en paquet commun, conservation et nettoyage ; tests de bout en bout contre le vrai agent |
 | 2.0-E | Module `core` (Kotlin) : client `patronus-hub/1`, vérifié par les mêmes vecteurs |
 | 2.0-F | Application Windows : réglages Hub, PC confiés, historique long, « Pendant votre absence » |
 | 2.0-G | Application Android : idem |

@@ -1,0 +1,157 @@
+{
+  "description": "Stockage chiffré du hub (docs/HUB.md, §9) : clé de chaque fichier dérivée par HKDF-SHA256 (sans sel, information « patronus-hub/1 file key », un octet nul, puis le chemin), AES-256-GCM. Fichier entier : « PHF1 », nonce, texte chiffré et étiquette ; données authentifiées : « PHF1 » puis le chemin. Journal : « PHJ1 », puis chaque enregistrement : longueur du reste (4 octets, gros-boutiste), nonce, texte chiffré et étiquette ; données authentifiées : « PHJ1 », rang de l'enregistrement (8 octets, gros-boutiste) puis le chemin. Produits par agent/internal/hub/store (go test ./internal/hub/store -run TestVectors -update), recalculés indépendamment par .github/scripts/check-hub-store-vectors.py.",
+  "key": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "fileKeys": [
+    {
+      "path": "hub.db",
+      "key": "8f870e0b4ebc61613dbc033ba4442648da8323021857ae9128357a01f4c3d820"
+    },
+    {
+      "path": "pc/q2Xh0bE9mGk4J1tYw7RfZA/2026-10.bin",
+      "key": "e270d79ec614fdc9e1eb29939b3e4fec99880824542740541c1d3507543808eb"
+    },
+    {
+      "path": "pc/q2Xh0bE9mGk4J1tYw7RfZA/2026-11.bin",
+      "key": "bcab2ad50e41411643803a885941c42aa5c5f4226ac96aab4a33ddcc16804508"
+    }
+  ],
+  "files": [
+    {
+      "name": "registre du hub",
+      "path": "hub.db",
+      "nonce": "a0a0a0a0a0a0a0a0a0a0a0a0",
+      "plaintext": "{\"devices\":[],\"invites\":[],\"pcs\":[{\"id\":\"q2Xh0bE9mGk4J1tYw7RfZA\",\"name\":\"PC Bureau\"}]}",
+      "sealed": "50484631a0a0a0a0a0a0a0a0a0a0a0a0ddb77b96f4095d5689522ea45c53ebf2dc6888fb492ce1a852de3be0e34a44b51237f85572dc774a8353b84f9f1cd17f160b57b9735df0c4cf11ec5d853714ccd09460b135571fe7076ad4b59ad47f863935bd6e702e49f544adfe1fb6ecc076829097af548e"
+    },
+    {
+      "name": "fichier vide",
+      "path": "hub.db",
+      "nonce": "a1a1a1a1a1a1a1a1a1a1a1a1",
+      "plaintext": "",
+      "sealed": "50484631a1a1a1a1a1a1a1a1a1a1a1a14b69975d7fc56021de5048afcce852a0"
+    }
+  ],
+  "journals": [
+    {
+      "name": "trois enregistrements, dont un vide",
+      "path": "pc/q2Xh0bE9mGk4J1tYw7RfZA/2026-10.bin",
+      "records": [
+        {
+          "nonce": "101010101010101010101010",
+          "plaintext": "{\"t\":1790000000,\"k\":\"status\",\"s\":\"online\"}"
+        },
+        {
+          "nonce": "111111111111111111111111",
+          "plaintext": "{\"t\":1790000060,\"k\":\"status\",\"s\":\"online\"}"
+        },
+        {
+          "nonce": "121212121212121212121212",
+          "plaintext": ""
+        }
+      ],
+      "sealed": "50484a3100000046101010101010101010101010364b12ec575b27ca3f1ffc94f7c229e73e98e1ab0dcf5053c011c7754d7bb4676a9788e3be52f60d2c28e6490584f01136aea2b4fa7c077f68f500000046111111111111111111111111e392981ca0a887c59814425395005afa28991862821c3b3286b83a6a287b8725c5e752bf888dd47580e309f798c367eb0231f7884c7d3687ea9e0000001c1212121212121212121212123b871bf2422e3e1411c52cc0fb1e6684"
+    },
+    {
+      "name": "journal vide",
+      "path": "pc/q2Xh0bE9mGk4J1tYw7RfZA/2026-11.bin",
+      "records": [],
+      "sealed": "50484a31"
+    },
+    {
+      "name": "enregistrement incomplet en fin de journal (coupure de courant)",
+      "path": "pc/q2Xh0bE9mGk4J1tYw7RfZA/2026-10.bin",
+      "records": [
+        {
+          "nonce": "101010101010101010101010",
+          "plaintext": "{\"t\":1790000000,\"k\":\"status\",\"s\":\"online\"}"
+        },
+        {
+          "nonce": "111111111111111111111111",
+          "plaintext": "{\"t\":1790000060,\"k\":\"status\",\"s\":\"online\"}"
+        }
+      ],
+      "sealed": "50484a3100000046101010101010101010101010364b12ec575b27ca3f1ffc94f7c229e73e98e1ab0dcf5053c011c7754d7bb4676a9788e3be52f60d2c28e6490584f01136aea2b4fa7c077f68f500000046111111111111111111111111e392981ca0a887c59814425395005afa28991862821c3b3286b83a6a287b8725c5e752bf888dd47580e309f798c367eb0231f7884c7d3687ea9e",
+      "tail": "000000397f7f7f7f7f7f7f7f7f7f7f7fd10b263c3ecf61695093caaa91fe1ed8fb41d5f55b8ca475fac8bdca4dd68c1fb316d64c9a837a84"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "fichier lu sous un autre chemin",
+      "kind": "file",
+      "path": "hub.bak",
+      "data": "50484631a0a0a0a0a0a0a0a0a0a0a0a0ddb77b96f4095d5689522ea45c02ced52c2770b9b3f3ecb984a097c3621a"
+    },
+    {
+      "name": "fichier : un octet du texte chiffré modifié",
+      "kind": "file",
+      "path": "hub.db",
+      "data": "50484631a0a0a0a0a0a0a0a0a0a0a0a0dcb77b96f4095d5689522ea45c02ced52c2770b9b3f3ecb984a097c3621a"
+    },
+    {
+      "name": "fichier : étiquette modifiée",
+      "kind": "file",
+      "path": "hub.db",
+      "data": "50484631a0a0a0a0a0a0a0a0a0a0a0a0ddb77b96f4095d5689522ea45c02ced52c2770b9b3f3ecb984a097c3621b"
+    },
+    {
+      "name": "fichier : nonce modifié",
+      "kind": "file",
+      "path": "hub.db",
+      "data": "50484631a1a0a0a0a0a0a0a0a0a0a0a0ddb77b96f4095d5689522ea45c02ced52c2770b9b3f3ecb984a097c3621a"
+    },
+    {
+      "name": "fichier : en-tête de journal",
+      "kind": "file",
+      "path": "hub.db",
+      "data": "50484a31a0a0a0a0a0a0a0a0a0a0a0a0ddb77b96f4095d5689522ea45c02ced52c2770b9b3f3ecb984a097c3621a"
+    },
+    {
+      "name": "fichier trop court",
+      "kind": "file",
+      "path": "hub.db",
+      "data": "50484631a0a0a0a0a0a0a0a0a0a0a0a0ddb77b96f4095d5689522ea45c02ce"
+    },
+    {
+      "name": "journal : enregistrements intervertis",
+      "kind": "journal",
+      "path": "pc/q2Xh0bE9mGk4J1tYw7RfZA/2026-10.bin",
+      "data": "50484a3100000046111111111111111111111111e392981ca0a887c59814425395005afa28991862821c3b3286b83a6a287b8725c5e752bf888dd47580e309f798c367eb0231f7884c7d3687ea9e00000046101010101010101010101010364b12ec575b27ca3f1ffc94f7c229e73e98e1ab0dcf5053c011c7754d7bb4676a9788e3be52f60d2c28e6490584f01136aea2b4fa7c077f68f5"
+    },
+    {
+      "name": "journal : premier enregistrement retiré",
+      "kind": "journal",
+      "path": "pc/q2Xh0bE9mGk4J1tYw7RfZA/2026-10.bin",
+      "data": "50484a3100000046111111111111111111111111e392981ca0a887c59814425395005afa28991862821c3b3286b83a6a287b8725c5e752bf888dd47580e309f798c367eb0231f7884c7d3687ea9e"
+    },
+    {
+      "name": "journal : enregistrement d'un autre journal",
+      "kind": "journal",
+      "path": "pc/q2Xh0bE9mGk4J1tYw7RfZA/2026-10.bin",
+      "data": "50484a3100000046101010101010101010101010d2a5fceba004d511530963deb788226f53ef3c8d17acb6e542e3dea533b427137b89ab23e1c2449bcaf148e683c8f10033412acbca3ca352dc45"
+    },
+    {
+      "name": "journal : texte chiffré modifié",
+      "kind": "journal",
+      "path": "pc/q2Xh0bE9mGk4J1tYw7RfZA/2026-10.bin",
+      "data": "50484a3100000046101010101010101010101010374b12ec575b27ca3f1ffc94f7c229e73e98e1ab0dcf5053c011c7754d7bb4676a9788e3be52f60d2c28e6490584f01136aea2b4fa7c077f68f5"
+    },
+    {
+      "name": "journal : en-tête de fichier entier",
+      "kind": "journal",
+      "path": "pc/q2Xh0bE9mGk4J1tYw7RfZA/2026-10.bin",
+      "data": "5048463100000046101010101010101010101010364b12ec575b27ca3f1ffc94f7c229e73e98e1ab0dcf5053c011c7754d7bb4676a9788e3be52f60d2c28e6490584f01136aea2b4fa7c077f68f5"
+    },
+    {
+      "name": "journal : longueur inférieure au nonce et à l'étiquette",
+      "kind": "journal",
+      "path": "pc/q2Xh0bE9mGk4J1tYw7RfZA/2026-10.bin",
+      "data": "50484a310000001b000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "journal : longueur au-delà de la limite",
+      "kind": "journal",
+      "path": "pc/q2Xh0bE9mGk4J1tYw7RfZA/2026-10.bin",
+      "data": "50484a310010001d"
+    }
+  ]
+}

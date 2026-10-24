@@ -37,7 +37,8 @@ Patronus/
 │   ├── protocol/   protocole partagé avec l'application Windows
 │   ├── update/     mises à jour (manifeste signé, téléchargement vérifié), partagé avec l'application Windows
 │   └── internal/   server, config, history (journal 30 jours), power, service, selfupdate (mise à jour guidée
-│                   sous Windows), pairing, netinfo, sysinfo, terminal
+│                   sous Windows), pairing, netinfo, sysinfo, terminal ; hub/ : hub sur le NAS (2.0, en cours,
+│                   docs/HUB.md), dont store (stockage chiffré)
 └── protocol/    vecteurs de test communs Kotlin ↔ Go (protocole, paquet magique, sauvegardes, historique,
                  mises à jour, partage, QR code)
 ```
@@ -204,6 +205,7 @@ flowchart LR
 | Vecteurs de `wolagent/2` : agent (Go), application Android (`core`, `Wolagent2Test`) et une troisième implémentation indépendante (Python, OpenSSL), à chaque build ; fuzzing des analyseurs | `protocol/v2-vectors.json`, `.github/scripts/check-v2-vectors.py` |
 | Scénario d'historique commun Kotlin ↔ Go (fusion, doublons, conservation) | `protocol/history-vectors.json` |
 | Mesures décrites par l'agent, lues élément par élément en Go et en Kotlin (validation, gravité) | `protocol/measure-vectors.json` |
+| Stockage chiffré du hub (dérivation des clés, fichiers entiers, journaux, cas refusés) : Go et une seconde implémentation en Python, à chaque build | `protocol/hub-store-vectors.json`, `.github/scripts/check-hub-store-vectors.py` |
 | Tests de l'application Windows (Linux + Windows : DPAPI, ping, cartes réseau), tests de bout en bout contre l'agent (`wolagent/1`, `wolagent/2`, passage automatique) | CI |
 | Démarrage réel de l'application Windows (fenêtre WebView2, interface, pont Go ↔ JS) | CI (`WOL_SELFTEST`) |
 | Lint Android, `go vet` pour Windows/Linux/macOS, `gofmt` | CI |
