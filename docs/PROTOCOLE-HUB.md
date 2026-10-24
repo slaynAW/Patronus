@@ -7,9 +7,12 @@ protocole applicatif, son port, ses rôles et ses commandes. Les menaces auxquel
 
 - Implémentation de référence : [`agent/hubprotocol`](../agent/hubprotocol) (fonctions pures),
   [`agent/internal/hub/server`](../agent/internal/hub/server) (serveur), commande `patronus-hub`
-  ([`agent/cmd/patronus-hub`](../agent/cmd/patronus-hub)).
-- Vecteurs communs : [`protocol/hub-vectors.json`](../protocol/hub-vectors.json) (liens, salut, rôles, autorisation).
-- **État** : étape 2.0-D. Le hub sert l'appairage, les appareils autorisés, les invitations, `hub.status`, les PC
+  ([`agent/cmd/patronus-hub`](../agent/cmd/patronus-hub)). Client des applications :
+  [`core/…/core/hub`](../core/src/main/kotlin/io/github/slaynaw/wakeonlan/core/hub) (Kotlin), éprouvé à chaque
+  build contre le vrai hub (`HubEndToEndTest`).
+- Vecteurs communs : [`protocol/hub-vectors.json`](../protocol/hub-vectors.json) (liens, salut, rôles, autorisation),
+  lus en Go et en Kotlin.
+- **État** : étape 2.0-E. Le hub sert l'appairage, les appareils autorisés, les invitations, `hub.status`, les PC
   confiés (`hub.pcs.*`), leur archive (`hub.history`, `hub.metrics`), ses réglages (`hub.settings`), les évènements
   (`hub.events`) et le réveil (`hub.wake`) ; les programmations (§6) répondent `unsupported` jusqu'à leur étape
   ([HUB.md](HUB.md#14-plan-de-réalisation)).

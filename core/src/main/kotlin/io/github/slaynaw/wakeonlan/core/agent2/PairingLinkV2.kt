@@ -14,6 +14,19 @@ import java.nio.charset.CodingErrorAction
 class InvalidLinkException(val field: String) : IllegalArgumentException("lien d'appairage invalide ($field)")
 
 /**
+ * Famille de liens d'appairage aux mêmes paramètres (§7.1) : celui d'un agent ([PairingLinkV2.AGENT]) et celui du
+ * hub (docs/PROTOCOLE-HUB.md, §7).
+ */
+data class LinkFormat(
+    /** Début du lien, en minuscules (la casse est indifférente à la lecture). */
+    val prefix: String,
+    /** Valeur exigée de « v ». */
+    val version: String,
+    /** Port quand « p » est absent. */
+    val defaultPort: Int,
+)
+
+/**
  * Lien d'appairage `v=2` (§7.1). Il ne contient aucun secret durable : l'empreinte de l'agent est publique, et le
  * code ne sert qu'une fois, pendant quelques minutes.
  */
@@ -36,8 +49,8 @@ data class PairingLinkV2(
     fun expired(now: Long): Boolean = expires != 0L && now >= expires
 
     /** Le lien, paramètres dans l'ordre de la spécification, sans ceux qui sont vides. */
-    fun text(): String = PREFIX + buildList {
-        add("v=2")
+    fun text(format: LinkFormat = AGENT): String = format.prefix + buildList {
+        add("v=" + format.version)
         if (name.isNotEmpty()) add("n=" + escape(name))
         add("h=" + escape(host))
         if (port != 0) add("p=$port")
@@ -54,6 +67,9 @@ data class PairingLinkV2(
 
     companion object {
         const val PREFIX = "wolagent://pair?"
+
+        /** Lien d'appairage v=2 d'un agent. */
+        val AGENT = LinkFormat(PREFIX, "2", Wolagent2.DEFAULT_PORT)
         const val MAX_LENGTH = 2048
         const val MAX_EXPIRES = 253_402_300_799L
         private val DIGITS_5 = Regex("[0-9]{1,5}")
@@ -67,12 +83,12 @@ data class PairingLinkV2(
          *
          * @throws InvalidLinkException
          */
-        fun parse(text: String): PairingLinkV2 {
+        fun parse(text: String, format: LinkFormat = AGENT): PairingLinkV2 {
             fun fail(field: String): Nothing = throw InvalidLinkException(field)
             val link = text.trim(' ', '\t', '\r', '\n')
-            if (link.toByteArray(Charsets.UTF_8).size > MAX_LENGTH || !hasPrefix(link)) fail("format")
+            if (link.toByteArray(Charsets.UTF_8).size > MAX_LENGTH || !hasPrefix(link, format.prefix)) fail("format")
             val params = LinkedHashMap<String, String>()
-            for (part in link.substring(PREFIX.length).split('&')) {
+            for (part in link.substring(format.prefix.length).split('&')) {
                 if (part.isEmpty()) continue
                 val eq = part.indexOf('=')
                 if (eq <= 0) fail("format")
@@ -81,14 +97,14 @@ data class PairingLinkV2(
                 if (name in params) fail("duplicate")
                 params[name] = value
             }
-            if (params["v"] != "2") fail("v")
+            if (params["v"] != format.version) fail("v")
             val host = params["h"].orEmpty()
             if (!DeviceValidator.isValidHost(host)) fail("h")
             val agent = Pin.parse(params["a"].orEmpty()) ?: fail("a")
             val code = PairingCode.normalize(params["c"].orEmpty()) ?: fail("c")
             val port = params["p"]?.let { p ->
                 p.takeIf { DIGITS_5.matches(it) }?.toInt()?.takeIf { it in 1..65535 } ?: fail("p")
-            } ?: Wolagent2.DEFAULT_PORT
+            } ?: format.defaultPort
             val mac = params["m"]?.let { m ->
                 val canonical = m.uppercase().replace('-', ':')
                 if (!MAC.matches(m) || canonical == "00:00:00:00:00:00" || canonical == "FF:FF:FF:FF:FF:FF") fail("m")
@@ -104,10 +120,10 @@ data class PairingLinkV2(
         }
 
         /** Préfixe sans tenir compte de la casse des lettres ASCII, et d'elles seules. */
-        private fun hasPrefix(link: String): Boolean =
-            link.length >= PREFIX.length && PREFIX.indices.all { i ->
+        private fun hasPrefix(link: String, prefix: String): Boolean =
+            link.length >= prefix.length && prefix.indices.all { i ->
                 val c = link[i]
-                (if (c in 'A'..'Z') c + ('a' - 'A') else c) == PREFIX[i]
+                (if (c in 'A'..'Z') c + ('a' - 'A') else c) == prefix[i]
             }
 
         /** Décodage de formulaire strict : `%` suivi de deux chiffres hexadécimaux, `+` pour une espace, UTF-8 valide. */
