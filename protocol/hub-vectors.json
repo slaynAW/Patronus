@@ -1,5 +1,5 @@
 {
-  "description": "Vecteurs de patronus-hub/1 (docs/PROTOCOLE-HUB.md) : liens d'appairage du hub, salut, rôles et autorisation des commandes. Produits par agent/hubprotocol (go test ./hubprotocol -run TestVectors -update) ; relus par l'application Android (core).",
+  "description": "Vecteurs de patronus-hub/1 (docs/PROTOCOLE-HUB.md) : liens d'appairage du hub, salut, rôles, autorisation des commandes et évènements admis par les applications (T38). Produits par agent/hubprotocol (go test ./hubprotocol -run TestVectors -update) ; relus par l'application Android (core).",
   "protocol": "patronus-hub/1",
   "port": 9771,
   "hello": "{\"proto\":\"patronus-hub/1\"}",
@@ -932,5 +932,212 @@
       "cmd": "pair",
       "minRole": ""
     }
-  ]
+  ],
+  "events": {
+    "valid": [
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "online"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "offline"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "agent_down"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "problem",
+        "x": "revoked"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "problem",
+        "x": "pin_mismatch"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "problem",
+        "x": "rate_limited"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "lost"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "lost",
+        "x": "bsod"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "lost",
+        "x": "button"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "lost",
+        "x": "power"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "lost",
+        "x": "hardware"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "disk",
+        "x": "health"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "disk",
+        "x": "full"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "measure",
+        "x": "mem"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "measure",
+        "x": "battery"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "measure",
+        "x": "gpu.0-fan_1"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "wake",
+        "i": "local"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "wake",
+        "i": "7KQ2-9MXP-4D1Z"
+      }
+    ],
+    "invalid": [
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "reboot"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "online",
+        "x": "texte"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "offline",
+        "i": "7KQ2-9MXP-4D1Z"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "problem",
+        "x": "Appelez le 0800 000 000"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "problem"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "lost",
+        "x": "virus"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "disk"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "disk",
+        "x": "full",
+        "i": "x"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "measure",
+        "x": "Mesure grave !"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "measure"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "measure",
+        "x": "aaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "wake",
+        "i": "https://exemple.fr"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "wake",
+        "i": "7KQ2-9MXP-4D1U"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "wake",
+        "x": "x",
+        "i": "local"
+      },
+      {
+        "t": 1790000000,
+        "pc": "pc-1",
+        "k": "wake"
+      },
+      {
+        "t": 0,
+        "pc": "pc-1",
+        "k": "online"
+      },
+      {
+        "t": 1790000000,
+        "pc": "",
+        "k": "online"
+      }
+    ]
+  }
 }

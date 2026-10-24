@@ -324,8 +324,13 @@ jobs:
             --port 19771 --ip 127.0.0.1 --name "Hub CI" > "$RUNNER_TEMP/hub.log" 2>&1 &
           for i in $(seq 1 50); do grep -q "lien : " "$RUNNER_TEMP/hub.log" && break; sleep 0.2; done
           grep -q "lien : " "$RUNNER_TEMP/hub.log" || { echo "::error::le hub n'a pas démarré"; exit 1; }
+          # Liens d'appairage suivants (administrateur), comme « patronus-hub pair » sur le NAS : jamais affichés non plus.
+          "$RUNNER_TEMP/patronus-hub" pair --keys "$RUNNER_TEMP/hub-keys" --port 19771 --ip 127.0.0.1 > "$RUNNER_TEMP/hub-pair.txt"
+          "$RUNNER_TEMP/patronus-hub" pair --keys "$RUNNER_TEMP/hub-keys" --port 19771 --ip 127.0.0.1 > "$RUNNER_TEMP/hub-pair2.txt"
           echo "WOL_HUB_PORT=19771" >> "$GITHUB_ENV"
           echo "WOL_HUB_LOG=$RUNNER_TEMP/hub.log" >> "$GITHUB_ENV"
+          echo "WOL_HUB_PAIR=$RUNNER_TEMP/hub-pair.txt" >> "$GITHUB_ENV"
+          echo "WOL_HUB_PAIR2=$RUNNER_TEMP/hub-pair2.txt" >> "$GITHUB_ENV"
 
       # Aucune clé de signature ici : l'APK est signé avec une clé de test. Seul le job « Publication
       # officielle » reçoit la clé définitive, après validation (docs/SIGNATURE.md).
@@ -346,7 +351,7 @@ jobs:
             core/build/test-results/test/TEST-io.github.slaynaw.wakeonlan.core.AgentEndToEndTest.xml
           grep -q 'tests="8" skipped="0" failures="0" errors="0"' \
             core/build/test-results/test/TEST-io.github.slaynaw.wakeonlan.core.Wolagent2EndToEndTest.xml
-          grep -q 'tests="2" skipped="0" failures="0" errors="0"' \
+          grep -q 'tests="4" skipped="0" failures="0" errors="0"' \
             core/build/test-results/test/TEST-io.github.slaynaw.wakeonlan.core.HubEndToEndTest.xml
           cat "$RUNNER_TEMP/agent.log"
 

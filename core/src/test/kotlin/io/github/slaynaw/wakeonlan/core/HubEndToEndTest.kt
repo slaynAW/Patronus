@@ -1,14 +1,30 @@
 package io.github.slaynaw.wakeonlan.core
 
+import io.github.slaynaw.wakeonlan.core.agent.AgentClient
+import io.github.slaynaw.wakeonlan.core.agent.AgentError
+import io.github.slaynaw.wakeonlan.core.agent.AgentResult
 import io.github.slaynaw.wakeonlan.core.agent2.Commands
+import io.github.slaynaw.wakeonlan.core.agent2.Role
 import io.github.slaynaw.wakeonlan.core.agent2.ResponseCode
 import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2Client
 import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2Exception
 import io.github.slaynaw.wakeonlan.core.hub.HubClient
+import io.github.slaynaw.wakeonlan.core.hub.HubLinkResult
 import io.github.slaynaw.wakeonlan.core.hub.HubProbe
 import io.github.slaynaw.wakeonlan.core.hub.HubProtocol
 import io.github.slaynaw.wakeonlan.core.hub.HubRequest
+import io.github.slaynaw.wakeonlan.core.hub.HubManager
+import io.github.slaynaw.wakeonlan.core.hub.HubService
+import io.github.slaynaw.wakeonlan.core.hub.HubStore
+import io.github.slaynaw.wakeonlan.core.hub.PairOutcome
+import io.github.slaynaw.wakeonlan.core.hub.PairedHub
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -88,6 +104,119 @@ class HubEndToEndTest {
         client.connect("127.0.0.1", port, tablet, link.agent).use { s ->
             assertEquals(ResponseCode.UNKNOWN_DEVICE, s.request(HubRequest(cmd = HubProtocol.STATUS)).code)
         }
+    }
+
+    /** Le service du hub des applications, avec le lien d'un second administrateur (patronus-hub pair, CI). */
+    @Test
+    fun `service du hub`() = runBlocking {
+        val text = File(System.getenv("WOL_HUB_PAIR")).readLines().first { "lien : " in it }.substringAfter("lien : ").trim()
+        val now = System.currentTimeMillis() / 1000
+        val link = (HubLinkResult.read(text, now) as HubLinkResult.Valid).link
+        val phone = TestIdentities.newDevice()
+        val service = HubService(deviceName = { "Pixel 9 CI" }, identity = { phone })
+        val pairing = service.pair(link, now).value()
+        val hub = pairing.hub
+        assertTrue(!pairing.already && hub.name == "Hub CI" && hub.isAdmin && hub.pin == link.agent.toString(), "$pairing")
+        // Le lien a servi : un nouvel appairage de la même identité retrouve son rôle sans le code.
+        assertTrue(service.pair(link, now).value().already)
+
+        val admin = service.admin(hub).value()
+        assertTrue(admin.devices.any { it.name == "Pixel 9 CI" && it.self } && admin.retention in 90..1095, "$admin")
+
+        // Invitation au rôle view, lien du hub ; pas de rôle control sur le hub.
+        val invite = service.invite(hub, Role.VIEW, 600, "Tablette").value()
+        val invited = (HubLinkResult.read(invite.link, now) as HubLinkResult.Valid).link
+        assertTrue(invited.role == Role.VIEW && invited.agent == link.agent && invite.code.length == 9, invite.link)
+        assertEquals(AgentError.REJECTED, (service.invite(hub, Role.CONTROL, 600, "") as AgentResult.Failure).error)
+        val tabletId = TestIdentities.newDevice()
+        val tablet = HubService(deviceName = { "Tablette CI" }, identity = { tabletId })
+        val viewer = tablet.pair(invited, now).value().hub
+        assertEquals("view", viewer.role)
+        assertTrue(tablet.read(viewer) is AgentResult.Success)
+        assertEquals(ResponseCode.INSUFFICIENT_ROLE, (tablet.admin(viewer) as AgentResult.Failure).code)
+
+        // Appareil sans agent avec MAC : réveil par le hub, vu dans les évènements avec l'empreinte de ce téléphone.
+        val box = service.addDevice(hub, "Box service", "192.168.1.2", "aa:bb:cc:dd:ee:02", HubProbe("http")).value()
+        assertTrue(service.request(hub, HubRequest(cmd = HubProtocol.WAKE, pc = box.id)) is AgentResult.Success)
+        val snapshot = service.read(hub).value()
+        assertTrue(snapshot.pcs.any { it.id == box.id } && snapshot.stateOf(box.id) != null, "$snapshot")
+        val wake = snapshot.events.firstOrNull { it.k == "wake" && it.pc == box.id }
+        assertTrue(wake != null && wake.i == phone.pin.short() && snapshot.dropped == 0, "${snapshot.events}")
+        // Vus jusqu'à ce réveil : il ne revient plus.
+        val seen = hub.copy(eventsSeen = wake!!.t)
+        assertTrue(service.read(seen).value().events.none { it.k == "wake" && it.pc == box.id && it.t <= wake.t })
+
+        assertEquals(emptyList<String>(), service.metricsDays(hub, box.id).value())
+        assertEquals(emptyMap<String, Any>(), service.metrics(hub, box.id, listOf("2026-01-01")).value())
+        assertEquals(emptyList<Any>(), service.journal(hub, box.id, 0, now + 60).value())
+        val removal = service.remove(hub, AgentClient(), box.id, null).value()
+        assertTrue(removal.pc.id == box.id)
+        assertNull(removal.agentRevoked)
+        assertEquals(ResponseCode.BAD_REQUEST, (service.remove(hub, AgentClient(), box.id, null) as AgentResult.Failure).code)
+
+        // Le port d'un agent n'est pas un hub : refusé avant l'envoi du code.
+        if (agentPort != null) {
+            val wrong = service.pair(link.copy(port = agentPort), now) as AgentResult.Failure
+            assertEquals(AgentError.OTHER_SERVICE, wrong.error)
+        }
+    }
+
+    /** Le gestionnaire du hub des applications (état, relevés, évènements vus, oubli), avec un troisième lien. */
+    @Test
+    fun `gestionnaire du hub`() = runBlocking {
+        val text = File(System.getenv("WOL_HUB_PAIR2")).readLines().first { "lien : " in it }.substringAfter("lien : ").trim()
+        val phone = TestIdentities.newDevice()
+        val store = MemoryHubStore()
+        val service = HubService(deviceName = { "Pixel manager CI" }, identity = { phone })
+        val manager = HubManager(this, store, service, AgentClient(), selfPin = { phone.pin.toString() })
+        // Liens refusés avant tout échange.
+        assertTrue(manager.pair("wolagent://pair?v=2&h=192.168.1.20&a=${phone.pin}&c=7KQ29MXP") is PairOutcome.BadLink)
+        assertTrue(manager.pair("n'importe quoi") is PairOutcome.BadLink)
+        val paired = manager.pair("  $text  ") as PairOutcome.Paired
+        assertTrue(!paired.already && paired.hub.isAdmin && store.hub.value == paired.hub, "$paired")
+        val state = manager.state.first { it.snapshot != null }
+        assertEquals("Hub CI", state.snapshot?.info?.name)
+        // Un autre hub n'est pas accepté en même temps.
+        val other = TestIdentities.newDevice().pin
+        assertEquals(PairOutcome.OtherHub, manager.pair("patronus://hub?v=1&h=192.168.1.30&a=$other&c=7KQ29MXP"))
+
+        // Réveil d'un appareil par le hub : évènement non vu, puis vu.
+        val box = manager.addDevice("Box manager", "192.168.1.3", "aa:bb:cc:dd:ee:03", HubProbe("http")).value()
+        assertTrue(manager.change(HubRequest(cmd = HubProtocol.WAKE, pc = box.id)) is AgentResult.Success)
+        manager.refresh()
+        val wake = manager.state.first { s -> s.unseen.any { it.k == "wake" && it.pc == box.id } }.unseen.first { it.pc == box.id }
+        manager.markSeen(wake.t)
+        manager.state.first { s -> s.unseen.none { it.pc == box.id && it.t <= wake.t } }
+        assertEquals(wake.t, store.hub.value?.eventsSeen)
+        manager.refresh()
+        assertTrue(manager.state.first { it.hub?.eventsSeen == wake.t }.unseen.none { it.pc == box.id && it.t <= wake.t })
+        assertTrue(manager.remove(box.id, emptyList()) is AgentResult.Success)
+        manager.state.first { s -> s.snapshot?.pcs?.none { it.id == box.id } == true }
+        assertEquals(730, manager.retention(730).value())
+        assertEquals(AgentError.REJECTED, (manager.retention(30) as AgentResult.Failure).error)
+
+        // Un second administrateur ; puis ce téléphone se retire en oubliant le hub.
+        val invite = manager.invite(Role.ADMIN, 600, "Second").value()
+        val second = HubManager(this, MemoryHubStore(), HubService(identity = { TestIdentities.newDevice() }), AgentClient(), selfPin = { null })
+        assertTrue(second.pair(invite.link) is PairOutcome.Paired)
+        assertTrue(manager.forget())
+        assertNull(store.hub.value)
+        assertNull(manager.state.first { it.hub == null }.snapshot)
+        coroutineContext.cancelChildren()
+    }
+
+    private class MemoryHubStore : HubStore {
+        private val flow = MutableStateFlow<PairedHub?>(null)
+        override val hub: StateFlow<PairedHub?> = flow
+        override suspend fun current(): PairedHub? = flow.value
+        override suspend fun update(transform: (PairedHub?) -> PairedHub?) {
+            flow.value = transform(flow.value)
+        }
+    }
+
+    private fun <T> AgentResult<T>.value(): T = when (this) {
+        is AgentResult.Success -> value
+        is AgentResult.Failure -> error("échec : $error $code $detail")
     }
 
     @Test

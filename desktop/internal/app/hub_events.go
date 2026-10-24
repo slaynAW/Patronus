@@ -1,7 +1,6 @@
 package app
 
 import (
-	"regexp"
 	"slices"
 
 	"github.com/slaynaw/wakeonlan/agent/hubprotocol"
@@ -12,8 +11,9 @@ import (
 // « Pendant votre absence » (docs/HUB.md, §12) : les évènements détectés par le hub depuis que
 // l'utilisateur les a vus pour la dernière fois. Ce sont des codes (type, PC, heure, précision) :
 // l'interface rédige le texte avec les noms de PC de cet ordinateur et n'affiche jamais de texte libre
-// ni de lien venus du hub (T38). Une précision inattendue est écartée ici ; seul le nom d'un appareil
-// sans agent, que cet ordinateur ne connaît pas, vient du hub.
+// ni de lien venus du hub (T38). Un évènement fait d'autre chose que de codes connus est écarté
+// (hubprotocol.ValidEvent, mêmes vecteurs que l'application Android) ; seul le nom d'un appareil sans
+// agent, que cet ordinateur ne connaît pas, vient du hub.
 
 // hubEventsState : évènements non vus du hub d'empreinte pin (verrou hubMu).
 type hubEventsState struct {
@@ -21,19 +21,6 @@ type hubEventsState struct {
 	events []hubprotocol.Event
 	more   bool
 }
-
-var (
-	measureIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,23}$`)
-	shortPinPattern  = regexp.MustCompile(`^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$`)
-	// eventDetails : précisions admises par type d'évènement (§6.5) ; nil : aucune.
-	eventDetails = map[string][]string{
-		hubprotocol.EventOnline: nil, hubprotocol.EventOffline: nil, hubprotocol.EventAgentDown: nil,
-		hubprotocol.EventProblem: {hubprotocol.ProblemRevoked, hubprotocol.ProblemPinMismatch, hubprotocol.ProblemBlocked},
-		hubprotocol.EventLost:    {"", "bsod", "button", "power", "hardware"},
-		hubprotocol.EventDisk:    {"health", "full"},
-		hubprotocol.EventMeasure: nil, hubprotocol.EventWake: nil,
-	}
-)
 
 // eventsSince renvoie le début des évènements à demander au hub h : après le dernier vu, ou depuis
 // l'appairage.
@@ -50,7 +37,7 @@ func (s *Service) keepEvents(h hubstore.Hub, resp hubprotocol.Response) {
 	since := eventsSince(h)
 	kept := make([]hubprotocol.Event, 0, len(resp.Events))
 	for _, e := range resp.Events {
-		if e.T >= since && validEvent(e) {
+		if e.T >= since && hubprotocol.ValidEvent(e) {
 			kept = append(kept, e)
 		}
 	}
@@ -60,22 +47,6 @@ func (s *Service) keepEvents(h hubstore.Hub, resp hubprotocol.Response) {
 	s.hubMu.Lock()
 	s.hubEvents = hubEventsState{pin: h.Pin, events: kept, more: resp.More}
 	s.hubMu.Unlock()
-}
-
-// validEvent vérifie qu'un évènement n'est fait que de codes connus.
-func validEvent(e hubprotocol.Event) bool {
-	allowed, known := eventDetails[e.K]
-	switch {
-	case !known || e.T <= 0 || e.PC == "":
-		return false
-	case e.K == hubprotocol.EventMeasure:
-		return measureIDPattern.MatchString(e.X) && e.I == ""
-	case e.K == hubprotocol.EventWake:
-		return e.X == "" && (e.I == "local" || shortPinPattern.MatchString(e.I))
-	case allowed == nil:
-		return e.X == "" && e.I == ""
-	}
-	return slices.Contains(allowed, e.X) && e.I == ""
 }
 
 // unseenEvents renvoie les évènements non vus du hub appairé.

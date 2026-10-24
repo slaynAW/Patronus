@@ -61,6 +61,35 @@ object HubProtocol {
         return if (role != null && role in ROLES && role >= minimum) ResponseCode.OK else ResponseCode.INSUFFICIENT_ROLE
     }
 
+    /** Précisions des évènements (§6.5) admises pour chaque type ; liste vide : aucune. */
+    private val EVENT_DETAILS: Map<String, List<String>> = mapOf(
+        "online" to emptyList(), "offline" to emptyList(), "agent_down" to emptyList(),
+        "measure" to emptyList(), "wake" to emptyList(),
+        "problem" to listOf("revoked", "pin_mismatch", "rate_limited"),
+        "lost" to listOf("", "bsod", "button", "power", "hardware"),
+        "disk" to listOf("health", "full"),
+    )
+    private val MEASURE_ID = Regex("[a-z0-9][a-z0-9._-]{0,23}")
+    private val SHORT_PIN = Regex("[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}")
+
+    /** Réveil demandé sur le NAS (HubEvent.i). */
+    const val WAKE_LOCAL = "local"
+
+    /**
+     * Un évènement n'est fait que de codes connus (§6.5). L'application écarte les autres sans rien en afficher : un
+     * hub compromis pourrait y glisser du texte ou un lien (T38).
+     */
+    fun validEvent(e: HubEvent): Boolean {
+        val allowed = EVENT_DETAILS[e.k] ?: return false
+        return when {
+            e.t <= 0 || e.pc.isEmpty() -> false
+            e.k == "measure" -> MEASURE_ID.matches(e.x) && e.i.isEmpty()
+            e.k == "wake" -> e.x.isEmpty() && (e.i == WAKE_LOCAL || SHORT_PIN.matches(e.i))
+            allowed.isEmpty() -> e.x.isEmpty() && e.i.isEmpty()
+            else -> e.x in allowed && e.i.isEmpty()
+        }
+    }
+
     /**
      * Lit un lien d'appairage du hub ; un rôle annoncé doit être un rôle du hub.
      *

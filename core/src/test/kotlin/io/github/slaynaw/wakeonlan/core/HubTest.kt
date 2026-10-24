@@ -3,10 +3,13 @@ package io.github.slaynaw.wakeonlan.core
 import io.github.slaynaw.wakeonlan.core.agent2.InvalidLinkException
 import io.github.slaynaw.wakeonlan.core.agent2.PairingLinkV2
 import io.github.slaynaw.wakeonlan.core.agent2.Role
+import io.github.slaynaw.wakeonlan.core.hub.HubEvent
 import io.github.slaynaw.wakeonlan.core.hub.HubProtocol
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.io.File
@@ -37,6 +40,9 @@ class HubTest {
     private data class CommandRole(val cmd: String, val minRole: String = "")
 
     @Serializable
+    private data class Events(val valid: List<HubEvent>, val invalid: List<HubEvent>)
+
+    @Serializable
     private data class Vectors(
         val protocol: String,
         val port: Int,
@@ -45,6 +51,7 @@ class HubTest {
         val roles: List<String>,
         val authorize: List<Auth>,
         val commands: List<CommandRole>,
+        val events: Events,
     )
 
     private val vectors: Vectors by lazy {
@@ -83,6 +90,13 @@ class HubTest {
         // Un lien du hub n'est jamais lu comme celui d'un agent.
         val hub = vectors.links.valid.first().link
         assertThrows<InvalidLinkException> { PairingLinkV2.parse(hub) }
+    }
+
+    @Test
+    fun `evenements admis et ecartes`() {
+        assertTrue(vectors.events.valid.isNotEmpty() && vectors.events.invalid.isNotEmpty())
+        for (e in vectors.events.valid) assertTrue(HubProtocol.validEvent(e), e.toString())
+        for (e in vectors.events.invalid) assertFalse(HubProtocol.validEvent(e), e.toString())
     }
 
     @Test
