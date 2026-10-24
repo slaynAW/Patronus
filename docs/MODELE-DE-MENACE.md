@@ -18,7 +18,8 @@ notifications, accès à distance).
 | Agent (service Windows `SYSTEM`, systemd `root`, launchd) | Exécute les commandes nommées, tient le journal (30 j), les mesures (90 j), la fiche du PC | Clé `wolagent/1` du PC, journal, mesures ; écoute le port TCP 9770 |
 | GitHub | Code, Releases (mises à jour), Gists (partage, sauvegardes, archives), connexion OAuth « appareil » | Fichiers chiffrés, métadonnées |
 | CI GitHub Actions | Compile, signe et publie les versions | Clé de signature (environnement `publication`) |
-| Futur : hub sur le NAS, relais de notifications, VPN | Surveillance continue, alertes, accès à distance | Historique long, identités (étapes 2.0 à 2.2) |
+| Hub sur le NAS (2.0, en conception : [HUB.md](HUB.md)) | Surveillance continue, historique long, détection des pannes, programmations ; conteneur non root | Son identité `wolagent/2`, la clé de ses données, l'historique d'un an des PC confiés, leurs adresses, MAC et empreintes ; rôle `wake` (`control` pour une extinction programmée) sur chaque PC confié |
+| Futur : relais de notifications, VPN | Alertes, accès à distance | Étapes 2.1 et 2.2 |
 
 Flux étudiés :
 
@@ -32,6 +33,10 @@ Flux étudiés :
 | F6 | CI → Releases : publication | GitHub |
 | F7 | Agent → application : appairage | Canal optique (QR code) ou lien copié |
 | F8 | Propriétaire ↔ personne invitée : partage | Liens, voix (code de vérification), Gist |
+| F9 | Application ↔ hub : états, évènements, historique long, administration du hub (2.0) | TCP 9771, réseau local (`patronus-hub/1`) |
+| F10 | Hub ↔ agents : relevés, réveils notés, extinctions programmées (2.0) | `wolagent/2`, rôle `wake` ou `control` |
+| F11 | Hub → appareils sans agent : sondes (2.0) | TCP, HTTP(S) sans données, ICMP facultatif |
+| F12 | Hub → PC : paquet magique des réveils programmés (2.0) | UDP (diffusion) |
 
 ## 2. Actifs à protéger
 
@@ -48,6 +53,8 @@ Flux étudiés :
 | A9 · Intégrité des logiciels installés et de leurs mises à jour | Critique | Intégrité |
 | A10 · Disponibilité : pouvoir allumer, éteindre et consulter au besoin | Moyenne | Disponibilité |
 | A11 · Rapports de diagnostic | Moyenne | Confidentialité (déjà chiffrés et sans secret) |
+| A12 · Historique longue durée du hub (journal et mesures d'un an ou plus, évènements) | Élevée : comme A4, sur une durée bien plus longue | Confidentialité, intégrité |
+| A13 · Clé des données du hub | Critique pour A12 | Confidentialité ; hors du dossier de données et des sauvegardes |
 
 ## 3. Adversaires
 
@@ -63,6 +70,7 @@ Flux étudiés :
 | M8 | Pirate de la chaîne de production : compte GitHub, action de CI, dépendance, outil de compilation | Modifier le code ou la compilation | Diffuser une version piégée acceptée par les mises à jour |
 | M9 | Logiciel malveillant ou utilisateur sans droits d'administrateur sur un PC équipé de l'agent | Fichiers et processus de l'utilisateur, connexions locales (`127.0.0.1`) | Lire les clés de l'agent ; se servir de l'agent pour obtenir plus de droits |
 | M10 | L'auteur du projet | Publie le code et les versions | Voir quoi que ce soit chez les utilisateurs |
+| M11 | Autre utilisateur du NAS : compte DSM sans droits d'administrateur, ou accès aux dossiers partagés et aux sauvegardes | Lit les dossiers partagés auxquels il a droit, les copies Hyper Backup | Lire l'historique du hub ; se faire passer pour le hub |
 
 ## 4. Hypothèses
 
@@ -103,7 +111,7 @@ Flux étudiés :
 
 | Id | Menace | Adv. | Actuel | Prévu | Résiduel |
 |---|---|---|---|---|---|
-| T13 | Réveil d'un PC par n'importe qui sur le réseau | M1 | Accepté (norme Wake-on-LAN) | Le hub signalera les réveils non demandés (2.1) | Accepté : un réveil ne donne aucun autre accès |
+| T13 | Réveil d'un PC par n'importe qui sur le réseau | M1 | Accepté (norme Wake-on-LAN) | Le hub signalera les réveils non demandés (2.0, en conception) | Accepté : un réveil ne donne aucun autre accès |
 
 ### F3, F8 · GitHub : partage, sauvegardes, archives
 
@@ -141,11 +149,30 @@ Flux étudiés :
 | T28 | Fuite d'un export complet | M4, M6 | Chiffré par mot de passe | Les identités `wolagent/2` ne sont pas exportées : un nouvel appareil s'appaire à nouveau (QR code ou invitation d'un appareil administrateur) | Clés `wolagent/1` encore présentes tant que la migration n'est pas finie |
 | T29 | Rapport de diagnostic transmis à un tiers | M4 | Sans clé, sans jeton, sans mot de passe ; chiffré | Inchangé | — |
 
+### F9 à F12 · Hub sur le NAS (2.0, en conception)
+
+Conception : [HUB.md](HUB.md). Rien de cela n'est encore réalisé.
+
+| Id | Menace | Adv. | Protection prévue | Résiduel |
+|---|---|---|---|---|
+| T30 | NAS compromis (root sur DSM ou conteneur pris) : prise de contrôle de tous les PC | M7 | Hub sans privilège sur les agents : `wake` par défaut, `control` seulement pour les PC à extinction programmée, **jamais** `admin` ; aucune commande des applications relayée ; ses rôles ne changent que par une application administrateur, directement auprès de l'agent ; chaque action notée par l'agent avec l'empreinte du hub | Lecture de tout ce que sait le hub (A4, A5, A12) ; réveils ; extinction, redémarrage ou veille des PC à extinction programmée ; le NAS lui-même |
+| T34 | Faux hub sur le réseau : collecte de ce que les applications envoient, faux états | M1 | Empreinte du hub épinglée à l'appairage (code à usage unique, 10 min) ; TLS 1.3 mutuel | — |
+| T35 | Appareil non autorisé ou révoqué qui interroge ou administre le hub | M1, M5 | Registre et rôles du hub comme sur un agent (`view`, `wake`, `admin`) ; révocation immédiate, connexions fermées | — |
+| T36 | Confusion agent / hub : une réponse de l'un prise pour celle de l'autre | M7 | ALPN (`patronus-hub/1`) et port (9771) distincts, empreintes distinctes | — |
+| T37 | Copie du dossier de données du hub ou d'une sauvegarde | M11, M4 | Fichiers chiffrés (AES-256-GCM, une clé par fichier dérivée par HKDF) ; clé dans un dossier séparé, hors des dossiers partagés et des sauvegardes | Disque du NAS volé : la clé est sur le même disque, sauf volume chiffré par DSM ; en clair, nombre de PC, mois couverts, tailles |
+| T38 | Hub compromis qui ment aux applications : faux états, historique réécrit | M7 | Le journal de l'agent fait foi sur la période qu'il couvre (règles de fusion communes) ; états du hub datés et marqués « via le hub » ; commandes toujours envoyées aux agents | Appareils sans agent ; historique au-delà des 30 jours de l'agent |
+| T39 | Évasion du conteneur, élévation de privilèges sur le NAS | M7 | Utilisateur 65532, système de fichiers en lecture seule, aucune capacité, `no-new-privileges`, pas de socket Docker, limites de mémoire et de processus | Réseau de l'hôte (nécessaire aux paquets magiques) : le hub joint tout le réseau local, comme n'importe quel appareil (M1) |
+| T40 | Hub détourné pour sonder d'autres réseaux ou Internet | M7 | Sondes limitées aux adresses privées ; aucune donnée envoyée ; résultat réduit à « répond » et latence | — |
+| T41 | Premier code d'appairage lu dans le journal du conteneur | M7, M11 | Journal visible des seuls administrateurs DSM ; usage unique, 10 min ; « Ce code a déjà servi » et appareil intrus visible et révocable | Administrateur DSM (de confiance, comme H1) |
+| T42 | Programmation détournée : extinction en pleine utilisation | M7 | Extinction seulement si le PC est inactif, jamais forcée ; rôle `control` donné PC par PC et retiré avec la programmation ; chaque extinction notée « par Hub NAS » | Hub compromis : extinction, redémarrage ou veille des PC à extinction programmée |
+| T43 | Image du hub piégée | M8 | Construite en CI depuis le même commit, publiée après validation manuelle, provenance attestée, SBOM ; image épinglable par empreinte | Comme T19 |
+| T44 | Saturation des agents ou du NAS par le hub | M7 | Fréquences de relevé bornées, une connexion gardée par agent, délais doublés après un refus, limites du conteneur | Disponibilité seulement |
+| T45 | Hub encore autorisé sur un PC après son retrait | M5, M7 | Retirer un PC du hub retire aussi le hub de l'agent (`devices.revoke`) ; `wol-agent devices revoke` sur le PC | — |
+
 ### Étapes suivantes (rappel)
 
 | Id | Menace | Adv. | Prévu |
 |---|---|---|---|
-| T30 | NAS compromis : prise de contrôle de tous les PC | M7 | Hub sans privilège, rôle minimal sur chaque PC (consulter, démarrer), données chiffrées au repos, chaque action notée par l'agent concerné (2.0) |
 | T31 | Lecture des alertes par le relais de notifications | M4 | Web Push chiffré pour la clé du téléphone, contenu minimal, identifiants opaques (2.1) |
 | T32 | Agent ou hub joignable depuis Internet | M2 | Jamais exposés ; accès par VPN, TLS mutuel maintenu dans le VPN (2.2) |
 | T33 | L'auteur du projet voit les données | M10 | Aucun serveur ni télémétrie ; code et provenance des versions vérifiables |
@@ -161,6 +188,9 @@ Flux étudiés :
 - **Android 8 et 9** : sans TLS 1.3 natif, ils ne pourront pas utiliser `wolagent/2`. Ils restent en `wolagent/1`
   (authentifié, non chiffré) avec les PC qui l'acceptent ; l'application exigera Android 10 quand `wolagent/2` deviendra
   obligatoire ([PROTOCOLE-V2.md](PROTOCOLE-V2.md#13-décisions)).
+- **Root sur le NAS** (T30) : il lit tout ce que sait le hub, réveille les PC et peut éteindre ceux à extinction
+  programmée ; il ne prend pas la main sur les autres PC.
+- **Réseau de l'hôte pour le conteneur du hub** (T39) : nécessaire aux paquets magiques en diffusion.
 
 ## 7. Exigences de sécurité
 
@@ -181,3 +211,11 @@ dernière colonne donne leur état dans Patronus 1.15.0 et l'agent 1.13.0.
 | R10 | Chaque action notée au journal de l'agent est attribuée à une identité authentifiée. | T10, T30 | Oui en `wolagent/2` |
 | R11 | Aucune cryptographie maison : TLS de la plateforme ; seules des constructions HMAC documentées, à séparation de domaine, testées par vecteurs. | Toutes | Oui |
 | R12 | Vecteurs de test communs Go et Kotlin, cas négatifs et fuzzing des analyseurs, en CI. | Toutes | Oui, plus des tests de bout en bout contre le vrai agent |
+| R13 | Le hub n'est administrateur d'aucun agent et ne relaie aucune commande : `wake` par défaut, `control` seulement pour une extinction programmée, donné et retiré par une application administrateur auprès de l'agent. | T30, T42 | 2.0 (conception) |
+| R14 | Toute action du hub sur un PC est attribuée à son identité dans le journal de l'agent. | T30, T42 | 2.0 (conception) ; l'agent le fait déjà (R10) |
+| R15 | Applications ↔ hub : mêmes garanties que `wolagent/2` (R1, R2, R3, R5, R6, R9), avec ALPN et port distincts. | T34, T35, T36 | 2.0 (conception) |
+| R16 | Données du hub chiffrées au repos, clé hors du dossier de données et des sauvegardes. | T37 | 2.0 (conception) |
+| R17 | Conteneur sans privilège : non root, lecture seule, aucune capacité, pas de socket Docker ; seule exception, le réseau de l'hôte. | T39 | 2.0 (conception) |
+| R18 | Sondes limitées aux adresses privées, sans données envoyées, résultat réduit à « répond » et latence. | T40 | 2.0 (conception) |
+| R19 | Image et binaire du hub construits et publiés comme les autres versions : validation manuelle, provenance, SBOM. | T43 | 2.0 (conception) |
+| R20 | Le journal de l'agent prime sur l'historique du hub ; les applications fonctionnent sans hub. | T38, T44 | 2.0 (conception) |
