@@ -19,7 +19,7 @@ func TestHubPairingAndAdmin(t *testing.T) {
 	}
 	for text, reason := range map[string]string{
 		"n'importe quoi": "invalid",
-		protocol2.Link{Host: "192.168.1.10", Agent: protocol2.PinOf([]byte("agent")), Code: "ABCDEFGH"}.String(): "agent_link",
+		protocol2.Link{Host: "192.168.1.10", Agent: protocol2.PinOf([]byte("agent")), Code: "ABCDEFGH"}.String():     "agent_link",
 		protocol2.Link{Host: "127.0.0.1", Agent: h.Pin, Code: "ABCDEFGH", Expires: 1}.Format(hubprotocol.LinkFormat): "expired",
 	} {
 		if r := call(t, s, "hubPair", map[string]any{"text": text}); r["ok"] != false || r["code"] != "LINK" || r["reason"] != reason {
