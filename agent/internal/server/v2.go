@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/internal/devices"
+	"github.com/slaynaw/wakeonlan/agent/internal/guard"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
 	"github.com/slaynaw/wakeonlan/agent/protocol"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
@@ -38,7 +39,7 @@ type v2Server struct {
 	identity *identity.Identity
 	registry *devices.Registry
 	tls      *tls.Config
-	pairing  *pairingGuard
+	pairing  *guard.Pairing
 
 	mu    sync.Mutex
 	conns map[protocol2.Pin]map[*tls.Conn]struct{} // connexions ouvertes, fermées à la révocation
@@ -49,7 +50,7 @@ func (s *Server) EnableV2(id *identity.Identity, registry *devices.Registry) {
 	s.v2 = &v2Server{
 		identity: id,
 		registry: registry,
-		pairing:  newPairingGuard(time.Now),
+		pairing:  guard.NewPairing(time.Now),
 		conns:    map[protocol2.Pin]map[*tls.Conn]struct{}{},
 		tls: &tls.Config{
 			MinVersion:       tls.VersionTLS13,
@@ -397,7 +398,7 @@ func (sess *v2Session) pair(req protocol2.Request) ([]byte, bool) {
 			if err != nil {
 				s.logger.Printf("registre des appareils : %v", err)
 			}
-			s.logger.Printf("appairage suspendu 10 minutes après plus de %d échecs ; %d invitation(s) annulée(s)", pairingMaxFailures, n)
+			s.logger.Printf("appairage suspendu 10 minutes après plus de %d échecs ; %d invitation(s) annulée(s)", guard.PairingMaxFailures, n)
 		}
 		return encode(protocol2.Reply{ID: req.ID, Code: protocol2.CodePairingFailed, Message: msgPairingFailed}), true
 	}
@@ -509,47 +510,4 @@ func (s *Server) noteDevice(action string, d, by devices.Device) {
 func encode(v any) []byte {
 	raw, _ := json.Marshal(v)
 	return raw
-}
-
-// Suspension de l'appairage (§3.3) : plus de 20 codes refusés en 10 minutes, toutes adresses.
-const (
-	pairingMaxFailures = 20
-	pairingWindow      = 10 * time.Minute
-	pairingPause       = 10 * time.Minute
-)
-
-type pairingGuard struct {
-	mu       sync.Mutex
-	failures []time.Time
-	until    time.Time
-	now      func() time.Time
-}
-
-func newPairingGuard(now func() time.Time) *pairingGuard { return &pairingGuard{now: now} }
-
-// Suspended indique si l'appairage est suspendu.
-func (g *pairingGuard) Suspended() bool {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	return g.now().Before(g.until)
-}
-
-// Fail note un code refusé ; vrai si l'appairage vient d'être suspendu.
-func (g *pairingGuard) Fail() bool {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	now := g.now()
-	recent := g.failures[:0]
-	for _, t := range g.failures {
-		if now.Sub(t) < pairingWindow {
-			recent = append(recent, t)
-		}
-	}
-	g.failures = append(recent, now)
-	if len(g.failures) > pairingMaxFailures {
-		g.failures = nil
-		g.until = now.Add(pairingPause)
-		return true
-	}
-	return false
 }

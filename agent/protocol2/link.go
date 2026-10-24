@@ -39,17 +39,31 @@ type LinkError struct{ Field string }
 
 func (e *LinkError) Error() string { return "wolagent/2 : lien d'appairage invalide (" + e.Field + ")" }
 
+// LinkFormat décrit une famille de liens d'appairage aux mêmes paramètres (§7.1) : celui d'un agent
+// (AgentLink) et celui du hub (docs/PROTOCOLE-HUB.md).
+type LinkFormat struct {
+	Prefix      string // début du lien, casse indifférente
+	Version     string // valeur exigée de « v »
+	DefaultPort int    // port quand « p » est absent
+}
+
+// AgentLink est le lien d'appairage v=2 d'un agent.
+var AgentLink = LinkFormat{Prefix: LinkPrefix, Version: "2", DefaultPort: DefaultPort}
+
 // ParseLink lit un lien d'appairage v=2. Les paramètres sont vérifiés dans l'ordre du tableau du §7.1 ;
 // un paramètre présent doit être valide, seul le nom peut être vide. Les paramètres inconnus sont
 // ignorés. Une autre version que 2 donne l'erreur "v" : l'application lit alors le lien comme avant.
-func ParseLink(text string) (Link, error) {
+func ParseLink(text string) (Link, error) { return ParseLinkWith(text, AgentLink) }
+
+// ParseLinkWith lit un lien de la famille f, avec les mêmes règles que ParseLink.
+func ParseLinkWith(text string, f LinkFormat) (Link, error) {
 	fail := func(field string) (Link, error) { return Link{}, &LinkError{Field: field} }
 	s := strings.Trim(text, " \t\r\n")
-	if len(s) > MaxLinkLength || len(s) < len(LinkPrefix) || !asciiEqualFold(s[:len(LinkPrefix)], LinkPrefix) {
+	if len(s) > MaxLinkLength || len(s) < len(f.Prefix) || !asciiEqualFold(s[:len(f.Prefix)], f.Prefix) {
 		return fail("format")
 	}
 	params := map[string]string{}
-	for _, part := range strings.Split(s[len(LinkPrefix):], "&") {
+	for _, part := range strings.Split(s[len(f.Prefix):], "&") {
 		if part == "" {
 			continue
 		}
@@ -68,7 +82,7 @@ func ParseLink(text string) (Link, error) {
 	}
 
 	var l Link
-	if params["v"] != "2" {
+	if params["v"] != f.Version {
 		return fail("v")
 	}
 	if l.Host = params["h"]; !validHost(l.Host) {
@@ -82,7 +96,7 @@ func ParseLink(text string) (Link, error) {
 	if l.Code, err = NormalizeCode(params["c"]); err != nil {
 		return fail("c")
 	}
-	l.Port = DefaultPort
+	l.Port = f.DefaultPort
 	if p, ok := params["p"]; ok {
 		n, ok := parseDecimal(p, 5)
 		if !ok || n < 1 || n > 65535 {
@@ -115,8 +129,11 @@ func ParseLink(text string) (Link, error) {
 
 // String écrit le lien, paramètres dans l'ordre de la spécification ; le nom, le port, la MAC, le rôle
 // et l'expiration n'y figurent que s'ils sont renseignés.
-func (l Link) String() string {
-	params := []string{"v=2"}
+func (l Link) String() string { return l.Format(AgentLink) }
+
+// Format écrit le lien dans la famille f, comme String.
+func (l Link) Format(f LinkFormat) string {
+	params := []string{"v=" + f.Version}
 	if l.Name != "" {
 		params = append(params, "n="+escape(l.Name))
 	}
@@ -134,7 +151,7 @@ func (l Link) String() string {
 	if l.Expires != 0 {
 		params = append(params, "e="+strconv.FormatInt(l.Expires, 10))
 	}
-	return LinkPrefix + strings.Join(params, "&")
+	return f.Prefix + strings.Join(params, "&")
 }
 
 // Expired indique si l'expiration annoncée par le lien est atteinte à l'heure now (secondes Unix). Un

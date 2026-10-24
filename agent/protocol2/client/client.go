@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/protocol"
@@ -31,6 +32,8 @@ var (
 	ErrUnpinned = errors.New("empreinte de l'agent non vérifiée : seule la migration est permise")
 	// ErrBroken : la session a connu une erreur et doit être rouverte.
 	ErrBroken = errors.New("session wolagent/2 interrompue")
+	// ErrUnexpectedProtocol : le salut annonce un autre protocole que celui demandé (Options.Protocol).
+	ErrUnexpectedProtocol = errors.New("ce service ne parle pas le protocole attendu")
 )
 
 // Options décrit la session à ouvrir.
@@ -42,6 +45,10 @@ type Options struct {
 	Agent *protocol2.Pin
 	// Dial ouvre la connexion TCP (net.Dialer par défaut).
 	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
+	// Protocol est le protocole proposé dans TLS (ALPN), qui doit aussi être celui annoncé par le salut :
+	// « patronus-hub/1 » pour le hub. Vide : wolagent/2, avec un agent dont le salut annonce wolagent/1
+	// ou wolagent/2.
+	Protocol string
 }
 
 // Session est une connexion wolagent/2 établie. Une requête à la fois (§4.3).
@@ -76,7 +83,11 @@ func Dial(ctx context.Context, addr string, opts Options) (*Session, error) {
 		deadline = time.Now().Add(protocol2.HandshakeTimeout)
 	}
 	_ = raw.SetDeadline(deadline)
-	if err := readHello(raw); err != nil {
+	alpn := protocol2.ALPN
+	if opts.Protocol != "" {
+		alpn = opts.Protocol
+	}
+	if err := readHello(raw, opts.Protocol); err != nil {
 		_ = raw.Close()
 		return nil, err
 	}
@@ -84,14 +95,14 @@ func Dial(ctx context.Context, addr string, opts Options) (*Session, error) {
 	conn := tls.Client(raw, &tls.Config{
 		MinVersion:       tls.VersionTLS13,
 		MaxVersion:       tls.VersionTLS13,
-		NextProtos:       []string{protocol2.ALPN},
+		NextProtos:       []string{alpn},
 		Certificates:     []tls.Certificate{opts.Identity},
 		CurvePreferences: protocol2.Curves,
 		// Pas d'autorité de certification : la vérification est celle de l'empreinte, ci-dessous,
 		// faite pendant la poignée de main, avant tout envoi de données.
 		InsecureSkipVerify: true,
 		VerifyConnection: func(cs tls.ConnectionState) error {
-			if cs.NegotiatedProtocol != protocol2.ALPN {
+			if cs.NegotiatedProtocol != alpn {
 				return errors.New("protocole applicatif refusé")
 			}
 			if len(cs.PeerCertificates) != 1 {
@@ -116,8 +127,9 @@ func Dial(ctx context.Context, addr string, opts Options) (*Session, error) {
 	return &Session{conn: conn, agent: seen, device: device, pinned: opts.Agent != nil}, nil
 }
 
-// readHello lit la ligne de salut que l'agent envoie avant TLS (§3.1), sans rien lire au-delà.
-func readHello(conn net.Conn) error {
+// readHello lit la ligne de salut que l'agent envoie avant TLS (§3.1), sans rien lire au-delà ; expected,
+// s'il n'est pas vide, est le seul protocole accepté dans le salut.
+func readHello(conn net.Conn, expected string) error {
 	line := make([]byte, 0, protocol2.MaxHelloBytes)
 	var b [1]byte
 	for {
@@ -143,6 +155,8 @@ func readHello(conn net.Conn) error {
 		return ErrRateLimited
 	case hello.Error != "" || hello.Proto == "":
 		return ErrNotAgent
+	case expected != "" && hello.Proto != expected:
+		return ErrUnexpectedProtocol
 	}
 	return nil
 }
@@ -165,40 +179,70 @@ func (s *Session) Do(ctx context.Context, req protocol2.Request) (protocol2.Resp
 }
 
 func (s *Session) do(ctx context.Context, req protocol2.Request) (protocol2.Response, error) {
+	var resp protocol2.Response
+	err := s.exchange(ctx, req, &resp)
+	return resp, err
+}
+
+// Call envoie une requête d'un autre protocole servi de la même façon, comme patronus-hub/1 : req est
+// écrite en objet JSON, dont le champ « id » est attribué ici, et la réponse est lue dans out.
+func (s *Session) Call(ctx context.Context, req, out any) error {
+	if !s.pinned {
+		return ErrUnpinned
+	}
+	return s.exchange(ctx, req, out)
+}
+
+// exchange envoie req avec l'identifiant suivant et lit dans out la réponse, qui doit porter le même.
+func (s *Session) exchange(ctx context.Context, req, out any) error {
 	if s.broken {
-		return protocol2.Response{}, ErrBroken
+		return ErrBroken
+	}
+	raw, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return fmt.Errorf("requête : objet JSON attendu : %w", err)
 	}
 	s.lastID++
-	req.ID = s.lastID
-	payload, err := json.Marshal(req)
+	id := s.lastID
+	fields["id"] = json.RawMessage(strconv.FormatInt(id, 10))
+	payload, err := json.Marshal(fields)
 	if err != nil {
-		return protocol2.Response{}, err
+		return err
 	}
 	deadline, ok := ctx.Deadline()
 	if !ok {
 		deadline = time.Now().Add(protocol2.IdleTimeout)
 	}
 	_ = s.conn.SetDeadline(deadline)
-	fail := func(err error) (protocol2.Response, error) {
+	fail := func(err error) error {
 		s.broken = true
 		_ = s.conn.Close()
-		return protocol2.Response{}, err
+		return err
 	}
 	if err := protocol2.WriteFrame(s.conn, payload, protocol2.MaxRequestBytes); err != nil {
 		return fail(err)
 	}
-	raw, err := protocol2.ReadFrame(s.conn, protocol2.MaxResponseBytes)
+	answer, err := protocol2.ReadFrame(s.conn, protocol2.MaxResponseBytes)
 	if err != nil {
 		return fail(err)
 	}
-	var resp protocol2.Response
-	if err := json.Unmarshal(raw, &resp); err != nil {
+	var head struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.Unmarshal(answer, &head); err != nil {
 		return fail(fmt.Errorf("réponse illisible : %w", err))
 	}
-	if resp.ID != req.ID {
-		return fail(fmt.Errorf("réponse à la requête %d au lieu de %d", resp.ID, req.ID))
+	if head.ID != id {
+		return fail(fmt.Errorf("réponse à la requête %d au lieu de %d", head.ID, id))
 	}
-	return resp, nil
+	if err := json.Unmarshal(answer, out); err != nil {
+		return fail(fmt.Errorf("réponse illisible : %w", err))
+	}
+	return nil
 }
 
 // Migrate fait passer en wolagent/2 un appareil appairé en wolagent/1 (§9), sur une session ouverte

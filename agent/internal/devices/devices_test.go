@@ -182,3 +182,59 @@ func TestOpenRejectsDamagedRegistry(t *testing.T) {
 		}
 	}
 }
+
+// memStorage garde le registre en mémoire, comme le ferait le stockage chiffré du hub.
+type memStorage struct {
+	data    []byte
+	loadErr error
+	saveErr error
+}
+
+func (m *memStorage) Load() ([]byte, error) {
+	if m.loadErr != nil {
+		return nil, m.loadErr
+	}
+	if m.data == nil {
+		return nil, os.ErrNotExist
+	}
+	return m.data, nil
+}
+
+func (m *memStorage) Save(data []byte) error {
+	if m.saveErr != nil {
+		return m.saveErr
+	}
+	m.data = append([]byte(nil), data...)
+	return nil
+}
+
+func TestOpenStorage(t *testing.T) {
+	c := &clock{t: time.Date(2026, 10, 12, 15, 0, 0, 0, time.UTC)}
+	st := &memStorage{}
+	r, err := OpenStorage(st, "hub", c.Now)
+	if err != nil || len(r.Devices()) != 0 {
+		t.Fatalf("registre vide : %v, %v", r, err)
+	}
+	if _, err := r.Add(Device{Pin: pin("admin"), Name: "Pixel 8", Role: protocol2.RoleAdmin, Via: ViaPair}); err != nil {
+		t.Fatal(err)
+	}
+	again, err := OpenStorage(st, "hub", c.Now)
+	if err != nil || len(again.Devices()) != 1 || again.Devices()[0].Name != "Pixel 8" {
+		t.Fatalf("relecture : %v, %v", again.Devices(), err)
+	}
+	// Échec de l'enregistrement : rien ne change.
+	st.saveErr = errors.New("disque plein")
+	if _, err := r.Add(Device{Pin: pin("autre"), Name: "Tablette", Role: protocol2.RoleView, Via: ViaPair}); err == nil {
+		t.Fatal("ajout non enregistré accepté")
+	}
+	if len(r.Devices()) != 1 {
+		t.Fatalf("ajout gardé malgré l'échec : %v", r.Devices())
+	}
+	// Lecture impossible ou contenu illisible : erreur, jamais un registre vide.
+	if _, err := OpenStorage(&memStorage{loadErr: errors.New("illisible")}, "hub", c.Now); err == nil {
+		t.Error("erreur de lecture ignorée")
+	}
+	if _, err := OpenStorage(&memStorage{data: []byte("{")}, "hub", c.Now); err == nil || !strings.Contains(err.Error(), "hub") {
+		t.Errorf("registre illisible : %v", err)
+	}
+}

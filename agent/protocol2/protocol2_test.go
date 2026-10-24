@@ -271,3 +271,28 @@ func TestMigrationProofs(t *testing.T) {
 		}
 	}
 }
+
+// TestLinkFormat : une autre famille de liens garde les règles du §7.1, avec son début, sa version et
+// son port par défaut.
+func TestLinkFormat(t *testing.T) {
+	f := LinkFormat{Prefix: "patronus://hub?", Version: "1", DefaultPort: 9771}
+	pin := PinOf([]byte("hub"))
+	l := Link{Name: "Hub NAS", Host: "192.168.1.20", Agent: pin, Code: "7KQ29MXP", Role: RoleAdmin, Expires: 1790000600}
+	text := l.Format(f)
+	if want := "patronus://hub?v=1&n=Hub+NAS&h=192.168.1.20&a=" + pin.String() + "&c=7KQ29MXP&r=admin&e=1790000600"; text != want {
+		t.Fatalf("lien : %s", text)
+	}
+	got, err := ParseLinkWith(text, f)
+	l.Port = 9771
+	if err != nil || got != l {
+		t.Fatalf("relecture : %+v, %v", got, err)
+	}
+	for _, other := range []string{l.String(), "PATRONUS://HUB?v=2&h=192.168.1.20&a=" + pin.String() + "&c=7KQ29MXP"} {
+		if _, err := ParseLinkWith(other, f); err == nil {
+			t.Errorf("lien d'une autre famille accepté : %s", other)
+		}
+	}
+	if _, err := ParseLink(text); err == nil {
+		t.Error("lien du hub lu comme celui d'un agent")
+	}
+}

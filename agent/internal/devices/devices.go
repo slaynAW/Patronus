@@ -79,10 +79,38 @@ type state struct {
 	Invites []Invite `json:"invites"`
 }
 
+// Storage garde le registre : un fichier de l'agent (Open), ou le stockage chiffré du hub.
+type Storage interface {
+	// Load lit le registre enregistré ; l'erreur vérifie errors.Is(err, os.ErrNotExist) s'il n'existe pas.
+	Load() ([]byte, error)
+	// Save le remplace d'un bloc : après une coupure, il reste l'ancien ou le nouveau.
+	Save(data []byte) error
+}
+
+// fileStorage est le registre de l'agent, devices.json dans le dossier de configuration.
+type fileStorage struct{ path string }
+
+func (f fileStorage) Load() ([]byte, error) { return os.ReadFile(f.path) }
+
+func (f fileStorage) Save(data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(f.path), 0o700); err != nil {
+		return err
+	}
+	tmp := f.path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, f.path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
 // Registry est le registre, sûr pour un usage concurrent.
 type Registry struct {
 	mu    sync.Mutex
-	path  string
+	store Storage
 	now   func() time.Time
 	st    state
 	saved map[protocol2.Pin]int64 // dernière connexion telle qu'écrite sur le disque
@@ -94,8 +122,14 @@ func Path(dir string) string { return filepath.Join(dir, FileName) }
 // Open lit le registre (vide s'il n'existe pas encore). Un registre illisible est une erreur : le
 // remplacer par un registre vide retirerait tous les appareils en silence.
 func Open(path string, now func() time.Time) (*Registry, error) {
-	r := &Registry{path: path, now: now, saved: map[protocol2.Pin]int64{}}
-	raw, err := os.ReadFile(path)
+	return OpenStorage(fileStorage{path: path}, path, now)
+}
+
+// OpenStorage lit le registre gardé par store (vide s'il n'existe pas encore) ; name le désigne dans les
+// erreurs. Comme Open, un registre illisible est une erreur.
+func OpenStorage(store Storage, name string, now func() time.Time) (*Registry, error) {
+	r := &Registry{store: store, now: now, saved: map[protocol2.Pin]int64{}}
+	raw, err := store.Load()
 	if errors.Is(err, os.ErrNotExist) {
 		return r, nil
 	}
@@ -103,12 +137,12 @@ func Open(path string, now func() time.Time) (*Registry, error) {
 		return nil, err
 	}
 	if err := json.Unmarshal(raw, &r.st); err != nil {
-		return nil, fmt.Errorf("registre des appareils illisible (%s) : %w", path, err)
+		return nil, fmt.Errorf("registre des appareils illisible (%s) : %w", name, err)
 	}
 	seen := map[protocol2.Pin]bool{}
 	for _, d := range r.st.Devices {
 		if seen[d.Pin] || d.Role.String() == "" {
-			return nil, fmt.Errorf("registre des appareils incohérent (%s)", path)
+			return nil, fmt.Errorf("registre des appareils incohérent (%s)", name)
 		}
 		seen[d.Pin] = true
 		r.saved[d.Pin] = d.Seen
@@ -368,15 +402,7 @@ func (r *Registry) commit(next state) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(r.path), 0o700); err != nil {
-		return err
-	}
-	tmp := r.path + ".tmp"
-	if err := os.WriteFile(tmp, append(raw, '\n'), 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, r.path); err != nil {
-		_ = os.Remove(tmp)
+	if err := r.store.Save(append(raw, '\n')); err != nil {
 		return err
 	}
 	r.st = next

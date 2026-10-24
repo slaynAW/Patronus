@@ -16,6 +16,7 @@ import (
 	"unicode"
 
 	"github.com/slaynaw/wakeonlan/agent/internal/config"
+	"github.com/slaynaw/wakeonlan/agent/internal/guard"
 	"github.com/slaynaw/wakeonlan/agent/internal/history"
 	"github.com/slaynaw/wakeonlan/agent/internal/power"
 	"github.com/slaynaw/wakeonlan/agent/internal/sysinfo"
@@ -43,7 +44,7 @@ type Server struct {
 	power    power.Controller
 	version  string
 	logger   *log.Logger
-	limiter  *rateLimiter
+	limiter  *guard.Limiter
 	slots    chan struct{}
 	info     func() sysinfo.Info
 	history  *history.Log
@@ -80,7 +81,7 @@ func New(cfg *config.Config, controller power.Controller, version string, logger
 		power:    controller,
 		version:  version,
 		logger:   logger,
-		limiter:  newRateLimiter(5, time.Minute, 5*time.Minute),
+		limiter:  guard.NewLimiter(5, time.Minute, 5*time.Minute),
 		slots:    make(chan struct{}, maxConnections),
 		info:     sysinfo.Current,
 		now:      time.Now,
