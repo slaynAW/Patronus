@@ -55,6 +55,9 @@ const (
 	// PairingFailed : code d'appairage refusé par l'agent (invalide, expiré ou déjà utilisé : la même
 	// réponse dans tous les cas).
 	PairingFailed Code = "PAIRING_FAILED"
+	// OtherService : le service joint parle un autre protocole que celui attendu (un agent à la place du
+	// hub, ou l'inverse : mauvais port).
+	OtherService Code = "OTHER_SERVICE"
 )
 
 // Error est un échec d'échange avec l'agent.
@@ -96,7 +99,7 @@ func HostAnswered(err error) bool {
 		return true
 	}
 	switch CodeOf(err) {
-	case Refused, Unauthorized, RateLimited, Protocol, Rejected, Unregistered, PinMismatch, PairingFailed:
+	case Refused, Unauthorized, RateLimited, Protocol, Rejected, Unregistered, PinMismatch, PairingFailed, OtherService:
 		return true
 	}
 	return false

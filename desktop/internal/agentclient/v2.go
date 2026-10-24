@@ -103,7 +103,14 @@ func (c *Client) exchange2(ctx context.Context, host string, agent model.AgentSe
 // main TLS), y mène run, puis la ferme. Les délais sont ceux de wolagent/1 : connexion, puis deux
 // lectures au plus.
 func (c *Client) session(ctx context.Context, host string, agent model.AgentSettings, run func(context.Context, *client.Session) error) error {
-	pin, err := protocol2.ParsePin(agent.Pin)
+	return c.sessionWith(ctx, host, agent.Port, agent.Pin, "", run)
+}
+
+// sessionWith ouvre une session sur le transport de wolagent/2 avec le service host:port, dont
+// l'empreinte pinText est exigée, en proposant protocol (wolagent/2 si vide ; patronus-hub/1 pour le
+// hub), et y mène run.
+func (c *Client) sessionWith(ctx context.Context, host string, port int, pinText, protocol string, run func(context.Context, *client.Session) error) error {
+	pin, err := protocol2.ParsePin(pinText)
 	if err != nil {
 		return &Error{Code: Protocol, Detail: "empreinte enregistrée invalide"}
 	}
@@ -117,9 +124,10 @@ func (c *Client) session(ctx context.Context, host string, agent model.AgentSett
 	ctx, cancel := context.WithTimeout(ctx, c.ConnectTimeout+2*c.ReadTimeout)
 	defer cancel()
 	var dialErr error
-	s, err := client.Dial(ctx, net.JoinHostPort(host, strconv.Itoa(agent.Port)), client.Options{
+	s, err := client.Dial(ctx, net.JoinHostPort(host, strconv.Itoa(port)), client.Options{
 		Identity: cert,
 		Agent:    &pin,
+		Protocol: protocol,
 		Dial: func(ctx context.Context, _, addr string) (net.Conn, error) {
 			conn, err := netdial.Dial(ctx, addr, c.ConnectTimeout)
 			dialErr = err
@@ -134,6 +142,8 @@ func (c *Client) session(ctx context.Context, host string, agent model.AgentSett
 		return &Error{Code: PinMismatch}
 	case errors.Is(err, client.ErrRateLimited):
 		return &Error{Code: RateLimited}
+	case errors.Is(err, client.ErrUnexpectedProtocol):
+		return &Error{Code: OtherService, Detail: err.Error()}
 	default:
 		// La machine a répondu (connexion établie), mais pas comme un agent wolagent/2 attendu.
 		return &Error{Code: Protocol, Detail: err.Error()}

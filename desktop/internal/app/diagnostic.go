@@ -146,6 +146,8 @@ func (p callParams) describe(method string, name func(id string) string) string 
 		if p.Confirm != nil {
 			add("confirmation %t", *p.Confirm)
 		}
+	case "hubRetention":
+		add("%d jours", p.Days)
 	case "shareLogin", "shareRequest", "shareGrant":
 		if p.Name != "" {
 			add("nom « %s »", clip(p.Name, 64))
@@ -202,7 +204,7 @@ func (s *Service) callLabel(method string, p callParams) string {
 // locksFree vérifie qu'aucun verrou n'est resté pris après une panique (l'application se figerait).
 // Un verrou pris normalement par une autre tâche est libéré en quelques millisecondes.
 func (s *Service) locksFree() bool {
-	locks := []*sync.Mutex{&s.mu, &s.histMu, &s.statusMu, &s.updates.mu, &s.agents.mu}
+	locks := []*sync.Mutex{&s.mu, &s.histMu, &s.statusMu, &s.updates.mu, &s.agents.mu, &s.hubMu}
 	if s.sharing != nil {
 		locks = append(locks, &s.sharing.mu)
 	}
