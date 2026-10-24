@@ -59,7 +59,8 @@ func startWith(t *testing.T, networks []netip.Prefix) *env {
 	}
 	dialer := &agents.Dialer{Identity: hub, Networks: networks}
 	m := New(list, dialer, log.New(io.Discard, "", 0))
-	m.agentEvery, m.probeEvery, m.timeout = 50*time.Millisecond, 50*time.Millisecond, time.Second
+	// Sous Windows, une connexion refusée sur l'adresse de bouclage n'échoue qu'après 2 s environ.
+	m.agentEvery, m.probeEvery, m.timeout = 50*time.Millisecond, 50*time.Millisecond, 4*time.Second
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go m.Run(ctx)
@@ -95,7 +96,7 @@ func (e *env) probe(t *testing.T, name string, probe hubprotocol.Probe) fleet.PC
 // wait attend que l'état du PC id vérifie ok.
 func (e *env) wait(t *testing.T, id string, what string, ok func(hubprotocol.PCState) bool) hubprotocol.PCState {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(20 * time.Second)
 	var last hubprotocol.PCState
 	for time.Now().Before(deadline) {
 		for _, s := range e.mon.States() {

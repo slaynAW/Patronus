@@ -13,12 +13,12 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/hubprotocol"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/agents"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/fleet"
+	"github.com/slaynaw/wakeonlan/agent/internal/netinfo"
 	"github.com/slaynaw/wakeonlan/agent/protocol"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
 	"github.com/slaynaw/wakeonlan/agent/protocol2/client"
@@ -283,7 +283,7 @@ func dialFailure(err error) result {
 		return result{state: hubprotocol.StateOnline, problem: hubprotocol.ProblemBlocked, pause: blockedPause}
 	case errors.Is(err, client.ErrPinMismatch):
 		return result{state: hubprotocol.StateOnline, problem: hubprotocol.ProblemPinMismatch, refused: true}
-	case errors.Is(err, syscall.ECONNREFUSED):
+	case netinfo.ConnRefused(err):
 		return result{state: hubprotocol.StateAgentDown}
 	}
 	return result{state: hubprotocol.StateOffline}
