@@ -9,7 +9,9 @@ protocole applicatif, son port, ses rôles et ses commandes. Les menaces auxquel
   [`agent/internal/hub/server`](../agent/internal/hub/server) (serveur), commande `patronus-hub`
   ([`agent/cmd/patronus-hub`](../agent/cmd/patronus-hub)). Client des applications :
   [`core/…/core/hub`](../core/src/main/kotlin/io/github/slaynaw/wakeonlan/core/hub) (Kotlin), éprouvé à chaque
-  build contre le vrai hub (`HubEndToEndTest`).
+  build contre le vrai hub (`HubEndToEndTest`) ; client de l'application Windows :
+  [`desktop/internal/agentclient/hub.go`](../desktop/internal/agentclient/hub.go), éprouvé contre le vrai hub
+  ([`agent/testhub`](../agent/testhub)).
 - Vecteurs communs : [`protocol/hub-vectors.json`](../protocol/hub-vectors.json) (liens, salut, rôles, autorisation),
   lus en Go et en Kotlin.
 - **État** : étape 2.0-E. Le hub sert l'appairage, les appareils autorisés, les invitations, `hub.status`, les PC

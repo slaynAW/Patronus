@@ -88,6 +88,7 @@
     agent_error_PIN_MISMATCH: "empreinte inattendue : autre machine à cette adresse ou agent réinstallé (connexion refusée)",
     agent_error_NO_IDENTITY: "identité de cet ordinateur indisponible",
     agent_error_insufficient_role: "cet ordinateur n’a pas le droit de le faire sur ce PC (rôle insuffisant)",
+    agent_error_OTHER_SERVICE: "ce service ne parle pas le protocole attendu (mauvais port ?)",
 
     empty_title: "Aucun PC pour l’instant",
     empty_text: "Ajoutez un PC à réveiller. Si l’agent est installé dessus, collez simplement son lien d’appairage : tout est rempli automatiquement. Vous pouvez aussi importer la configuration exportée depuis le téléphone.",
@@ -268,6 +269,65 @@
     admin_failed: "Modification impossible",
     admin_last_admin: "C’est le dernier administrateur de ce PC : il ne peut être retiré ou rétrogradé que sur le PC (« wol-agent devices »).",
     admin_not_admin: "Cet ordinateur n’a plus le rôle « Administrer » sur ce PC.",
+
+    section_hub: "Hub sur le NAS",
+    hub_pair: "Appairer un hub",
+    hub_none_help: "Un hub sur votre NAS surveille vos PC en continu, garde leur historique un an et repère les pannes, même quand cet ordinateur est éteint (docs/HUB.md).",
+    hub_pair_text: "Collez le lien affiché par le hub : Container Manager → Conteneur → patronus-hub → Journal (ou « patronus-hub pair » sur le NAS), ou celui d’une invitation créée depuis un autre appareil. Le code ne sert qu’une fois.",
+    hub_pair_placeholder: "patronus://hub?…",
+    hub_pairing: "Appairage…",
+    hub_paired: "Hub « %1$s » appairé (rôle « %2$s »).",
+    hub_already: "Cet ordinateur était déjà autorisé par le hub « %1$s » (rôle « %2$s ») : le code n’a pas servi.",
+    hub_pair_failed: "Appairage impossible",
+    hub_link_invalid: "Ce n’est pas un lien de hub Patronus (il commence par patronus://hub?).",
+    hub_link_agent_link: "C’est le lien d’appairage d’un PC : ajoutez-le depuis « Ajouter un PC ».",
+    hub_link_expired: "Ce lien a expiré : demandez-en un nouveau (« patronus-hub pair » sur le NAS).",
+    hub_other_paired: "Un autre hub est déjà appairé : oubliez-le d’abord (Réglages → Hub sur le NAS).",
+    hub_summary: "%1$s · rôle « %2$s » · empreinte %3$s",
+    hub_title: "Hub sur le NAS",
+    hub_loading: "Lecture de l’état du hub…",
+    hub_state: "État",
+    hub_version: "Version",
+    hub_started: "Démarré",
+    hub_started_ago: "il y a %1$s",
+    hub_address: "Adresse",
+    hub_pin: "Empreinte",
+    hub_role: "Rôle de cet ordinateur",
+    hub_pcs: "PC et appareils confiés",
+    hub_retention: "Conservation de l’historique",
+    hub_retention_label: "Durée",
+    hub_retention_help: "Le hub garde le journal et les mesures de chaque PC pendant cette durée, au-delà des 30 et 90 jours de l’agent.",
+    hub_retention_90: "3 mois",
+    hub_retention_182: "6 mois",
+    hub_retention_365: "1 an",
+    hub_retention_730: "2 ans",
+    hub_retention_1095: "3 ans",
+    hub_retention_days: "%1$d jours",
+    hub_retention_done: "Conservation de l’historique : %1$s.",
+    hub_devices_help: "Appareils autorisés par le hub, chacun avec sa propre identité. Le hub ne relaie aucune commande : éteindre un PC se fait toujours auprès de son agent.",
+    hub_invite_text: "Créez un code à usage unique pour un autre téléphone ou ordinateur : il le collera (ou scannera le QR code) dans Réglages → Hub sur le NAS → Appairer un hub.",
+    hub_invite_ready: "Sur l’autre appareil : Réglages → Hub sur le NAS → Appairer un hub, puis scanner le QR code ou coller le lien. Le code ne sert qu’une fois, jusqu’au %1$s.",
+    hub_revoke_text: "Cet appareil ne pourra plus rien demander au hub ; ses connexions ouvertes sont fermées sur-le-champ. Pour le réautoriser, il faudra l’appairer de nouveau.",
+    hub_revoke_self_text: "C’est cet ordinateur : il ne pourra plus rien lire du hub, ni le gérer. Pour le réautoriser, il faudra l’appairer de nouveau.",
+    hub_demote_self_text: "Cet ordinateur ne pourra plus gérer le hub. Seul un autre administrateur du hub pourra lui rendre ce rôle.",
+    hub_last_admin: "C’est le dernier administrateur du hub : invitez d’abord un autre appareil au rôle « Administrer ».",
+    hub_not_admin: "Cet ordinateur n’a plus le rôle « Administrer » sur le hub.",
+    hub_forget: "Oublier ce hub",
+    hub_forget_title: "Oublier le hub « %1$s » ?",
+    hub_forget_text: "Cet ordinateur ne lira plus rien du hub, qui continue de surveiller vos PC. S’il administre le hub, il s’en retire, sauf s’il en est le dernier administrateur.",
+    hub_forgotten: "Hub oublié : cet ordinateur s’en est retiré.",
+    hub_forgotten_kept_title: "Hub oublié",
+    hub_forgotten_kept: "Le hub garde cet ordinateur dans ses appareils autorisés : retirez-le depuis un appareil administrateur du hub, ou appairez-le de nouveau plus tard (il retrouvera son rôle).",
+    hub_error_UNREACHABLE: "hub injoignable : NAS éteint, conteneur arrêté, ou cet ordinateur sur un autre réseau",
+    hub_error_REFUSED: "le NAS répond, mais le hub n’écoute pas sur ce port (conteneur arrêté ?)",
+    hub_error_UNREGISTERED: "cet ordinateur n’est plus autorisé par le hub : appairez-le de nouveau",
+    hub_error_PIN_MISMATCH: "empreinte inattendue : autre service à cette adresse, ou hub réinstallé (connexion refusée)",
+    hub_error_PAIRING_FAILED: "code refusé par le hub (invalide, expiré ou déjà utilisé)",
+    hub_error_OTHER_SERVICE: "ce service n’est pas un hub Patronus (vérifiez le port : 9771)",
+    hub_error_PROTOCOL: "réponse invalide du hub",
+    hub_error_REJECTED: "demande refusée par le hub",
+    hub_error_NO_HUB: "aucun hub appairé",
+    hub_error_insufficient_role: "cet ordinateur n’a pas le droit de le faire sur le hub (rôle insuffisant)",
     detail_agent_pin_help: "Identité de l’agent de ce PC (wolagent/2), vérifiée à chaque connexion. Elle doit correspondre à celle qu’affiche « wol-agent status » sur le PC.",
     agent_not_configured: "Non installé",
     agent_configured: "Configuré",
@@ -652,6 +712,7 @@
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     refresh: '<path d="M20.5 12a8.5 8.5 0 1 1-2.5-6l2.5 2.5"/><path d="M20.5 3.5v5h-5"/>',
+    nas: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8.5 7.5h7M8.5 11h7"/><circle cx="12" cy="16" r="1.2"/>',
     restart: '<path d="M3.5 12a8.5 8.5 0 1 0 2.5-6L3.5 8.5"/><path d="M3.5 3.5v5h5"/>',
     moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
@@ -980,6 +1041,9 @@
   const roleLabel = (role) => S["role_" + role] || role;
   const agentErrorLabel = (code, reason) =>
     (code === "REJECTED" && S["agent_error_" + reason]) || S["agent_error_" + code] || S.agent_error_PROTOCOL;
+  const hubErrorLabel = (code, reason) =>
+    (code === "REJECTED" && (S["hub_error_" + reason] || S["agent_error_" + reason])) || S["hub_error_" + code] ||
+    S["agent_error_" + code] || S.hub_error_PROTOCOL;
   const actionLabel = (a) => ({ shutdown: S.action_shutdown, reboot: S.action_reboot, sleep: S.action_sleep })[a];
   const confirmTitle = (a) => ({ shutdown: S.confirm_shutdown_title, reboot: S.confirm_reboot_title, sleep: S.confirm_sleep_title })[a];
   const sentMessage = (a) => ({ shutdown: S.message_shutdown_sent, reboot: S.message_reboot_sent, sleep: S.message_sleep_sent })[a];
@@ -3550,6 +3614,286 @@
   }
 
   // ---------------------------------------------------------------------------------------------
+  // Hub sur le NAS (docs/HUB.md) : appairage, état, appareils autorisés, invitations, conservation
+  // ---------------------------------------------------------------------------------------------
+  const HUB_ROLES = ["view", "wake", "admin"];
+  const HUB_RETENTIONS = [90, 182, 365, 730, 1095];
+
+  const hubUI = (() => {
+    const failureText = (r) => r.error || (r.reason === "last_admin" ? S.hub_last_admin
+      : r.reason === "insufficient_role" ? S.hub_not_admin
+        : r.code === "LINK" ? S["hub_link_" + r.reason] || S.hub_link_invalid
+          : r.code === "HUB_PAIRED" ? S.hub_other_paired : hubErrorLabel(r.code, r.reason));
+
+    async function run(method, params) {
+      try {
+        return await api.call(method, params);
+      } catch (e) {
+        return { ok: false, error: errorMessage(e) };
+      }
+    }
+
+    /** Dialogue « coller le lien du hub » ; le presse-papiers est proposé d'emblée s'il en contient un. */
+    async function pairDialog() {
+      let initial = "";
+      try {
+        initial = (await api.call("readClipboard")).text || "";
+      } catch {
+        // Presse-papiers indisponible : saisie manuelle.
+      }
+      if (!/^patronus:\/\/hub\?/i.test(initial.trim())) initial = "";
+      let busy = false;
+      const input = field({ multiline: true, placeholder: S.hub_pair_placeholder, value: initial.trim(), onInput: (v) => dialog.setActions(actions(v)) });
+      const actions = (v) => [
+        { label: S.cancel, onClick: () => dialog.close() },
+        { label: busy ? S.hub_pairing : S.hub_pair, disabled: busy || !v.trim(), onClick: submit },
+      ];
+      const dialog = openDialog({ iconName: "nas", title: S.hub_pair, body: [h("p", { text: S.hub_pair_text }), input.wrap], actions: actions(initial) });
+
+      async function submit() {
+        if (busy) return;
+        busy = true;
+        dialog.setActions(actions(input.input.value));
+        const r = await run("hubPair", { text: input.input.value });
+        busy = false;
+        if (!r.ok) {
+          dialog.setActions(actions(input.input.value));
+          alertDialog(S.hub_pair_failed, failureText(r));
+          return;
+        }
+        dialog.close();
+        snackbar(fmt(r.already ? S.hub_already : S.hub_paired, r.name, roleLabel(r.role)));
+      }
+    }
+
+    function openHubSheet() {
+      const hub = state.hub;
+      if (!hub) return;
+      const content = h("div", { class: "admin" }, h("p", { class: "muted", text: S.hub_loading }));
+      const inviteBtn = btn("primary", S.admin_invite, inviteDialog, "plus");
+      inviteBtn.classList.add("hidden");
+      const sheet = openSheet({
+        title: S.hub_title,
+        subtitle: hub.name,
+        body: [content],
+        foot: [btn("danger", S.hub_forget, forgetDialog, "delete"), h("div", { class: "grow" }), btn("sec", S.close, () => sheet.close()), inviteBtn],
+      });
+      load();
+
+      const row = (label, value, cls) => h("div", { class: "right-row" }, h("b", { text: label }), h("span", { class: cls || null, text: value }));
+
+      async function load() {
+        const r = await run("hubInfo");
+        if (!r.ok) {
+          content.replaceChildren(h("div", { class: "result ko" }, icon("warning", "small"), h("span", { text: failureText(r) })));
+          return;
+        }
+        const admin = r.role === "admin";
+        inviteBtn.classList.toggle("hidden", !admin);
+        const known = state.hub || hub;
+        const parts = [h("div", { class: "form-title", text: S.hub_state }), h("div", { class: "rights" },
+          row(S.hub_version, versionLabel(r.version)),
+          row(S.hub_started, fmt(S.hub_started_ago, formatDuration(Math.max(0, Date.now() - r.started * 1000)))),
+          row(S.hub_address, `${known.host}:${known.port}`, "mono"),
+          row(S.hub_pin, r.short, "mono"),
+          row(S.hub_role, roleLabel(r.role)),
+          row(S.hub_pcs, String(r.pcs)))];
+        if (admin) {
+          parts.push(h("div", { class: "form-title", text: S.hub_retention }), retentionRow(r.retention),
+            h("p", { class: "muted small", text: S.hub_retention_help }),
+            h("div", { class: "form-title", text: S.admin_devices }), h("div", { class: "rights" }, r.devices.map(deviceRow)));
+          if (r.invites.length) {
+            parts.push(h("div", { class: "form-title", text: S.admin_invites }), h("div", { class: "rights" }, r.invites.map(inviteRow)));
+          }
+          parts.push(h("p", { class: "muted small", text: S.hub_devices_help }));
+        }
+        content.replaceChildren(...parts);
+      }
+
+      function retentionRow(days) {
+        const options = HUB_RETENTIONS.includes(days) ? HUB_RETENTIONS : [days, ...HUB_RETENTIONS];
+        const sel = h("select", { "aria-label": S.hub_retention },
+          ...options.map((d) => h("option", { value: String(d), text: S["hub_retention_" + d] || fmt(S.hub_retention_days, d) })));
+        sel.value = String(days);
+        sel.addEventListener("change", async () => {
+          const r = await run("hubRetention", { days: Number(sel.value) });
+          if (!r.ok) {
+            alertDialog(S.admin_failed, failureText(r));
+            load();
+            return;
+          }
+          snackbar(fmt(S.hub_retention_done, sel.selectedOptions[0].textContent));
+        });
+        return h("div", { class: "rights" }, h("div", { class: "right-row" }, h("b", { text: S.hub_retention_label }), sel));
+      }
+
+      async function change(params) {
+        const r = await run("hubAdminChange", params);
+        if (!r.ok) alertDialog(S.admin_failed, failureText(r));
+        // Cet ordinateur s'est retiré lui-même : le hub est oublié.
+        if (!state.hub) {
+          sheet.close();
+          return;
+        }
+        load();
+      }
+
+      function deviceRow(dev) {
+        const roleSel = h("select", { "aria-label": fmt(S.admin_role_of, dev.name) },
+          ...HUB_ROLES.map((role) => h("option", { value: role, text: roleLabel(role) })));
+        roleSel.value = dev.role;
+        roleSel.addEventListener("change", () => {
+          const role = roleSel.value;
+          if (!dev.self || dev.role !== "admin" || role === "admin") {
+            change({ action: "role", device: dev.device, role });
+            return;
+          }
+          // Cet ordinateur renonce à son rôle d'administrateur du hub.
+          roleSel.value = dev.role;
+          const dialog = openDialog({
+            iconName: "warning",
+            title: fmt(S.admin_demote_self_title, roleLabel(role)),
+            body: h("p", { text: S.hub_demote_self_text }),
+            actions: [
+              { label: S.cancel, onClick: () => dialog.close() },
+              { label: S.admin_demote_self, kind: "danger", onClick: () => { dialog.close(); change({ action: "role", device: dev.device, role }); } },
+            ],
+          });
+        });
+        const via = S["admin_via_" + dev.via] || dev.via;
+        const meta = [fmt(S.admin_added, dayFmt.format(new Date(dev.added * 1000)), via)];
+        if (dev.seen) meta.push(fmt(S.admin_seen, dayTimeFmt.format(new Date(dev.seen * 1000))));
+        return h("div", { class: "right-row admin-row" },
+          h("span", { class: "ni" }, icon(dev.self ? "monitor" : "users", "", 16)),
+          h("div", { class: "admin-who" },
+            h("b", { text: dev.self ? fmt(S.admin_self, dev.name) : dev.name }),
+            h("small", { class: "mono", text: dev.short }),
+            h("small", { class: "muted", text: meta.join(" · ") })),
+          roleSel,
+          iconBtn("edit", S.admin_rename, () => renameDialog(dev), "flat"),
+          iconBtn("delete", S.admin_revoke, () => revokeDialog(dev), "flat"));
+      }
+
+      function inviteRow(inv) {
+        return h("div", { class: "right-row admin-row" },
+          h("span", { class: "ni" }, icon("clock", "", 16)),
+          h("div", { class: "admin-who" },
+            h("b", { text: inv.name || S.admin_invite }),
+            h("small", { class: "muted", text: fmt(S.admin_invite_until, roleLabel(inv.role), dayTimeFmt.format(new Date(inv.expires * 1000))) })),
+          iconBtn("close", S.admin_invite_cancel, () => change({ action: "cancel", invite: inv.id }), "flat"));
+      }
+
+      function renameDialog(dev) {
+        const input = field({ label: S.field_name, value: dev.name, onInput: (v) => dialog.setActions(actions(v)), onEnter: () => submit(input.input.value) });
+        const submit = (v) => {
+          if (!v.trim()) return;
+          dialog.close();
+          change({ action: "rename", device: dev.device, name: v.trim() });
+        };
+        const actions = (v) => [{ label: S.cancel, onClick: () => dialog.close() }, { label: S.save, disabled: !v.trim(), onClick: () => submit(v) }];
+        const dialog = openDialog({ iconName: "edit", title: fmt(S.admin_rename_title, dev.name), body: input.wrap, actions: actions(dev.name) });
+        input.input.focus();
+      }
+
+      function revokeDialog(dev) {
+        const dialog = openDialog({
+          iconName: "warning",
+          title: fmt(S.admin_revoke_title, dev.name),
+          body: h("p", { text: dev.self ? S.hub_revoke_self_text : S.hub_revoke_text }),
+          actions: [
+            { label: S.cancel, onClick: () => dialog.close() },
+            { label: S.admin_revoke, kind: "danger", onClick: () => { dialog.close(); change({ action: "revoke", device: dev.device }); } },
+          ],
+        });
+      }
+
+      function inviteDialog() {
+        const roleSel = h("select", { "aria-label": S.admin_invite_role }, ...HUB_ROLES.map((role) => h("option", { value: role, text: roleLabel(role) })));
+        roleSel.value = "view";
+        const ttlSel = h("select", { "aria-label": S.admin_invite_ttl }, ...INVITE_TTLS.map((t) => h("option", { value: String(t), text: S["admin_ttl_" + t] })));
+        const name = field({ label: S.admin_invite_name });
+        let busy = false;
+        const dialog = openDialog({
+          iconName: "plus",
+          title: S.admin_invite,
+          body: [h("p", { text: S.hub_invite_text }),
+            h("div", { class: "rights" },
+              h("div", { class: "right-row" }, h("b", { text: S.admin_invite_role }), roleSel),
+              h("div", { class: "right-row" }, h("b", { text: S.admin_invite_ttl }), ttlSel)),
+            name.wrap],
+          actions: [{ label: S.cancel, onClick: () => dialog.close() }, { label: S.admin_invite_create, onClick: create }],
+        });
+
+        async function create() {
+          if (busy) return;
+          busy = true;
+          const r = await run("hubInvite", { role: roleSel.value, ttl: Number(ttlSel.value), name: name.input.value });
+          busy = false;
+          if (!r.ok) {
+            alertDialog(S.admin_failed, failureText(r));
+            return;
+          }
+          dialog.close();
+          load();
+          const ready = openDialog({
+            iconName: "share",
+            title: S.admin_invite,
+            body: [h("p", { text: fmt(S.hub_invite_ready, dayTimeFmt.format(new Date(r.expires * 1000))) }), sharing.qrView(r.qr),
+              sharing.codeView(r.code), sharing.linkBox(r.link)],
+            actions: [{ label: S.share_copy_link, kind: "sec", onClick: () => sharing.copy(r.link) }, { label: S.close, onClick: () => ready.close() }],
+          });
+        }
+      }
+
+      function forgetDialog() {
+        const dialog = openDialog({
+          iconName: "warning",
+          title: fmt(S.hub_forget_title, hub.name),
+          body: h("p", { text: S.hub_forget_text }),
+          actions: [
+            { label: S.cancel, onClick: () => dialog.close() },
+            {
+              label: S.hub_forget,
+              kind: "danger",
+              onClick: async () => {
+                dialog.close();
+                const r = await run("hubForget");
+                if (!r.ok) {
+                  alertDialog(S.admin_failed, failureText(r));
+                  return;
+                }
+                sheet.close();
+                if (r.revoked) snackbar(S.hub_forgotten);
+                else alertDialog(S.hub_forgotten_kept_title, S.hub_forgotten_kept);
+              },
+            },
+          ],
+        });
+      }
+    }
+
+    /** Section des réglages, reconstruite quand le hub appairé change. */
+    function section() {
+      const card = h("section", { class: "card" });
+      let sig = null;
+      return {
+        els: [h("h2", { class: "section-title", text: S.section_hub }), card],
+        update() {
+          const next = JSON.stringify(state.hub || null);
+          if (next === sig) return;
+          sig = next;
+          const hub = state.hub;
+          card.replaceChildren(hub
+            ? settingItem("nas", hub.name, fmt(S.hub_summary, `${hub.host}:${hub.port}`, roleLabel(hub.role), hub.short), openHubSheet)
+            : settingItem("nas", S.hub_pair, S.hub_none_help, pairDialog));
+        },
+      };
+    }
+
+    return { section };
+  })();
+
+  // ---------------------------------------------------------------------------------------------
   // Fiche « ajouter / modifier un PC » (EditDeviceScreen)
   // ---------------------------------------------------------------------------------------------
   async function openEditSheet(id) {
@@ -4994,9 +5338,11 @@
     const section = (title, ...items) => [h("h2", { class: "section-title", text: title }), h("section", { class: "card" }, items)];
     const shareSections = sharing.sections();
     const backupSection = backups.section();
+    const hubSection = hubUI.section();
     const el = h("div", { class: "main-inner narrow" },
       section(S.section_monitoring, poll.el, wakeTimeout.el,
         h("div", { class: "item" }, h("div", { class: "texts" }, h("div", { class: "headline", text: S.setting_confirm }), h("div", { class: "supporting", text: S.setting_confirm_help })), confirmSwitch.el)),
+      hubSection.els,
       shareSections.els,
       section(S.section_backup, exportItem, importItem),
       backupSection.els,
@@ -5033,6 +5379,7 @@
         if (document.activeElement !== autoUpdate.input) autoUpdate.input.checked = !!u.auto;
         shareSections.update();
         backupSection.update();
+        hubSection.update();
       },
     };
   }

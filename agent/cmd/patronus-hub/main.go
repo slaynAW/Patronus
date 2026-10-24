@@ -17,13 +17,7 @@ import (
 
 	"github.com/slaynaw/wakeonlan/agent/hubprotocol"
 	"github.com/slaynaw/wakeonlan/agent/internal/devices"
-	"github.com/slaynaw/wakeonlan/agent/internal/hub/agents"
-	"github.com/slaynaw/wakeonlan/agent/internal/hub/archive"
-	"github.com/slaynaw/wakeonlan/agent/internal/hub/fleet"
-	"github.com/slaynaw/wakeonlan/agent/internal/hub/monitor"
-	"github.com/slaynaw/wakeonlan/agent/internal/hub/server"
-	"github.com/slaynaw/wakeonlan/agent/internal/hub/settings"
-	"github.com/slaynaw/wakeonlan/agent/internal/hub/store"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
 	"github.com/slaynaw/wakeonlan/agent/internal/netinfo"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
@@ -32,9 +26,6 @@ import (
 
 // version est injectée à la compilation (-ldflags "-X main.version=2.0.0").
 var version = "dev"
-
-// registryFile est le registre des appareils autorisés, dans le stockage chiffré.
-const registryFile = "devices.db"
 
 const usageText = `patronus-hub %s — hub Patronus sur le NAS (docs/HUB.md)
 
@@ -105,106 +96,41 @@ func serve(args []string) error {
 	if name == "" {
 		return errors.New("nom du hub vide")
 	}
-	key, created, err := store.LoadOrCreateKey(o.keys)
+	h, err := hub.Open(hub.Config{Data: o.data, Keys: o.keys, Name: name, Version: version, Logger: logger})
 	if err != nil {
 		return err
 	}
-	if created {
+	if h.KeyCreated {
 		logger.Printf("clé des données créée dans %s : copiez ce dossier une fois à part (docs/HUB.md, §9.3)", o.keys)
 	}
-	id, created, err := identity.LoadOrCreate(o.keys, time.Now())
-	if err != nil {
-		return err
-	}
-	if created {
+	if h.IdentityCreated {
 		logger.Printf("identité du hub créée")
-	}
-	st, err := store.Open(o.data, key)
-	if err != nil {
-		return err
-	}
-	registry, err := devices.OpenStorage(st.File(registryFile), registryFile+" (chiffré)", time.Now)
-	if err != nil {
-		return err
-	}
-	pcs, err := fleet.Open(st.File(fleet.FileName), time.Now)
-	if err != nil {
-		return err
-	}
-	dialer := &agents.Dialer{Identity: id, Networks: agents.TargetNetworks()}
-	prefs, err := settings.Open(st.File(settings.FileName))
-	if err != nil {
-		return err
-	}
-	arch := archive.New(st, time.Now)
-	watch := monitor.New(pcs, dialer, arch, logger)
-	srv, err := server.New(server.Config{
-		Name: name, Version: version, Identity: id, Registry: registry, Fleet: pcs, Agents: dialer, States: watch.States,
-		Archive: arch, Settings: prefs, NoteWake: watch.NoteWake, Logger: logger,
-	})
-	if err != nil {
-		return err
 	}
 	ln, err := net.Listen("tcp", ":"+strconv.Itoa(o.port))
 	if err != nil {
 		return err
 	}
-	logger.Printf("hub « %s » %s : port %d, empreinte %s", name, version, o.port, id.Pin.Short())
+	logger.Printf("hub « %s » %s : port %d, empreinte %s", name, version, o.port, h.Identity.Pin.Short())
 
 	// Premier démarrage : aucun administrateur, un lien d'appairage dans le journal du conteneur (§5.2).
 	// Les invitations d'un démarrage précédent sont d'abord annulées : sans administrateur, elles ne
 	// peuvent venir que du NAS, et des redémarrages répétés ne doivent pas en épuiser le nombre.
-	if !hasAdmin(registry) {
-		if _, err := registry.CancelInvites(); err != nil {
+	if !h.HasAdmin() {
+		if _, err := h.Registry.CancelInvites(); err != nil {
 			logger.Printf("registre des appareils : %v", err)
 		}
-		inv, code, err := registry.CreateInvite(protocol2.RoleAdmin, "", protocol2.DefaultInviteTTL*time.Second, nil, devices.ByLocal)
+		inv, code, err := h.Registry.CreateInvite(protocol2.RoleAdmin, "", protocol2.DefaultInviteTTL*time.Second, nil, devices.ByLocal)
 		if err != nil {
 			logger.Printf("lien d'appairage impossible (%v) : patronus-hub pair en crée un", err)
 		} else {
-			printLink(os.Stdout, name, o, id.Pin, code, inv.Expires, protocol2.RoleAdmin)
+			printLink(os.Stdout, name, o, h.Identity.Pin, code, inv.Expires, protocol2.RoleAdmin)
 		}
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go watch.Run(ctx)
-	go prune(ctx, arch, prefs, logger)
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-stop
-		logger.Printf("arrêt du hub")
-		cancel()
-		_ = ln.Close()
-	}()
-	return srv.Serve(ln)
-}
-
-// prune retire de l'archive, au démarrage puis toutes les 6 heures, ce qui dépasse la durée de
-// conservation.
-func prune(ctx context.Context, arch *archive.Archive, prefs *settings.Settings, logger *log.Logger) {
-	for {
-		if n, err := arch.Prune(prefs.Get().RetentionDays); err != nil {
-			logger.Printf("archive : %v", err)
-		} else if n > 0 {
-			logger.Printf("archive : %d mois au-delà de la durée de conservation retirés", n)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(6 * time.Hour):
-		}
-	}
-}
-
-func hasAdmin(r *devices.Registry) bool {
-	for _, d := range r.Devices() {
-		if d.Role == protocol2.RoleAdmin {
-			return true
-		}
-	}
-	return false
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	context.AfterFunc(ctx, func() { logger.Printf("arrêt du hub") })
+	return h.Run(ctx, ln)
 }
 
 // pair demande au hub en marche, depuis le NAS et avec l'identité du hub, une invitation à usage unique.
