@@ -17,6 +17,7 @@ import (
 
 	"github.com/slaynaw/wakeonlan/agent/hubprotocol"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/agents"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/archive"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/fleet"
 	"github.com/slaynaw/wakeonlan/agent/internal/netinfo"
 	"github.com/slaynaw/wakeonlan/agent/protocol"
@@ -37,17 +38,23 @@ const (
 	blockedPause = 5 * time.Minute
 	refusedFirst = time.Minute
 	refusedMax   = 30 * time.Minute
+	// Archive (§7.1) : journal de l'agent toutes les 10 minutes et à chaque retour en ligne ; liste des
+	// jours de mesures toutes les heures, puis les jours manquants, quelques-uns par relevé.
+	HistoryEvery = 10 * time.Minute
+	MetricsEvery = time.Hour
+	daysPerCheck = 5
 )
 
 // Monitor relève les PC de la liste, en continu.
 type Monitor struct {
-	fleet  *fleet.Fleet
-	dialer *agents.Dialer
-	logger *log.Logger
-	now    func() time.Time
+	fleet   *fleet.Fleet
+	dialer  *agents.Dialer
+	archive *archive.Archive
+	logger  *log.Logger
+	now     func() time.Time
 
 	// Rythmes et délai, réglables pour les tests.
-	agentEvery, probeEvery, timeout time.Duration
+	agentEvery, probeEvery, timeout, historyEvery, metricsEvery time.Duration
 
 	mu      sync.Mutex
 	entries map[string]*entry
@@ -62,13 +69,16 @@ type entry struct {
 	next    time.Time
 	refused time.Duration // délai après le dernier refus de l'agent
 	busy    bool
+	// Archive : derniers relevés du journal et de la liste des jours de mesures, jours encore à lire.
+	history, metrics time.Time
+	missing          []string
 }
 
-// New prépare la surveillance des PC de list.
-func New(list *fleet.Fleet, dialer *agents.Dialer, logger *log.Logger) *Monitor {
+// New prépare la surveillance des PC de list ; arch garde leur journal et leurs mesures.
+func New(list *fleet.Fleet, dialer *agents.Dialer, arch *archive.Archive, logger *log.Logger) *Monitor {
 	return &Monitor{
-		fleet: list, dialer: dialer, logger: logger, now: time.Now,
-		agentEvery: AgentEvery, probeEvery: ProbeEvery, timeout: Timeout,
+		fleet: list, dialer: dialer, archive: arch, logger: logger, now: time.Now,
+		agentEvery: AgentEvery, probeEvery: ProbeEvery, timeout: Timeout, historyEvery: HistoryEvery, metricsEvery: MetricsEvery,
 		entries: map[string]*entry{}, slots: make(chan struct{}, parallel),
 	}
 }
@@ -265,7 +275,9 @@ func (m *Monitor) checkAgent(ctx context.Context, p fleet.PC) result {
 		switch resp.Code {
 		case protocol2.CodeOK:
 			body := resp.ResponseBody
-			return result{state: hubprotocol.StateOnline, latency: time.Since(start), agent: &body}
+			latency := time.Since(start)
+			m.collect(ctx, p, sess)
+			return result{state: hubprotocol.StateOnline, latency: latency, agent: &body}
 		case protocol2.CodeUnknownDevice:
 			m.drop(p, sess)
 			return result{state: hubprotocol.StateOnline, problem: hubprotocol.ProblemRevoked, refused: true}
@@ -273,6 +285,78 @@ func (m *Monitor) checkAgent(ctx context.Context, p fleet.PC) result {
 			// busy, forbidden… : le PC répond, l'état n'est pas lu cette fois.
 			return result{state: hubprotocol.StateOnline, latency: time.Since(start)}
 		}
+	}
+}
+
+// collect garde le journal et les mesures de l'agent dans l'archive, quand c'est le moment (§7.1). Un
+// échec n'empêche pas le relevé : il sera retenté au prochain.
+func (m *Monitor) collect(parent context.Context, p fleet.PC, sess *client.Session) {
+	if m.archive == nil {
+		return
+	}
+	now := m.now()
+	m.mu.Lock()
+	e := m.entries[p.ID]
+	wantHistory := e.state.State != hubprotocol.StateOnline || now.Sub(e.history) >= m.historyEvery
+	wantDays := now.Sub(e.metrics) >= m.metricsEvery
+	missing := e.missing
+	m.mu.Unlock()
+
+	if wantHistory {
+		ctx, cancel := context.WithTimeout(parent, m.timeout)
+		resp, err := sess.Do(ctx, protocol2.Request{Cmd: "history"})
+		cancel()
+		if err == nil && resp.OK && resp.History != nil {
+			if n, err := m.archive.AddEvents(p.ID, resp.History.Events); err != nil {
+				m.logger.Printf("archive de « %s » : %v", p.Name, err)
+			} else {
+				if n > 0 {
+					m.logger.Printf("archive de « %s » : %d évènement(s) ajouté(s)", p.Name, n)
+				}
+				m.mu.Lock()
+				e.history = now
+				m.mu.Unlock()
+			}
+		}
+	}
+	if wantDays {
+		ctx, cancel := context.WithTimeout(parent, m.timeout)
+		resp, err := sess.Do(ctx, protocol2.Request{Cmd: "metrics"})
+		cancel()
+		if err != nil || !resp.OK || resp.Metrics == nil {
+			return
+		}
+		today := now.UTC().Format("2006-01-02")
+		missing = nil
+		for _, day := range resp.Metrics.Days {
+			if day >= today {
+				continue // le jour en cours s'écrit encore
+			}
+			if kept, err := m.archive.HasDay(p.ID, day); err == nil && !kept {
+				missing = append(missing, day)
+			}
+		}
+		m.mu.Lock()
+		e.metrics, e.missing = now, missing
+		m.mu.Unlock()
+	}
+	for i, day := range missing {
+		if i == daysPerCheck {
+			break
+		}
+		ctx, cancel := context.WithTimeout(parent, m.timeout)
+		resp, err := sess.Do(ctx, protocol2.Request{Cmd: "metrics", Day: day})
+		cancel()
+		if err != nil || !resp.OK || resp.Metrics == nil || resp.Metrics.Day != day {
+			return
+		}
+		if err := m.archive.AddDay(p.ID, day, resp.Metrics.Rows); err != nil {
+			m.logger.Printf("mesures de « %s » : %v", p.Name, err)
+			return
+		}
+		m.mu.Lock()
+		e.missing = e.missing[1:]
+		m.mu.Unlock()
 	}
 }
 

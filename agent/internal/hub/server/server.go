@@ -21,8 +21,11 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/internal/devices"
 	"github.com/slaynaw/wakeonlan/agent/internal/guard"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/agents"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/archive"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/fleet"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/settings"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
+	"github.com/slaynaw/wakeonlan/agent/protocol"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
 )
 
@@ -57,9 +60,11 @@ type Config struct {
 	Fleet    *fleet.Fleet   // PC confiés et appareils sans agent
 	Agents   *agents.Dialer // sessions avec les agents (appairage des PC confiés)
 	// States donne l'état relevé de chaque PC, dans l'ordre de Fleet (monitor.Monitor.States) ; nil : aucun.
-	States func() []hubprotocol.PCState
-	Logger *log.Logger
-	Now    func() time.Time // time.Now par défaut
+	States   func() []hubprotocol.PCState
+	Archive  *archive.Archive   // journal et mesures gardés des PC
+	Settings *settings.Settings // réglages du hub
+	Logger   *log.Logger
+	Now      func() time.Time // time.Now par défaut
 }
 
 // pairTimeout borne l'appairage du hub auprès d'un agent (hub.pcs.add).
@@ -82,8 +87,9 @@ type Server struct {
 // New prépare le serveur. Seules les adresses des réseaux privés sont acceptées, comme la liste
 // « allow » par défaut d'un agent.
 func New(cfg Config) (*Server, error) {
-	if cfg.Identity == nil || cfg.Registry == nil || cfg.Fleet == nil || cfg.Agents == nil || cfg.Logger == nil {
-		return nil, errors.New("hub : identité, registres, connexion aux agents et journal requis")
+	if cfg.Identity == nil || cfg.Registry == nil || cfg.Fleet == nil || cfg.Agents == nil || cfg.Archive == nil ||
+		cfg.Settings == nil || cfg.Logger == nil {
+		return nil, errors.New("hub : identité, registres, connexion aux agents, archive, réglages et journal requis")
 	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
@@ -466,6 +472,26 @@ func (sess *session) command(req hubprotocol.Request, d devices.Device) ([]byte,
 	if strings.HasPrefix(req.Cmd, hubprotocol.CmdPCs) {
 		return sess.pcs(req, d)
 	}
+	switch req.Cmd {
+	case hubprotocol.CmdHistory, hubprotocol.CmdMetrics:
+		return sess.archived(req, d)
+	case hubprotocol.CmdSettings:
+		if req.Retention != 0 {
+			v := s.cfg.Settings.Get()
+			v.RetentionDays = req.Retention
+			if err := settings.Validate(v); err != nil {
+				return bad(protocol2.CodeBadRequest, err.Error())
+			}
+			if err := s.cfg.Settings.Set(v); err != nil {
+				s.cfg.Logger.Printf("réglages : %v", err)
+				return bad(protocol2.CodeBusy, "réglages non enregistrés : réessayez")
+			}
+			s.cfg.Logger.Printf("conservation de l'archive : %d jours (par %s)", v.RetentionDays, d.Name)
+		}
+		resp := ok()
+		resp.Settings = &hubprotocol.Settings{Retention: s.cfg.Settings.Get().RetentionDays}
+		return encode(resp), false
+	}
 	// Commande du protocole que ce hub ne sert pas encore (étapes suivantes de la 2.0).
 	return bad(protocol2.CodeUnsupported, fmt.Sprintf("commande pas encore disponible sur ce hub : %s", req.Cmd))
 }
@@ -562,10 +588,52 @@ func (sess *session) pcs(req hubprotocol.Request, d devices.Device) ([]byte, boo
 		if err != nil {
 			return failed(err)
 		}
+		// Son archive part avec lui.
+		if err := s.cfg.Archive.RemovePC(p.ID); err != nil {
+			s.cfg.Logger.Printf("archive de « %s » : %v", p.Name, err)
+		}
 		s.cfg.Logger.Printf("PC « %s » retiré du hub par %s", p.Name, d.Name)
 		return reply(p)
 	}
 	return bad(protocol2.CodeUnsupported, fmt.Sprintf("commande inconnue : %s", req.Cmd))
+}
+
+// archived répond à hub.history et hub.metrics (rôle view) avec l'archive d'un PC confié.
+func (sess *session) archived(req hubprotocol.Request, d devices.Device) ([]byte, bool) {
+	s := sess.s
+	bad := func(code, message string) ([]byte, bool) { return encode(sess.answer(req.ID, d, code, message)), false }
+	p, ok := s.cfg.Fleet.Get(req.PC)
+	if !ok {
+		return bad(protocol2.CodeBadRequest, "PC introuvable")
+	}
+	resp := sess.answer(req.ID, d, protocol2.CodeOK, "")
+	if req.Cmd == hubprotocol.CmdHistory {
+		events, more, first, err := s.cfg.Archive.Events(p.ID, req.From)
+		if err != nil {
+			s.cfg.Logger.Printf("archive de « %s » : %v", p.Name, err)
+			return bad(protocol2.CodeBusy, "archive illisible")
+		}
+		if events == nil {
+			events = []protocol.HistoryEvent{}
+		}
+		resp.History, resp.More = &protocol.History{From: first, Events: events}, more
+		return encode(resp), false
+	}
+	m := &protocol.Metrics{Day: req.Day, Days: []string{}, Rows: []protocol.MetricsRow{}}
+	var err error
+	if req.Day == "" {
+		m.Days, err = s.cfg.Archive.Days(p.ID)
+	} else {
+		var rows []protocol.MetricsRow
+		if rows, err = s.cfg.Archive.Day(p.ID, req.Day); rows != nil {
+			m.Rows = rows
+		}
+	}
+	if err != nil {
+		return bad(protocol2.CodeBadRequest, err.Error())
+	}
+	resp.Metrics = m
+	return encode(resp), false
 }
 
 // invalidPC : description d'un PC refusée, avec la raison à montrer à l'application.

@@ -17,9 +17,12 @@ import (
 
 	"github.com/slaynaw/wakeonlan/agent/hubprotocol"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/agents"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/archive"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/fleet"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/hubtest"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/store"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
+	"github.com/slaynaw/wakeonlan/agent/protocol"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
 )
 
@@ -35,10 +38,11 @@ func (m *memStorage) Load() ([]byte, error) {
 func (m *memStorage) Save(data []byte) error { m.data = append([]byte(nil), data...); return nil }
 
 type env struct {
-	hub    *identity.Identity
-	fleet  *fleet.Fleet
-	dialer *agents.Dialer
-	mon    *Monitor
+	hub     *identity.Identity
+	fleet   *fleet.Fleet
+	dialer  *agents.Dialer
+	archive *archive.Archive
+	mon     *Monitor
 }
 
 func start(t *testing.T) *env {
@@ -58,13 +62,18 @@ func startWith(t *testing.T, networks []netip.Prefix) *env {
 		t.Fatal(err)
 	}
 	dialer := &agents.Dialer{Identity: hub, Networks: networks}
-	m := New(list, dialer, log.New(io.Discard, "", 0))
+	st, err := store.Open(t.TempDir(), store.Key{3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	arch := archive.New(st, time.Now)
+	m := New(list, dialer, arch, log.New(io.Discard, "", 0))
 	// Sous Windows, une connexion refusée sur l'adresse de bouclage n'échoue qu'après 2 s environ.
 	m.agentEvery, m.probeEvery, m.timeout = 50*time.Millisecond, 50*time.Millisecond, 4*time.Second
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go m.Run(ctx)
-	return &env{hub: hub, fleet: list, dialer: dialer, mon: m}
+	return &env{hub: hub, fleet: list, dialer: dialer, archive: arch, mon: m}
 }
 
 // entrust confie au hub l'agent a, comme hub.pcs.add.
@@ -260,4 +269,49 @@ func TestPrivateProbe(t *testing.T) {
 		t.Fatal("connexion ouverte vers l'adresse de bouclage")
 	default:
 	}
+}
+
+// TestArchive : le journal de l'agent et ses jours de mesures passés sont recopiés dans l'archive du hub ;
+// le jour en cours ne l'est pas encore.
+func TestArchive(t *testing.T) {
+	e := start(t)
+	a := hubtest.StartAgent(t)
+	boot := time.Now().Add(-48 * time.Hour).Unix()
+	if err := a.History.Add(protocol.HistoryEvent{T: boot, K: protocol.HistoryBoot}); err != nil {
+		t.Fatal(err)
+	}
+	today := time.Now().UTC().Format("2006-01-02")
+	past := []string{time.Now().UTC().AddDate(0, 0, -3).Format("2006-01-02"), time.Now().UTC().AddDate(0, 0, -2).Format("2006-01-02")}
+	for _, day := range append(past, today) {
+		a.Metrics.Set(day, []protocol.MetricsRow{{T: boot, N: 6}})
+	}
+	pc := e.entrust(t, a)
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
+		events, _, _, _ := e.archive.Events(pc.ID, 0)
+		days, _ := e.archive.Days(pc.ID)
+		if len(days) == len(past) && hasBoot(events, boot) {
+			if days[0] != past[0] || days[1] != past[1] {
+				t.Fatalf("jours gardés : %v", days)
+			}
+			rows, err := e.archive.Day(pc.ID, past[0])
+			if err != nil || len(rows) != 1 || rows[0].N != 6 {
+				t.Fatalf("mesures gardées : %+v, %v", rows, err)
+			}
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	events, _, _, _ := e.archive.Events(pc.ID, 0)
+	days, _ := e.archive.Days(pc.ID)
+	t.Fatalf("archive incomplète : %+v, %v", events, days)
+}
+
+func hasBoot(events []protocol.HistoryEvent, t int64) bool {
+	for _, e := range events {
+		if e.T == t && e.K == protocol.HistoryBoot {
+			return true
+		}
+	}
+	return false
 }

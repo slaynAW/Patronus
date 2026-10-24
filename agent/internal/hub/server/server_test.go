@@ -22,7 +22,9 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/hubprotocol"
 	"github.com/slaynaw/wakeonlan/agent/internal/devices"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/agents"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/archive"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/fleet"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/settings"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/store"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
@@ -83,8 +85,13 @@ func start(t *testing.T) *env {
 	// Les tests joignent les agents sur l'adresse de bouclage, que le hub refuse en service.
 	dialer := &agents.Dialer{Identity: hub, Networks: append(agents.TargetNetworks(), netip.MustParsePrefix("127.0.0.0/8"))}
 	buf := &syncBuffer{}
+	prefs, err := settings.Open(st.File(settings.FileName))
+	if err != nil {
+		t.Fatal(err)
+	}
 	srv, err := New(Config{
-		Name: "Hub NAS", Version: "2.0.0-test", Identity: hub, Registry: registry, Fleet: pcs, Agents: dialer, Logger: log.New(buf, "", 0),
+		Name: "Hub NAS", Version: "2.0.0-test", Identity: hub, Registry: registry, Fleet: pcs, Agents: dialer,
+		Archive: archive.New(st, time.Now), Settings: prefs, Logger: log.New(buf, "", 0),
 	})
 	if err != nil {
 		t.Fatal(err)

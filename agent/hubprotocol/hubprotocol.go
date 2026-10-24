@@ -148,6 +148,11 @@ type Request struct {
 	MAC   string `json:"mac,omitempty"`
 	Agent string `json:"agent,omitempty"`
 	Probe *Probe `json:"probe,omitempty"`
+	// Archive (hub.history, hub.metrics) : début des évènements voulus (secondes Unix), jour des mesures.
+	From int64  `json:"from,omitempty"`
+	Day  string `json:"day,omitempty"`
+	// Réglages (hub.settings) : durée de conservation, en jours ; absente, les réglages sont seulement lus.
+	Retention int `json:"retention,omitempty"`
 }
 
 // Sondes des appareils sans agent (§6.2).
@@ -200,6 +205,19 @@ type Response struct {
 	PC      *PCInfo                `json:"pc,omitempty"`
 	// States : hub.status, état de chaque PC confié et appareil, dans l'ordre de PCs.
 	States []PCState `json:"states,omitzero"`
+	// History : hub.history, évènements gardés du journal de l'agent (From : le plus ancien gardé) ; More
+	// indique qu'il en reste après le dernier, à demander avec un « from » plus grand.
+	History *protocol.History `json:"history,omitempty"`
+	More    bool              `json:"more,omitempty"`
+	// Metrics : hub.metrics, jours gardés (Days) ou mesures d'un jour (Day, Rows), comme « metrics ».
+	Metrics *protocol.Metrics `json:"metrics,omitempty"`
+	// Settings : hub.settings.
+	Settings *Settings `json:"settings,omitempty"`
+}
+
+// Settings sont les réglages du hub.
+type Settings struct {
+	Retention int `json:"retention"` // durée de conservation de l'archive, en jours (90 à 1095)
 }
 
 // États d'un PC vus par le hub (§6.2).

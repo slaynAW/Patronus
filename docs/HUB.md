@@ -205,7 +205,8 @@ identifiants de PC sont opaques (16 octets aléatoires en B64), propres au hub.
 | Clé des données (32 octets aléatoires) | `/keys/data.key` | Jusqu'à l'effacement |
 | Appareils autorisés, invitations (condensé du code seulement) | `/data/devices.db`, chiffré | — |
 | PC confiés : nom, adresse, MAC, empreinte de l'agent, sondes, programmations | `/data/hub.db`, chiffré | — |
-| Journal et mesures de chaque PC, évènements détectés | `/data/pc/<identifiant opaque>/<AAAA-MM>.bin`, chiffrés | 1 an par défaut (3 mois à 3 ans) |
+| Journal et mesures de chaque PC | `/data/pc/<identifiant opaque>/history-<AAAA-MM>.bin` et `metrics-<AAAA-MM>.bin`, chiffrés | 1 an par défaut (3 mois à 3 ans) |
+| Réglages (durée de conservation) | `/data/settings.db`, chiffré | — |
 
 Place estimée (mesures minute par minute, seulement quand le PC est allumé) : environ 10 Mo par an pour un PC
 allumé 4 h par jour, 70 Mo pour un PC qui ne s'éteint jamais.
