@@ -95,7 +95,7 @@ Ce qu'un attaquant qui a pris le NAS obtient au pire (risque résiduel de T30) :
 ### 5.2 Appairer une application au hub
 
 1. Au premier démarrage (aucun administrateur), le hub écrit dans **le journal du conteneur** (Container Manager →
-   *Conteneur* → *Journal*) un lien `patronus://hub?v=1&h=<ip>&p=9771&f=<empreinte>&c=<code>` et son code, valables
+   *Conteneur* → *Journal*) un lien `patronus://hub?v=1&n=<nom>&h=<ip>&p=9771&a=<empreinte>&c=<code>&r=admin&e=<expiration>` et son code, valables
    **10 minutes, à usage unique** ; en SSH, `sudo docker exec patronus-hub patronus-hub pair` en affiche un autre.
 2. L'application (*Réglages* → *Hub* → *Coller le lien*, ou saisie du code et de l'adresse) se connecte, vérifie
    l'empreinte, envoie `pair` : elle devient **administrateur du hub**.
@@ -122,6 +122,8 @@ de la liste du hub **et** retire le hub de l'agent (`devices.revoke`) ; sur le P
 Ajoutés par une application administrateur du hub : nom, adresse, type de sonde (§7.2), MAC facultative (réveil).
 
 ## 6. Protocole applications ↔ hub (`patronus-hub/1`)
+
+Spécification complète : [PROTOCOLE-HUB.md](PROTOCOLE-HUB.md).
 
 - **Transport identique à `wolagent/2`** ([PROTOCOLE-V2.md §3 et §4](PROTOCOLE-V2.md#3-transport)) : TLS 1.3 à
   authentification mutuelle, empreintes épinglées, mêmes trames, mêmes limites et blocages. Seuls changent l'**ALPN**
@@ -314,8 +316,8 @@ Une PR par étape, chacune testée en CI et fusionnée quand tout est vert :
 | Étape | Contenu |
 |---|---|
 | 2.0-A | Ce document et le modèle de menace (validation) : fait |
-| 2.0-B | Stockage chiffré (§9) et ses vecteurs, recalculés par une seconde implémentation |
-| 2.0-C | Hub : identité, registre des appareils (dans le stockage chiffré), serveur `patronus-hub/1`, appairage ; spécification du protocole et vecteurs |
+| 2.0-B | Stockage chiffré (§9) et ses vecteurs, recalculés par une seconde implémentation : fait |
+| 2.0-C | Hub : identité, registre des appareils (dans le stockage chiffré), serveur `patronus-hub/1`, appairage, commande `patronus-hub` ; spécification du protocole ([PROTOCOLE-HUB.md](PROTOCOLE-HUB.md)) et vecteurs |
 | 2.0-D | Surveillance : agents confiés (§5.3, §7.1), sondes (§7.2), évènements (§7.3), fusion de l'historique en paquet commun, conservation et nettoyage ; tests de bout en bout contre le vrai agent |
 | 2.0-E | Module `core` (Kotlin) : client `patronus-hub/1`, vérifié par les mêmes vecteurs |
 | 2.0-F | Application Windows : réglages Hub, PC confiés, historique long, « Pendant votre absence » |

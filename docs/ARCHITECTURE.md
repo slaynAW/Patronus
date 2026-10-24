@@ -36,9 +36,11 @@ Patronus/
 ├── agent/       Go — service installé sur les PC
 │   ├── protocol/   protocole partagé avec l'application Windows
 │   ├── update/     mises à jour (manifeste signé, téléchargement vérifié), partagé avec l'application Windows
-│   └── internal/   server, config, history (journal 30 jours), power, service, selfupdate (mise à jour guidée
-│                   sous Windows), pairing, netinfo, sysinfo, terminal ; hub/ : hub sur le NAS (2.0, en cours,
-│                   docs/HUB.md), dont store (stockage chiffré)
+│   ├── internal/   server, config, history (journal 30 jours), power, service, selfupdate (mise à jour guidée
+│   │               sous Windows), pairing, netinfo, sysinfo, terminal, guard (blocage des échecs) ; hub/ : hub
+│   │               sur le NAS (2.0, en cours, docs/HUB.md) : store (stockage chiffré), server (patronus-hub/1)
+│   ├── hubprotocol/ protocole patronus-hub/1 (docs/PROTOCOLE-HUB.md), partagé avec les applications
+│   └── cmd/        patronus-hub (le hub), diagnostic-open
 └── protocol/    vecteurs de test communs Kotlin ↔ Go (protocole, paquet magique, sauvegardes, historique,
                  mises à jour, partage, QR code)
 ```
@@ -206,6 +208,7 @@ flowchart LR
 | Scénario d'historique commun Kotlin ↔ Go (fusion, doublons, conservation) | `protocol/history-vectors.json` |
 | Mesures décrites par l'agent, lues élément par élément en Go et en Kotlin (validation, gravité) | `protocol/measure-vectors.json` |
 | Stockage chiffré du hub (dérivation des clés, fichiers entiers, journaux, cas refusés) : Go et une seconde implémentation en Python, à chaque build | `protocol/hub-store-vectors.json`, `.github/scripts/check-hub-store-vectors.py` |
+| Protocole du hub `patronus-hub/1` : liens d'appairage, salut, rôles et autorisation des commandes | `protocol/hub-vectors.json` |
 | Tests de l'application Windows (Linux + Windows : DPAPI, ping, cartes réseau), tests de bout en bout contre l'agent (`wolagent/1`, `wolagent/2`, passage automatique) | CI |
 | Démarrage réel de l'application Windows (fenêtre WebView2, interface, pont Go ↔ JS) | CI (`WOL_SELFTEST`) |
 | Lint Android, `go vet` pour Windows/Linux/macOS, `gofmt` | CI |

@@ -4,7 +4,11 @@
 package guard
 
 import (
+	"errors"
+	"io"
+	"net"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -119,4 +123,19 @@ func (g *Pairing) Fail() bool {
 		return true
 	}
 	return false
+}
+
+// Refused distingue un refus de TLS (version, ALPN, certificat), compté comme un échec de l'adresse,
+// d'une connexion simplement interrompue (sonde TCP, délai dépassé) ou refusée par le client lui-même.
+func Refused(err error) bool {
+	var ne net.Error
+	var op *net.OpError
+	switch {
+	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF), errors.Is(err, net.ErrClosed),
+		errors.Is(err, syscall.ECONNRESET), errors.As(err, &ne) && ne.Timeout():
+		return false
+	case errors.As(err, &op) && op.Op == "remote error": // alerte du client : son refus, pas le nôtre
+		return false
+	}
+	return true
 }
