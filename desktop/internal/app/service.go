@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -147,6 +148,11 @@ type Service struct {
 	hubMu    sync.Mutex
 	hubStore *hubstore.Store
 	hub      *hubstore.Hub
+	hubSnap  hubSnapshot
+	// hubFailed : cause du dernier relevé du hub en échec ("" : réussi).
+	hubFailed string
+	// hubWake demande un relevé du hub sans attendre.
+	hubWake chan struct{}
 }
 
 type importState struct {
@@ -175,6 +181,7 @@ func New(opts Options) *Service {
 		histStore:    opts.History,
 		hist:         history.New(),
 		agentFetch:   map[string]*agentFetchState{},
+		hubWake:      make(chan struct{}, 1),
 	}
 	if s.now == nil {
 		s.now = time.Now
@@ -255,6 +262,7 @@ func (s *Service) Run(ctx context.Context) {
 	go s.runShare(ctx)
 	go s.runBackups(ctx)
 	go s.runArchives(ctx)
+	go s.runHub(ctx)
 	s.updateMonitor()
 	ticker := time.NewTicker(s.netPoll)
 	defer ticker.Stop()
@@ -359,6 +367,8 @@ type DeviceView struct {
 	Specs *SpecsView          `json:"specs,omitempty"`
 	// Shared est présent pour un PC reçu d'une autre personne (non modifiable).
 	Shared *SharedView `json:"shared,omitempty"`
+	// Hub est présent pour un PC confié au hub appairé.
+	Hub *DeviceHubView `json:"hub,omitempty"`
 }
 
 // SharedView indique qui partage un PC reçu.
@@ -390,6 +400,7 @@ func (s *Service) State() UIState {
 	shareView := s.shareView()
 	backupView := s.backupView()
 	hubView := s.hubView()
+	entrusted := s.hubDevices()
 	shared := s.sharedDevices()
 	s.histMu.Lock()
 	historyVersion := s.histVersion
@@ -428,6 +439,9 @@ func (s *Service) State() UIState {
 		if d.Agent != nil {
 			v.AgentPin = d.Agent.ShortPin()
 			v.ShareControl = d.CanShutdown() && d.Agent.HasKey()
+			if hv, ok := entrusted[d.Agent.Pin]; ok && d.Agent.HasPin() {
+				v.Hub = &hv
+			}
 		}
 		if d.ID == live {
 			v.Temps = s.monitor.Temps(d.ID, s.now().Add(-status.TempWindow).UnixMilli())
@@ -492,6 +506,10 @@ type callParams struct {
 	Invite string `json:"invite"`
 	// Days : durée de conservation de l'archive du hub, en jours.
 	Days int `json:"days"`
+	// PC confiés au hub : PC visé (identifiant du hub), MAC et sonde d'un appareil sans agent.
+	PC    string `json:"pc"`
+	MAC   string `json:"mac"`
+	Probe string `json:"probe"`
 }
 
 // pairingRequest : empreinte de l'agent et code d'appairage lus dans un lien v=2.
@@ -647,6 +665,20 @@ func (s *Service) dispatch(method string, p callParams) (any, error) {
 		return s.hubRetention(p.Days), nil
 	case "hubForget":
 		return s.hubForget(), nil
+	case "hubEntrust":
+		return s.hubEntrust(p.ID), nil
+	case "hubRemovePC":
+		return s.hubRemovePC(p.PC), nil
+	case "hubAddDevice":
+		port := 0
+		if p.Port != "" {
+			n, err := strconv.Atoi(strings.TrimSpace(p.Port))
+			if err != nil {
+				return map[string]any{"ok": false, "code": "INVALID", "field": "port"}, nil
+			}
+			port = n
+		}
+		return s.hubAddDevice(p.Name, p.Host, p.MAC, p.Probe, port), nil
 	case "parsePairing":
 		info, err := pairing.Parse(p.Text)
 		if err != nil {
@@ -801,6 +833,13 @@ func (s *Service) device(id string) (model.Device, bool) {
 	return model.Device{}, false
 }
 
+// ownDevices renvoie une copie des PC de l'appareil (modifiables).
+func (s *Service) ownDevices() []model.Device {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cfg.Clone().Devices
+}
+
 // ownDevice cherche un PC de l'appareil (modifiable).
 func (s *Service) ownDevice(id string) (model.Device, bool) {
 	s.mu.Lock()
@@ -923,12 +962,16 @@ func (s *Service) wake(id string) (any, error) {
 		req.Override, _ = netip.ParseAddr(*d.BroadcastAddress)
 	}
 	s.mu.Lock()
-	for _, prefix := range s.network.Prefixes() {
+	prefixes := s.network.Prefixes()
+	s.mu.Unlock()
+	for _, prefix := range prefixes {
 		req.Routes = append(req.Routes, wol.Route{Source: prefix})
 	}
-	s.mu.Unlock()
 	result := wol.Send(context.Background(), req)
-	if !result.Success() {
+	// PC hors des réseaux de cet ordinateur (VPN, autre réseau) : le hub le démarre aussi, depuis le
+	// réseau du NAS.
+	viaHub := s.relayWake(d, prefixes)
+	if !result.Success() && !viaHub {
 		msg := "aucun paquet envoyé"
 		if len(result.Errors) > 0 {
 			msg = result.Errors[0]
@@ -941,7 +984,7 @@ func (s *Service) wake(id string) (any, error) {
 	// Demande enregistrée avant le changement d'état : l'allumage constaté ne peut pas la précéder.
 	s.record(history.Event{Device: id, Kind: history.WakeSent, Source: history.App})
 	s.monitor.OnWakeSent(id)
-	return map[string]any{"ok": true, "result": result}, nil
+	return map[string]any{"ok": true, "result": result, "viaHub": viaHub}, nil
 }
 
 func (s *Service) power(id string, action agentclient.Action, force bool) (any, error) {

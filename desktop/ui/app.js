@@ -318,6 +318,50 @@
     hub_forgotten: "Hub oublié : cet ordinateur s’en est retiré.",
     hub_forgotten_kept_title: "Hub oublié",
     hub_forgotten_kept: "Le hub garde cet ordinateur dans ses appareils autorisés : retirez-le depuis un appareil administrateur du hub, ou appairez-le de nouveau plus tard (il retrouvera son rôle).",
+    hub_pcs_none: "Aucun PC ni appareil confié au hub. Confiez un PC depuis sa fiche (ligne « Hub »), ou ajoutez un appareil sans agent.",
+    hub_pc_state_online: "répond",
+    hub_pc_state_offline: "ne répond pas",
+    hub_pc_state_agent_down: "allumé, agent arrêté",
+    hub_pc_state_unknown: "pas encore relevé",
+    hub_pc_problem_revoked: "le PC ne reconnaît plus le hub",
+    hub_pc_problem_pin_mismatch: "empreinte inattendue (agent réinstallé ?)",
+    hub_pc_problem_rate_limited: "le PC bloque le hub (trop d’échecs)",
+    hub_pc_since: "depuis %1$s",
+    hub_pc_agent: "agent %1$s · hub en « %2$s »",
+    hub_pc_probe_tcp: "connexion au port %1$d",
+    hub_pc_probe_http: "page web (HTTP)",
+    hub_pc_probe_https: "page web (HTTPS)",
+    hub_pc_remove: "Retirer du hub",
+    hub_pc_remove_title: "Retirer « %1$s » du hub ?",
+    hub_pc_remove_text: "Le hub cesse de le surveiller et efface l’historique qu’il en gardait. Cet ordinateur retire aussi le hub des appareils autorisés du PC (s’il est allumé et que cet ordinateur l’administre) ; le journal tenu par l’agent du PC est conservé.",
+    hub_device_remove_text: "Le hub cesse de le surveiller et efface l’historique qu’il en gardait.",
+    hub_pc_removed: "« %1$s » retiré du hub.",
+    hub_pc_kept_title: "Retiré du hub",
+    hub_pc_kept: "Le hub a oublié ce PC, mais il n’a pas pu être retiré de ses appareils autorisés (PC éteint, ou cet ordinateur n’en est pas administrateur). Sur le PC : wol-agent devices revoke %1$s",
+    hub_add_device: "Ajouter un appareil",
+    hub_add_device_text: "Box, imprimante, caméra, le NAS lui-même… Le hub vérifie seulement qu’il répond, toutes les 30 s, sur votre réseau local : il ne lit ni n’envoie aucune donnée.",
+    hub_add_host: "Adresse IP ou nom de l’appareil",
+    hub_add_probe: "Vérification",
+    hub_add_port: "Port",
+    hub_add_mac: "Adresse MAC (facultative, pour le démarrer par le hub)",
+    hub_add_invalid_name: "Indiquez un nom.",
+    hub_add_invalid_host: "Adresse invalide (IPv4, IPv6 ou nom d’hôte).",
+    hub_add_invalid_port: "Port invalide (1 à 65535).",
+    hub_add_invalid_mac: "Adresse MAC invalide.",
+    hub_add_invalid_probe: "Choisissez une vérification.",
+    hub_device_added: "« %1$s » ajouté au hub.",
+    detail_hub: "Hub",
+    detail_hub_entrusted: "Confié au hub (rôle « %1$s »)",
+    hub_entrust: "Confier au hub",
+    hub_entrust_title: "Confier « %1$s » au hub ?",
+    hub_entrust_text: "Le hub « %1$s » surveillera ce PC en continu et gardera son journal et ses mesures. Il reçoit le rôle « Démarrer » sur ce PC : il peut lire son état et le démarrer, mais ni l’éteindre ni gérer ses appareils. Le PC doit être allumé.",
+    hub_entrusting: "Le hub s’appaire au PC…",
+    hub_entrusted: "« %1$s » est confié au hub.",
+    hub_entrust_failed: "Impossible de confier ce PC",
+    hub_entrust_agent: "Le PC a refusé : %1$s",
+    hub_entrust_hub: "Le hub a refusé : %1$s. Vérifiez que le NAS joint le PC (même réseau, pare-feu du PC).",
+    hub_already_entrusted: "Ce PC est déjà confié au hub.",
+    message_wake_sent_hub: "Paquet magique envoyé à « %1$s » (aussi par le hub)",
     hub_error_UNREACHABLE: "hub injoignable : NAS éteint, conteneur arrêté, ou cet ordinateur sur un autre réseau",
     hub_error_REFUSED: "le NAS répond, mais le hub n’écoute pas sur ce port (conteneur arrêté ?)",
     hub_error_UNREGISTERED: "cet ordinateur n’est plus autorisé par le hub : appairez-le de nouveau",
@@ -2776,6 +2820,13 @@
         rows.push({ key: "role", label: S.detail_role, text: `${roleLabel(role)} · ${S.admin_open}`, iconName: "users",
           onClick: () => openAdminSheet(d.id) });
       } else if (role) rows.push({ key: "role", label: S.detail_role, text: roleLabel(role) });
+      if (state.hub && d.agentPin && !d.shared) {
+        if (d.hub) {
+          rows.push({ key: "hub", label: S.detail_hub, text: fmt(S.detail_hub_entrusted, roleLabel(d.hub.role)), iconName: "nas", onClick: () => hubUI.open() });
+        } else if (role === "admin" && state.hub.role === "admin") {
+          rows.push({ key: "hub", label: S.detail_hub, text: S.hub_entrust, iconName: "nas", onClick: () => hubUI.entrust(d.id) });
+        }
+      }
 
       const keys = rows.map((r) => r.key).join("|");
       if (info.dataset.keys !== keys) {
@@ -3350,7 +3401,7 @@
     if (!d) return;
     try {
       const r = await api.call("wake", { id });
-      snackbar(r.ok ? fmt(S.message_wake_sent, d.name) : fmt(S.message_wake_error, r.error || ""));
+      snackbar(r.ok ? fmt(r.viaHub ? S.message_wake_sent_hub : S.message_wake_sent, d.name) : fmt(S.message_wake_error, r.error || ""));
     } catch (e) {
       snackbar(fmt(S.message_wake_error, e.message));
     }
@@ -3697,7 +3748,10 @@
           row(S.hub_address, `${known.host}:${known.port}`, "mono"),
           row(S.hub_pin, r.short, "mono"),
           row(S.hub_role, roleLabel(r.role)),
-          row(S.hub_pcs, String(r.pcs)))];
+          row(S.hub_pcs, String(r.pcs.length)))];
+        parts.push(h("div", { class: "form-title", text: S.hub_pcs }),
+          r.pcs.length ? h("div", { class: "rights" }, r.pcs.map((p) => pcRow(p, admin))) : h("p", { class: "muted small", text: S.hub_pcs_none }),
+          admin ? h("div", { class: "row-actions" }, btn("sec", S.hub_add_device, () => addDeviceDialog(), "plus")) : null);
         if (admin) {
           parts.push(h("div", { class: "form-title", text: S.hub_retention }), retentionRow(r.retention),
             h("p", { class: "muted small", text: S.hub_retention_help }),
@@ -3725,6 +3779,83 @@
           snackbar(fmt(S.hub_retention_done, sel.selectedOptions[0].textContent));
         });
         return h("div", { class: "rights" }, h("div", { class: "right-row" }, h("b", { text: S.hub_retention_label }), sel));
+      }
+
+      function pcRow(p, admin) {
+        const what = p.agent ? fmt(S.hub_pc_agent, p.agent, roleLabel(p.role))
+          : p.probe === "tcp" ? fmt(S.hub_pc_probe_tcp, p.port) : S["hub_pc_probe_" + p.probe] || p.probe;
+        let st = S["hub_pc_state_" + p.state] || S.hub_pc_state_unknown;
+        if (p.problem) st = S["hub_pc_problem_" + p.problem] || p.problem;
+        else if (p.since && p.state !== "unknown") st += " · " + fmt(S.hub_pc_since, formatDuration(Math.max(0, Date.now() - p.since * 1000)));
+        const bad = p.problem || p.state === "offline" || p.state === "agent_down";
+        return h("div", { class: "right-row admin-row" },
+          h("span", { class: "ni" }, icon(p.agent ? "monitor" : "hub", "", 16)),
+          h("div", { class: "admin-who" },
+            h("b", { text: p.name }),
+            h("small", { class: "mono", text: p.host }),
+            h("small", { class: "muted", text: what }),
+            h("small", { class: bad ? "bad" : p.state === "online" ? "ok" : "muted", text: st })),
+          admin ? iconBtn("delete", S.hub_pc_remove, () => removeDialog(p), "flat") : null);
+      }
+
+      function removeDialog(p) {
+        const dialog = openDialog({
+          iconName: "warning",
+          title: fmt(S.hub_pc_remove_title, p.name),
+          body: h("p", { text: p.agent ? S.hub_pc_remove_text : S.hub_device_remove_text }),
+          actions: [
+            { label: S.cancel, onClick: () => dialog.close() },
+            {
+              label: S.hub_pc_remove,
+              kind: "danger",
+              onClick: async () => {
+                dialog.close();
+                const r = await run("hubRemovePC", { pc: p.id });
+                load();
+                if (!r.ok) alertDialog(S.admin_failed, failureText(r));
+                else if (r.agent === "failed") alertDialog(S.hub_pc_kept_title, fmt(S.hub_pc_kept, r.hub));
+                else snackbar(fmt(S.hub_pc_removed, p.name));
+              },
+            },
+          ],
+        });
+      }
+
+      function addDeviceDialog() {
+        const PROBES = [["tcp", S.hub_pc_probe_tcp.replace(" %1$d", "")], ["http", S.hub_pc_probe_http], ["https", S.hub_pc_probe_https]];
+        const name = field({ label: S.field_name });
+        const host = field({ label: S.hub_add_host, mono: true });
+        const probe = h("select", { "aria-label": S.hub_add_probe }, ...PROBES.map(([v, label]) => h("option", { value: v, text: label })));
+        const port = field({ label: S.hub_add_port, value: "80", mono: true });
+        const mac = field({ label: S.hub_add_mac, mono: true });
+        probe.value = "http";
+        const syncPort = () => port.wrap.classList.toggle("hidden", probe.value !== "tcp");
+        probe.addEventListener("change", syncPort);
+        syncPort();
+        let busy = false;
+        const dialog = openDialog({
+          iconName: "plus",
+          title: S.hub_add_device,
+          body: [h("p", { text: S.hub_add_device_text }), name.wrap, host.wrap,
+            h("div", { class: "rights" }, h("div", { class: "right-row" }, h("b", { text: S.hub_add_probe }), probe)),
+            port.wrap, mac.wrap],
+          actions: [{ label: S.cancel, onClick: () => dialog.close() }, { label: S.hub_add_device, onClick: add }],
+        });
+
+        async function add() {
+          if (busy) return;
+          busy = true;
+          const r = await run("hubAddDevice", { name: name.input.value, host: host.input.value, probe: probe.value,
+            port: probe.value === "tcp" ? port.input.value : "", mac: mac.input.value });
+          busy = false;
+          if (!r.ok) {
+            alertDialog(S.admin_failed, r.code === "INVALID" ? S["hub_add_invalid_" + r.field] || S.hub_add_invalid_name : failureText(r));
+            return;
+          }
+          dialog.close();
+          snackbar(fmt(S.hub_device_added, name.input.value.trim()));
+          load();
+        }
       }
 
       async function change(params) {
@@ -3890,7 +4021,40 @@
       };
     }
 
-    return { section };
+    /** Confier un PC au hub (docs/HUB.md, §5.3) : cet ordinateur administre le PC et le hub. */
+    function entrust(id) {
+      const d = deviceById(id);
+      const hub = state.hub;
+      if (!d || !hub) return;
+      let busy = false;
+      const actions = () => [
+        { label: S.cancel, onClick: () => dialog.close() },
+        { label: busy ? S.hub_entrusting : S.hub_entrust, disabled: busy, onClick: go },
+      ];
+      const dialog = openDialog({ iconName: "nas", title: fmt(S.hub_entrust_title, d.name), body: h("p", { text: fmt(S.hub_entrust_text, hub.name) }), actions: actions() });
+
+      async function go() {
+        if (busy) return;
+        busy = true;
+        dialog.setActions(actions());
+        const r = await run("hubEntrust", { id });
+        busy = false;
+        if (!r.ok) {
+          dialog.setActions(actions());
+          let text;
+          if (r.code === "ALREADY_ENTRUSTED") text = S.hub_already_entrusted;
+          else if (r.step === "agent") text = fmt(S.hub_entrust_agent, r.reason === "insufficient_role" ? S.admin_not_admin : agentErrorLabel(r.code, r.reason));
+          else if (r.step === "hub") text = fmt(S.hub_entrust_hub, failureText(r));
+          else text = failureText(r);
+          alertDialog(S.hub_entrust_failed, text);
+          return;
+        }
+        dialog.close();
+        snackbar(fmt(S.hub_entrusted, d.name));
+      }
+    }
+
+    return { section, open: openHubSheet, entrust };
   })();
 
   // ---------------------------------------------------------------------------------------------

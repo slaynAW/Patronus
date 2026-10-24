@@ -85,8 +85,20 @@ l'application vérifie l'empreinte du hub avant d'envoyer le code, qui ne sert q
 - *Oublier ce hub* : un administrateur s'en retire (sauf le dernier) ; sinon, un administrateur du hub le retire.
 - L'appairage appartient à cette installation, comme son identité : il n'est ni exporté ni sauvegardé.
 
-Les PC confiés au hub, les évènements « Pendant votre absence » et l'historique au-delà de 30 jours viennent dans les
-étapes suivantes.
+**Confier un PC au hub** : dans la fiche du PC, la ligne *Hub* → *Confier au hub*, quand cet ordinateur administre le
+PC et le hub, PC allumé. L'agent crée une invitation à usage unique **réservée à l'empreinte du hub**, au rôle
+*Démarrer* : le hub s'en sert pour s'appairer lui-même au PC. Il peut ainsi lire son état, son journal et ses mesures,
+et le démarrer, mais ni l'éteindre ni gérer ses appareils. La fiche du hub liste les PC confiés et leur état vu par le
+hub. *Retirer du hub* efface ce que le hub en gardait et retire le hub des appareils autorisés du PC (s'il est allumé ;
+sinon `wol-agent devices revoke <empreinte du hub>` sur le PC).
+
+**Appareils sans agent** (box, imprimante, caméra, le NAS lui-même) : fiche du hub → *Ajouter un appareil*, avec une
+vérification par connexion à un port ou par page web (HTTP, HTTPS). Le hub vérifie seulement qu'il répond.
+
+**Réveil par le hub** : pour un PC confié dont l'adresse n'est sur aucun réseau de cet ordinateur (VPN, autre réseau),
+*Démarrer* demande aussi au hub d'envoyer le paquet magique depuis le réseau du NAS (rôle *Démarrer* sur le hub).
+
+Les évènements « Pendant votre absence » et l'historique au-delà de 30 jours viennent à l'étape suivante.
 
 ## Où sont mes données ?
 
