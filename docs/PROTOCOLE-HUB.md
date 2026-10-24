@@ -12,8 +12,8 @@ protocole applicatif, son port, ses rôles et ses commandes. Les menaces auxquel
   build contre le vrai hub (`HubEndToEndTest`) ; client de l'application Windows :
   [`desktop/internal/agentclient/hub.go`](../desktop/internal/agentclient/hub.go), éprouvé contre le vrai hub
   ([`agent/testhub`](../agent/testhub)).
-- Vecteurs communs : [`protocol/hub-vectors.json`](../protocol/hub-vectors.json) (liens, salut, rôles, autorisation),
-  lus en Go et en Kotlin.
+- Vecteurs communs : [`protocol/hub-vectors.json`](../protocol/hub-vectors.json) (liens, salut, rôles, autorisation,
+  évènements admis par les applications), lus en Go et en Kotlin.
 - **État** : étape 2.0-E. Le hub sert l'appairage, les appareils autorisés, les invitations, `hub.status`, les PC
   confiés (`hub.pcs.*`), leur archive (`hub.history`, `hub.metrics`), ses réglages (`hub.settings`), les évènements
   (`hub.events`) et le réveil (`hub.wake`) ; les programmations (§6) répondent `unsupported` jusqu'à leur étape
@@ -214,6 +214,11 @@ noms de PC, et n'affichent jamais de texte venu du hub (T38).
 | `disk` | Disque à surveiller, ou lecteur plein à 90 % | `x` : `health` ou `full` |
 | `measure` | Mesure de gravité `crit` pendant plus de 5 minutes | `x` : identifiant de la mesure |
 | `wake` | Paquet magique envoyé par le hub (`hub.wake`) | `i` : empreinte courte de l'appareil à l'origine, ou `local` |
+
+Une application n'affiche qu'un évènement fait de ces seuls codes : type connu, précision de la liste ci-dessus (ou
+identifiant de mesure `^[a-z0-9][a-z0-9._-]{0,23}$`), `i` présent pour un réveil seulement (empreinte courte ou
+`local`). Tout autre évènement est écarté sans rien en afficher (`hubprotocol.ValidEvent` ; mêmes vecteurs, `events`
+de [`protocol/hub-vectors.json`](../protocol/hub-vectors.json), relus en Kotlin).
 
 Chaque épisode n'est signalé qu'une fois, jusqu'à ce qu'il cesse. Les évènements d'un PC retiré du hub ne sont plus
 donnés. Le « réveil non demandé » viendra avec les notifications (2.1).

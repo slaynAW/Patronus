@@ -8,6 +8,9 @@
 package hubprotocol
 
 import (
+	"regexp"
+	"slices"
+
 	"github.com/slaynaw/wakeonlan/agent/protocol"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
 )
@@ -239,6 +242,46 @@ type Event struct {
 	K  string `json:"k"`           // type (Event…)
 	X  string `json:"x,omitempty"` // précision : un code ou un identifiant de mesure, jamais du texte libre
 	I  string `json:"i,omitempty"` // empreinte courte de l'appareil à l'origine (réveil)
+}
+
+// Précisions des évènements (Event.X) que le hub donne aux applications.
+const (
+	LostBSOD     = "bsod"     // arrêt inattendu : plantage (écran bleu)
+	LostButton   = "button"   // arrêt forcé au bouton d'alimentation
+	LostPower    = "power"    // coupure de courant ou blocage
+	LostHardware = "hardware" // erreur matérielle fatale
+	DiskHealth   = "health"   // disque à surveiller
+	DiskFull     = "full"     // lecteur plein à 90 %
+	WakeLocal    = "local"    // Event.I d'un réveil : demandé sur le NAS
+)
+
+var (
+	measureID = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,23}$`)
+	shortPin  = regexp.MustCompile(`^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$`)
+	// eventDetails : précisions admises pour chaque type d'évènement ; nil : aucune.
+	eventDetails = map[string][]string{
+		EventOnline: nil, EventOffline: nil, EventAgentDown: nil, EventMeasure: nil, EventWake: nil,
+		EventProblem: {ProblemRevoked, ProblemPinMismatch, ProblemBlocked},
+		EventLost:    {"", LostBSOD, LostButton, LostPower, LostHardware},
+		EventDisk:    {DiskHealth, DiskFull},
+	}
+)
+
+// ValidEvent indique qu'un évènement n'est fait que de codes connus (§6.5). Les applications écartent les
+// autres sans rien en afficher : un hub compromis pourrait y glisser du texte ou un lien (T38).
+func ValidEvent(e Event) bool {
+	allowed, known := eventDetails[e.K]
+	switch {
+	case !known || e.T <= 0 || e.PC == "":
+		return false
+	case e.K == EventMeasure:
+		return measureID.MatchString(e.X) && e.I == ""
+	case e.K == EventWake:
+		return e.X == "" && (e.I == WakeLocal || shortPin.MatchString(e.I))
+	case allowed == nil:
+		return e.X == "" && e.I == ""
+	}
+	return slices.Contains(allowed, e.X) && e.I == ""
 }
 
 // Settings sont les réglages du hub.

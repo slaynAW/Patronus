@@ -74,6 +74,9 @@ enum class AgentError {
 
     /** Code d'appairage refusé par l'agent (invalide, expiré ou déjà utilisé : la même réponse dans tous les cas). */
     PAIRING_FAILED,
+
+    /** Le service joint parle un autre protocole que celui attendu (un agent à la place du hub, ou l'inverse). */
+    OTHER_SERVICE,
 }
 
 /** Résultat d'un appairage avec un code : rôle donné par l'agent ; [already] si cet appareil était déjà enregistré. */
@@ -104,6 +107,7 @@ sealed interface AgentResult<out T> {
             AgentError.UNREGISTERED,
             AgentError.PIN_MISMATCH,
             AgentError.PAIRING_FAILED,
+            AgentError.OTHER_SERVICE,
         )
     }
 }
@@ -258,11 +262,19 @@ class AgentClient(
 
     /**
      * Crée une invitation à usage unique pour [role], valable [ttlSeconds] ; [name] : nom que portera l'appareil invité
-     * (vide : celui qu'il donnera). La réponse est la seule à contenir le code.
+     * (vide : celui qu'il donnera) ; [device], s'il est donné, la réserve à cette empreinte (le hub, docs/HUB.md §5.3).
+     * La réponse est la seule à contenir le code.
      */
-    suspend fun invite(host: String, agent: AgentSettings, role: String, ttlSeconds: Long, name: String = ""): AgentResult<InviteInfo> =
+    suspend fun invite(
+        host: String,
+        agent: AgentSettings,
+        role: String,
+        ttlSeconds: Long,
+        name: String = "",
+        device: String = "",
+    ): AgentResult<InviteInfo> =
         adminSession(host, agent) { session ->
-            val request = Request2(cmd = Commands.INVITE, role = role, ttl = ttlSeconds, name = name.ifBlank { null })
+            val request = Request2(cmd = Commands.INVITE, role = role, ttl = ttlSeconds, name = name.ifBlank { null }, device = device.ifBlank { null })
             when (val r = adminRequest(session, request)) {
                 is AgentResult.Success -> r.value.invite?.takeIf { it.code.isNotEmpty() }?.let { AgentResult.Success(it) }
                     ?: protocolError("invitation absente de la réponse")

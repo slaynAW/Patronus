@@ -12,8 +12,8 @@ Patronus/
 │   │               d'appairage v=1 et v=2, appairage par code, administration des appareils autorisés, passage
 │   │               automatique en wolagent/2 (AgentUpgrade)
 │   ├── agent2/     protocole wolagent/2 : empreintes, codes et liens, preuves de migration, trames, session TLS
-│   ├── hub/        client du hub sur le NAS (patronus-hub/1, 2.0, en cours, docs/PROTOCOLE-HUB.md) : liens, rôles,
-│   │               commandes, session
+│   ├── hub/        hub sur le NAS (patronus-hub/1, 2.0, en cours, docs/PROTOCOLE-HUB.md) : liens, rôles, commandes,
+│   │               session, évènements admis ; HubService (appairage, relevés, administration, PC confiés, archive)
 │   ├── history/    historique sur 30 jours : fusion avec le journal des agents, déduction des changements
 │   ├── config/     JSON versionné + migrations, export/import chiffré
 │   ├── share/      partage des PC : format chiffré et signé, liens, client GitHub, QR code (docs/PARTAGE.md)
@@ -212,7 +212,7 @@ flowchart LR
 | Scénario d'historique commun Kotlin ↔ Go (fusion, doublons, conservation) | `protocol/history-vectors.json` |
 | Mesures décrites par l'agent, lues élément par élément en Go et en Kotlin (validation, gravité) | `protocol/measure-vectors.json` |
 | Stockage chiffré du hub (dérivation des clés, fichiers entiers, journaux, cas refusés) : Go et une seconde implémentation en Python, à chaque build | `protocol/hub-store-vectors.json`, `.github/scripts/check-hub-store-vectors.py` |
-| Protocole du hub `patronus-hub/1` : liens d'appairage, salut, rôles et autorisation des commandes, en Go et en Kotlin (`core`, `HubTest`) | `protocol/hub-vectors.json` |
+| Protocole du hub `patronus-hub/1` : liens d'appairage, salut, rôles, autorisation des commandes et évènements admis par les applications (T38), en Go et en Kotlin (`core`, `HubTest`) | `protocol/hub-vectors.json` |
 | Tests de l'application Windows (Linux + Windows : DPAPI, ping, cartes réseau), tests de bout en bout contre l'agent (`wolagent/1`, `wolagent/2`, passage automatique) | CI |
 | Démarrage réel de l'application Windows (fenêtre WebView2, interface, pont Go ↔ JS) | CI (`WOL_SELFTEST`) |
 | Lint Android, `go vet` pour Windows/Linux/macOS, `gofmt` | CI |

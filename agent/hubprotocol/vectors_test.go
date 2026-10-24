@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,6 +26,13 @@ type vectorFile struct {
 	Roles       []string      `json:"roles"`
 	Authorize   []authVector  `json:"authorize"`
 	Commands    []commandRole `json:"commands"`
+	Events      eventVectors  `json:"events"`
+}
+
+// eventVectors : évènements que les applications affichent (valid) ou écartent (invalid), T38.
+type eventVectors struct {
+	Valid   []Event `json:"valid"`
+	Invalid []Event `json:"invalid"`
 }
 
 type linkVectors struct {
@@ -62,8 +70,8 @@ var hubPin = protocol2.PinOf([]byte("hub de test"))
 
 func buildVectors() vectorFile {
 	v := vectorFile{
-		Description: "Vecteurs de patronus-hub/1 (docs/PROTOCOLE-HUB.md) : liens d'appairage du hub, salut, rôles et " +
-			"autorisation des commandes. Produits par agent/hubprotocol (go test ./hubprotocol -run TestVectors -update) ; " +
+		Description: "Vecteurs de patronus-hub/1 (docs/PROTOCOLE-HUB.md) : liens d'appairage du hub, salut, rôles, " +
+			"autorisation des commandes et évènements admis par les applications (T38). Produits par agent/hubprotocol (go test ./hubprotocol -run TestVectors -update) ; " +
 			"relus par l'application Android (core).",
 		Protocol: ALPN, Port: DefaultPort, Hello: Hello,
 	}
@@ -119,6 +127,33 @@ func buildVectors() vectorFile {
 		v.Authorize = append(v.Authorize, authVector{Cmd: cmd, Code: Authorize(false, 0, cmd)})
 		for _, r := range protocol2.Roles {
 			v.Authorize = append(v.Authorize, authVector{Registered: true, Role: r.String(), Cmd: cmd, Code: Authorize(true, r, cmd)})
+		}
+	}
+	ev := func(k, x, i string) Event { return Event{T: 1790000000, PC: "pc-1", K: k, X: x, I: i} }
+	v.Events.Valid = []Event{
+		ev(EventOnline, "", ""), ev(EventOffline, "", ""), ev(EventAgentDown, "", ""),
+		ev(EventProblem, ProblemRevoked, ""), ev(EventProblem, ProblemPinMismatch, ""), ev(EventProblem, ProblemBlocked, ""),
+		ev(EventLost, "", ""), ev(EventLost, LostBSOD, ""), ev(EventLost, LostButton, ""), ev(EventLost, LostPower, ""),
+		ev(EventLost, LostHardware, ""), ev(EventDisk, DiskHealth, ""), ev(EventDisk, DiskFull, ""),
+		ev(EventMeasure, "mem", ""), ev(EventMeasure, "battery", ""), ev(EventMeasure, "gpu.0-fan_1", ""),
+		ev(EventWake, "", WakeLocal), ev(EventWake, "", "7KQ2-9MXP-4D1Z"),
+	}
+	v.Events.Invalid = []Event{
+		ev("reboot", "", ""), ev(EventOnline, "texte", ""), ev(EventOffline, "", "7KQ2-9MXP-4D1Z"),
+		ev(EventProblem, "Appelez le 0800 000 000", ""), ev(EventProblem, "", ""), ev(EventLost, "virus", ""),
+		ev(EventDisk, "", ""), ev(EventDisk, DiskFull, "x"), ev(EventMeasure, "Mesure grave !", ""),
+		ev(EventMeasure, "", ""), ev(EventMeasure, "aaaaaaaaaaaaaaaaaaaaaaaaa", ""), ev(EventWake, "", "https://exemple.fr"),
+		ev(EventWake, "", "7KQ2-9MXP-4D1U"), ev(EventWake, "x", WakeLocal), ev(EventWake, "", ""),
+		{T: 0, PC: "pc-1", K: EventOnline}, {T: 1790000000, K: EventOnline},
+	}
+	for _, e := range v.Events.Valid {
+		if !ValidEvent(e) {
+			panic(fmt.Sprintf("évènement refusé : %+v", e))
+		}
+	}
+	for _, e := range v.Events.Invalid {
+		if ValidEvent(e) {
+			panic(fmt.Sprintf("évènement accepté : %+v", e))
 		}
 	}
 	return v

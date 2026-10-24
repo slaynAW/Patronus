@@ -140,6 +140,7 @@
     <string name="agent_error_pin_mismatch">empreinte inattendue : autre machine à cette adresse ou agent réinstallé (connexion refusée)</string>
     <string name="agent_error_no_identity">identité de ce téléphone indisponible</string>
     <string name="agent_error_pairing_failed">code d’appairage refusé</string>
+    <string name="agent_error_other_service">ce service ne parle pas le protocole attendu (mauvais port ?)</string>
 
     <!-- Vue d'ensemble et liste des PC -->
     <string name="summary_ratio">%1$d/%2$d</string>
