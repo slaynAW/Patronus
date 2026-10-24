@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,6 +21,8 @@ import (
 
 	"github.com/slaynaw/wakeonlan/agent/hubprotocol"
 	"github.com/slaynaw/wakeonlan/agent/internal/devices"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/agents"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/fleet"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/store"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
@@ -73,8 +76,16 @@ func start(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
+	pcs, err := fleet.Open(st.File(fleet.FileName), time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Les tests joignent les agents sur l'adresse de bouclage, que le hub refuse en service.
+	dialer := &agents.Dialer{Identity: hub, Networks: append(agents.TargetNetworks(), netip.MustParsePrefix("127.0.0.0/8"))}
 	buf := &syncBuffer{}
-	srv, err := New(Config{Name: "Hub NAS", Version: "2.0.0-test", Identity: hub, Registry: registry, Logger: log.New(buf, "", 0)})
+	srv, err := New(Config{
+		Name: "Hub NAS", Version: "2.0.0-test", Identity: hub, Registry: registry, Fleet: pcs, Agents: dialer, Logger: log.New(buf, "", 0),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

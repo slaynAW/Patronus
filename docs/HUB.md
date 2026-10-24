@@ -203,7 +203,7 @@ identifiants de PC sont opaques (16 octets aléatoires en B64), propres au hub.
 |---|---|---|
 | Identité du hub (clé privée) | `/keys/identity.key` | Jusqu'à `patronus-hub rotate-identity` |
 | Clé des données (32 octets aléatoires) | `/keys/data.key` | Jusqu'à l'effacement |
-| Appareils autorisés, invitations (condensé du code seulement) | `/data/hub.db`, chiffré | — |
+| Appareils autorisés, invitations (condensé du code seulement) | `/data/devices.db`, chiffré | — |
 | PC confiés : nom, adresse, MAC, empreinte de l'agent, sondes, programmations | `/data/hub.db`, chiffré | — |
 | Journal et mesures de chaque PC, évènements détectés | `/data/pc/<identifiant opaque>/<AAAA-MM>.bin`, chiffrés | 1 an par défaut (3 mois à 3 ans) |
 
@@ -216,8 +216,8 @@ allumé 4 h par jour, 70 Mo pour un PC qui ne s'éteint jamais.
   chiffrés un par un, ce qui résiste à une coupure de courant (un enregistrement tronqué en fin de fichier est ignoré).
 - **AES-256-GCM**, nonce aléatoire de 96 bits par enregistrement ; une clé par fichier dérivée par **HKDF-SHA256** de
   la clé des données (sans sel ; information : `patronus-hub/1 file key`, un octet nul, puis le chemin du fichier) :
-  un enregistrement déplacé d'un fichier à l'autre est refusé. `hub.db` est réécrit en entier à chaque changement
-  (fichier temporaire, écriture sur le disque, puis renommage).
+  un enregistrement déplacé d'un fichier à l'autre est refusé. `hub.db` et `devices.db` sont réécrits en entier à
+  chaque changement (fichier temporaire, écriture sur le disque, puis renommage).
 - **Fichier entier** : `PHF1`, nonce, texte chiffré et étiquette ; données authentifiées : `PHF1` puis le chemin.
 - **Journal** : `PHJ1`, puis chaque enregistrement : longueur du reste (4 octets, gros-boutiste), nonce, texte chiffré
   et étiquette ; données authentifiées : `PHJ1`, rang de l'enregistrement (8 octets, gros-boutiste) puis le chemin.

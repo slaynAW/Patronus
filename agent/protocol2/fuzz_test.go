@@ -61,13 +61,13 @@ func FuzzParseLink(f *testing.F) {
 			}
 			return
 		}
-		if l.Name == "" || !validHost(l.Host) || l.Port < 1 || l.Port > 65535 {
+		if l.Name == "" || !ValidHost(l.Host) || l.Port < 1 || l.Port > 65535 {
 			t.Fatalf("lien accepté : %+v", l)
 		}
 		if code, err := NormalizeCode(l.Code); err != nil || code != l.Code {
 			t.Fatalf("code %q", l.Code)
 		}
-		if mac, ok := normalizeMAC(l.MAC); l.MAC != "" && (!ok || mac != l.MAC) {
+		if mac, ok := NormalizeMAC(l.MAC); l.MAC != "" && (!ok || mac != l.MAC) {
 			t.Fatalf("MAC %q", l.MAC)
 		}
 		if again, err := ParseLink(l.String()); err != nil || again != l {

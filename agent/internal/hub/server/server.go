@@ -5,12 +5,14 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +20,8 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/internal/config"
 	"github.com/slaynaw/wakeonlan/agent/internal/devices"
 	"github.com/slaynaw/wakeonlan/agent/internal/guard"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/agents"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/fleet"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
 )
@@ -50,9 +54,14 @@ type Config struct {
 	Version  string
 	Identity *identity.Identity
 	Registry *devices.Registry
+	Fleet    *fleet.Fleet   // PC confiés et appareils sans agent
+	Agents   *agents.Dialer // sessions avec les agents (appairage des PC confiés)
 	Logger   *log.Logger
 	Now      func() time.Time // time.Now par défaut
 }
+
+// pairTimeout borne l'appairage du hub auprès d'un agent (hub.pcs.add).
+const pairTimeout = 15 * time.Second
 
 // Server sert patronus-hub/1.
 type Server struct {
@@ -71,8 +80,8 @@ type Server struct {
 // New prépare le serveur. Seules les adresses des réseaux privés sont acceptées, comme la liste
 // « allow » par défaut d'un agent.
 func New(cfg Config) (*Server, error) {
-	if cfg.Identity == nil || cfg.Registry == nil || cfg.Logger == nil {
-		return nil, errors.New("hub : identité, registre et journal requis")
+	if cfg.Identity == nil || cfg.Registry == nil || cfg.Fleet == nil || cfg.Agents == nil || cfg.Logger == nil {
+		return nil, errors.New("hub : identité, registres, connexion aux agents et journal requis")
 	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
@@ -445,8 +454,160 @@ func (sess *session) command(req hubprotocol.Request, d devices.Device) ([]byte,
 		}
 		return encode(ok()), false
 	}
+	if strings.HasPrefix(req.Cmd, hubprotocol.CmdPCs) {
+		return sess.pcs(req, d)
+	}
 	// Commande du protocole que ce hub ne sert pas encore (étapes suivantes de la 2.0).
 	return bad(protocol2.CodeUnsupported, fmt.Sprintf("commande pas encore disponible sur ce hub : %s", req.Cmd))
+}
+
+// pcs gère les PC confiés au hub et les appareils sans agent (hub.pcs.*, rôle admin).
+func (sess *session) pcs(req hubprotocol.Request, d devices.Device) ([]byte, bool) {
+	s, list := sess.s, sess.s.cfg.Fleet
+	bad := func(code, message string) ([]byte, bool) { return encode(sess.answer(req.ID, d, code, message)), false }
+	reply := func(p fleet.PC) ([]byte, bool) {
+		resp := sess.answer(req.ID, d, protocol2.CodeOK, "")
+		info := p.Info()
+		resp.PC = &info
+		return encode(resp), false
+	}
+	failed := func(err error) ([]byte, bool) {
+		switch {
+		case errors.Is(err, fleet.ErrUnknownPC):
+			return bad(protocol2.CodeBadRequest, "PC introuvable")
+		case errors.Is(err, fleet.ErrTooMany), errors.Is(err, fleet.ErrDuplicate):
+			return bad(protocol2.CodeBadRequest, err.Error())
+		}
+		var invalid *invalidPC
+		if errors.As(err, &invalid) {
+			return bad(protocol2.CodeBadRequest, invalid.Error())
+		}
+		s.cfg.Logger.Printf("liste des PC : %v", err)
+		return bad(protocol2.CodeBusy, "liste des PC non enregistrée : réessayez")
+	}
+
+	switch req.Cmd {
+	case hubprotocol.CmdPCs:
+		resp := sess.answer(req.ID, d, protocol2.CodeOK, "")
+		resp.PCs = []hubprotocol.PCInfo{}
+		for _, p := range list.List() {
+			resp.PCs = append(resp.PCs, p.Info())
+		}
+		return encode(resp), false
+
+	case hubprotocol.CmdPCsAdd:
+		p, err := describe(fleet.PC{}, req)
+		if err != nil {
+			return failed(err)
+		}
+		if req.Agent == "" {
+			if p, err = list.Add(p); err != nil {
+				return failed(err)
+			}
+			s.cfg.Logger.Printf("appareil « %s » ajouté par %s (sonde %s)", p.Name, d.Name, p.Probe.Kind)
+			return reply(p)
+		}
+		pin, err := protocol2.ParsePin(req.Agent)
+		if err != nil {
+			return bad(protocol2.CodeBadRequest, "empreinte de l'agent invalide")
+		}
+		for _, other := range list.List() {
+			if other.Agent != nil && *other.Agent == pin {
+				return failed(fleet.ErrDuplicate)
+			}
+		}
+		if p.Port == 0 {
+			p.Port = protocol2.DefaultPort
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), pairTimeout)
+		defer cancel()
+		role, err := s.cfg.Agents.Pair(ctx, p.Host, p.Port, pin, req.Code, s.cfg.Name)
+		if err != nil {
+			s.cfg.Logger.Printf("appairage du hub auprès de « %s » (%s) impossible : %v", p.Name, p.Host, err)
+			return bad(protocol2.CodeBadRequest, "appairage du hub auprès de l'agent impossible : "+err.Error())
+		}
+		p.Agent, p.Role = &pin, role
+		if p, err = list.Add(p); err != nil {
+			return failed(err)
+		}
+		s.cfg.Logger.Printf("PC « %s » [%s] confié au hub par %s, rôle du hub : %s", p.Name, pin.Short(), d.Name, role)
+		return reply(p)
+
+	case hubprotocol.CmdPCsUpdate:
+		current, ok := list.Get(req.PC)
+		if !ok {
+			return failed(fleet.ErrUnknownPC)
+		}
+		next, err := describe(current, req)
+		if err != nil {
+			return failed(err)
+		}
+		p, err := list.Update(req.PC, func(p *fleet.PC) { *p = next })
+		if err != nil {
+			return failed(err)
+		}
+		return reply(p)
+
+	case hubprotocol.CmdPCsRemove:
+		p, err := list.Remove(req.PC)
+		if err != nil {
+			return failed(err)
+		}
+		s.cfg.Logger.Printf("PC « %s » retiré du hub par %s", p.Name, d.Name)
+		return reply(p)
+	}
+	return bad(protocol2.CodeUnsupported, fmt.Sprintf("commande inconnue : %s", req.Cmd))
+}
+
+// invalidPC : description d'un PC refusée, avec la raison à montrer à l'application.
+type invalidPC struct{ why string }
+
+func (e *invalidPC) Error() string { return e.why }
+
+// describe applique à p ce que la requête décrit (ajout, ou modification : seuls les champs présents
+// changent). L'agent d'un PC ne change pas : il faut le retirer puis le confier de nouveau.
+func describe(p fleet.PC, req hubprotocol.Request) (fleet.PC, error) {
+	invalid := func(why string) (fleet.PC, error) { return fleet.PC{}, &invalidPC{why} }
+	adding := p.ID == ""
+	if req.Name != "" || adding {
+		if p.Name = protocol2.CleanName(req.Name, protocol2.MaxPCNameLength); p.Name == "" {
+			return invalid("nom vide")
+		}
+	}
+	if req.Host != "" || adding {
+		if !protocol2.ValidHost(req.Host) {
+			return invalid("adresse invalide")
+		}
+		p.Host = req.Host
+	}
+	if req.MAC != "" {
+		mac, ok := protocol2.NormalizeMAC(req.MAC)
+		if !ok {
+			return invalid("adresse MAC invalide")
+		}
+		p.MAC = mac
+	}
+	withAgent := p.Agent != nil || adding && req.Agent != ""
+	if req.Port != 0 {
+		if !withAgent || req.Port < 1 || req.Port > 65535 {
+			return invalid("port de l'agent invalide")
+		}
+		p.Port = req.Port
+	}
+	switch {
+	case withAgent && req.Probe != nil:
+		return invalid("un PC avec agent n'a pas de sonde")
+	case !withAgent && (req.Probe != nil || adding):
+		if err := fleet.ValidProbe(req.Probe); err != nil {
+			return invalid(err.Error())
+		}
+		probe := *req.Probe
+		p.Probe = &probe
+	}
+	if adding && withAgent && req.Code == "" {
+		return invalid("invitation de l'agent absente")
+	}
+	return p, nil
 }
 
 // pair enregistre une identité inconnue avec une invitation.

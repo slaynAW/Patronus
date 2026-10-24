@@ -9,8 +9,9 @@ protocole applicatif, son port, ses rôles et ses commandes. Les menaces auxquel
   [`agent/internal/hub/server`](../agent/internal/hub/server) (serveur), commande `patronus-hub`
   ([`agent/cmd/patronus-hub`](../agent/cmd/patronus-hub)).
 - Vecteurs communs : [`protocol/hub-vectors.json`](../protocol/hub-vectors.json) (liens, salut, rôles, autorisation).
-- **État** : étape 2.0-C. Le hub sert l'appairage, les appareils autorisés, les invitations et `hub.status` ; les
-  autres commandes du §6 répondent `unsupported` jusqu'à leur étape ([HUB.md](HUB.md#14-plan-de-réalisation)).
+- **État** : étape 2.0-D. Le hub sert l'appairage, les appareils autorisés, les invitations, `hub.status` et les PC
+  confiés (`hub.pcs.*`) ; les autres commandes du §6 répondent `unsupported` jusqu'à leur étape
+  ([HUB.md](HUB.md#14-plan-de-réalisation)).
 
 ## 1. Ce qui diffère de `wolagent/2`
 
@@ -98,7 +99,7 @@ invitation qui n'en précise pas.
 | `hub.status` | `view` | 2.0-C : `hub` (§4) ; les états des PC viendront avec la surveillance (2.0-D) |
 | `hub.events`, `hub.history`, `hub.metrics` | `view` | 2.0-D |
 | `hub.wake` | `wake` | 2.0-D |
-| `hub.pcs`, `hub.pcs.add`, `hub.pcs.update`, `hub.pcs.remove` | `admin` | 2.0-D |
+| `hub.pcs`, `hub.pcs.add`, `hub.pcs.update`, `hub.pcs.remove` | `admin` | 2.0-D : §6.1 |
 | `hub.schedules`, `hub.schedules.set` | `admin` | 2.0-H |
 | `hub.settings` | `admin` | 2.0-D |
 | `devices`, `devices.revoke`, `devices.role`, `devices.rename` | `admin` | 2.0-C |
@@ -111,6 +112,38 @@ Les commandes d'appareils et d'invitations ont les champs et les règles de `wol
 (`bad_request`). La révocation ferme sur-le-champ les connexions ouvertes de l'appareil. Le dernier administrateur ne
 peut être ni retiré ni rétrogradé depuis une application (`last_admin`) ; sur le NAS, c'est possible avec
 `"force":true`.
+
+### 6.1 PC confiés et appareils sans agent
+
+`hub.pcs` liste les PC confiés au hub et les appareils sans agent (`pcs`). Chacun :
+
+| Champ | Contenu |
+|---|---|
+| `id` | Identifiant propre au hub (16 octets aléatoires, B64) |
+| `name`, `host` | Nom (64 caractères au plus) et adresse (IPv4, IPv6 ou nom d'hôte, règles du lien d'appairage) |
+| `mac` | Adresse MAC, pour le réveil (facultative) |
+| `agent`, `port`, `role` | PC avec agent : empreinte de l'agent, port, rôle du hub sur l'agent (`view`, `wake`, ou `control` pour une extinction programmée) |
+| `probe` | Appareil sans agent : `{"kind":"tcp","port":445}`, `{"kind":"http"}` ou `{"kind":"https"}` (ports 80 et 443 par défaut) |
+| `added` | Date d'ajout (secondes Unix) |
+
+**`hub.pcs.add`** : `name`, `host`, `mac`, puis soit `agent`, `port` (9770 par défaut) et `code`, soit `probe`.
+
+Pour un PC avec agent, l'application, administrateur du PC, crée d'abord sur l'agent une invitation **réservée à
+l'empreinte du hub** (`invite`, `"role":"wake"`, `"device":"<empreinte du hub>"`), puis transmet son code au hub.
+Le hub s'appaire alors lui-même à l'agent (`pair`, sous son nom), l'empreinte de l'agent épinglée, et répond avec le
+PC (`pc`). Une invitation au rôle `admin` est ramenée à `wake` par le hub lui-même (`devices.role`) : le hub n'est
+administrateur d'aucun PC (R13). S'il ne peut s'en défaire (seul administrateur du PC), l'appairage échoue et le
+message indique la commande à lancer sur le PC pour le retirer. Un agent déjà confié est refusé ; un agent qui connaît
+déjà le hub (PC retiré puis confié de nouveau) garde le rôle qu'il lui donne.
+
+**`hub.pcs.update`** `{"pc":…}` : change le nom, l'adresse, la MAC, le port de l'agent ou la sonde (seuls les champs
+présents). L'agent d'un PC ne change pas : il faut le retirer puis le confier de nouveau. **`hub.pcs.remove`**
+`{"pc":…}` : le hub oublie le PC. Le hub ne peut pas se retirer lui-même de l'agent (il n'en est pas administrateur) :
+l'application le fait (`devices.revoke` sur l'agent), ou `wol-agent devices revoke` sur le PC.
+
+Le hub ne joint que les adresses des réseaux privés, **sans l'adresse de bouclage** (le NAS se joint par son adresse
+sur le réseau local) : un nom d'hôte est résolu, et seules ses adresses privées sont essayées (T40). 64 PC et appareils
+au plus.
 
 ## 7. Lien d'appairage
 
@@ -137,6 +170,7 @@ administrateurs de DSM (T41).
 
 ## 9. Données du hub
 
-Le registre des appareils et des invitations (`devices.db`, du code des invitations seul le condensé SHA-256) est gardé
-dans le stockage chiffré du hub ([HUB.md §9](HUB.md#9-données-et-chiffrement-au-repos)) ; un registre illisible n'est
-jamais remplacé par un registre vide.
+Le registre des appareils et des invitations (`devices.db`, du code des invitations seul le condensé SHA-256) et la
+liste des PC confiés (`hub.db`) sont gardés dans le stockage chiffré du hub
+([HUB.md §9](HUB.md#9-données-et-chiffrement-au-repos)) ; un fichier illisible n'est jamais remplacé par un fichier
+vide.
