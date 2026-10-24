@@ -6,10 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/slaynaw/wakeonlan/agent/internal/devices"
@@ -89,7 +87,7 @@ func (v *v2Server) serve(s *Server, raw net.Conn, buffered *bufio.Reader, ip str
 	conn := tls.Server(&bufferedConn{Conn: raw, r: buffered}, v.tls)
 	_ = raw.SetDeadline(time.Now().Add(protocol2.HandshakeTimeout))
 	if err := conn.Handshake(); err != nil {
-		if refused(err) {
+		if guard.Refused(err) {
 			s.failure(ip, "connexion wolagent/2 refusée ("+err.Error()+")")
 		}
 		return
@@ -124,21 +122,6 @@ func (v *v2Server) serve(s *Server, raw net.Conn, buffered *bufio.Reader, ip str
 			return
 		}
 	}
-}
-
-// refused distingue un refus de TLS (version, ALPN, certificat), compté comme un échec de l'adresse,
-// d'une connexion simplement interrompue ou refusée par le client lui-même.
-func refused(err error) bool {
-	var ne net.Error
-	var op *net.OpError
-	switch {
-	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF), errors.Is(err, net.ErrClosed),
-		errors.Is(err, syscall.ECONNRESET), errors.As(err, &ne) && ne.Timeout():
-		return false
-	case errors.As(err, &op) && op.Op == "remote error": // alerte du client : son refus, pas le nôtre
-		return false
-	}
-	return true
 }
 
 func isLoopback(ip string) bool {

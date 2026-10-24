@@ -1,0 +1,936 @@
+{
+  "description": "Vecteurs de patronus-hub/1 (docs/PROTOCOLE-HUB.md) : liens d'appairage du hub, salut, rôles et autorisation des commandes. Produits par agent/hubprotocol (go test ./hubprotocol -run TestVectors -update) ; relus par l'application Android (core).",
+  "protocol": "patronus-hub/1",
+  "port": 9771,
+  "hello": "{\"proto\":\"patronus-hub/1\"}",
+  "links": {
+    "valid": [
+      {
+        "name": "lien complet",
+        "link": "patronus://hub?v=1\u0026n=Hub+NAS\u0026h=192.168.1.20\u0026p=9771\u0026a=uEVZHlsIbjUCAPzN3wTy3RtfvyDcHRwneakdcaddJpY\u0026c=7KQ29MXP\u0026r=admin\u0026e=1790000600",
+        "hubName": "Hub NAS",
+        "host": "192.168.1.20",
+        "port": 9771,
+        "hub": "uEVZHlsIbjUCAPzN3wTy3RtfvyDcHRwneakdcaddJpY",
+        "code": "7KQ29MXP",
+        "role": "admin",
+        "expires": 1790000600
+      },
+      {
+        "name": "port par défaut, sans nom (le début de l'hôte le remplace)",
+        "link": "patronus://hub?v=1\u0026h=nas.local\u0026a=uEVZHlsIbjUCAPzN3wTy3RtfvyDcHRwneakdcaddJpY\u0026c=7kq2-9mxp",
+        "hubName": "nas.local",
+        "host": "nas.local",
+        "port": 9771,
+        "hub": "uEVZHlsIbjUCAPzN3wTy3RtfvyDcHRwneakdcaddJpY",
+        "code": "7KQ29MXP"
+      },
+      {
+        "name": "majuscules au début, code à normaliser",
+        "link": "PATRONUS://HUB?v=1\u0026n=NAS%20maison\u0026h=192.168.1.20\u0026a=uEVZHlsIbjUCAPzN3wTy3RtfvyDcHRwneakdcaddJpY\u0026c=7kq2+9mxp\u0026r=view",
+        "hubName": "NAS maison",
+        "host": "192.168.1.20",
+        "port": 9771,
+        "hub": "uEVZHlsIbjUCAPzN3wTy3RtfvyDcHRwneakdcaddJpY",
+        "code": "7KQ29MXP",
+        "role": "view"
+      },
+      {
+        "name": "paramètre inconnu ignoré",
+        "link": "patronus://hub?v=1\u0026h=10.0.0.2\u0026p=19771\u0026a=uEVZHlsIbjUCAPzN3wTy3RtfvyDcHRwneakdcaddJpY\u0026c=7KQ29MXP\u0026x=1\u0026r=wake",
+        "hubName": "10.0.0.2",
+        "host": "10.0.0.2",
+        "port": 19771,
+        "hub": "uEVZHlsIbjUCAPzN3wTy3RtfvyDcHRwneakdcaddJpY",
+        "code": "7KQ29MXP",
+        "role": "wake"
+      }
+    ],
+    "invalid": [
+      {
+        "name": "lien d'agent",
+        "link": "wolagent://pair?v=2\u0026h=192.168.1.20\u0026a=uEVZHlsIbjUCAPzN3wTy3RtfvyDcHRwneakdcaddJpY\u0026c=7KQ29MXP",
+        "error": "format"
+      },
+      {
+        "name": "autre version",
+        "link": "patronus://hub?v=2\u0026h=192.168.1.20\u0026a=uEVZHlsIbjUCAPzN3wTy3RtfvyDcHRwneakdcaddJpY\u0026c=7KQ29MXP",
+        "error": "v"
+      },
+      {
+        "name": "rôle control (inconnu du hub)",
+        "link": "patronus://hub?v=1\u0026h=192.168.1.20\u0026a=uEVZHlsIbjUCAPzN3wTy3RtfvyDcHRwneakdcaddJpY\u0026c=7KQ29MXP\u0026r=control",
+        "error": "r"
+      },
+      {
+        "name": "rôle inconnu",
+        "link": "patronus://hub?v=1\u0026h=192.168.1.20\u0026a=uEVZHlsIbjUCAPzN3wTy3RtfvyDcHRwneakdcaddJpY\u0026c=7KQ29MXP\u0026r=root",
+        "error": "r"
+      },
+      {
+        "name": "empreinte absente",
+        "link": "patronus://hub?v=1\u0026h=192.168.1.20\u0026c=7KQ29MXP",
+        "error": "a"
+      },
+      {
+        "name": "code trop court",
+        "link": "patronus://hub?v=1\u0026h=192.168.1.20\u0026a=uEVZHlsIbjUCAPzN3wTy3RtfvyDcHRwneakdcaddJpY\u0026c=7KQ29MX",
+        "error": "c"
+      },
+      {
+        "name": "hôte invalide",
+        "link": "patronus://hub?v=1\u0026h=999.1.1.1\u0026a=uEVZHlsIbjUCAPzN3wTy3RtfvyDcHRwneakdcaddJpY\u0026c=7KQ29MXP",
+        "error": "h"
+      },
+      {
+        "name": "port hors limites",
+        "link": "patronus://hub?v=1\u0026h=192.168.1.20\u0026p=65536\u0026a=uEVZHlsIbjUCAPzN3wTy3RtfvyDcHRwneakdcaddJpY\u0026c=7KQ29MXP",
+        "error": "p"
+      },
+      {
+        "name": "paramètre en double",
+        "link": "patronus://hub?v=1\u0026h=192.168.1.20\u0026h=192.168.1.21\u0026a=uEVZHlsIbjUCAPzN3wTy3RtfvyDcHRwneakdcaddJpY\u0026c=7KQ29MXP",
+        "error": "duplicate"
+      }
+    ]
+  },
+  "roles": [
+    "view",
+    "wake",
+    "admin"
+  ],
+  "authorize": [
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "hub.status",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "hub.status",
+      "code": "ok"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "hub.status",
+      "code": "ok"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "hub.status",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "hub.status",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "hub.events",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "hub.events",
+      "code": "ok"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "hub.events",
+      "code": "ok"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "hub.events",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "hub.events",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "hub.history",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "hub.history",
+      "code": "ok"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "hub.history",
+      "code": "ok"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "hub.history",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "hub.history",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "hub.metrics",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "hub.metrics",
+      "code": "ok"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "hub.metrics",
+      "code": "ok"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "hub.metrics",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "hub.metrics",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "hub.wake",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "hub.wake",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "hub.wake",
+      "code": "ok"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "hub.wake",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "hub.wake",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "hub.pcs",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "hub.pcs",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "hub.pcs",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "hub.pcs",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "hub.pcs",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "hub.pcs.add",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "hub.pcs.add",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "hub.pcs.add",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "hub.pcs.add",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "hub.pcs.add",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "hub.pcs.update",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "hub.pcs.update",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "hub.pcs.update",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "hub.pcs.update",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "hub.pcs.update",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "hub.pcs.remove",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "hub.pcs.remove",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "hub.pcs.remove",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "hub.pcs.remove",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "hub.pcs.remove",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "hub.schedules",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "hub.schedules",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "hub.schedules",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "hub.schedules",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "hub.schedules",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "hub.schedules.set",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "hub.schedules.set",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "hub.schedules.set",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "hub.schedules.set",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "hub.schedules.set",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "hub.settings",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "hub.settings",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "hub.settings",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "hub.settings",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "hub.settings",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "devices",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "devices",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "devices",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "devices",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "devices",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "devices.revoke",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "devices.revoke",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "devices.revoke",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "devices.revoke",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "devices.revoke",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "devices.role",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "devices.role",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "devices.role",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "devices.role",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "devices.role",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "devices.rename",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "devices.rename",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "devices.rename",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "devices.rename",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "devices.rename",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "invite",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "invite",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "invite",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "invite",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "invite",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "invites",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "invites",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "invites",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "invites",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "invites",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "invites.cancel",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "invites.cancel",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "invites.cancel",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "invites.cancel",
+      "code": "insufficient_role"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "invites.cancel",
+      "code": "ok"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "pair",
+      "code": "ok"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "pair",
+      "code": "already_paired"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "pair",
+      "code": "already_paired"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "pair",
+      "code": "already_paired"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "pair",
+      "code": "already_paired"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "status",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "status",
+      "code": "unsupported"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "status",
+      "code": "unsupported"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "status",
+      "code": "unsupported"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "status",
+      "code": "unsupported"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "shutdown",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "shutdown",
+      "code": "unsupported"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "shutdown",
+      "code": "unsupported"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "shutdown",
+      "code": "unsupported"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "shutdown",
+      "code": "unsupported"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "migrate",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "migrate",
+      "code": "unsupported"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "migrate",
+      "code": "unsupported"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "migrate",
+      "code": "unsupported"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "migrate",
+      "code": "unsupported"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "HUB.STATUS",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "HUB.STATUS",
+      "code": "unsupported"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "HUB.STATUS",
+      "code": "unsupported"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "HUB.STATUS",
+      "code": "unsupported"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "HUB.STATUS",
+      "code": "unsupported"
+    },
+    {
+      "registered": false,
+      "role": "",
+      "cmd": "",
+      "code": "unknown_device"
+    },
+    {
+      "registered": true,
+      "role": "view",
+      "cmd": "",
+      "code": "unsupported"
+    },
+    {
+      "registered": true,
+      "role": "wake",
+      "cmd": "",
+      "code": "unsupported"
+    },
+    {
+      "registered": true,
+      "role": "control",
+      "cmd": "",
+      "code": "unsupported"
+    },
+    {
+      "registered": true,
+      "role": "admin",
+      "cmd": "",
+      "code": "unsupported"
+    }
+  ],
+  "commands": [
+    {
+      "cmd": "hub.status",
+      "minRole": "view"
+    },
+    {
+      "cmd": "hub.events",
+      "minRole": "view"
+    },
+    {
+      "cmd": "hub.history",
+      "minRole": "view"
+    },
+    {
+      "cmd": "hub.metrics",
+      "minRole": "view"
+    },
+    {
+      "cmd": "hub.wake",
+      "minRole": "wake"
+    },
+    {
+      "cmd": "hub.pcs",
+      "minRole": "admin"
+    },
+    {
+      "cmd": "hub.pcs.add",
+      "minRole": "admin"
+    },
+    {
+      "cmd": "hub.pcs.update",
+      "minRole": "admin"
+    },
+    {
+      "cmd": "hub.pcs.remove",
+      "minRole": "admin"
+    },
+    {
+      "cmd": "hub.schedules",
+      "minRole": "admin"
+    },
+    {
+      "cmd": "hub.schedules.set",
+      "minRole": "admin"
+    },
+    {
+      "cmd": "hub.settings",
+      "minRole": "admin"
+    },
+    {
+      "cmd": "devices",
+      "minRole": "admin"
+    },
+    {
+      "cmd": "devices.revoke",
+      "minRole": "admin"
+    },
+    {
+      "cmd": "devices.role",
+      "minRole": "admin"
+    },
+    {
+      "cmd": "devices.rename",
+      "minRole": "admin"
+    },
+    {
+      "cmd": "invite",
+      "minRole": "admin"
+    },
+    {
+      "cmd": "invites",
+      "minRole": "admin"
+    },
+    {
+      "cmd": "invites.cancel",
+      "minRole": "admin"
+    },
+    {
+      "cmd": "pair",
+      "minRole": ""
+    }
+  ]
+}

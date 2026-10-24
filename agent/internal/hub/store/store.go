@@ -435,3 +435,19 @@ func writeAtomic(p string, data []byte) error {
 	}
 	return err
 }
+
+// File désigne un fichier entier du stockage, lu et remplacé d'un bloc : c'est la forme qu'attend le
+// registre des appareils (devices.Storage).
+type File struct {
+	s   *Store
+	rel string
+}
+
+// File renvoie le fichier entier rel.
+func (s *Store) File(rel string) File { return File{s: s, rel: rel} }
+
+// Load lit le fichier ; l'erreur vérifie errors.Is(err, os.ErrNotExist) s'il n'existe pas.
+func (f File) Load() ([]byte, error) { return f.s.ReadFile(f.rel) }
+
+// Save remplace le fichier.
+func (f File) Save(data []byte) error { return f.s.WriteFile(f.rel, data) }

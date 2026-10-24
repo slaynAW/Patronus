@@ -213,8 +213,8 @@ dernière colonne donne leur état dans Patronus 1.15.0 et l'agent 1.13.0.
 | R12 | Vecteurs de test communs Go et Kotlin, cas négatifs et fuzzing des analyseurs, en CI. | Toutes | Oui, plus des tests de bout en bout contre le vrai agent |
 | R13 | Le hub n'est administrateur d'aucun agent et ne relaie aucune commande : `wake` par défaut, `control` seulement pour une extinction programmée, donné et retiré par une application administrateur auprès de l'agent. | T30, T42 | 2.0 (conception) |
 | R14 | Toute action du hub sur un PC est attribuée à son identité dans le journal de l'agent. | T30, T42 | 2.0 (conception) ; l'agent le fait déjà (R10) |
-| R15 | Applications ↔ hub : mêmes garanties que `wolagent/2` (R1, R2, R3, R5, R6, R9), avec ALPN et port distincts. | T34, T35, T36 | 2.0 (conception) |
-| R16 | Données du hub chiffrées au repos, clé hors du dossier de données et des sauvegardes. | T37 | 2.0 (conception) |
+| R15 | Applications ↔ hub : mêmes garanties que `wolagent/2` (R1, R2, R3, R5, R6, R9), avec ALPN et port distincts. | T34, T35, T36 | En cours : côté hub fait (2.0-C, [PROTOCOLE-HUB.md](PROTOCOLE-HUB.md)), applications à venir |
+| R16 | Données du hub chiffrées au repos, clé hors du dossier de données et des sauvegardes. | T37 | En cours : stockage chiffré (2.0-B), registre des appareils du hub (2.0-C) |
 | R17 | Conteneur sans privilège : non root, lecture seule, aucune capacité, pas de socket Docker ; seule exception, le réseau de l'hôte. | T39 | 2.0 (conception) |
 | R18 | Sondes limitées aux adresses privées, sans données envoyées, résultat réduit à « répond » et latence. | T40 | 2.0 (conception) |
 | R19 | Image et binaire du hub construits et publiés comme les autres versions : validation manuelle, provenance, SBOM. | T43 | 2.0 (conception) |
