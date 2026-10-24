@@ -22,6 +22,7 @@ import (
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
 	"github.com/slaynaw/wakeonlan/desktop/internal/diag"
 	"github.com/slaynaw/wakeonlan/desktop/internal/history"
+	"github.com/slaynaw/wakeonlan/desktop/internal/hubstore"
 	"github.com/slaynaw/wakeonlan/desktop/internal/identity"
 	"github.com/slaynaw/wakeonlan/desktop/internal/model"
 	"github.com/slaynaw/wakeonlan/desktop/internal/netstate"
@@ -142,6 +143,10 @@ type Service struct {
 	// Archives des mesures et du journal sur GitHub (verrou propre, jamais pris en tenant celui
 	// des sauvegardes) ; nil si les sauvegardes sont indisponibles.
 	archives *archiver
+	// Hub appairé (verrou propre, jamais pris en tenant un autre).
+	hubMu    sync.Mutex
+	hubStore *hubstore.Store
+	hub      *hubstore.Hub
 }
 
 type importState struct {
@@ -184,6 +189,7 @@ func New(opts Options) *Service {
 		}
 		return id.Cert, nil
 	}
+	s.loadHub(filepath.Dir(opts.Store.Path()))
 	s.upgrades = newUpgrader()
 	s.updates = newUpdater(opts.Updates, filepath.Dir(opts.Store.Path()), s.now)
 	s.agents = newAgentDownloads(opts.Agent)
@@ -320,6 +326,8 @@ type UIState struct {
 	Agent AgentView `json:"agent"`
 	// Backup : sauvegardes automatiques.
 	Backup BackupView `json:"backup"`
+	// Hub : hub sur le NAS auquel cette installation est appairée (nil : aucun).
+	Hub *HubView `json:"hub"`
 }
 
 // NetworkView décrit le réseau local.
@@ -381,6 +389,7 @@ func (s *Service) State() UIState {
 	agentView := s.agents.snapshot()
 	shareView := s.shareView()
 	backupView := s.backupView()
+	hubView := s.hubView()
 	shared := s.sharedDevices()
 	s.histMu.Lock()
 	historyVersion := s.histVersion
@@ -392,6 +401,7 @@ func (s *Service) State() UIState {
 		Agent:          agentView,
 		Share:          shareView,
 		Backup:         backupView,
+		Hub:            hubView,
 		HistoryVersion: historyVersion,
 		Version:        s.version,
 		Settings:       s.cfg.Settings,
@@ -480,6 +490,8 @@ type callParams struct {
 	Role   string `json:"role"`
 	TTL    int64  `json:"ttl"`
 	Invite string `json:"invite"`
+	// Days : durée de conservation de l'archive du hub, en jours.
+	Days int `json:"days"`
 }
 
 // pairingRequest : empreinte de l'agent et code d'appairage lus dans un lien v=2.
@@ -616,6 +628,25 @@ func (s *Service) dispatch(method string, p callParams) (any, error) {
 		return s.agentAdminChange(p.ID, p.Action, target, value), nil
 	case "agentInvite":
 		return s.agentInvite(p.ID, p.Role, p.TTL, p.Name), nil
+	case "hubPair":
+		return s.hubPair(p.Text), nil
+	case "hubInfo":
+		return s.hubInfo(), nil
+	case "hubAdminChange":
+		target, value := p.Device, p.Role
+		switch p.Action {
+		case "rename":
+			value = p.Name
+		case "cancel":
+			target = p.Invite
+		}
+		return s.hubAdminChange(p.Action, target, value), nil
+	case "hubInvite":
+		return s.hubInvite(p.Role, p.TTL, p.Name), nil
+	case "hubRetention":
+		return s.hubRetention(p.Days), nil
+	case "hubForget":
+		return s.hubForget(), nil
 	case "parsePairing":
 		info, err := pairing.Parse(p.Text)
 		if err != nil {

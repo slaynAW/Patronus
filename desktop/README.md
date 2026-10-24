@@ -70,6 +70,24 @@ Windows), restaurer une sauvegarde ne suffit donc pas pour les PC déjà passés
 *cet ordinateur n'est pas autorisé par ce PC*. Il suffit de l'appairer à nouveau (`wol-agent pair` sur le PC, puis
 coller le lien dans la fiche du PC) : le code du lien sert alors à le réenregistrer.
 
+## Hub sur le NAS (2.0, en cours)
+
+Le [hub](../docs/HUB.md) tourne dans un conteneur sur le NAS : il surveille les PC en continu et garde leur historique
+un an. *Réglages* → **Hub sur le NAS** → *Appairer un hub* : collez le lien `patronus://hub?…` affiché dans le journal
+du conteneur (ou par `patronus-hub pair`), ou celui d'une invitation créée depuis un autre appareil. Comme pour un PC,
+l'application vérifie l'empreinte du hub avant d'envoyer le code, qui ne sert qu'une fois.
+
+- La fiche du hub montre sa version, son adresse, son empreinte (à comparer avec celle du journal du conteneur) et le
+  rôle de cet ordinateur : *Consulter*, *Démarrer* ou *Administrer* (pas de *Contrôler* : le hub ne relaie aucune
+  commande).
+- Un administrateur du hub y gère ses appareils autorisés et les invitations (QR code et lien à usage unique), et choisit
+  la durée de conservation de l'historique (3 mois à 3 ans, 1 an par défaut).
+- *Oublier ce hub* : un administrateur s'en retire (sauf le dernier) ; sinon, un administrateur du hub le retire.
+- L'appairage appartient à cette installation, comme son identité : il n'est ni exporté ni sauvegardé.
+
+Les PC confiés au hub, les évènements « Pendant votre absence » et l'historique au-delà de 30 jours viennent dans les
+étapes suivantes.
+
 ## Où sont mes données ?
 
 | Élément | Emplacement |
@@ -78,6 +96,7 @@ coller le lien dans la fiche du PC) : le code du lien sert alors à le réenregi
 | Historique (30 jours) | `%APPDATA%\WakeOnLan\history.dat`, chiffré avec DPAPI. *Réglages* → *Effacer l'historique* le vide (le journal tenu par l'agent de chaque PC est conservé). |
 | Partage (clés, jeton GitHub, accès reçus) | `%APPDATA%\WakeOnLan\share.dat`, chiffré avec DPAPI. |
 | Identité `wolagent/2` de cet ordinateur | `%APPDATA%\WakeOnLan\identity.dat`, chiffrée avec DPAPI ; jamais exportée ni sauvegardée. |
+| Hub appairé (nom, adresse, empreinte, rôle) | `%APPDATA%\WakeOnLan\hub.dat`, chiffré avec DPAPI ; jamais exporté ni sauvegardé. |
 | Sauvegarde automatique (mot de passe, jeton GitHub, dossier) | `%APPDATA%\WakeOnLan\backup.dat`, chiffré avec DPAPI ; les sauvegardes elles-mêmes sont dans le Gist secret et/ou le dossier choisis ([docs/SAUVEGARDE.md](../docs/SAUVEGARDE.md)). |
 | Journal de diagnostic | `%APPDATA%\WakeOnLan\diagnostics\`, chiffré (clé protégée par DPAPI). *Réglages* → *Diagnostic* exporte un rapport chiffré par mot de passe ([docs/DIAGNOSTIC.md](../docs/DIAGNOSTIC.md)). |
 | Cache d'affichage WebView2 | `%LOCALAPPDATA%\WakeOnLan\WebView2` |
@@ -111,7 +130,9 @@ desktop/
     ├── model/        PC, réglages, validation (mêmes règles et messages qu'Android)
     ├── config/       format JSON, export/import chiffré (PBKDF2 + AES-256-GCM), stockage DPAPI
     ├── wol/          paquet magique, diffusion par carte réseau
-    ├── agentclient/  client des agents : wolagent/2 (TLS 1.3, empreinte épinglée) ou wolagent/1
+    ├── agentclient/  client des agents : wolagent/2 (TLS 1.3, empreinte épinglée) ou wolagent/1 ; client du hub
+                      (patronus-hub/1, même transport)
+    ├── hubstore/     hub appairé (DPAPI)
     ├── identity/     identité wolagent/2 de cet ordinateur (ECDSA P-256, DPAPI)
     ├── history/      historique sur 30 jours (mêmes règles que le téléphone), stockage DPAPI
     ├── status/       sondes (agent, TCP, ping ICMP), machine à états, surveillance

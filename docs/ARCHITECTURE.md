@@ -33,15 +33,17 @@ Patronus/
 │   └── HistoryTracker.kt  tenue de l'historique (surveillance, demandes, journal des agents)
 ├── desktop/     Go + WebView2 — application Windows (même interface et mêmes fonctions qu'Android)
 │   ├── ui/         interface HTML/CSS/JS : plan du réseau, tableau, panneau de détail, historique
-│   └── internal/   model, config (DPAPI, export), history, share (partage), wol, agentclient, status,
-│                   netstate, pairing, app
+│   └── internal/   model, config (DPAPI, export), history, share (partage), wol, agentclient (agents et
+│                   hub), status, netstate, pairing, hubstore (hub appairé), app
 ├── agent/       Go — service installé sur les PC
 │   ├── protocol/   protocole partagé avec l'application Windows
 │   ├── update/     mises à jour (manifeste signé, téléchargement vérifié), partagé avec l'application Windows
 │   ├── internal/   server, config, history (journal 30 jours), power, service, selfupdate (mise à jour guidée
 │   │               sous Windows), pairing, netinfo, sysinfo, terminal, guard (blocage des échecs) ; hub/ : hub
-│   │               sur le NAS (2.0, en cours, docs/HUB.md) : store (stockage chiffré), server (patronus-hub/1)
+│   │               sur le NAS (2.0, en cours, docs/HUB.md) : assemblage, store (stockage chiffré), server
+│   │               (patronus-hub/1), fleet, agents, monitor, archive, settings, wake
 │   ├── hubprotocol/ protocole patronus-hub/1 (docs/PROTOCOLE-HUB.md), partagé avec les applications
+│   ├── testhub/    vrai hub et vrais agents sur l'adresse de bouclage, pour les tests des applications
 │   └── cmd/        patronus-hub (le hub), diagnostic-open
 └── protocol/    vecteurs de test communs Kotlin ↔ Go (protocole, paquet magique, sauvegardes, historique,
                  mises à jour, partage, QR code)
