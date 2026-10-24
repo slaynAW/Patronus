@@ -85,7 +85,7 @@ func ParseLinkWith(text string, f LinkFormat) (Link, error) {
 	if params["v"] != f.Version {
 		return fail("v")
 	}
-	if l.Host = params["h"]; !validHost(l.Host) {
+	if l.Host = params["h"]; !ValidHost(l.Host) {
 		return fail("h")
 	}
 	agent, err := ParsePin(params["a"])
@@ -105,7 +105,7 @@ func ParseLinkWith(text string, f LinkFormat) (Link, error) {
 		l.Port = int(n)
 	}
 	if m, ok := params["m"]; ok {
-		if l.MAC, ok = normalizeMAC(m); !ok {
+		if l.MAC, ok = NormalizeMAC(m); !ok {
 			return fail("m")
 		}
 	}
@@ -216,9 +216,9 @@ func parseDecimal(s string, maxDigits int) (int64, bool) {
 	return n, true
 }
 
-// normalizeMAC lit une adresse MAC « AA:BB:CC:DD:EE:FF » ou « AA-BB-CC-DD-EE-FF » (casse indifférente,
+// NormalizeMAC lit une adresse MAC « AA:BB:CC:DD:EE:FF » ou « AA-BB-CC-DD-EE-FF » (casse indifférente,
 // un seul séparateur), et refuse celles qui ne désignent pas une carte réseau (que des 0 ou que des F).
-func normalizeMAC(s string) (string, bool) {
+func NormalizeMAC(s string) (string, bool) {
 	if len(s) != 17 || s[2] != ':' && s[2] != '-' {
 		return "", false
 	}
@@ -253,9 +253,9 @@ var (
 	ipv6CharPattern = regexp.MustCompile(`^[0-9A-Fa-f:.]+(%[A-Za-z0-9_.\-]+)?$`)
 )
 
-// validHost applique les règles des applications pour l'adresse d'un PC (IPv4, IPv6 littérale ou nom
+// ValidHost applique les règles des applications pour l'adresse d'un PC (IPv4, IPv6 littérale ou nom
 // d'hôte RFC 1123), celles de DeviceValidator.isValidHost (Android) et de model.IsValidHost (Windows).
-func validHost(host string) bool {
+func ValidHost(host string) bool {
 	if host == "" || len(host) > maxHostLength || host != strings.TrimSpace(host) {
 		return false
 	}

@@ -17,6 +17,8 @@ import (
 
 	"github.com/slaynaw/wakeonlan/agent/hubprotocol"
 	"github.com/slaynaw/wakeonlan/agent/internal/devices"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/agents"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/fleet"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/server"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/store"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
@@ -122,7 +124,14 @@ func serve(args []string) error {
 	if err != nil {
 		return err
 	}
-	srv, err := server.New(server.Config{Name: name, Version: version, Identity: id, Registry: registry, Logger: logger})
+	pcs, err := fleet.Open(st.File(fleet.FileName), time.Now)
+	if err != nil {
+		return err
+	}
+	dialer := &agents.Dialer{Identity: id, Networks: agents.TargetNetworks()}
+	srv, err := server.New(server.Config{
+		Name: name, Version: version, Identity: id, Registry: registry, Fleet: pcs, Agents: dialer, Logger: logger,
+	})
 	if err != nil {
 		return err
 	}

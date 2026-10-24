@@ -137,6 +137,45 @@ type Request struct {
 	Code   string `json:"code,omitempty"`
 	// Force confirme, sur le NAS seulement, le retrait ou la rétrogradation du dernier administrateur.
 	Force *bool `json:"force,omitempty"`
+	// PC confiés au hub (hub.pcs.*) : PC visé (identifiant du hub), puis ce qui le décrit. Code porte
+	// alors l'invitation de l'agent, réservée au hub.
+	PC    string `json:"pc,omitempty"`
+	Host  string `json:"host,omitempty"`
+	Port  int    `json:"port,omitempty"`
+	MAC   string `json:"mac,omitempty"`
+	Agent string `json:"agent,omitempty"`
+	Probe *Probe `json:"probe,omitempty"`
+}
+
+// Sondes des appareils sans agent (§6.2).
+const (
+	ProbeTCP   = "tcp"
+	ProbeHTTP  = "http"
+	ProbeHTTPS = "https"
+)
+
+// Probe est la sonde d'un appareil sans agent : connexion TCP à un port, ou page web (seule compte la
+// réponse, jamais son contenu). Port vaut 80 ou 443 par défaut pour une page web.
+type Probe struct {
+	Kind string `json:"kind"`
+	Port int    `json:"port,omitempty"`
+}
+
+// MaxPCs borne le nombre de PC et d'appareils confiés au hub.
+const MaxPCs = 64
+
+// PCInfo décrit un PC confié au hub, ou un appareil sans agent (Agent vide, Probe renseignée).
+type PCInfo struct {
+	ID    string `json:"id"` // identifiant propre au hub : 16 octets aléatoires en B64
+	Name  string `json:"name"`
+	Host  string `json:"host"`
+	Port  int    `json:"port,omitempty"` // port de l'agent
+	MAC   string `json:"mac,omitempty"`
+	Agent string `json:"agent,omitempty"` // empreinte de l'agent
+	// Role est le rôle du hub sur l'agent : view, wake, ou control pour une extinction programmée.
+	Role  string `json:"role,omitempty"`
+	Probe *Probe `json:"probe,omitempty"`
+	Added int64  `json:"added"`
 }
 
 // Response est la réponse du hub à un appareil enregistré (§4). Une identité inconnue ne reçoit qu'une
@@ -154,6 +193,8 @@ type Response struct {
 	Invite  *InviteInfo            `json:"invite,omitempty"`
 	Invites []protocol2.InviteInfo `json:"invites,omitzero"`
 	Hub     *Info                  `json:"hub,omitempty"`
+	PCs     []PCInfo               `json:"pcs,omitzero"`
+	PC      *PCInfo                `json:"pc,omitempty"`
 }
 
 // InviteInfo est l'invitation créée par invite : celle de wolagent/2, avec l'empreinte du hub (« hub »)
