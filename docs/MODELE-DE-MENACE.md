@@ -111,7 +111,7 @@ Flux étudiés :
 
 | Id | Menace | Adv. | Actuel | Prévu | Résiduel |
 |---|---|---|---|---|---|
-| T13 | Réveil d'un PC par n'importe qui sur le réseau | M1 | Accepté (norme Wake-on-LAN) | Le hub signalera les réveils non demandés (2.0, en conception) | Accepté : un réveil ne donne aucun autre accès |
+| T13 | Réveil d'un PC par n'importe qui sur le réseau | M1 | Accepté (norme Wake-on-LAN) | Le hub signalera les réveils non demandés (2.1) | Accepté : un réveil ne donne aucun autre accès |
 
 ### F3, F8 · GitHub : partage, sauvegardes, archives
 

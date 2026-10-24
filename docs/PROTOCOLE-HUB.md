@@ -9,8 +9,9 @@ protocole applicatif, son port, ses rôles et ses commandes. Les menaces auxquel
   [`agent/internal/hub/server`](../agent/internal/hub/server) (serveur), commande `patronus-hub`
   ([`agent/cmd/patronus-hub`](../agent/cmd/patronus-hub)).
 - Vecteurs communs : [`protocol/hub-vectors.json`](../protocol/hub-vectors.json) (liens, salut, rôles, autorisation).
-- **État** : étape 2.0-D. Le hub sert l'appairage, les appareils autorisés, les invitations, `hub.status` et les PC
-  confiés (`hub.pcs.*`) ; les autres commandes du §6 répondent `unsupported` jusqu'à leur étape
+- **État** : étape 2.0-D. Le hub sert l'appairage, les appareils autorisés, les invitations, `hub.status`, les PC
+  confiés (`hub.pcs.*`), leur archive (`hub.history`, `hub.metrics`), ses réglages (`hub.settings`), les évènements
+  (`hub.events`) et le réveil (`hub.wake`) ; les programmations (§6) répondent `unsupported` jusqu'à leur étape
   ([HUB.md](HUB.md#14-plan-de-réalisation)).
 
 ## 1. Ce qui diffère de `wolagent/2`
@@ -97,11 +98,12 @@ invitation qui n'en précise pas.
 | Commande | Rôle minimal | Étape |
 |---|---|---|
 | `hub.status` | `view` | 2.0-C : `hub` (§4) ; 2.0-D : `pcs` et `states` (§6.2) |
-| `hub.events`, `hub.history`, `hub.metrics` | `view` | 2.0-D |
-| `hub.wake` | `wake` | 2.0-D |
+| `hub.history`, `hub.metrics` | `view` | 2.0-D : §6.3 |
+| `hub.events` | `view` | 2.0-D : §6.5 |
+| `hub.wake` | `wake` | 2.0-D : §6.6 |
 | `hub.pcs`, `hub.pcs.add`, `hub.pcs.update`, `hub.pcs.remove` | `admin` | 2.0-D : §6.1 |
 | `hub.schedules`, `hub.schedules.set` | `admin` | 2.0-H |
-| `hub.settings` | `admin` | 2.0-D |
+| `hub.settings` | `admin` | 2.0-D : §6.4 |
 | `devices`, `devices.revoke`, `devices.role`, `devices.rename` | `admin` | 2.0-C |
 | `invite`, `invites`, `invites.cancel` | `admin` | 2.0-C |
 | `pair` | Identité inconnue | 2.0-C |
@@ -169,6 +171,55 @@ sans cookie ni identifiant, redirections jamais suivies, certificat non vérifi�
 refus de l'agent, les relevés s'espacent : une minute après `revoked` ou `pin_mismatch`, délai doublé à chaque
 nouveau refus, 30 minutes au plus ; 5 minutes après `rate_limited`.
 
+### 6.3 Archive (`hub.history`, `hub.metrics`)
+
+Le hub garde le journal de chaque agent confié et ses mesures minute par minute au-delà des 30 et 90 jours de
+l'agent ([HUB.md §9](HUB.md#9-données-et-chiffrement-au-repos)) : il relit le journal (`history`) toutes les
+10 minutes et à chaque retour en ligne, la liste des jours de mesures (`metrics`) toutes les heures, puis les jours
+passés qui lui manquent, 5 par relevé (le jour en cours, qui s'écrit encore, attend le lendemain). Un évènement déjà
+gardé n'est gardé qu'une fois ; la cause d'un arrêt anormal précisée plus tard par l'agent remplace l'évènement.
+
+- **`hub.history`** `{"pc":…,"from":…}` : `history`, comme la réponse de l'agent ([PROTOCOLE.md](PROTOCOLE.md#journal-du-pc-history)) :
+  `from` y est le plus ancien évènement gardé, `events` les évènements à partir du `from` demandé, dans l'ordre,
+  2 000 au plus. `more` indique qu'il en reste : redemander avec `from` juste après le dernier reçu.
+- **`hub.metrics`** `{"pc":…}` : `metrics.days`, les jours gardés ; `{"pc":…,"day":"2026-10-03"}` : `metrics.rows`,
+  les lignes de ce jour (vides s'il n'est pas gardé), comme la commande `metrics` de l'agent.
+
+Un PC retiré du hub emporte son archive.
+
+### 6.4 Réglages (`hub.settings`)
+
+`{}` lit les réglages, `{"retention":730}` change la durée de conservation de l'archive (en jours, de 90 à 1 095 ;
+365 par défaut) ; la réponse porte `settings`. Les mois entièrement au-delà de cette durée sont retirés au démarrage
+du hub puis toutes les 6 heures.
+
+### 6.5 Évènements (`hub.events`)
+
+`{"since":…}` : `events`, les évènements détectés par le hub depuis cette date (secondes Unix), dans l'ordre,
+2 000 au plus (`more` : il en reste). Ce sont des **codes** : les applications rédigent le texte avec leurs propres
+noms de PC, et n'affichent jamais de texte venu du hub (T38).
+
+| `k` | Quand | `x`, `i` |
+|---|---|---|
+| `online` | Un PC ou appareil qui ne répondait plus répond de nouveau | |
+| `offline` | Plus rien ne répond | |
+| `agent_down` | Le PC est allumé mais refuse la connexion au port de l'agent depuis plus de 2 minutes | |
+| `problem` | Un agent refuse le hub | `x` : `revoked`, `pin_mismatch`, `rate_limited` |
+| `lost` | Arrêt inattendu noté par l'agent (survenu depuis que le PC est confié au hub), daté de l'arrêt ; précisé plus tard, il reparaît avec sa cause | `x` : `bsod`, `button`, `power`, `hardware`, ou absent |
+| `disk` | Disque à surveiller, ou lecteur plein à 90 % | `x` : `health` ou `full` |
+| `measure` | Mesure de gravité `crit` pendant plus de 5 minutes | `x` : identifiant de la mesure |
+| `wake` | Paquet magique envoyé par le hub (`hub.wake`) | `i` : empreinte courte de l'appareil à l'origine, ou `local` |
+
+Chaque épisode n'est signalé qu'une fois, jusqu'à ce qu'il cesse. Les évènements d'un PC retiré du hub ne sont plus
+donnés. Le « réveil non demandé » viendra avec les notifications (2.1).
+
+### 6.6 Réveil (`hub.wake`)
+
+`{"pc":…}` : le hub envoie le paquet magique depuis le réseau local (diffusion limitée et diffusion dirigée de chaque
+réseau privé du NAS, trois fois), ce qui permet de démarrer un PC même quand l'application n'est pas sur le même réseau
+que lui (2.2). Le PC doit avoir une adresse MAC. Pour un PC avec agent, le hub signale ce réveil à l'agent (`wakes`)
+dès qu'il répond : le journal du PC indique « démarrage demandé par » le hub.
+
 ## 7. Lien d'appairage
 
 ```
@@ -194,7 +245,8 @@ administrateurs de DSM (T41).
 
 ## 9. Données du hub
 
-Le registre des appareils et des invitations (`devices.db`, du code des invitations seul le condensé SHA-256) et la
-liste des PC confiés (`hub.db`) sont gardés dans le stockage chiffré du hub
+Le registre des appareils et des invitations (`devices.db`, du code des invitations seul le condensé SHA-256), la
+liste des PC confiés (`hub.db`), les réglages (`settings.db`) et l'archive de chaque PC (`pc/<id>/history-AAAA-MM.bin`,
+`pc/<id>/metrics-AAAA-MM.bin`) sont gardés dans le stockage chiffré du hub
 ([HUB.md §9](HUB.md#9-données-et-chiffrement-au-repos)) ; un fichier illisible n'est jamais remplacé par un fichier
 vide.

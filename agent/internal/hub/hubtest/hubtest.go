@@ -11,6 +11,8 @@ import (
 	"io"
 	"log"
 	"net"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 	"testing"
@@ -18,9 +20,11 @@ import (
 
 	"github.com/slaynaw/wakeonlan/agent/internal/config"
 	"github.com/slaynaw/wakeonlan/agent/internal/devices"
+	"github.com/slaynaw/wakeonlan/agent/internal/history"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
 	"github.com/slaynaw/wakeonlan/agent/internal/power"
 	"github.com/slaynaw/wakeonlan/agent/internal/server"
+	"github.com/slaynaw/wakeonlan/agent/protocol"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
 	"github.com/slaynaw/wakeonlan/agent/protocol2/client"
 )
@@ -37,7 +41,40 @@ type Agent struct {
 	Port     int
 	ID       *identity.Identity
 	Registry *devices.Registry
+	History  *history.Log // journal du PC (commande history)
+	Metrics  *Metrics     // mesures enregistrées (commande metrics)
 	stop     context.CancelFunc
+}
+
+// Metrics sont les mesures enregistrées de l'agent de test, jour par jour.
+type Metrics struct {
+	mu   sync.Mutex
+	days map[string][]protocol.MetricsRow
+}
+
+// Set enregistre les mesures d'un jour.
+func (m *Metrics) Set(day string, rows []protocol.MetricsRow) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.days[day] = rows
+}
+
+// Days et Day répondent comme l'enregistreur de l'agent.
+func (m *Metrics) Days() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []string
+	for d := range m.days {
+		out = append(out, d)
+	}
+	slices.Sort(out)
+	return out
+}
+
+func (m *Metrics) Day(day string) ([]protocol.MetricsRow, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.days[day], nil
 }
 
 // StartAgent démarre un agent sur 127.0.0.1, arrêté à la fin du test.
@@ -61,6 +98,13 @@ func StartAgent(t testing.TB) *Agent {
 		t.Fatal(err)
 	}
 	srv.EnableV2(id, reg)
+	journal, err := history.Open(filepath.Join(dir, "history.json"), time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.SetHistory(journal)
+	metrics := &Metrics{days: map[string][]protocol.MetricsRow{}}
+	srv.SetMetrics(metrics)
 	raw, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -69,7 +113,10 @@ func StartAgent(t testing.TB) *Agent {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go func() { _ = srv.Serve(ctx, ln) }()
-	return &Agent{Port: raw.Addr().(*net.TCPAddr).Port, ID: id, Registry: reg, stop: func() { cancel(); ln.closeAll() }}
+	return &Agent{
+		Port: raw.Addr().(*net.TCPAddr).Port, ID: id, Registry: reg, History: journal, Metrics: metrics,
+		stop: func() { cancel(); ln.closeAll() },
+	}
 }
 
 // Stop arrête l'agent comme l'arrêt de son service : connexions ouvertes coupées, puis port fermé.

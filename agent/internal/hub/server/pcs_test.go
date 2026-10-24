@@ -11,7 +11,9 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/agents"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/fleet"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/hubtest"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/settings"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
+	"github.com/slaynaw/wakeonlan/agent/protocol"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
 )
 
@@ -192,5 +194,114 @@ func TestPrivateTargets(t *testing.T) {
 		if p.Addr().IsLoopback() {
 			t.Errorf("bouclage permis : %s", p)
 		}
+	}
+}
+
+func TestArchiveCommands(t *testing.T) {
+	e, a := start(t), startAgent(t)
+	pc := e.addPC(t, a, a.invite(t, protocol2.RoleWake, e.hub.Pin)).PC
+	arch := e.srv.cfg.Archive
+	boot := time.Date(2026, 9, 1, 8, 0, 0, 0, time.UTC).Unix()
+	if _, err := arch.AddEvents(pc.ID, []protocol.HistoryEvent{{T: boot, K: protocol.HistoryBoot}, {T: boot + 3600, K: protocol.HistoryShutdown}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := arch.AddDay(pc.ID, "2026-09-01", []protocol.MetricsRow{{T: boot, N: 6}}); err != nil {
+		t.Fatal(err)
+	}
+	viewer := newDevice(t)
+	e.enroll(t, viewer, protocol2.RoleView, "Tablette")
+	v := e.dial(t, viewer)
+
+	h := call(t, v, hubprotocol.Request{Cmd: hubprotocol.CmdHistory, PC: pc.ID})
+	if !h.OK || h.History == nil || h.History.From != boot || len(h.History.Events) != 2 || h.More {
+		t.Fatalf("hub.history : %+v %+v", h, h.History)
+	}
+	if h := call(t, v, hubprotocol.Request{Cmd: hubprotocol.CmdHistory, PC: pc.ID, From: boot + 1}); len(h.History.Events) != 1 {
+		t.Fatalf("à partir d'une date : %+v", h.History)
+	}
+	days := call(t, v, hubprotocol.Request{Cmd: hubprotocol.CmdMetrics, PC: pc.ID})
+	if !days.OK || days.Metrics == nil || len(days.Metrics.Days) != 1 || days.Metrics.Days[0] != "2026-09-01" {
+		t.Fatalf("jours : %+v", days.Metrics)
+	}
+	day := call(t, v, hubprotocol.Request{Cmd: hubprotocol.CmdMetrics, PC: pc.ID, Day: "2026-09-01"})
+	if !day.OK || len(day.Metrics.Rows) != 1 || day.Metrics.Rows[0].N != 6 {
+		t.Fatalf("mesures d'un jour : %+v", day.Metrics)
+	}
+	if none := call(t, v, hubprotocol.Request{Cmd: hubprotocol.CmdMetrics, PC: pc.ID, Day: "2026-09-02"}); !none.OK || len(none.Metrics.Rows) != 0 {
+		t.Fatalf("jour non gardé : %+v", none.Metrics)
+	}
+	for _, req := range []hubprotocol.Request{
+		{Cmd: hubprotocol.CmdHistory, PC: "inconnu"},
+		{Cmd: hubprotocol.CmdMetrics, PC: pc.ID, Day: "../../x"},
+	} {
+		if r := call(t, v, req); r.Code != protocol2.CodeBadRequest {
+			t.Errorf("%+v : %+v", req, r)
+		}
+	}
+	// Réglages : lecture (admin), durée de conservation bornée.
+	if r := call(t, v, hubprotocol.Request{Cmd: hubprotocol.CmdSettings}); r.Code != protocol2.CodeInsufficientRole {
+		t.Fatalf("réglages (view) : %+v", r)
+	}
+	local := e.local(t)
+	if r := call(t, local, hubprotocol.Request{Cmd: hubprotocol.CmdSettings}); !r.OK || r.Settings.Retention != 365 {
+		t.Fatalf("réglages par défaut : %+v", r.Settings)
+	}
+	for _, days := range []int{89, 1096, -5} {
+		if r := call(t, local, hubprotocol.Request{Cmd: hubprotocol.CmdSettings, Retention: days}); r.Code != protocol2.CodeBadRequest {
+			t.Errorf("conservation de %d jours : %+v", days, r)
+		}
+	}
+	if r := call(t, local, hubprotocol.Request{Cmd: hubprotocol.CmdSettings, Retention: 730}); !r.OK || r.Settings.Retention != 730 {
+		t.Fatalf("deux ans : %+v", r.Settings)
+	}
+	if again, err := settings.Open(e.st.File(settings.FileName)); err != nil || again.Get().RetentionDays != 730 {
+		t.Fatalf("réglages relus : %+v, %v", again, err)
+	}
+	// Un PC retiré emporte son archive.
+	call(t, local, hubprotocol.Request{Cmd: hubprotocol.CmdPCsRemove, PC: pc.ID})
+	if events, _, _, _ := arch.Events(pc.ID, 0); len(events) != 0 {
+		t.Fatalf("archive du PC retiré : %d évènements", len(events))
+	}
+}
+
+func TestWakeAndEvents(t *testing.T) {
+	e, a := start(t), startAgent(t)
+	var sentTo []string
+	e.srv.cfg.Wake = func(_ context.Context, mac string) (int, error) { sentTo = append(sentTo, mac); return 6, nil }
+	var noted []string
+	e.srv.cfg.NoteWake = func(pc string, _ int64) { noted = append(noted, pc) }
+	pc := e.addPC(t, a, a.invite(t, protocol2.RoleWake, e.hub.Pin)).PC
+	box := call(t, e.local(t), hubprotocol.Request{Cmd: hubprotocol.CmdPCsAdd, Name: "Box", Host: "192.168.1.1", Probe: &hubprotocol.Probe{Kind: "http"}}).PC
+
+	waker, viewer := newDevice(t), newDevice(t)
+	e.enroll(t, waker, protocol2.RoleWake, "Pixel 8")
+	e.enroll(t, viewer, protocol2.RoleView, "Tablette")
+	if r := call(t, e.dial(t, viewer), hubprotocol.Request{Cmd: hubprotocol.CmdWake, PC: pc.ID}); r.Code != protocol2.CodeInsufficientRole {
+		t.Fatalf("réveil (view) : %+v", r)
+	}
+	w := e.dial(t, waker)
+	if r := call(t, w, hubprotocol.Request{Cmd: hubprotocol.CmdWake, PC: pc.ID}); !r.OK || !strings.Contains(r.Message, "6 paquets") {
+		t.Fatalf("réveil : %+v", r)
+	}
+	if len(sentTo) != 1 || sentTo[0] != "AA:BB:CC:DD:EE:01" || len(noted) != 1 || noted[0] != pc.ID {
+		t.Fatalf("paquet : %v, noté : %v", sentTo, noted)
+	}
+	if r := call(t, w, hubprotocol.Request{Cmd: hubprotocol.CmdWake, PC: box.ID}); r.Code != protocol2.CodeBadRequest || !strings.Contains(r.Message, "MAC") {
+		t.Fatalf("appareil sans MAC : %+v", r)
+	}
+	// Évènements : le réveil, avec l'appareil à l'origine ; ceux d'un PC retiré ne sont plus donnés.
+	if err := e.srv.cfg.Archive.AddHubEvents(hubprotocol.Event{T: time.Now().Unix(), PC: box.ID, K: hubprotocol.EventOffline}); err != nil {
+		t.Fatal(err)
+	}
+	ev := call(t, e.dial(t, viewer), hubprotocol.Request{Cmd: hubprotocol.CmdEvents, Since: time.Now().Add(-time.Hour).Unix()})
+	if !ev.OK || len(ev.Events) != 2 || ev.Events[0].K != hubprotocol.EventWake || ev.Events[0].I != pinOf(t, waker).Short() || ev.Events[0].PC != pc.ID {
+		t.Fatalf("évènements : %+v", ev.Events)
+	}
+	call(t, e.local(t), hubprotocol.Request{Cmd: hubprotocol.CmdPCsRemove, PC: box.ID})
+	if ev := call(t, e.dial(t, viewer), hubprotocol.Request{Cmd: hubprotocol.CmdEvents}); len(ev.Events) != 1 {
+		t.Fatalf("après retrait : %+v", ev.Events)
+	}
+	if ev := call(t, e.dial(t, viewer), hubprotocol.Request{Cmd: hubprotocol.CmdEvents, Since: time.Now().Add(time.Hour).Unix()}); len(ev.Events) != 0 {
+		t.Fatalf("depuis plus tard : %+v", ev.Events)
 	}
 }

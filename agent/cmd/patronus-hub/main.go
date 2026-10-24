@@ -18,9 +18,11 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/hubprotocol"
 	"github.com/slaynaw/wakeonlan/agent/internal/devices"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/agents"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/archive"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/fleet"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/monitor"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/server"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/settings"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/store"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
 	"github.com/slaynaw/wakeonlan/agent/internal/netinfo"
@@ -130,10 +132,15 @@ func serve(args []string) error {
 		return err
 	}
 	dialer := &agents.Dialer{Identity: id, Networks: agents.TargetNetworks()}
-	watch := monitor.New(pcs, dialer, logger)
+	prefs, err := settings.Open(st.File(settings.FileName))
+	if err != nil {
+		return err
+	}
+	arch := archive.New(st, time.Now)
+	watch := monitor.New(pcs, dialer, arch, logger)
 	srv, err := server.New(server.Config{
 		Name: name, Version: version, Identity: id, Registry: registry, Fleet: pcs, Agents: dialer, States: watch.States,
-		Logger: logger,
+		Archive: arch, Settings: prefs, NoteWake: watch.NoteWake, Logger: logger,
 	})
 	if err != nil {
 		return err
@@ -162,6 +169,7 @@ func serve(args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go watch.Run(ctx)
+	go prune(ctx, arch, prefs, logger)
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -171,6 +179,23 @@ func serve(args []string) error {
 		_ = ln.Close()
 	}()
 	return srv.Serve(ln)
+}
+
+// prune retire de l'archive, au démarrage puis toutes les 6 heures, ce qui dépasse la durée de
+// conservation.
+func prune(ctx context.Context, arch *archive.Archive, prefs *settings.Settings, logger *log.Logger) {
+	for {
+		if n, err := arch.Prune(prefs.Get().RetentionDays); err != nil {
+			logger.Printf("archive : %v", err)
+		} else if n > 0 {
+			logger.Printf("archive : %d mois au-delà de la durée de conservation retirés", n)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(6 * time.Hour):
+		}
+	}
 }
 
 func hasAdmin(r *devices.Registry) bool {
