@@ -1,5 +1,6 @@
 package io.github.slaynaw.wakeonlan.core.wol
 
+import io.github.slaynaw.wakeonlan.core.model.DeviceValidator
 import java.net.Inet4Address
 import java.net.InetAddress
 
@@ -38,4 +39,18 @@ object BroadcastAddresses {
             interfaces.mapNotNullTo(this, ::directed)
             add(LIMITED)
         }.distinct()
+
+    /**
+     * L'adresse [host] est dans un des sous-réseaux [interfaces] du téléphone : le paquet magique envoyé d'ici
+     * l'atteint. Un nom d'hôte ne permet pas de le savoir (aucune résolution DNS ici) : false.
+     */
+    fun onLocalNetwork(host: String, interfaces: List<InterfaceAddress4>): Boolean {
+        if (!DeviceValidator.isIpv4(host)) return false
+        val target = host.split('.').fold(0) { acc, part -> (acc shl 8) or part.toInt() }
+        return interfaces.any { iface ->
+            val ip = iface.address.address.fold(0) { acc, b -> (acc shl 8) or (b.toInt() and 0xFF) }
+            val mask = if (iface.prefixLength == 0) 0 else -1 shl (32 - iface.prefixLength)
+            (ip and mask) == (target and mask)
+        }
+    }
 }

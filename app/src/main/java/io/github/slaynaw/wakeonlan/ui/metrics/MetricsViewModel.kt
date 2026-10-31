@@ -34,7 +34,7 @@ data class MetricsUiState(
     val error: String? = null,
 )
 
-/** Mesures d'un PC dans le temps : lues sur son agent et dans les archives GitHub. */
+/** Mesures d'un PC dans le temps : lues sur son agent, sur le hub du NAS (PC confié) et dans les archives GitHub. */
 class MetricsViewModel(private val container: AppContainer, private val deviceId: String) : ViewModel() {
     private val _state = MutableStateFlow(MetricsUiState())
     val state: StateFlow<MetricsUiState> = _state.asStateFlow()
@@ -47,7 +47,7 @@ class MetricsViewModel(private val container: AppContainer, private val deviceId
         }
         viewModelScope.launch {
             val months = try {
-                container.archives.archivedMonths()
+                container.archives.archivedMonths(deviceId = deviceId)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

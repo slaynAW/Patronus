@@ -3,6 +3,7 @@ package io.github.slaynaw.wakeonlan.archive
 import io.github.slaynaw.wakeonlan.BuildConfig
 import io.github.slaynaw.wakeonlan.backup.BackupManager
 import io.github.slaynaw.wakeonlan.core.agent.AgentClient
+import io.github.slaynaw.wakeonlan.core.hub.HubManager
 import io.github.slaynaw.wakeonlan.core.agent.AgentError
 import io.github.slaynaw.wakeonlan.core.agent.AgentHistoryEvent
 import io.github.slaynaw.wakeonlan.core.agent.AgentResult
@@ -80,6 +81,8 @@ data class MetricsRange(
     val agent: Boolean,
     val archive: Boolean,
     val notes: List<String>,
+    /** Des mesures viennent du hub sur le NAS (PC confié). */
+    val hub: Boolean = false,
 )
 
 /**
@@ -95,6 +98,8 @@ class ArchiveManager(
     private val devices: Flow<AppConfig>,
     private val backups: BackupManager,
     private val agent: AgentClient,
+    /** Hub sur le NAS : journal et mesures des PC qui lui sont confiés, au-delà des 90 jours de l'agent (§6.3). */
+    private val hub: HubManager? = null,
 ) {
     private val github = ShareGitHub(BuildConfig.GITHUB_CLIENT_ID, "Patronus-Android/${BuildConfig.VERSION_NAME}")
 
@@ -108,6 +113,8 @@ class ArchiveManager(
     private val dayLists = ConcurrentHashMap<String, Pair<Long, AgentResult<List<String>>>>()
     private val agentRows = ConcurrentHashMap<String, Pair<Long, List<MetricsRow>>>()
     private val journals = ConcurrentHashMap<String, Pair<Long, List<AgentHistoryEvent>>>()
+    private val hubDayLists = ConcurrentHashMap<String, Pair<Long, Set<String>>>()
+    private val hubRows = ConcurrentHashMap<String, Pair<Long, List<MetricsRow>>>()
 
     @Volatile
     private var monthsCache: Pair<Long, Map<String, List<String>>>? = null
@@ -415,9 +422,11 @@ class ArchiveManager(
     // --- Écran « Mesures » ---
 
     /** Mois archivés sur GitHub, du plus récent au plus ancien (vide si les archives ne sont pas configurées). */
-    suspend fun archivedMonths(refresh: Boolean = false): List<String> {
-        val acc = access() ?: return emptyList()
-        return months(acc, refresh).keys.sortedDescending()
+    suspend fun archivedMonths(refresh: Boolean = false, deviceId: String? = null): List<String> {
+        val archived = access()?.let { months(it, refresh).keys }.orEmpty()
+        // Mois gardés par le hub pour ce PC, s'il lui est confié.
+        val kept = deviceId?.let { device(it) }?.let { (d, _) -> hubDays(d).map { it.take(7) } }.orEmpty()
+        return (archived + kept).distinct().sortedDescending()
     }
 
     private suspend fun device(id: String): Pair<Device, Boolean>? {
@@ -425,20 +434,25 @@ class ArchiveManager(
         return devices.first().devices.firstOrNull { it.id == id }?.let { it to false }
     }
 
-    /** Mesures d'un PC entre [fromMs] et [toMs] (au plus [points] points). */
+    /**
+     * Mesures d'un PC entre [fromMs] et [toMs] (au plus [points] points), jour par jour : celles de l'agent (90 jours),
+     * puis celles du hub sur le NAS (PC confié), puis les archives GitHub.
+     */
     suspend fun range(deviceId: String, fromMs: Long, toMs: Long, points: Int): MetricsRange {
         val (d, own) = device(deviceId) ?: throw IOException("PC introuvable")
         val from = fromMs / 1000
         val to = toMs / 1000
         require(to > from && to - from <= MAX_RANGE_DAYS * 86_400L) { "Période invalide" }
         val notes = LinkedHashSet<String>()
+        val agentErrors = LinkedHashSet<AgentError>()
         val days = agentDays(d)
-        if (days is AgentResult.Failure && days.error != AgentError.NO_KEY) notes += agentNote(days.error)
+        if (days is AgentResult.Failure && days.error != AgentError.NO_KEY) agentErrors += days.error
         val agentList = (days as? AgentResult.Success)?.value.orEmpty()
-        val acc = if (own) access() else null
         val rows = ArrayList<MetricsRow>()
         var fromAgent = false
+        var fromHub = false
         var fromArchive = false
+        val missing = ArrayList<String>()
         var day = LocalDate.ofEpochDay(Math.floorDiv(from, 86_400L))
         while (day.atStartOfDay(ZoneOffset.UTC).toEpochSecond() < to) {
             val name = day.toString()
@@ -450,10 +464,30 @@ class ArchiveManager(
                         fromAgent = true
                         done = true
                     }
-                    is AgentResult.Failure -> notes += agentNote(r.error)
+                    is AgentResult.Failure -> agentErrors += r.error
                 }
             }
-            if (!done && acc != null) {
+            if (!done) missing += name
+            day = day.plusDays(1)
+        }
+        // Jours que le PC n'a plus, ou ne peut pas donner : le hub du NAS, s'il lui est confié.
+        val kept = if (missing.isEmpty()) emptySet() else hubDays(d)
+        val fromKept = missing.filter { it in kept }
+        if (fromKept.isNotEmpty()) {
+            when (val r = hubMetrics(d, fromKept)) {
+                is AgentResult.Success -> r.value.forEach { (name, list) ->
+                    rows += list
+                    if (list.isNotEmpty()) fromHub = true
+                    missing.remove(name)
+                }
+                is AgentResult.Failure -> notes += "Hub du NAS injoignable : ${r.error.name.lowercase()}."
+            }
+        }
+        agentErrors.forEach { notes += agentNote(it, viaHub = kept.isNotEmpty()) }
+        // Puis les archives GitHub.
+        val acc = if (own) access() else null
+        if (acc != null) {
+            for (name in missing) {
                 try {
                     archiveDay(acc, d.mac.toString(), name)?.let {
                         rows += it
@@ -463,18 +497,56 @@ class ArchiveManager(
                     notes += "Archives illisibles : ${e.message}"
                 }
             }
-            day = day.plusDays(1)
         }
-        if (own && acc == null) notes += "Archives GitHub non configurées : seules les mesures gardées par le PC (90 jours) sont disponibles."
+        if (own && acc == null && kept.isEmpty()) {
+            notes += "Archives GitHub non configurées : seules les mesures gardées par le PC (90 jours) sont disponibles."
+        }
         return withContext(Dispatchers.Default) {
             downsample(rows, from, to, points.coerceIn(10, 1500)).let { (step, pts, summary, minutes) ->
-                MetricsRange(fromMs, toMs, step, pts, summary, minutes, fromAgent, fromArchive, notes.filter { it.isNotEmpty() })
+                MetricsRange(fromMs, toMs, step, pts, summary, minutes, fromAgent, fromArchive, notes.filter { it.isNotEmpty() }, hub = fromHub)
             }
         }
     }
 
-    private fun agentNote(error: AgentError) = when (error) {
-        AgentError.UNREACHABLE, AgentError.REFUSED, AgentError.UNKNOWN_HOST -> "PC injoignable : mesures lues dans les archives GitHub."
+    /** Jours de mesures que le hub garde pour le PC [d] (vide : pas de hub, PC non confié ou hub injoignable). */
+    private suspend fun hubDays(d: Device): Set<String> {
+        val manager = hub ?: return emptySet()
+        hubDayLists[d.id]?.let { (at, list) -> if (System.currentTimeMillis() - at < AGENT_DAYS_TTL_MS) return list }
+        val list = when (val r = withTimeoutOrNull(AGENT_TIMEOUT_MS) { manager.archiveDays(d) }) {
+            is AgentResult.Success -> r.value.toSet()
+            else -> emptySet()
+        }
+        hubDayLists[d.id] = System.currentTimeMillis() to list
+        return list
+    }
+
+    /** Mesures des jours [days] gardées par le hub pour le PC [d], sur une seule session (jours déjà lus : en cache). */
+    private suspend fun hubMetrics(d: Device, days: List<String>): AgentResult<Map<String, List<MetricsRow>>> {
+        val manager = hub ?: return AgentResult.Failure(AgentError.NO_KEY)
+        val today = LocalDate.now(ZoneOffset.UTC).toString()
+        val now = System.currentTimeMillis()
+        val out = linkedMapOf<String, List<MetricsRow>>()
+        val wanted = days.filter { day ->
+            val ttl = if (day == today) TODAY_TTL_MS else PAST_DAY_TTL_MS
+            val cached = hubRows["${d.id}|$day"]?.takeIf { now - it.first < ttl }
+            if (cached != null) out[day] = cached.second
+            cached == null
+        }
+        if (wanted.isNotEmpty()) {
+            when (val r = timed { manager.archiveMetrics(d, wanted) }) {
+                is AgentResult.Success -> r.value.forEach { (day, list) ->
+                    hubRows["${d.id}|$day"] = now to list
+                    out[day] = list
+                }
+                is AgentResult.Failure -> return r
+            }
+        }
+        return AgentResult.Success(out)
+    }
+
+    private fun agentNote(error: AgentError, viaHub: Boolean = false) = when (error) {
+        AgentError.UNREACHABLE, AgentError.REFUSED, AgentError.UNKNOWN_HOST ->
+            if (viaHub) "PC injoignable : mesures lues sur le hub du NAS." else "PC injoignable : mesures lues dans les archives GitHub."
         AgentError.REJECTED -> "Agent antérieur à 1.8.0 : mettez-le à jour pour enregistrer les mesures en continu."
         AgentError.NO_KEY -> ""
         else -> "Agent : ${error.name.lowercase()}"
@@ -547,6 +619,11 @@ class ArchiveManager(
                     raw += r.value.events
                 }
             }
+        }
+        // Journal gardé par le hub du NAS (PC confié), au-delà des 30 jours de l'agent.
+        hub?.let { manager ->
+            val r = withTimeoutOrNull(AGENT_TIMEOUT_MS) { manager.archiveJournal(d, fromMs / 1000, (toMs + 999) / 1000) }
+            if (r is AgentResult.Success) raw += r.value
         }
         val acc = if (own) access() else null
         if (acc != null) {

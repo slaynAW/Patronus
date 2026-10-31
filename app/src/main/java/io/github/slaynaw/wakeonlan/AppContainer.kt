@@ -81,7 +81,21 @@ class AppContainer(private val context: Context) {
     /** Fiche de chaque PC (agent 1.10.0), gardée pour l'afficher PC éteint. */
     val specs = SpecsRepository(context, scope)
     val specsTracker = SpecsTracker(allDevices, statusMonitor.statuses, agentClient, specs, scope)
-    val actions = DeviceActions(network, WakeOnLanSender(binder = network), agentClient, statusMonitor, historyTracker, prober)
+
+    /**
+     * Hub sur le NAS (docs/HUB.md, §12), facultatif : appairage chiffré par le Keystore, relevé de son état tant que
+     * l'interface le regarde, administration et PC confiés. Même identité que pour les agents (wolagent/2).
+     */
+    val hub = HubManager(
+        scope = scope,
+        store = HubRepository(context, scope),
+        service = HubService(binder = network, deviceName = ::deviceName, identity = identity::get),
+        agents = agentClient,
+        selfPin = { runCatching { identity.get()?.pin?.toString() }.getOrNull() },
+        log = { DiagnosticLog.i("hub", it) },
+    )
+
+    val actions = DeviceActions(network, WakeOnLanSender(binder = network), agentClient, statusMonitor, historyTracker, prober, hub)
 
     /** Passage automatique des PC du téléphone en wolagent/2 (connexion chiffrée, identité propre au téléphone). */
     val agentUpgrades = AgentUpgradeTracker(repository, statusMonitor.statuses, agentClient, prober, share, scope)
@@ -98,21 +112,8 @@ class AppContainer(private val context: Context) {
     /** Sauvegardes automatiques (GitHub et dossier), chiffrées par un mot de passe dédié. */
     val backups = BackupManager(context, scope, repository, share, history)
 
-    /**
-     * Hub sur le NAS (docs/HUB.md, §12), facultatif : appairage chiffré par le Keystore, relevé de son état tant que
-     * l'interface le regarde, administration et PC confiés. Même identité que pour les agents (wolagent/2).
-     */
-    val hub = HubManager(
-        scope = scope,
-        store = HubRepository(context, scope),
-        service = HubService(binder = network, deviceName = ::deviceName, identity = identity::get),
-        agents = agentClient,
-        selfPin = { runCatching { identity.get()?.pin?.toString() }.getOrNull() },
-        log = { DiagnosticLog.i("hub", it) },
-    )
-
     /** Archives chiffrées des mesures et du journal des PC (même compte et même mot de passe). */
-    val archives = ArchiveManager(scope, repository, allDevices, backups, agentClient)
+    val archives = ArchiveManager(scope, repository, allDevices, backups, agentClient, hub)
 
     /** Mises à jour intégrées (versions officielles publiées sur GitHub). */
     val updater = AppUpdater(context, scope)
