@@ -14,9 +14,9 @@ protocole applicatif, son port, ses rôles et ses commandes. Les menaces auxquel
   ([`agent/testhub`](../agent/testhub)).
 - Vecteurs communs : [`protocol/hub-vectors.json`](../protocol/hub-vectors.json) (liens, salut, rôles, autorisation,
   évènements admis par les applications), lus en Go et en Kotlin.
-- **État** : étape 2.0-E. Le hub sert l'appairage, les appareils autorisés, les invitations, `hub.status`, les PC
-  confiés (`hub.pcs.*`), leur archive (`hub.history`, `hub.metrics`), ses réglages (`hub.settings`), les évènements
-  (`hub.events`) et le réveil (`hub.wake`) ; les programmations (§6) répondent `unsupported` jusqu'à leur étape
+- **État** : étape 2.0-H. Le hub sert tout le protocole : appairage, appareils autorisés, invitations, `hub.status`,
+  PC confiés (`hub.pcs.*`), leur archive (`hub.history`, `hub.metrics`), ses réglages (`hub.settings`), les
+  évènements (`hub.events`), le réveil (`hub.wake`) et les programmations (`hub.schedules`)
   ([HUB.md](HUB.md#14-plan-de-réalisation)).
 
 ## 1. Ce qui diffère de `wolagent/2`
@@ -195,7 +195,8 @@ Un PC retiré du hub emporte son archive.
 ### 6.4 Réglages (`hub.settings`)
 
 `{}` lit les réglages, `{"retention":730}` change la durée de conservation de l'archive (en jours, de 90 à 1 095 ;
-365 par défaut) ; la réponse porte `settings`. Les mois entièrement au-delà de cette durée sont retirés au démarrage
+365 par défaut), `{"timezone":"Europe/Paris"}` le fuseau horaire des programmations (§6.7 ; nom IANA, `Europe/Paris`
+par défaut, base des fuseaux incluse dans le hub) ; la réponse porte `settings`. Les mois entièrement au-delà de cette durée sont retirés au démarrage
 du hub puis toutes les 6 heures.
 
 ### 6.5 Évènements (`hub.events`)
@@ -213,11 +214,12 @@ noms de PC, et n'affichent jamais de texte venu du hub (T38).
 | `lost` | Arrêt inattendu noté par l'agent (survenu depuis que le PC est confié au hub), daté de l'arrêt ; précisé plus tard, il reparaît avec sa cause | `x` : `bsod`, `button`, `power`, `hardware`, ou absent |
 | `disk` | Disque à surveiller, ou lecteur plein à 90 % | `x` : `health` ou `full` |
 | `measure` | Mesure de gravité `crit` pendant plus de 5 minutes | `x` : identifiant de la mesure |
-| `wake` | Paquet magique envoyé par le hub (`hub.wake`) | `i` : empreinte courte de l'appareil à l'origine, ou `local` |
+| `wake` | Paquet magique envoyé par le hub (`hub.wake`, ou programmation) | `i` : empreinte courte de l'appareil à l'origine, `local`, ou `schedule` (programmation, §6.7) |
+| `shutdown` | Extinction programmée (§6.7) | `x` : `done` (demandée à l'agent), `postponed` (PC encore utilisé au bout de 2 heures), `refused` (l'agent refuse : rôle `control` absent) |
 
 Une application n'affiche qu'un évènement fait de ces seuls codes : type connu, précision de la liste ci-dessus (ou
-identifiant de mesure `^[a-z0-9][a-z0-9._-]{0,23}$`), `i` présent pour un réveil seulement (empreinte courte ou
-`local`). Tout autre évènement est écarté sans rien en afficher (`hubprotocol.ValidEvent` ; mêmes vecteurs, `events`
+identifiant de mesure `^[a-z0-9][a-z0-9._-]{0,23}$`), `i` présent pour un réveil seulement (empreinte courte,
+`local` ou `schedule`). Tout autre évènement est écarté sans rien en afficher (`hubprotocol.ValidEvent` ; mêmes vecteurs, `events`
 de [`protocol/hub-vectors.json`](../protocol/hub-vectors.json), relus en Kotlin).
 
 Chaque épisode n'est signalé qu'une fois, jusqu'à ce qu'il cesse. Les évènements d'un PC retiré du hub ne sont plus
@@ -229,6 +231,40 @@ donnés. Le « réveil non demandé » viendra avec les notifications (2.1).
 réseau privé du NAS, trois fois), ce qui permet de démarrer un PC même quand l'application n'est pas sur le même réseau
 que lui (2.2). Le PC doit avoir une adresse MAC. Pour un PC avec agent, le hub signale ce réveil à l'agent (`wakes`)
 dès qu'il répond : le journal du PC indique « démarrage demandé par » le hub.
+
+### 6.7 Programmations (`hub.schedules`, `hub.schedules.set`)
+
+`hub.schedules` (`{}`) : `schedules`, la programmation de chaque PC qui en a une, et `settings` (fuseau horaire).
+
+```json
+{"pc":"p1",
+ "wake":{"on":true,"days":[1,2,3,4,5],"at":"07:30","next":1793427000},
+ "shutdown":{"on":true,"days":[1,2,3,4,5,6,7],"at":"23:00","next":1793397600}}
+```
+
+`days` : jours ISO, de 1 (lundi) à 7 (dimanche), au moins un, sans doublon ; `at` : heure `HH:MM` (24 h) dans le
+fuseau du hub ; `next` (réponses seulement) : prochaine occurrence, en secondes Unix, si `on`.
+
+`hub.schedules.set` : `{"pc":…,"schedule":{"wake":…,"shutdown":…}}` remplace la programmation du PC (une partie
+absente est retirée ; aucune des deux : plus de programmation) ; la réponse porte `schedule`. Le réveil demande
+l'adresse MAC du PC, l'extinction un PC avec agent. Retirer le PC du hub retire sa programmation.
+
+- **Réveil** : à l'heure dite, paquet magique comme `hub.wake` (§6.6), évènement `wake` avec `i` = `schedule`, puis
+  `wakes` à l'agent dès qu'il répond.
+- **Extinction si inactif** : à l'heure dite, si le PC répond, le hub vérifie qu'il est inactif : utilisation
+  moyenne du processeur sous 10 % chaque minute des 15 dernières (au moins 12 minutes relevées par l'agent), et
+  aucune commande (`cmd`) ni demande de démarrage (`wake`) d'un autre appareil que le hub dans le journal de l'agent
+  depuis une heure. Sinon il réessaie toutes les 15 minutes pendant 2 heures, puis renonce (`shutdown`,
+  `postponed`). Inactif : extinction normale, **jamais forcée** (`shutdown`, `done`). Un PC éteint à l'heure dite
+  n'est pas concerné.
+- L'extinction demande au hub le rôle `control` sur l'agent : une application administratrice du PC le donne
+  (`devices.role`, empreinte du hub) quand l'utilisateur active l'extinction programmée, et rend au hub le rôle `wake`
+  quand il la désactive. Le hub ne le demande jamais lui-même ; sans lui, l'agent refuse (`shutdown`, `refused`), et
+  l'état du PC (`hub.status`) montre le rôle effectif du hub.
+- Fuseau horaire (§6.4), changements d'heure compris : une heure qui n'existe pas (passage à l'heure d'été) est
+  décalée d'une heure ; une heure qui existe deux fois ne sert qu'une fois.
+- Une occurrence manquée (hub arrêté à ce moment) est rattrapée si le hub redémarre dans les 10 minutes ; au-delà, elle
+  est sautée.
 
 ## 7. Lien d'appairage
 

@@ -261,12 +261,15 @@ func TestRoles(t *testing.T) {
 			t.Errorf("%s (view) : %+v", cmd, r)
 		}
 	}
-	// Rôle suffisant : la commande passe (ici, PC inconnu) ; commande connue mais pas encore servie ;
+	// Rôle suffisant : la commande passe (ici, PC inconnu) ; programmations réservées aux administrateurs ;
 	// commande inconnue ou de l'agent.
 	if r := call(t, w, hubprotocol.Request{Cmd: hubprotocol.CmdWake, PC: "inconnu"}); r.Code != protocol2.CodeBadRequest || r.Role != "wake" {
 		t.Errorf("hub.wake (wake) : %+v", r)
 	}
-	if r := call(t, e.local(t), hubprotocol.Request{Cmd: hubprotocol.CmdSchedules}); r.Code != protocol2.CodeUnsupported {
+	if r := call(t, w, hubprotocol.Request{Cmd: hubprotocol.CmdSchedules}); r.Code != protocol2.CodeInsufficientRole {
+		t.Errorf("hub.schedules (wake) : %+v", r)
+	}
+	if r := call(t, e.local(t), hubprotocol.Request{Cmd: hubprotocol.CmdSchedules}); !r.OK || len(r.Schedules) != 0 || r.Settings == nil {
 		t.Errorf("hub.schedules : %+v", r)
 	}
 	for _, cmd := range []string{"shutdown", "status", "migrate", "HUB.STATUS"} {

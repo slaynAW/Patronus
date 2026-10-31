@@ -145,6 +145,29 @@ func TestAgentStates(t *testing.T) {
 	}
 }
 
+// TestRoleNoted : le rôle du hub donné ou retiré sur l'agent (extinction programmée) est retenu.
+func TestRoleNoted(t *testing.T) {
+	e := start(t)
+	a := hubtest.StartAgent(t)
+	pc := e.entrust(t, a)
+	for _, role := range []protocol2.Role{protocol2.RoleControl, protocol2.RoleWake} {
+		if _, err := a.Registry.SetRole(e.hub.Pin, role, false); err != nil {
+			t.Fatal(err)
+		}
+		deadline := time.Now().Add(20 * time.Second)
+		for {
+			if p, _ := e.fleet.Get(pc.ID); p.Role == role {
+				break
+			}
+			if time.Now().After(deadline) {
+				p, _ := e.fleet.Get(pc.ID)
+				t.Fatalf("rôle %s jamais retenu : %+v", role, p)
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
+}
+
 func TestRevokedHub(t *testing.T) {
 	e := start(t)
 	a := hubtest.StartAgent(t)

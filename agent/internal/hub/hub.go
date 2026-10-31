@@ -17,9 +17,11 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/archive"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/fleet"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/monitor"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/schedule"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/server"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/settings"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/store"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/wake"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
 )
@@ -52,6 +54,7 @@ type Hub struct {
 	archive  *archive.Archive
 	settings *settings.Settings
 	monitor  *monitor.Monitor
+	schedule *schedule.Scheduler
 }
 
 // Open ouvre (ou crée au premier démarrage) le hub décrit par cfg.
@@ -97,9 +100,13 @@ func Open(cfg Config) (*Hub, error) {
 	if err != nil {
 		return nil, err
 	}
+	plans := schedule.New(schedule.Config{
+		Fleet: pcs, Settings: prefs, Dialer: dialer, Archive: arch, States: watch.States,
+		Wake: wake.Send, NoteWake: watch.NoteWake, Hub: id.Pin, Logger: cfg.Logger,
+	})
 	return &Hub{
 		Identity: id, Registry: registry, Server: srv, KeyCreated: keyCreated, IdentityCreated: idCreated,
-		logger: cfg.Logger, archive: arch, settings: prefs, monitor: watch,
+		logger: cfg.Logger, archive: arch, settings: prefs, monitor: watch, schedule: plans,
 	}, nil
 }
 
@@ -120,6 +127,7 @@ func (h *Hub) Run(ctx context.Context, ln net.Listener) error {
 	var wg sync.WaitGroup
 	wg.Go(func() { h.monitor.Run(ctx) })
 	wg.Go(func() { h.prune(ctx) })
+	wg.Go(func() { h.schedule.Run(ctx) })
 	stop := context.AfterFunc(ctx, func() { _ = ln.Close() })
 	err := h.Server.Serve(ln)
 	stop()

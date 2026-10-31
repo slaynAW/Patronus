@@ -380,6 +380,7 @@ func (m *Monitor) checkAgent(ctx context.Context, p fleet.PC) result {
 		case protocol2.CodeOK:
 			body := resp.ResponseBody
 			latency := time.Since(start)
+			m.noteRole(p, resp.Role)
 			m.reportWakes(ctx, p, sess)
 			m.collect(ctx, p, sess)
 			return result{state: hubprotocol.StateOnline, latency: latency, agent: &body}
@@ -391,6 +392,20 @@ func (m *Monitor) checkAgent(ctx context.Context, p fleet.PC) result {
 			return result{state: hubprotocol.StateOnline, latency: time.Since(start)}
 		}
 	}
+}
+
+// noteRole retient le rôle du hub sur l'agent tel que l'agent le donne : control donné ou retiré par une
+// application administratrice du PC pour l'extinction programmée (docs/PROTOCOLE-HUB.md, §6.7).
+func (m *Monitor) noteRole(p fleet.PC, wire string) {
+	role, ok := protocol2.ParseRole(wire)
+	if !ok || role == p.Role || (role != protocol2.RoleView && role != protocol2.RoleWake && role != protocol2.RoleControl) {
+		return
+	}
+	if _, err := m.fleet.Update(p.ID, func(pc *fleet.PC) { pc.Role = role }); err != nil {
+		m.logger.Printf("rôle du hub sur « %s » non retenu : %v", p.Name, err)
+		return
+	}
+	m.logger.Printf("rôle du hub sur « %s » : %s", p.Name, role)
 }
 
 // reportWakes signale à l'agent les réveils envoyés par le hub (§8).

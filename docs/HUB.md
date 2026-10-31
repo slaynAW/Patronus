@@ -193,7 +193,7 @@ identifiants de PC sont opaques (16 octets aléatoires en B64), propres au hub.
   **jamais forcée** : une application qui refuse de se fermer l'emporte. Nécessite le rôle `control` sur ce PC (§4),
   demandé à l'agent par l'application au moment où l'utilisateur active la programmation.
 - Jours de la semaine et heure, dans le **fuseau horaire** réglé sur le hub (Europe/Paris par défaut), changements
-  d'heure compris.
+  d'heure compris. Détails du protocole : [PROTOCOLE-HUB.md, §6.7](PROTOCOLE-HUB.md#67-programmations-hubschedules-hubschedulesset).
 
 ## 9. Données et chiffrement au repos
 
@@ -323,7 +323,7 @@ Une PR par étape, chacune testée en CI et fusionnée quand tout est vert :
 | 2.0-E | Module `core` (Kotlin) : client `patronus-hub/1`, vérifié par les mêmes vecteurs et par un test de bout en bout contre le vrai hub : fait |
 | 2.0-F | Application Windows : réglages Hub, PC confiés, historique long, « Pendant votre absence » : fait (F1 : appairage, état et administration du hub ; F2 : PC confiés, appareils sans agent, réveil relayé par le hub ; F3 : « Pendant votre absence », état vu par le hub ; F4 : journal et mesures gardés par le hub dans l'écran « Mesures » ; éprouvés contre le vrai hub et de vrais agents par `agent/testhub`) |
 | 2.0-G | Application Android : idem : fait (G1 : service et gestionnaire du hub dans `core`, `HubService` et `HubManager`, éprouvés contre le vrai hub en CI ; règle commune des évènements admis, Go et Kotlin ; G2 : écran « Hub sur le NAS » : appairage par QR code ou lien, état, PC et appareils confiés, appareils sans agent, conservation, appareils autorisés et invitations, oubli ; G3a : ligne « Hub » de la fiche d'un PC, « Confier au hub », « Pendant votre absence », relevé du hub tant que l'application est affichée ; G3b : réveil relayé par le hub hors du réseau du PC, journal et mesures gardés par le hub dans l'écran « Mesures ») |
-| 2.0-H | Programmations (§8), rôle `control` donné et retiré par l'application |
+| 2.0-H | Programmations (§8), rôle `control` donné et retiré par l'application ; en cours (H1 : côté hub, `hub.schedules`, planificateur, fuseau horaire, rôle effectif du hub suivi, évènements `shutdown` et réveils programmés ; éprouvé contre de vrais agents de test) |
 | 2.0-I | Image de conteneur multi-architecture, attestation, publication ; guide `docs/HUB-SYNOLOGY.md` |
 | 2.0-J | Agent 1.14.0 (`wolagent/1` désactivé sur les nouvelles installations), revue de sécurité (§15), versions 2.0.0 |
 

@@ -27,6 +27,12 @@ var (
 	ErrDuplicate = errors.New("ce PC est déjà confié au hub")
 )
 
+// InvalidError est un PC refusé (nom, adresse, programmation…), avec la raison à montrer à l'application.
+type InvalidError struct{ Err error }
+
+func (e *InvalidError) Error() string { return e.Err.Error() }
+func (e *InvalidError) Unwrap() error { return e.Err }
+
 // Storage garde la liste (store.File en service).
 type Storage interface {
 	Load() ([]byte, error)
@@ -44,6 +50,8 @@ type PC struct {
 	Role  protocol2.Role     `json:"role,omitempty"` // rôle du hub sur l'agent
 	Probe *hubprotocol.Probe `json:"probe,omitempty"`
 	Added int64              `json:"added"`
+	// Schedule est la programmation du PC (docs/PROTOCOLE-HUB.md, §6.7) ; nil : aucune.
+	Schedule *hubprotocol.Schedule `json:"schedule,omitempty"`
 }
 
 // Info décrit le PC dans les réponses du hub.
@@ -111,7 +119,7 @@ func (f *Fleet) Get(id string) (PC, bool) {
 // Add ajoute un PC (son identifiant et sa date d'ajout sont attribués ici).
 func (f *Fleet) Add(p PC) (PC, error) {
 	if err := validate(p); err != nil {
-		return PC{}, err
+		return PC{}, &InvalidError{err}
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -144,7 +152,7 @@ func (f *Fleet) Update(id string, change func(*PC)) (PC, error) {
 	change(&p)
 	p.ID, p.Agent, p.Added = f.pcs[i].ID, f.pcs[i].Agent, f.pcs[i].Added
 	if err := validate(p); err != nil {
-		return PC{}, err
+		return PC{}, &InvalidError{err}
 	}
 	next := slices.Clone(f.pcs)
 	next[i] = p
@@ -199,6 +207,9 @@ func validate(p PC) error {
 			return errors.New("adresse MAC invalide")
 		}
 	}
+	if err := validSchedule(p); err != nil {
+		return err
+	}
 	if p.Agent != nil {
 		if p.Probe != nil || p.Port == 0 {
 			return errors.New("un PC avec agent a un port et pas de sonde")
@@ -212,6 +223,33 @@ func validate(p PC) error {
 		return errors.New("un appareil sans agent n'a ni rôle ni port d'agent")
 	}
 	return ValidProbe(p.Probe)
+}
+
+// validSchedule vérifie la programmation d'un PC : le réveil demande son adresse MAC, l'extinction un agent.
+func validSchedule(p PC) error {
+	if p.Schedule == nil {
+		return nil
+	}
+	if p.Schedule.Wake == nil && p.Schedule.Shutdown == nil {
+		return errors.New("programmation vide")
+	}
+	if w := p.Schedule.Wake; w != nil {
+		if err := hubprotocol.ValidSlot(*w); err != nil {
+			return fmt.Errorf("réveil : %w", err)
+		}
+		if p.MAC == "" {
+			return errors.New("réveil programmé : adresse MAC du PC requise")
+		}
+	}
+	if sd := p.Schedule.Shutdown; sd != nil {
+		if err := hubprotocol.ValidSlot(*sd); err != nil {
+			return fmt.Errorf("extinction : %w", err)
+		}
+		if p.Agent == nil {
+			return errors.New("extinction programmée : réservée aux PC avec agent")
+		}
+	}
+	return nil
 }
 
 // ValidProbe vérifie la sonde d'un appareil sans agent.
