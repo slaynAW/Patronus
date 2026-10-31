@@ -30,7 +30,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -48,6 +50,11 @@ import io.github.slaynaw.wakeonlan.core.agent.PowerAction
 import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.status.PowerState
+import io.github.slaynaw.wakeonlan.ui.hub.DeviceHubCard
+import io.github.slaynaw.wakeonlan.ui.hub.DeviceHubRow
+import io.github.slaynaw.wakeonlan.ui.hub.EntrustDialog
+import io.github.slaynaw.wakeonlan.ui.hub.EntrustFailureDialog
+import io.github.slaynaw.wakeonlan.ui.hub.deviceHubRow
 import io.github.slaynaw.wakeonlan.core.status.StatusNotice
 import io.github.slaynaw.wakeonlan.security.rememberSensitiveGate
 import io.github.slaynaw.wakeonlan.ui.common.ButtonKind
@@ -96,6 +103,7 @@ fun DeviceDetailScreen(
     onOpenHistory: (String) -> Unit,
     onOpenMetrics: (String) -> Unit = {},
     onOpenAdmin: (String) -> Unit = {},
+    onOpenHub: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -108,6 +116,11 @@ fun DeviceDetailScreen(
     val dialogs = rememberDeviceDialogState()
     val now = rememberNow()
     val item = state.items.firstOrNull { it.device.id == deviceId }
+    val hub by vm.hub.collectAsStateWithLifecycle()
+    val entrusting by vm.entrusting.collectAsStateWithLifecycle()
+    val entrustFailure by vm.entrustFailure.collectAsStateWithLifecycle()
+    var askEntrust by remember { mutableStateOf(false) }
+    val hubRow = item?.let { deviceHubRow(it, hub) }
     val index = state.items.indexOfFirst { it.device.id == deviceId }
     val ownCount = state.items.count { it.editable }
 
@@ -132,6 +145,7 @@ fun DeviceDetailScreen(
     val gate = rememberSensitiveGate()
     val powerReason = stringResource(R.string.lock_reason_power)
     val power = { device: Device, action: PowerAction, force: Boolean -> gate.run(powerReason) { vm.power(device, action, force) } }
+    val hubReason = stringResource(R.string.lock_reason_hub)
     val requestPower = { action: PowerAction ->
         item?.let { dialogs.requestPower(it.device, action, state.settings.confirmPowerActions, power) }
     }
@@ -153,9 +167,24 @@ fun DeviceDetailScreen(
         onClearNotice = { item?.let { vm.clearNotice(it.device) } },
         onOpenMetrics = { onOpenMetrics(deviceId) },
         onOpenAdmin = { onOpenAdmin(deviceId) },
+        hubRow = hubRow,
+        onHub = { if (hubRow?.entrusted == true) onOpenHub() else askEntrust = true },
     )
 
     DeviceDialogs(dialogs, onPower = power, onDelete = vm::delete, onConfigure = onEdit)
+    // Confier au hub : confirmation, appairage du hub au PC, puis le résultat.
+    if ((askEntrust || entrusting) && item != null) {
+        EntrustDialog(
+            deviceName = item.device.name,
+            hubName = hub.hub?.name.orEmpty(),
+            busy = entrusting,
+            onConfirm = { gate.run(hubReason) { vm.entrust(item.device) } },
+            onDismiss = { askEntrust = false },
+        )
+    }
+    // Résultat connu : la confirmation se ferme.
+    LaunchedEffect(entrusting) { if (!entrusting) askEntrust = false }
+    entrustFailure?.let { EntrustFailureDialog(it, onDismiss = vm::dismissEntrustFailure) }
 }
 
 /** Contenu de la fiche (sans état propre : aperçus et captures d'écran). */
@@ -178,6 +207,8 @@ fun DeviceDetailContent(
     onClearNotice: () -> Unit,
     onOpenMetrics: () -> Unit = {},
     onOpenAdmin: () -> Unit = {},
+    hubRow: DeviceHubRow? = null,
+    onHub: () -> Unit = {},
 ) {
     Scaffold(
         containerColor = WolPalette.Background,
@@ -261,6 +292,8 @@ fun DeviceDetailContent(
                     KeyValueRow(stringResource(R.string.admin_title), stringResource(R.string.admin_open), valueColor = WolPalette.Blue, icon = WolIcons.Users)
                 }
             }
+            // Hub sur le NAS : PC confié (état vu par le hub) ou « Confier au hub ».
+            hubRow?.let { DeviceHubCard(it, now, onClick = onHub) }
             if (hasAgent) SpecsCard(item, now)
             item.status.agent?.disks?.takeIf { item.status.state == PowerState.ONLINE && !it.isEmpty }?.let { DisksCard(it, now) }
             RecentHistory(history, now, onShowAll = onOpenHistory)

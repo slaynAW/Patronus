@@ -40,7 +40,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
@@ -110,8 +109,6 @@ fun HubScreen(onBack: () -> Unit) {
     val vm: HubViewModel = viewModel { HubViewModel(container) }
     val hub by vm.hub.collectAsStateWithLifecycle()
     val state by vm.state.collectAsStateWithLifecycle()
-    // Relevé du hub toutes les 30 s, tant que l'écran est affiché.
-    container.hub.watch.collectAsStateWithLifecycle(initialValue = Unit)
     val now = rememberNow(periodMs = 30_000)
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -460,7 +457,7 @@ private fun PcRow(pc: HubPc, state: HubPcState?, now: Long, admin: Boolean, onRe
         probe != null && probe.kind == HubService.PROBE_HTTPS -> stringResource(R.string.hub_pc_probe_https)
         else -> stringResource(R.string.hub_pc_probe_http)
     }
-    val (stateText, stateColor) = pcStateText(state, now)
+    val (stateText, stateColor) = hubPcStateText(state, now)
     Row(
         Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -479,30 +476,6 @@ private fun PcRow(pc: HubPc, state: HubPcState?, now: Long, admin: Boolean, onRe
             }
         }
     }
-}
-
-/** État d'un PC vu par le hub : texte (codes connus seulement) et couleur. */
-@Composable
-private fun pcStateText(state: HubPcState?, now: Long): Pair<String, Color> {
-    val code = state?.state.orEmpty()
-    val problem = state?.problem.orEmpty()
-    if (problem.isNotEmpty()) {
-        val text = when (problem) {
-            "revoked" -> stringResource(R.string.hub_pc_problem_revoked)
-            "pin_mismatch" -> stringResource(R.string.hub_pc_problem_pin_mismatch)
-            "rate_limited" -> stringResource(R.string.hub_pc_problem_rate_limited)
-            else -> stringResource(R.string.hub_pc_problem_other)
-        }
-        return text to WolPalette.DangerText
-    }
-    val (text, color) = when (code) {
-        HubPcState.ONLINE -> stringResource(R.string.hub_pc_state_online) to WolPalette.On
-        HubPcState.OFFLINE -> stringResource(R.string.hub_pc_state_offline) to WolPalette.DangerText
-        HubPcState.AGENT_DOWN -> stringResource(R.string.hub_pc_state_agent_down) to WolPalette.Busy
-        else -> return stringResource(R.string.hub_pc_state_unknown) to WolPalette.Text2
-    }
-    val since = state?.since ?: 0
-    return if (since > 0) "$text · ${stringResource(R.string.hub_pc_since, formatDuration(now - since * 1000))}" to color else text to color
 }
 
 /** Administration du hub : conservation de l'historique, appareils autorisés et invitations. */
@@ -697,7 +670,7 @@ private fun invalidText(field: HubDeviceField): String = stringResource(
 
 /** Cause d'un échec auprès du hub, rédigée pour lui (une phrase). */
 @Composable
-internal fun hubFailureText(failure: AgentResult.Failure): String {
+internal fun hubFailureText(failure: AgentResult.Failure, capitalize: Boolean = true): String {
     val text = when (failure.code) {
         ResponseCode.LAST_ADMIN -> stringResource(R.string.hub_last_admin)
         ResponseCode.INSUFFICIENT_ROLE -> stringResource(R.string.hub_error_insufficient_role)
@@ -717,7 +690,7 @@ internal fun hubFailureText(failure: AgentResult.Failure): String {
             },
         )
     }
-    return text.replaceFirstChar { it.uppercase() }
+    return if (capitalize) text.replaceFirstChar { it.uppercase() } else text
 }
 
 /** Texte d'un résultat bref (message en bas de l'écran), null pour un résultat montré dans un dialogue. */

@@ -57,6 +57,8 @@ import io.github.slaynaw.wakeonlan.ui.common.rememberNow
 import io.github.slaynaw.wakeonlan.ui.common.statusText
 import io.github.slaynaw.wakeonlan.ui.devices.DeviceItem
 import io.github.slaynaw.wakeonlan.ui.devices.DevicesUiState
+import io.github.slaynaw.wakeonlan.ui.hub.AbsenceBanner
+import io.github.slaynaw.wakeonlan.ui.hub.AbsenceInfo
 import io.github.slaynaw.wakeonlan.ui.theme.LocalStatusColors
 import io.github.slaynaw.wakeonlan.ui.theme.WolPalette
 
@@ -71,6 +73,8 @@ fun OverviewTab(
     onShutdown: (Device) -> Unit,
     onRefresh: () -> Unit,
     onRequestPermission: () -> Unit,
+    absence: AbsenceInfo? = null,
+    onOpenAbsence: () -> Unit = {},
 ) {
     val now = rememberNow()
     LazyColumn(
@@ -90,6 +94,10 @@ fun OverviewTab(
             }
         }
         item(key = "network") { NetworkStatus(state, onRequestPermission) }
+        // Pendant votre absence : évènements vus par le hub depuis le dernier passage.
+        if (absence != null) {
+            item(key = "absence") { AbsenceBanner(absence.hubName, absence.count, absence.more, onOpen = onOpenAbsence) }
+        }
         if (state.loaded && state.items.isEmpty()) {
             item(key = "empty") { EmptyState(onAddDevice) }
         } else if (state.items.isNotEmpty()) {

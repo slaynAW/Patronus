@@ -1,6 +1,8 @@
 package io.github.slaynaw.wakeonlan.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -11,6 +13,8 @@ import io.github.slaynaw.wakeonlan.ui.admin.AdminScreen
 import io.github.slaynaw.wakeonlan.ui.detail.DeviceDetailScreen
 import io.github.slaynaw.wakeonlan.ui.edit.EditDeviceScreen
 import io.github.slaynaw.wakeonlan.ui.history.HistoryScreen
+import io.github.slaynaw.wakeonlan.appContainer
+import io.github.slaynaw.wakeonlan.ui.hub.AbsenceScreen
 import io.github.slaynaw.wakeonlan.ui.hub.HubScreen
 import io.github.slaynaw.wakeonlan.ui.main.MainScreen
 import io.github.slaynaw.wakeonlan.ui.metrics.MetricsScreen
@@ -40,6 +44,10 @@ data class AdminRoute(val deviceId: String)
 @Serializable
 object HubRoute
 
+/** « Pendant votre absence » : évènements vus par le hub depuis le dernier passage. */
+@Serializable
+object AbsenceRoute
+
 /** Historique complet ; [deviceId] nul = tous les PC. */
 @Serializable
 data class HistoryRoute(val deviceId: String? = null)
@@ -47,6 +55,9 @@ data class HistoryRoute(val deviceId: String? = null)
 @Composable
 fun WolApp() {
     val nav = rememberNavController()
+    // Hub sur le NAS : relevé toutes les 30 s tant que l'application est affichée (état des PC confiés, « Pendant
+    // votre absence ») ; rien sans hub appairé.
+    LocalContext.current.appContainer.hub.watch.collectAsStateWithLifecycle(initialValue = Unit)
     NavHost(navController = nav, startDestination = MainRoute) {
         composable<MainRoute> {
             MainScreen(
@@ -55,10 +66,14 @@ fun WolApp() {
                 onEditDevice = { id -> nav.navigate(EditDeviceRoute(id)) },
                 onOpenHistory = { id -> nav.navigate(HistoryRoute(id)) },
                 onOpenHub = { nav.navigate(HubRoute) },
+                onOpenAbsence = { nav.navigate(AbsenceRoute) },
             )
         }
         composable<HubRoute> { entry ->
             HubScreen(onBack = { nav.leave(entry) })
+        }
+        composable<AbsenceRoute> { entry ->
+            AbsenceScreen(onBack = { nav.leave(entry) })
         }
         composable<DeviceRoute> { entry ->
             DeviceDetailScreen(
@@ -68,6 +83,7 @@ fun WolApp() {
                 onOpenHistory = { id -> nav.navigate(HistoryRoute(id)) },
                 onOpenMetrics = { id -> nav.navigate(MetricsRoute(id)) },
                 onOpenAdmin = { id -> nav.navigate(AdminRoute(id)) },
+                onOpenHub = { nav.navigate(HubRoute) },
             )
         }
         composable<AdminRoute> { entry ->

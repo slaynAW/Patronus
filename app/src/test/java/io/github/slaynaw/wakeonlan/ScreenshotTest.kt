@@ -32,6 +32,7 @@ import io.github.slaynaw.wakeonlan.core.agent.SpecsOs
 import io.github.slaynaw.wakeonlan.core.agent2.DeviceInfo
 import io.github.slaynaw.wakeonlan.core.agent2.InviteInfo
 import io.github.slaynaw.wakeonlan.core.hub.HubAdmin
+import io.github.slaynaw.wakeonlan.core.hub.HubEvent
 import io.github.slaynaw.wakeonlan.core.hub.HubInfo
 import io.github.slaynaw.wakeonlan.core.hub.HubPc
 import io.github.slaynaw.wakeonlan.core.hub.HubPcState
@@ -78,6 +79,7 @@ import io.github.slaynaw.wakeonlan.ui.devices.DevicesUiState
 import io.github.slaynaw.wakeonlan.ui.history.HistoryContent
 import io.github.slaynaw.wakeonlan.ui.history.HistoryItem
 import io.github.slaynaw.wakeonlan.ui.history.HistoryUiState
+import io.github.slaynaw.wakeonlan.ui.hub.AbsenceContent
 import io.github.slaynaw.wakeonlan.ui.hub.HubContent
 import io.github.slaynaw.wakeonlan.ui.hub.HubUiState
 import io.github.slaynaw.wakeonlan.ui.lock.LockScreenContent
@@ -531,6 +533,44 @@ class ScreenshotTest {
             onDismissNotice = {},
             onDismissCreated = {},
             onCopy = {},
+        )
+    }
+
+    /** « Pendant votre absence » : évènements vus par le hub, rédigés avec les noms de PC de ce téléphone. */
+    @Test
+    fun pendantVotreAbsence() = capture("12-pendant-votre-absence") {
+        val day = now / 1000
+        val agentPin = "AL5cBtCXCWvDGqMUWJ3gNeR0P1MukyXvb6K8OoRKVHw"
+        val paired = PairedHub("NAS du salon", "192.168.1.20", 9771, "HL5cBtCXCWvDGqMUWJ3gNeR0P1MukyXvb6K8OoRKVHw", "admin", day - 86_400 * 12)
+        val events = listOf(
+            HubEvent(day - 30_000, "p1", "offline"),
+            HubEvent(day - 29_000, "p1", "lost", "power"),
+            HubEvent(day - 20_000, "p3", "offline"),
+            HubEvent(day - 19_000, "p3", "online"),
+            HubEvent(day - 9_000, "p1", "wake", i = "local"),
+            HubEvent(day - 8_900, "p1", "online"),
+            HubEvent(day - 3_000, "p1", "measure", "mem"),
+            HubEvent(day - 600, "p1", "disk", "health"),
+        )
+        val snapshot = HubSnapshot(
+            info = HubInfo("NAS du salon", "1.14.0", paired.pin, day - 86_400 * 3),
+            role = "admin",
+            pcs = listOf(
+                HubPc("p1", "PC Bureau (hub)", "192.168.1.42", 9770, "", agentPin, "wake"),
+                HubPc("p3", "Box Internet", "192.168.1.1", probe = HubProbe("https")),
+            ),
+            states = emptyList(),
+            events = events,
+            moreEvents = false,
+            dropped = 0,
+        )
+        AbsenceContent(
+            hub = HubState(loaded = true, hub = paired, snapshot = snapshot, checkedAt = now),
+            names = mapOf(agentPin to "PC Bureau"),
+            selfShort = null,
+            busy = false,
+            onBack = {},
+            onMarkSeen = {},
         )
     }
 

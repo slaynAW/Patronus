@@ -122,6 +122,9 @@ class AppContainer(private val context: Context) {
     /** Autorisation Android 17 « réseau local » accordée (toujours vrai avant Android 17). */
     val localNetworkGranted: StateFlow<Boolean> = _localNetworkGranted.asStateFlow()
 
+    /** Empreinte courte de ce téléphone (« Pendant votre absence » : ses propres demandes de réveil), null sans identité. */
+    fun selfShortPin(): String? = runCatching { identity.get()?.pin?.short() }.getOrNull()
+
     /** Nom de ce téléphone (réglages Android « Nom de l'appareil »), à défaut son modèle. */
     private fun deviceName(): String =
         Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() } ?: Build.MODEL
