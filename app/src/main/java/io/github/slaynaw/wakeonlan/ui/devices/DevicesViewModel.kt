@@ -9,6 +9,8 @@ import io.github.slaynaw.wakeonlan.core.agent.AgentResult
 import io.github.slaynaw.wakeonlan.core.agent.PowerAction
 import io.github.slaynaw.wakeonlan.core.agent2.Role
 import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2
+import io.github.slaynaw.wakeonlan.core.hub.EntrustResult
+import io.github.slaynaw.wakeonlan.core.hub.HubState
 import io.github.slaynaw.wakeonlan.core.model.AppSettings
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.status.DeviceStatus
@@ -21,8 +23,10 @@ import io.github.slaynaw.wakeonlan.ui.common.label
 import io.github.slaynaw.wakeonlan.ui.common.sentMessage
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -127,4 +131,39 @@ class DevicesViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun onPermissionResult() = container.refreshPermissions()
+
+    /** Hub sur le NAS : PC confiés et état vu par le hub (ligne « Hub » de la fiche). */
+    val hub: StateFlow<HubState> = container.hub.state
+
+    private val _entrusting = MutableStateFlow(false)
+
+    /** Le hub s'appaire au PC (« Confier au hub » en cours). */
+    val entrusting: StateFlow<Boolean> = _entrusting.asStateFlow()
+
+    private val _entrustFailure = MutableStateFlow<EntrustResult?>(null)
+
+    /** Échec de « Confier au hub » à montrer (null : aucun). */
+    val entrustFailure: StateFlow<EntrustResult?> = _entrustFailure.asStateFlow()
+
+    /** Confie le PC [device] au hub (docs/HUB.md, §5.3) : le PC invite le hub au rôle « wake », le hub s'y appaire. */
+    fun entrust(device: Device) {
+        if (_entrusting.value) return
+        _entrusting.value = true
+        viewModelScope.launch {
+            val result = try {
+                container.hub.entrust(device)
+            } finally {
+                _entrusting.value = false
+            }
+            if (result is EntrustResult.Success) {
+                _messages.send(UiMessage(R.string.hub_entrusted, listOf(device.name)))
+            } else {
+                _entrustFailure.value = result
+            }
+        }
+    }
+
+    fun dismissEntrustFailure() {
+        _entrustFailure.value = null
+    }
 }

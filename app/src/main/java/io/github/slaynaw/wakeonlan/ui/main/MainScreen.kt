@@ -59,6 +59,7 @@ import io.github.slaynaw.wakeonlan.diagnostics.DataNotices
 import io.github.slaynaw.wakeonlan.network.LocalNetworkAccess
 import io.github.slaynaw.wakeonlan.security.rememberSensitiveGate
 import io.github.slaynaw.wakeonlan.ui.common.DeviceDialogs
+import io.github.slaynaw.wakeonlan.ui.hub.absence
 import io.github.slaynaw.wakeonlan.ui.common.WolIcons
 import io.github.slaynaw.wakeonlan.ui.common.rememberDeviceDialogState
 import io.github.slaynaw.wakeonlan.ui.devices.DevicesTab
@@ -84,6 +85,7 @@ fun MainScreen(
     onEditDevice: (String) -> Unit,
     onOpenHistory: (String?) -> Unit,
     onOpenHub: () -> Unit = {},
+    onOpenAbsence: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -98,6 +100,7 @@ fun MainScreen(
     var permissionDenied by rememberSaveable { mutableStateOf(false) }
     var permissionAsked by rememberSaveable { mutableStateOf(false) }
     val update by container.updater.state.collectAsStateWithLifecycle()
+    val hub by container.hub.state.collectAsStateWithLifecycle()
     val pendingShareLink by container.share.pendingLink.collectAsStateWithLifecycle()
     var showUpdate by rememberSaveable { mutableStateOf(false) }
 
@@ -178,6 +181,8 @@ fun MainScreen(
                 onShutdown = { requestPower(it, PowerAction.SHUTDOWN) },
                 onRefresh = vm::refresh,
                 onRequestPermission = requestPermission,
+                absence = hub.absence(),
+                onOpenAbsence = onOpenAbsence,
             )
             MainTab.DEVICES -> DevicesTab(
                 state = state,
