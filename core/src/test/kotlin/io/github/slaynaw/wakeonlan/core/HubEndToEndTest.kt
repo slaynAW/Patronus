@@ -18,12 +18,16 @@ import io.github.slaynaw.wakeonlan.core.hub.HubService
 import io.github.slaynaw.wakeonlan.core.hub.HubStore
 import io.github.slaynaw.wakeonlan.core.hub.PairOutcome
 import io.github.slaynaw.wakeonlan.core.hub.PairedHub
+import io.github.slaynaw.wakeonlan.core.model.AgentSettings
+import io.github.slaynaw.wakeonlan.core.model.Device
+import io.github.slaynaw.wakeonlan.core.model.MacAddress
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -190,6 +194,15 @@ class HubEndToEndTest {
         assertEquals(wake.t, store.hub.value?.eventsSeen)
         manager.refresh()
         assertTrue(manager.state.first { it.hub?.eventsSeen == wake.t }.unseen.none { it.pc == box.id && it.t <= wake.t })
+        // PC non confié au hub : ni journal ni mesures gardés par le hub, ni réveil relayé.
+        val notEntrusted = Device(
+            id = "pc-ci", name = "PC non confié", mac = MacAddress.parse("aa:bb:cc:dd:ee:04"), host = "192.168.1.4",
+            agent = AgentSettings(port = 9770, key = "", pin = other.toString()),
+        )
+        assertEquals(HubManager.NOT_ENTRUSTED, (manager.archiveDays(notEntrusted) as AgentResult.Failure).code)
+        assertEquals(HubManager.NOT_ENTRUSTED, (manager.archiveMetrics(notEntrusted, listOf("2026-01-01")) as AgentResult.Failure).code)
+        assertEquals(HubManager.NOT_ENTRUSTED, (manager.archiveJournal(notEntrusted, 0, wake.t + 60) as AgentResult.Failure).code)
+        assertFalse(manager.relayWake(notEntrusted))
         assertTrue(manager.remove(box.id, emptyList()) is AgentResult.Success)
         manager.state.first { s -> s.snapshot?.pcs?.none { it.id == box.id } == true }
         assertEquals(730, manager.retention(730).value())

@@ -2,7 +2,9 @@ package io.github.slaynaw.wakeonlan.core.hub
 
 import io.github.slaynaw.wakeonlan.core.agent.AgentClient
 import io.github.slaynaw.wakeonlan.core.agent.AgentError
+import io.github.slaynaw.wakeonlan.core.agent.AgentHistoryEvent
 import io.github.slaynaw.wakeonlan.core.agent.AgentResult
+import io.github.slaynaw.wakeonlan.core.agent.MetricsRow
 import io.github.slaynaw.wakeonlan.core.agent2.Commands
 import io.github.slaynaw.wakeonlan.core.agent2.ResponseCode
 import io.github.slaynaw.wakeonlan.core.agent2.Role
@@ -268,11 +270,8 @@ class HubManager(
      * confié avec sa MAC et que ce téléphone a le rôle « wake » sur le hub. true si le hub l'a envoyé.
      */
     suspend fun relayWake(device: Device): Boolean {
-        val hub = store.current() ?: return false
-        if (!hub.canWake) return false
-        val pin = device.agent?.pin?.takeIf { it.isNotEmpty() } ?: return false
-        val pc = snapshotOf(hub)?.pcOfAgent(pin) ?: return false
-        if (pc.mac.isEmpty()) return false
+        val (hub, pc) = entrusted(device) ?: return false
+        if (!hub.canWake || pc.mac.isEmpty()) return false
         return when (val r = service.request(hub, HubRequest(cmd = HubProtocol.WAKE, pc = pc.id))) {
             is AgentResult.Success -> {
                 log("réveil de « ${device.name} » envoyé par le hub « ${hub.name} »")
@@ -284,6 +283,38 @@ class HubManager(
             }
         }
     }
+
+    /** Jours de mesures (« 2026-10-03 ») que le hub garde pour le PC [device], s'il lui est confié (§6.3). */
+    suspend fun archiveDays(device: Device): AgentResult<List<String>> {
+        val (hub, pc) = entrusted(device) ?: return notEntrusted()
+        return service.metricsDays(hub, pc.id)
+    }
+
+    /** Mesures des jours [days] que le hub garde pour le PC [device], sur une seule session. */
+    suspend fun archiveMetrics(device: Device, days: List<String>): AgentResult<Map<String, List<MetricsRow>>> {
+        val (hub, pc) = entrusted(device) ?: return notEntrusted()
+        return service.metrics(hub, pc.id, days)
+    }
+
+    /** Journal du PC [device] que le hub garde entre [from] et [to] (secondes Unix). */
+    suspend fun archiveJournal(device: Device, from: Long, to: Long): AgentResult<List<AgentHistoryEvent>> {
+        val (hub, pc) = entrusted(device) ?: return notEntrusted()
+        return service.journal(hub, pc.id, from, to)
+    }
+
+    /**
+     * Hub appairé et PC du hub qui surveille le PC [device] (par l'empreinte de son agent), d'après le dernier relevé,
+     * relu s'il n'y en a pas encore. null : pas de hub, ou PC non confié.
+     */
+    private suspend fun entrusted(device: Device): Pair<PairedHub, HubPc>? {
+        val hub = store.current() ?: return null
+        val pin = device.agent?.pin?.takeIf { it.isNotEmpty() } ?: return null
+        if (snapshotOf(hub) == null) refresh()
+        val pc = snapshotOf(hub)?.pcOfAgent(pin) ?: return null
+        return hub to pc
+    }
+
+    private fun notEntrusted() = AgentResult.Failure(AgentError.NO_KEY, "PC non confié au hub", NOT_ENTRUSTED)
 
     /** Dernier relevé du hub [hub] (à jour, sans attendre [state]). */
     private fun snapshotOf(hub: PairedHub): HubSnapshot? = reads.value.takeIf { it.pin == hub.pin }?.snapshot
@@ -301,5 +332,8 @@ class HubManager(
 
         /** Code d'échec : aucun hub appairé. */
         const val NO_HUB = "no_hub"
+
+        /** Code d'échec : PC non confié au hub (ou pas de hub). */
+        const val NOT_ENTRUSTED = "not_entrusted"
     }
 }

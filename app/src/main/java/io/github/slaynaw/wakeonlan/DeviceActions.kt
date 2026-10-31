@@ -10,6 +10,7 @@ import io.github.slaynaw.wakeonlan.core.agent.PowerAction
 import io.github.slaynaw.wakeonlan.core.agent2.InviteInfo
 import io.github.slaynaw.wakeonlan.core.agent2.Pin
 import io.github.slaynaw.wakeonlan.core.history.HistoryKind
+import io.github.slaynaw.wakeonlan.core.hub.HubManager
 import io.github.slaynaw.wakeonlan.core.model.AgentSettings
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.model.DeviceValidator
@@ -21,8 +22,14 @@ import io.github.slaynaw.wakeonlan.core.wol.WakeOnLanSender
 import io.github.slaynaw.wakeonlan.core.wol.WakeResult
 import io.github.slaynaw.wakeonlan.diagnostics.DiagnosticLog
 import io.github.slaynaw.wakeonlan.network.LanNetworkMonitor
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.Inet4Address
 import java.net.InetAddress
+
+/** Réveil : paquets envoyés d'ici, et [viaHub] si le hub sur le NAS a aussi démarré le PC (hors du réseau du téléphone). */
+data class WakeOutcome(val local: WakeResult, val viaHub: Boolean = false) {
+    val success: Boolean get() = local.success || viaHub
+}
 
 /**
  * Actions utilisateur sur un terminal : réveil, extinction / redémarrage / veille, test de l'agent.
@@ -36,8 +43,10 @@ class DeviceActions(
     private val history: HistoryTracker,
     /** Sonde des PC : un agent qui accepte une action est recontacté sans attendre la fin d'un délai après refus. */
     private val prober: HostProber? = null,
+    /** Hub sur le NAS : il démarre aussi un PC qui lui est confié quand le téléphone n'est pas sur son réseau. */
+    private val hub: HubManager? = null,
 ) {
-    suspend fun wake(device: Device): WakeResult {
+    suspend fun wake(device: Device): WakeOutcome {
         val forced = device.broadcastAddress?.let { InetAddress.getByName(it) as? Inet4Address }
         val targets = BroadcastAddresses.targets(forced, network.state.value.addresses)
         val password = device.secureOnPassword?.let(DeviceValidator::secureOnBytes)
@@ -48,11 +57,15 @@ class DeviceActions(
         } else {
             DiagnosticLog.w("action", "réveil impossible pour $summary ; erreurs : ${result.errors}")
         }
-        if (result.success) {
+        // PC hors des réseaux du téléphone (VPN, autre réseau) : le hub le démarre aussi, depuis le réseau du NAS
+        // (PC confié au hub avec sa MAC, rôle « wake » au moins sur le hub ; docs/HUB.md, §6.6).
+        val viaHub = hub != null && !BroadcastAddresses.onLocalNetwork(device.host, network.state.value.addresses) &&
+            withTimeoutOrNull(HUB_WAKE_TIMEOUT_MS) { hub.relayWake(device) } == true
+        if (result.success || viaHub) {
             history.record(device.id, HistoryKind.WAKE_SENT)
             monitor.onWakeSent(device.id)
         }
-        return result
+        return WakeOutcome(result, viaHub)
     }
 
     suspend fun power(device: Device, action: PowerAction, force: Boolean = false): AgentResult<String> {
@@ -147,6 +160,11 @@ class DeviceActions(
                 is AgentResult.Failure -> DiagnosticLog.w("action", "test de l'agent $host:${agent.port} : ${r.error}${r.detail?.let { " — $it" }.orEmpty()}")
             }
         }
+
+    private companion object {
+        /** Demande de réveil au hub, faite après l'envoi d'ici : bornée pour ne pas faire attendre. */
+        const val HUB_WAKE_TIMEOUT_MS = 5_000L
+    }
 }
 
 /** Modification demandée par un administrateur (docs/PROTOCOLE-V2.md, §6.2). [device] : empreinte complète de l'appareil. */

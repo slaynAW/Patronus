@@ -104,8 +104,8 @@ class DevicesViewModel(private val container: AppContainer) : ViewModel() {
         _messages.send(
             when {
                 wake == null -> UiMessage(R.string.message_wake_error, listOf(result.exceptionOrNull()?.message.orEmpty()))
-                wake.success -> UiMessage(R.string.message_wake_sent, listOf(device.name))
-                else -> UiMessage(R.string.message_wake_error, listOf(wake.errors.firstOrNull().orEmpty()))
+                wake.success -> UiMessage(if (wake.viaHub) R.string.message_wake_sent_hub else R.string.message_wake_sent, listOf(device.name))
+                else -> UiMessage(R.string.message_wake_error, listOf(wake.local.errors.firstOrNull().orEmpty()))
             },
         )
     }

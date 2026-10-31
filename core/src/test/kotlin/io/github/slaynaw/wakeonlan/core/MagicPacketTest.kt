@@ -9,6 +9,7 @@ import io.github.slaynaw.wakeonlan.core.wol.WakeOnLanSender
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -49,6 +50,17 @@ class MagicPacketTest {
             listOf(iface("192.168.1.37", 24)),
         ).map { it.hostAddress }
         assertEquals(listOf("192.168.1.255", "255.255.255.255"), targets)
+
+        // PC sur un des réseaux du téléphone, ou ailleurs (VPN, autre réseau) : le hub le démarre alors aussi.
+        val lan = listOf(iface("192.168.1.37", 24), iface("10.0.12.4", 22))
+        assertTrue(BroadcastAddresses.onLocalNetwork("192.168.1.42", lan))
+        assertTrue(BroadcastAddresses.onLocalNetwork("10.0.15.254", lan))
+        assertFalse(BroadcastAddresses.onLocalNetwork("10.0.16.1", lan))
+        assertFalse(BroadcastAddresses.onLocalNetwork("192.168.2.42", lan))
+        assertFalse(BroadcastAddresses.onLocalNetwork("192.168.1.42", emptyList()))
+        // Un nom d'hôte n'est pas résolu : on ne sait pas.
+        assertFalse(BroadcastAddresses.onLocalNetwork("pc-bureau.local", lan))
+        assertFalse(BroadcastAddresses.onLocalNetwork("192.168.1.420", lan))
     }
 
     @Test
