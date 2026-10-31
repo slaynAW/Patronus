@@ -83,6 +83,7 @@ fun MainScreen(
     onAddDevice: () -> Unit,
     onEditDevice: (String) -> Unit,
     onOpenHistory: (String?) -> Unit,
+    onOpenHub: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -197,6 +198,7 @@ fun MainScreen(
                 snackbar = snackbar,
                 onOpenHistory = { onOpenHistory(null) },
                 onShowUpdate = { showUpdate = true },
+                onOpenHub = onOpenHub,
             )
         }
     }

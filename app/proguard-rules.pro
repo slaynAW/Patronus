@@ -23,3 +23,5 @@
 -keep class com.google.mlkit.** { <init>(...); }
 # wolagent/2 : messages échangés avec les agents (contrat réseau, comme le partage).
 -keep class io.github.slaynaw.wakeonlan.core.agent2.** { *; }
+# patronus-hub/1 : messages échangés avec le hub sur le NAS et hub appairé enregistré (contrat réseau, comme wolagent/2).
+-keep class io.github.slaynaw.wakeonlan.core.hub.** { *; }

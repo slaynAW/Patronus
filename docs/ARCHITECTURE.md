@@ -21,13 +21,14 @@ Patronus/
 │   ├── update/     mises à jour intégrées : manifeste signé, téléchargement vérifié
 │   └── net/        attachement des sockets au bon réseau, E/S annulables
 ├── app/         Android — interface et intégration système
-│   ├── data/       stockage chiffré (DataStore + Keystore) : configuration, historique, partage ; identité
-│   │               wolagent/2 du téléphone (KeystoreIdentity : clé P-256 du Keystore, StrongBox si possible)
+│   ├── data/       stockage chiffré (DataStore + Keystore) : configuration, historique, partage, hub appairé
+│   │               (HubRepository, jamais sauvegardé) ; identité wolagent/2 du téléphone (KeystoreIdentity : clé
+│   │               P-256 du Keystore, StrongBox si possible)
 │   ├── share/      ShareManager : connexion GitHub, publication des accès, vérification des accès reçus
 │   ├── network/    suivi du Wi-Fi/Ethernet, autorisation « réseau local »
 │   ├── ui/         écrans Compose : onglets (vue d'ensemble, appareils, réglages), fiche d'un PC,
-│   │               historique, édition (appairage par QR code), appareils autorisés (admin) ; thème sombre
-│   │               commun avec Windows
+│   │               historique, édition (appairage par QR code), appareils autorisés (admin), hub sur le NAS
+│   │               (hub : appairage, état, PC confiés, administration) ; thème sombre commun avec Windows
 │   ├── AppContainer.kt    assemblage des dépendances (injection manuelle)
 │   ├── DeviceActions.kt   réveil / extinction / test d'agent / appairage / administration des appareils
 │   ├── AgentUpgradeTracker.kt  passage automatique des PC en wolagent/2

@@ -11,6 +11,7 @@ import io.github.slaynaw.wakeonlan.ui.admin.AdminScreen
 import io.github.slaynaw.wakeonlan.ui.detail.DeviceDetailScreen
 import io.github.slaynaw.wakeonlan.ui.edit.EditDeviceScreen
 import io.github.slaynaw.wakeonlan.ui.history.HistoryScreen
+import io.github.slaynaw.wakeonlan.ui.hub.HubScreen
 import io.github.slaynaw.wakeonlan.ui.main.MainScreen
 import io.github.slaynaw.wakeonlan.ui.metrics.MetricsScreen
 import kotlinx.serialization.Serializable
@@ -35,6 +36,10 @@ data class MetricsRoute(val deviceId: String)
 @Serializable
 data class AdminRoute(val deviceId: String)
 
+/** Hub sur le NAS : appairage, état, PC confiés et administration. */
+@Serializable
+object HubRoute
+
 /** Historique complet ; [deviceId] nul = tous les PC. */
 @Serializable
 data class HistoryRoute(val deviceId: String? = null)
@@ -49,7 +54,11 @@ fun WolApp() {
                 onAddDevice = { nav.navigate(EditDeviceRoute()) },
                 onEditDevice = { id -> nav.navigate(EditDeviceRoute(id)) },
                 onOpenHistory = { id -> nav.navigate(HistoryRoute(id)) },
+                onOpenHub = { nav.navigate(HubRoute) },
             )
+        }
+        composable<HubRoute> { entry ->
+            HubScreen(onBack = { nav.leave(entry) })
         }
         composable<DeviceRoute> { entry ->
             DeviceDetailScreen(

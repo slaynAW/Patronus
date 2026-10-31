@@ -60,6 +60,7 @@ import io.github.slaynaw.wakeonlan.appContainer
 import io.github.slaynaw.wakeonlan.backup.BackupUiState
 import io.github.slaynaw.wakeonlan.core.config.ExportCodec
 import io.github.slaynaw.wakeonlan.core.diagnostics.DiagnosticCodec
+import io.github.slaynaw.wakeonlan.core.hub.HubState
 import io.github.slaynaw.wakeonlan.core.model.AppSettings
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.share.ShareException
@@ -75,6 +76,7 @@ import io.github.slaynaw.wakeonlan.ui.common.WolButton
 import io.github.slaynaw.wakeonlan.ui.common.WolCard
 import io.github.slaynaw.wakeonlan.ui.common.PasswordRevealIcon
 import io.github.slaynaw.wakeonlan.ui.common.WolIcons
+import io.github.slaynaw.wakeonlan.ui.edit.roleLabel
 import io.github.slaynaw.wakeonlan.ui.common.rememberPasswordReveal
 import io.github.slaynaw.wakeonlan.ui.common.formatDuration
 import io.github.slaynaw.wakeonlan.ui.common.rememberNow
@@ -96,6 +98,7 @@ fun SettingsTab(
     snackbar: SnackbarHostState,
     onOpenHistory: () -> Unit,
     onShowUpdate: () -> Unit = {},
+    onOpenHub: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -109,6 +112,7 @@ fun SettingsTab(
     var shareDialog by remember { mutableStateOf<ShareDialog?>(null) }
     val backup by container.backups.state.collectAsStateWithLifecycle()
     val archive by container.archives.state.collectAsStateWithLifecycle()
+    val hub by container.hub.state.collectAsStateWithLifecycle()
     var backupDialog by remember { mutableStateOf<BackupDialog?>(null) }
     val now = rememberNow(periodMs = 30_000)
     val scope = rememberCoroutineScope()
@@ -238,6 +242,8 @@ fun SettingsTab(
         lock = lock,
         onLockActions = { enabled -> changeLock { container.appLock.setActions(enabled) } },
         onLockOpen = { enabled -> changeLock { container.appLock.setOpen(enabled) } },
+        hub = hub,
+        onOpenHub = onOpenHub,
     )
 
     if (sharingImported) {
@@ -402,6 +408,8 @@ fun SettingsContent(
     lock: AppLockState = AppLockState(),
     onLockActions: (Boolean) -> Unit = {},
     onLockOpen: (Boolean) -> Unit = {},
+    hub: HubState = HubState(loaded = true),
+    onOpenHub: () -> Unit = {},
 ) {
     Column(
         Modifier
@@ -472,6 +480,22 @@ fun SettingsContent(
         }
 
         ShareSections(share = share, ownDevices = ownDevices, now = now, onDialog = onShareDialog)
+
+        SectionLabel(stringResource(R.string.section_hub), Modifier.padding(top = 6.dp))
+        WolCard {
+            val paired = hub.hub
+            SettingItem(
+                icon = WolIcons.Hub,
+                title = paired?.name ?: stringResource(R.string.hub_pair),
+                text = if (paired != null) {
+                    stringResource(R.string.hub_summary, paired.host, roleLabel(paired.role), paired.shortPin)
+                } else {
+                    stringResource(R.string.hub_open_help)
+                },
+                onClick = onOpenHub,
+                enabled = hub.loaded,
+            )
+        }
 
         SectionLabel(stringResource(R.string.section_backup), Modifier.padding(top = 6.dp))
         WolCard {
