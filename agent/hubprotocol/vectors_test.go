@@ -136,7 +136,8 @@ func buildVectors() vectorFile {
 		ev(EventLost, "", ""), ev(EventLost, LostBSOD, ""), ev(EventLost, LostButton, ""), ev(EventLost, LostPower, ""),
 		ev(EventLost, LostHardware, ""), ev(EventDisk, DiskHealth, ""), ev(EventDisk, DiskFull, ""),
 		ev(EventMeasure, "mem", ""), ev(EventMeasure, "battery", ""), ev(EventMeasure, "gpu.0-fan_1", ""),
-		ev(EventWake, "", WakeLocal), ev(EventWake, "", "7KQ2-9MXP-4D1Z"),
+		ev(EventWake, "", WakeLocal), ev(EventWake, "", "7KQ2-9MXP-4D1Z"), ev(EventWake, "", WakeSchedule),
+		ev(EventShutdown, ShutdownDone, ""), ev(EventShutdown, ShutdownPostponed, ""), ev(EventShutdown, ShutdownRefused, ""),
 	}
 	v.Events.Invalid = []Event{
 		ev("reboot", "", ""), ev(EventOnline, "texte", ""), ev(EventOffline, "", "7KQ2-9MXP-4D1Z"),
@@ -144,6 +145,7 @@ func buildVectors() vectorFile {
 		ev(EventDisk, "", ""), ev(EventDisk, DiskFull, "x"), ev(EventMeasure, "Mesure grave !", ""),
 		ev(EventMeasure, "", ""), ev(EventMeasure, "aaaaaaaaaaaaaaaaaaaaaaaaa", ""), ev(EventWake, "", "https://exemple.fr"),
 		ev(EventWake, "", "7KQ2-9MXP-4D1U"), ev(EventWake, "x", WakeLocal), ev(EventWake, "", ""),
+		ev(EventShutdown, "", ""), ev(EventShutdown, "forced", ""), ev(EventShutdown, ShutdownDone, WakeSchedule),
 		{T: 0, PC: "pc-1", K: EventOnline}, {T: 1790000000, K: EventOnline},
 	}
 	for _, e := range v.Events.Valid {

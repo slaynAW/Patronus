@@ -43,7 +43,7 @@ Patronus/
 │   ├── internal/   server, config, history (journal 30 jours), power, service, selfupdate (mise à jour guidée
 │   │               sous Windows), pairing, netinfo, sysinfo, terminal, guard (blocage des échecs) ; hub/ : hub
 │   │               sur le NAS (2.0, en cours, docs/HUB.md) : assemblage, store (stockage chiffré), server
-│   │               (patronus-hub/1), fleet, agents, monitor, archive, settings, wake
+│   │               (patronus-hub/1), fleet, agents, monitor, archive, settings, wake, schedule (programmations)
 │   ├── hubprotocol/ protocole patronus-hub/1 (docs/PROTOCOLE-HUB.md), partagé avec les applications
 │   ├── testhub/    vrai hub et vrais agents sur l'adresse de bouclage, pour les tests des applications
 │   └── cmd/        patronus-hub (le hub), diagnostic-open

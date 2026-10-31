@@ -1,5 +1,5 @@
 // Package settings garde les réglages du hub (docs/HUB.md, §9.1) : la durée de conservation de
-// l'archive, dans settings.db du stockage chiffré.
+// l'archive et le fuseau horaire des programmations, dans settings.db du stockage chiffré.
 package settings
 
 import (
@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
+	// Base des fuseaux horaires incluse dans le binaire : l'image du conteneur n'en a pas.
+	_ "time/tzdata"
 
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/archive"
 )
@@ -25,10 +28,15 @@ type Storage interface {
 type Values struct {
 	// RetentionDays est la durée de conservation de l'archive, en jours.
 	RetentionDays int `json:"retention"`
+	// Timezone est le fuseau horaire des programmations (nom IANA, docs/PROTOCOLE-HUB.md, §6.7).
+	Timezone string `json:"timezone,omitempty"`
 }
 
+// DefaultTimezone est le fuseau horaire d'un hub neuf.
+const DefaultTimezone = "Europe/Paris"
+
 // Defaults sont les réglages d'un hub neuf.
-var Defaults = Values{RetentionDays: archive.DefaultRetentionDays}
+var Defaults = Values{RetentionDays: archive.DefaultRetentionDays, Timezone: DefaultTimezone}
 
 // Settings garde les réglages, sûrs pour un usage concurrent.
 type Settings struct {
@@ -48,7 +56,11 @@ func Open(store Storage) (*Settings, error) {
 		return nil, err
 	}
 	var v Values
-	if err := json.Unmarshal(raw, &v); err != nil || Validate(v) != nil {
+	err = json.Unmarshal(raw, &v)
+	if err == nil && v.Timezone == "" {
+		v.Timezone = DefaultTimezone // réglages d'avant les programmations
+	}
+	if err != nil || Validate(v) != nil {
 		return nil, fmt.Errorf("réglages du hub illisibles")
 	}
 	s.v = v
@@ -60,7 +72,23 @@ func Validate(v Values) error {
 	if v.RetentionDays < archive.MinRetentionDays || v.RetentionDays > archive.MaxRetentionDays {
 		return fmt.Errorf("durée de conservation invalide : de %d à %d jours", archive.MinRetentionDays, archive.MaxRetentionDays)
 	}
+	if _, err := Location(v.Timezone); err != nil {
+		return err
+	}
 	return nil
+}
+
+// Location renvoie le fuseau horaire de nom IANA name (« Europe/Paris »). « Local » est refusé : il
+// dépendrait du système du conteneur.
+func Location(name string) (*time.Location, error) {
+	if name == "" || name == "Local" || len(name) > 64 {
+		return nil, fmt.Errorf("fuseau horaire invalide : %q", name)
+	}
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		return nil, fmt.Errorf("fuseau horaire inconnu : %q", name)
+	}
+	return loc, nil
 }
 
 // Get renvoie les réglages.

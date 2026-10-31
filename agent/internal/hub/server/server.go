@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,7 @@ import (
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/agents"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/archive"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/fleet"
+	"github.com/slaynaw/wakeonlan/agent/internal/hub/schedule"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/settings"
 	"github.com/slaynaw/wakeonlan/agent/internal/hub/wake"
 	"github.com/slaynaw/wakeonlan/agent/internal/identity"
@@ -532,9 +534,14 @@ func (sess *session) command(req hubprotocol.Request, d devices.Device) ([]byte,
 		resp.Message = fmt.Sprintf("paquet magique envoyé (%d paquets)", sent)
 		return encode(resp), false
 	case hubprotocol.CmdSettings:
-		if req.Retention != 0 {
+		if req.Retention != 0 || req.Timezone != "" {
 			v := s.cfg.Settings.Get()
-			v.RetentionDays = req.Retention
+			if req.Retention != 0 {
+				v.RetentionDays = req.Retention
+			}
+			if req.Timezone != "" {
+				v.Timezone = req.Timezone
+			}
 			if err := settings.Validate(v); err != nil {
 				return bad(protocol2.CodeBadRequest, err.Error())
 			}
@@ -542,14 +549,110 @@ func (sess *session) command(req hubprotocol.Request, d devices.Device) ([]byte,
 				s.cfg.Logger.Printf("réglages : %v", err)
 				return bad(protocol2.CodeBusy, "réglages non enregistrés : réessayez")
 			}
-			s.cfg.Logger.Printf("conservation de l'archive : %d jours (par %s)", v.RetentionDays, d.Name)
+			s.cfg.Logger.Printf("réglages : conservation %d jours, fuseau horaire %s (par %s)", v.RetentionDays, v.Timezone, d.Name)
 		}
 		resp := ok()
-		resp.Settings = &hubprotocol.Settings{Retention: s.cfg.Settings.Get().RetentionDays}
+		resp.Settings = s.settings()
+		return encode(resp), false
+	case hubprotocol.CmdSchedules:
+		resp := ok()
+		for _, p := range s.cfg.Fleet.List() {
+			if p.Schedule != nil {
+				resp.Schedules = append(resp.Schedules, s.pcSchedule(p))
+			}
+		}
+		resp.Settings = s.settings()
+		return encode(resp), false
+	case hubprotocol.CmdSchedulesSet:
+		next := normalizeSchedule(req.Schedule)
+		p, err := s.cfg.Fleet.Update(req.PC, func(p *fleet.PC) { p.Schedule = next })
+		var invalid *fleet.InvalidError
+		switch {
+		case errors.Is(err, fleet.ErrUnknownPC):
+			return bad(protocol2.CodeBadRequest, "PC introuvable")
+		case errors.As(err, &invalid):
+			return bad(protocol2.CodeBadRequest, invalid.Error())
+		case err != nil:
+			s.cfg.Logger.Printf("programmation de « %s » : %v", req.PC, err)
+			return bad(protocol2.CodeBusy, "programmation non enregistrée : réessayez")
+		}
+		s.cfg.Logger.Printf("programmation de « %s » : %s (par %s)", p.Name, describeSchedule(p.Schedule), d.Name)
+		resp := ok()
+		sched := s.pcSchedule(p)
+		resp.Schedule = &sched
 		return encode(resp), false
 	}
 	// Commande du protocole que ce hub ne sert pas encore (étapes suivantes de la 2.0).
 	return bad(protocol2.CodeUnsupported, fmt.Sprintf("commande pas encore disponible sur ce hub : %s", req.Cmd))
+}
+
+// settings décrit les réglages du hub.
+func (s *Server) settings() *hubprotocol.Settings {
+	v := s.cfg.Settings.Get()
+	return &hubprotocol.Settings{Retention: v.RetentionDays, Timezone: v.Timezone}
+}
+
+// pcSchedule décrit la programmation du PC p, avec la prochaine occurrence de chaque partie active.
+func (s *Server) pcSchedule(p fleet.PC) hubprotocol.PCSchedule {
+	out := hubprotocol.PCSchedule{PC: p.ID}
+	if p.Schedule == nil {
+		return out
+	}
+	loc, err := settings.Location(s.cfg.Settings.Get().Timezone)
+	if err != nil {
+		loc, _ = settings.Location(settings.DefaultTimezone)
+	}
+	now := s.cfg.Now()
+	describe := func(slot *hubprotocol.Slot) *hubprotocol.Slot {
+		if slot == nil {
+			return nil
+		}
+		c := *slot
+		c.Days = slices.Clone(slot.Days)
+		c.Next = 0
+		if c.On {
+			if t, ok := schedule.Next(c, loc, now); ok {
+				c.Next = t.Unix()
+			}
+		}
+		return &c
+	}
+	out.Wake, out.Shutdown = describe(p.Schedule.Wake), describe(p.Schedule.Shutdown)
+	return out
+}
+
+// normalizeSchedule prépare une programmation reçue : jours triés, sans prochaine occurrence ; nil si
+// elle ne programme rien.
+func normalizeSchedule(in *hubprotocol.Schedule) *hubprotocol.Schedule {
+	if in == nil || (in.Wake == nil && in.Shutdown == nil) {
+		return nil
+	}
+	clean := func(slot *hubprotocol.Slot) *hubprotocol.Slot {
+		if slot == nil {
+			return nil
+		}
+		c := hubprotocol.Slot{On: slot.On, Days: slices.Clone(slot.Days), At: slot.At}
+		slices.Sort(c.Days)
+		return &c
+	}
+	return &hubprotocol.Schedule{Wake: clean(in.Wake), Shutdown: clean(in.Shutdown)}
+}
+
+// describeSchedule résume une programmation pour le journal du hub.
+func describeSchedule(sched *hubprotocol.Schedule) string {
+	if sched == nil {
+		return "aucune"
+	}
+	part := func(name string, slot *hubprotocol.Slot) string {
+		switch {
+		case slot == nil:
+			return ""
+		case !slot.On:
+			return name + " désactivé"
+		}
+		return fmt.Sprintf("%s %v à %s", name, slot.Days, slot.At)
+	}
+	return strings.TrimSpace(strings.Join([]string{part("réveil", sched.Wake), part("extinction", sched.Shutdown)}, " "))
 }
 
 // pcs gère les PC confiés au hub et les appareils sans agent (hub.pcs.*, rôle admin).
@@ -570,8 +673,12 @@ func (sess *session) pcs(req hubprotocol.Request, d devices.Device) ([]byte, boo
 			return bad(protocol2.CodeBadRequest, err.Error())
 		}
 		var invalid *invalidPC
-		if errors.As(err, &invalid) {
+		var refused *fleet.InvalidError
+		switch {
+		case errors.As(err, &invalid):
 			return bad(protocol2.CodeBadRequest, invalid.Error())
+		case errors.As(err, &refused):
+			return bad(protocol2.CodeBadRequest, refused.Error())
 		}
 		s.cfg.Logger.Printf("liste des PC : %v", err)
 		return bad(protocol2.CodeBusy, "liste des PC non enregistrée : réessayez")

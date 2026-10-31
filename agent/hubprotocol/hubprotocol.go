@@ -8,6 +8,7 @@
 package hubprotocol
 
 import (
+	"errors"
 	"regexp"
 	"slices"
 
@@ -154,8 +155,12 @@ type Request struct {
 	// Archive (hub.history, hub.metrics) : début des évènements voulus (secondes Unix), jour des mesures.
 	From int64  `json:"from,omitempty"`
 	Day  string `json:"day,omitempty"`
-	// Réglages (hub.settings) : durée de conservation, en jours ; absente, les réglages sont seulement lus.
-	Retention int `json:"retention,omitempty"`
+	// Réglages (hub.settings) : durée de conservation, en jours, et fuseau horaire des programmations ;
+	// absents, les réglages sont seulement lus.
+	Retention int    `json:"retention,omitempty"`
+	Timezone  string `json:"timezone,omitempty"`
+	// Schedule : hub.schedules.set, programmation du PC (nil : plus aucune).
+	Schedule *Schedule `json:"schedule,omitempty"`
 	// Since : hub.events, début des évènements voulus (secondes Unix).
 	Since int64 `json:"since,omitempty"`
 }
@@ -220,6 +225,51 @@ type Response struct {
 	Settings *Settings `json:"settings,omitempty"`
 	// Events : hub.events, dans l'ordre (More : il en reste après le dernier).
 	Events []Event `json:"events,omitzero"`
+	// Schedules : hub.schedules, programmation de chaque PC qui en a une ; Schedule : hub.schedules.set.
+	Schedules []PCSchedule `json:"schedules,omitzero"`
+	Schedule  *PCSchedule  `json:"schedule,omitempty"`
+}
+
+// Slot est une programmation (§6.7) : jours ISO (1 = lundi … 7 = dimanche) et heure « HH:MM » dans le
+// fuseau horaire du hub. Next, dans les réponses seulement, est la prochaine occurrence (secondes Unix).
+type Slot struct {
+	On   bool   `json:"on"`
+	Days []int  `json:"days"`
+	At   string `json:"at"`
+	Next int64  `json:"next,omitempty"`
+}
+
+// Schedule est la programmation d'un PC : réveil, extinction si inactif (nil : aucune).
+type Schedule struct {
+	Wake     *Slot `json:"wake,omitempty"`
+	Shutdown *Slot `json:"shutdown,omitempty"`
+}
+
+// PCSchedule est la programmation du PC d'identifiant PC.
+type PCSchedule struct {
+	PC       string `json:"pc"`
+	Wake     *Slot  `json:"wake,omitempty"`
+	Shutdown *Slot  `json:"shutdown,omitempty"`
+}
+
+var slotTime = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
+
+// ValidSlot vérifie une programmation : au moins un jour de 1 à 7, sans doublon, et une heure « HH:MM ».
+func ValidSlot(s Slot) error {
+	if !slotTime.MatchString(s.At) {
+		return errors.New("heure invalide : HH:MM attendu")
+	}
+	if len(s.Days) == 0 || len(s.Days) > 7 {
+		return errors.New("jours invalides : de 1 (lundi) à 7 (dimanche), au moins un")
+	}
+	seen := map[int]bool{}
+	for _, d := range s.Days {
+		if d < 1 || d > 7 || seen[d] {
+			return errors.New("jours invalides : de 1 (lundi) à 7 (dimanche), sans doublon")
+		}
+		seen[d] = true
+	}
+	return nil
 }
 
 // Évènements détectés par le hub (§6.5). Ce sont des codes : les applications rédigent elles-mêmes le
@@ -232,7 +282,8 @@ const (
 	EventLost      = "lost"       // arrêt inattendu noté par l'agent (X : cause, bsod, button, power, hardware)
 	EventDisk      = "disk"       // disque à surveiller (X : health) ou lecteur plein à 90 % (X : full)
 	EventMeasure   = "measure"    // mesure grave pendant plus de 5 minutes (X : identifiant de la mesure)
-	EventWake      = "wake"       // paquet magique envoyé par le hub (I : appareil à l'origine, ou « local »)
+	EventWake      = "wake"       // paquet magique envoyé par le hub (I : appareil à l'origine, « local » ou « schedule »)
+	EventShutdown  = "shutdown"   // extinction programmée (X : done, postponed, refused)
 )
 
 // Event est un évènement détecté par le hub.
@@ -253,6 +304,12 @@ const (
 	DiskHealth   = "health"   // disque à surveiller
 	DiskFull     = "full"     // lecteur plein à 90 %
 	WakeLocal    = "local"    // Event.I d'un réveil : demandé sur le NAS
+	WakeSchedule = "schedule" // Event.I d'un réveil : programmation (§6.7)
+	// Extinction programmée (§6.7) : demandée à l'agent, renoncée (PC encore utilisé au bout de 2 heures),
+	// refusée par l'agent (rôle control absent).
+	ShutdownDone      = "done"
+	ShutdownPostponed = "postponed"
+	ShutdownRefused   = "refused"
 )
 
 var (
@@ -261,9 +318,10 @@ var (
 	// eventDetails : précisions admises pour chaque type d'évènement ; nil : aucune.
 	eventDetails = map[string][]string{
 		EventOnline: nil, EventOffline: nil, EventAgentDown: nil, EventMeasure: nil, EventWake: nil,
-		EventProblem: {ProblemRevoked, ProblemPinMismatch, ProblemBlocked},
-		EventLost:    {"", LostBSOD, LostButton, LostPower, LostHardware},
-		EventDisk:    {DiskHealth, DiskFull},
+		EventProblem:  {ProblemRevoked, ProblemPinMismatch, ProblemBlocked},
+		EventLost:     {"", LostBSOD, LostButton, LostPower, LostHardware},
+		EventDisk:     {DiskHealth, DiskFull},
+		EventShutdown: {ShutdownDone, ShutdownPostponed, ShutdownRefused},
 	}
 )
 
@@ -277,7 +335,7 @@ func ValidEvent(e Event) bool {
 	case e.K == EventMeasure:
 		return measureID.MatchString(e.X) && e.I == ""
 	case e.K == EventWake:
-		return e.X == "" && (e.I == WakeLocal || shortPin.MatchString(e.I))
+		return e.X == "" && (e.I == WakeLocal || e.I == WakeSchedule || shortPin.MatchString(e.I))
 	case allowed == nil:
 		return e.X == "" && e.I == ""
 	}
@@ -286,7 +344,8 @@ func ValidEvent(e Event) bool {
 
 // Settings sont les réglages du hub.
 type Settings struct {
-	Retention int `json:"retention"` // durée de conservation de l'archive, en jours (90 à 1095)
+	Retention int    `json:"retention"`          // durée de conservation de l'archive, en jours (90 à 1095)
+	Timezone  string `json:"timezone,omitempty"` // fuseau horaire des programmations (nom IANA)
 }
 
 // États d'un PC vus par le hub (§6.2).

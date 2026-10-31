@@ -32,9 +32,31 @@ import (
 // Version est la version annoncée par l'agent de test.
 const Version = "1.13.0"
 
-type noPower struct{}
+// Power note les commandes d'alimentation reçues par l'agent de test ; aucune n'est exécutée.
+type Power struct {
+	mu    sync.Mutex
+	calls []PowerCall
+}
 
-func (noPower) Do(power.Action, bool) error { return nil }
+// PowerCall est une commande d'alimentation reçue : action, et forcée ou non.
+type PowerCall struct {
+	Action power.Action
+	Force  bool
+}
+
+func (p *Power) Do(a power.Action, force bool) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.calls = append(p.calls, PowerCall{a, force})
+	return nil
+}
+
+// Calls renvoie les commandes reçues, dans l'ordre.
+func (p *Power) Calls() []PowerCall {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return slices.Clone(p.calls)
+}
 
 // Agent est un vrai agent de test.
 type Agent struct {
@@ -43,6 +65,7 @@ type Agent struct {
 	Registry *devices.Registry
 	History  *history.Log // journal du PC (commande history)
 	Metrics  *Metrics     // mesures enregistrées (commande metrics)
+	Power    *Power       // commandes d'alimentation reçues
 	stop     context.CancelFunc
 }
 
@@ -93,7 +116,8 @@ func StartAgent(t testing.TB) *Agent {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv, err := server.New(cfg, noPower{}, Version, log.New(io.Discard, "", 0))
+	pw := &Power{}
+	srv, err := server.New(cfg, pw, Version, log.New(io.Discard, "", 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +138,7 @@ func StartAgent(t testing.TB) *Agent {
 	t.Cleanup(cancel)
 	go func() { _ = srv.Serve(ctx, ln) }()
 	return &Agent{
-		Port: raw.Addr().(*net.TCPAddr).Port, ID: id, Registry: reg, History: journal, Metrics: metrics,
+		Port: raw.Addr().(*net.TCPAddr).Port, ID: id, Registry: reg, History: journal, Metrics: metrics, Power: pw,
 		stop: func() { cancel(); ln.closeAll() },
 	}
 }

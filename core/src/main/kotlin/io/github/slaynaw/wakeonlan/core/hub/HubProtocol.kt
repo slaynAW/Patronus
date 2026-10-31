@@ -68,12 +68,21 @@ object HubProtocol {
         "problem" to listOf("revoked", "pin_mismatch", "rate_limited"),
         "lost" to listOf("", "bsod", "button", "power", "hardware"),
         "disk" to listOf("health", "full"),
+        "shutdown" to listOf(SHUTDOWN_DONE, SHUTDOWN_POSTPONED, SHUTDOWN_REFUSED),
     )
     private val MEASURE_ID = Regex("[a-z0-9][a-z0-9._-]{0,23}")
     private val SHORT_PIN = Regex("[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}")
 
     /** Réveil demandé sur le NAS (HubEvent.i). */
     const val WAKE_LOCAL = "local"
+
+    /** Réveil programmé (HubEvent.i, §6.7). */
+    const val WAKE_SCHEDULE = "schedule"
+
+    /** Extinction programmée (HubEvent.x) : demandée à l'agent, renoncée (PC encore utilisé), refusée par l'agent. */
+    const val SHUTDOWN_DONE = "done"
+    const val SHUTDOWN_POSTPONED = "postponed"
+    const val SHUTDOWN_REFUSED = "refused"
 
     /**
      * Un évènement n'est fait que de codes connus (§6.5). L'application écarte les autres sans rien en afficher : un
@@ -84,7 +93,7 @@ object HubProtocol {
         return when {
             e.t <= 0 || e.pc.isEmpty() -> false
             e.k == "measure" -> MEASURE_ID.matches(e.x) && e.i.isEmpty()
-            e.k == "wake" -> e.x.isEmpty() && (e.i == WAKE_LOCAL || SHORT_PIN.matches(e.i))
+            e.k == "wake" -> e.x.isEmpty() && (e.i == WAKE_LOCAL || e.i == WAKE_SCHEDULE || SHORT_PIN.matches(e.i))
             allowed.isEmpty() -> e.x.isEmpty() && e.i.isEmpty()
             else -> e.x in allowed && e.i.isEmpty()
         }
