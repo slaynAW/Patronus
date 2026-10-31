@@ -4,6 +4,8 @@ import android.content.Context
 import android.os.Build
 import android.provider.Settings
 import io.github.slaynaw.wakeonlan.core.agent.AgentClient
+import io.github.slaynaw.wakeonlan.core.hub.HubManager
+import io.github.slaynaw.wakeonlan.core.hub.HubService
 import io.github.slaynaw.wakeonlan.core.model.AppConfig
 import io.github.slaynaw.wakeonlan.core.status.HostProber
 import io.github.slaynaw.wakeonlan.core.status.ProbeAvailability
@@ -14,6 +16,7 @@ import io.github.slaynaw.wakeonlan.core.status.UnknownReason
 import io.github.slaynaw.wakeonlan.core.wol.WakeOnLanSender
 import io.github.slaynaw.wakeonlan.data.ConfigRepository
 import io.github.slaynaw.wakeonlan.data.HistoryRepository
+import io.github.slaynaw.wakeonlan.data.HubRepository
 import io.github.slaynaw.wakeonlan.data.KeystoreIdentity
 import io.github.slaynaw.wakeonlan.data.SpecsRepository
 import io.github.slaynaw.wakeonlan.diagnostics.DiagnosticLog
@@ -94,6 +97,19 @@ class AppContainer(private val context: Context) {
 
     /** Sauvegardes automatiques (GitHub et dossier), chiffrées par un mot de passe dédié. */
     val backups = BackupManager(context, scope, repository, share, history)
+
+    /**
+     * Hub sur le NAS (docs/HUB.md, §12), facultatif : appairage chiffré par le Keystore, relevé de son état tant que
+     * l'interface le regarde, administration et PC confiés. Même identité que pour les agents (wolagent/2).
+     */
+    val hub = HubManager(
+        scope = scope,
+        store = HubRepository(context, scope),
+        service = HubService(binder = network, deviceName = ::deviceName, identity = identity::get),
+        agents = agentClient,
+        selfPin = { runCatching { identity.get()?.pin?.toString() }.getOrNull() },
+        log = { DiagnosticLog.i("hub", it) },
+    )
 
     /** Archives chiffrées des mesures et du journal des PC (même compte et même mot de passe). */
     val archives = ArchiveManager(scope, repository, allDevices, backups, agentClient)

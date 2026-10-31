@@ -2,6 +2,7 @@ package io.github.slaynaw.wakeonlan.ui.admin
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -75,14 +76,24 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val ROLES = listOf("view", "wake", "control", "admin")
+/** Rôles d'un appareil sur un PC (wolagent/2). */
+internal val AGENT_ROLES = listOf("view", "wake", "control", "admin")
 private val INVITE_TTLS = listOf(600L, 3600L, 86400L, 604800L)
 private val dayFormat = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.FRENCH)
 private val dayTimeFormat = DateTimeFormatter.ofPattern("d MMM yyyy 'à' HH:mm", Locale.FRENCH)
 
-private fun formatDay(seconds: Long): String = dayFormat.format(Instant.ofEpochSecond(seconds).atZone(ZoneId.systemDefault()))
+internal fun formatDay(seconds: Long): String = dayFormat.format(Instant.ofEpochSecond(seconds).atZone(ZoneId.systemDefault()))
 
-private fun formatDayTime(seconds: Long): String = dayTimeFormat.format(Instant.ofEpochSecond(seconds).atZone(ZoneId.systemDefault()))
+internal fun formatDayTime(seconds: Long): String = dayTimeFormat.format(Instant.ofEpochSecond(seconds).atZone(ZoneId.systemDefault()))
+
+/** Textes propres à ce qu'administrent les dialogues d'appareils : un PC (par défaut) ou le hub. */
+internal data class AdminTexts(
+    @StringRes val revoke: Int = R.string.admin_revoke_text,
+    @StringRes val revokeSelf: Int = R.string.admin_revoke_self_text,
+    @StringRes val demoteSelf: Int = R.string.admin_demote_self_text,
+    @StringRes val invite: Int = R.string.admin_invite_text,
+    @StringRes val inviteReady: Int = R.string.admin_invite_ready,
+)
 
 /** Appareils autorisés par un PC (wolagent/2, rôle « admin »). */
 @Composable
@@ -227,19 +238,7 @@ fun AdminContent(
         )
     }
     state.created?.let { created ->
-        AlertDialog(
-            onDismissRequest = onDismissCreated,
-            title = { Text(stringResource(R.string.admin_invite)) },
-            text = {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(stringResource(R.string.admin_invite_ready, formatDayTime(created.expires)), style = MaterialTheme.typography.bodyMedium)
-                    QrImage(created.link)
-                    Text(created.code, style = MonoStyle.copy(fontSize = 24.sp), color = WolPalette.Text)
-                }
-            },
-            confirmButton = { TextButton(onClick = onDismissCreated) { Text(stringResource(R.string.close)) } },
-            dismissButton = { TextButton(onClick = { onCopy(created.link) }) { Text(stringResource(R.string.admin_copy_link)) } },
-        )
+        CreatedInviteDialog(created.link, created.code, created.expires, AdminTexts(), onCopy = onCopy, onDismiss = onDismissCreated)
     }
     state.failure?.let { failure ->
         AlertDialog(
@@ -251,6 +250,24 @@ fun AdminContent(
     }
 }
 
+/** Invitation créée : QR code du lien, code à transmettre, et copie du lien. */
+@Composable
+internal fun CreatedInviteDialog(link: String, code: String, expires: Long, texts: AdminTexts, onCopy: (String) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.admin_invite)) },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(texts.inviteReady, formatDayTime(expires)), style = MaterialTheme.typography.bodyMedium)
+                QrImage(link)
+                Text(code, style = MonoStyle.copy(fontSize = 24.sp), color = WolPalette.Text)
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
+        dismissButton = { TextButton(onClick = { onCopy(link) }) { Text(stringResource(R.string.admin_copy_link)) } },
+    )
+}
+
 @Composable
 private fun failureText(failure: AdminFailure): String = when (failure.code) {
     ResponseCode.LAST_ADMIN -> stringResource(R.string.admin_last_admin)
@@ -259,7 +276,7 @@ private fun failureText(failure: AdminFailure): String = when (failure.code) {
 }
 
 @Composable
-private fun DeviceRow(device: DeviceInfo, onClick: () -> Unit) {
+internal fun DeviceRow(device: DeviceInfo, onClick: () -> Unit) {
     val via = when (device.via) {
         "pair" -> stringResource(R.string.admin_via_pair)
         "migrate" -> stringResource(R.string.admin_via_migrate)
@@ -298,7 +315,7 @@ private fun DeviceRow(device: DeviceInfo, onClick: () -> Unit) {
 }
 
 @Composable
-private fun InviteRow(invite: InviteInfo, onCancel: () -> Unit) {
+internal fun InviteRow(invite: InviteInfo, onCancel: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(WolIcons.Clock, contentDescription = null, tint = WolPalette.Text2, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(12.dp))
@@ -315,7 +332,7 @@ private fun InviteRow(invite: InviteInfo, onCancel: () -> Unit) {
 }
 
 @Composable
-private fun RoleChoice(selected: Boolean, label: String, onSelect: () -> Unit) {
+internal fun RoleChoice(selected: Boolean, label: String, onSelect: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().selectable(selected = selected, onClick = onSelect, role = Role.RadioButton),
         verticalAlignment = Alignment.CenterVertically,
@@ -327,7 +344,13 @@ private fun RoleChoice(selected: Boolean, label: String, onSelect: () -> Unit) {
 
 /** Appareil choisi : rôle, nom, retrait (retrait ou rétrogradation de ce téléphone confirmés). */
 @Composable
-private fun DeviceDialog(device: DeviceInfo, onChange: (AdminChange) -> Unit, onDismiss: () -> Unit) {
+internal fun DeviceDialog(
+    device: DeviceInfo,
+    onChange: (AdminChange) -> Unit,
+    onDismiss: () -> Unit,
+    roles: List<String> = AGENT_ROLES,
+    texts: AdminTexts = AdminTexts(),
+) {
     var step by remember { mutableStateOf("main") }
     var pendingRole by remember { mutableStateOf(device.role) }
     var name by remember { mutableStateOf(device.name) }
@@ -354,7 +377,7 @@ private fun DeviceDialog(device: DeviceInfo, onChange: (AdminChange) -> Unit, on
         "revoke" -> AlertDialog(
             onDismissRequest = onDismiss,
             title = { Text(stringResource(R.string.admin_revoke_title, device.name)) },
-            text = { Text(stringResource(if (device.self) R.string.admin_revoke_self_text else R.string.admin_revoke_text)) },
+            text = { Text(stringResource(if (device.self) texts.revokeSelf else texts.revoke)) },
             confirmButton = {
                 TextButton(onClick = { onDismiss(); onChange(AdminChange.Revoke(device.device)) }) {
                     Text(stringResource(R.string.admin_revoke), color = WolPalette.DangerText)
@@ -365,7 +388,7 @@ private fun DeviceDialog(device: DeviceInfo, onChange: (AdminChange) -> Unit, on
         "demote" -> AlertDialog(
             onDismissRequest = onDismiss,
             title = { Text(stringResource(R.string.admin_demote_self_title, roleLabel(pendingRole))) },
-            text = { Text(stringResource(R.string.admin_demote_self_text)) },
+            text = { Text(stringResource(texts.demoteSelf)) },
             confirmButton = {
                 TextButton(onClick = { onDismiss(); onChange(AdminChange.SetRole(device.device, pendingRole)) }) {
                     Text(stringResource(R.string.admin_demote_self), color = WolPalette.DangerText)
@@ -380,7 +403,7 @@ private fun DeviceDialog(device: DeviceInfo, onChange: (AdminChange) -> Unit, on
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(Pin.parse(device.device)?.short().orEmpty(), style = MonoStyle.copy(fontSize = 13.sp), color = WolPalette.Text2)
                     Text(stringResource(R.string.admin_role), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
-                    ROLES.forEach { role ->
+                    roles.forEach { role ->
                         RoleChoice(role == device.role, roleLabel(role)) {
                             when {
                                 role == device.role -> Unit
@@ -409,8 +432,14 @@ private fun DeviceDialog(device: DeviceInfo, onChange: (AdminChange) -> Unit, on
 
 /** Nouvelle invitation : rôle, validité et nom facultatif. */
 @Composable
-private fun InviteDialog(onCreate: (String, Long, String) -> Unit, onDismiss: () -> Unit) {
-    var role by rememberSaveable { mutableStateOf("control") }
+internal fun InviteDialog(
+    onCreate: (String, Long, String) -> Unit,
+    onDismiss: () -> Unit,
+    roles: List<String> = AGENT_ROLES,
+    defaultRole: String = "control",
+    texts: AdminTexts = AdminTexts(),
+) {
+    var role by rememberSaveable { mutableStateOf(defaultRole) }
     var ttl by rememberSaveable { mutableStateOf(600L) }
     var name by rememberSaveable { mutableStateOf("") }
     val ttlLabels = mapOf(
@@ -424,9 +453,9 @@ private fun InviteDialog(onCreate: (String, Long, String) -> Unit, onDismiss: ()
         title = { Text(stringResource(R.string.admin_invite)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(stringResource(R.string.admin_invite_text), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(texts.invite), style = MaterialTheme.typography.bodyMedium)
                 Text(stringResource(R.string.admin_invite_role), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 10.dp))
-                ROLES.forEach { r -> RoleChoice(r == role, roleLabel(r)) { role = r } }
+                roles.forEach { r -> RoleChoice(r == role, roleLabel(r)) { role = r } }
                 Text(stringResource(R.string.admin_invite_ttl), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 10.dp))
                 INVITE_TTLS.forEach { t -> RoleChoice(t == ttl, stringResource(ttlLabels.getValue(t))) { ttl = t } }
                 Box(Modifier.padding(top = 10.dp)) {

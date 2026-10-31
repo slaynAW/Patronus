@@ -31,6 +31,14 @@ import io.github.slaynaw.wakeonlan.core.agent.SpecsModule
 import io.github.slaynaw.wakeonlan.core.agent.SpecsOs
 import io.github.slaynaw.wakeonlan.core.agent2.DeviceInfo
 import io.github.slaynaw.wakeonlan.core.agent2.InviteInfo
+import io.github.slaynaw.wakeonlan.core.hub.HubAdmin
+import io.github.slaynaw.wakeonlan.core.hub.HubInfo
+import io.github.slaynaw.wakeonlan.core.hub.HubPc
+import io.github.slaynaw.wakeonlan.core.hub.HubPcState
+import io.github.slaynaw.wakeonlan.core.hub.HubProbe
+import io.github.slaynaw.wakeonlan.core.hub.HubSnapshot
+import io.github.slaynaw.wakeonlan.core.hub.HubState
+import io.github.slaynaw.wakeonlan.core.hub.PairedHub
 import io.github.slaynaw.wakeonlan.core.share.ShareAccess
 import io.github.slaynaw.wakeonlan.core.share.ShareCrypto
 import io.github.slaynaw.wakeonlan.core.share.ShareInvite
@@ -70,6 +78,8 @@ import io.github.slaynaw.wakeonlan.ui.devices.DevicesUiState
 import io.github.slaynaw.wakeonlan.ui.history.HistoryContent
 import io.github.slaynaw.wakeonlan.ui.history.HistoryItem
 import io.github.slaynaw.wakeonlan.ui.history.HistoryUiState
+import io.github.slaynaw.wakeonlan.ui.hub.HubContent
+import io.github.slaynaw.wakeonlan.ui.hub.HubUiState
 import io.github.slaynaw.wakeonlan.ui.lock.LockScreenContent
 import io.github.slaynaw.wakeonlan.ui.main.MainScaffold
 import io.github.slaynaw.wakeonlan.ui.main.MainTab
@@ -470,4 +480,81 @@ class ScreenshotTest {
 
     @Test
     fun verrouillage() = capture("10-verrouillage") { LockScreenContent(onUnlock = {}) }
+
+    /** Hub sur le NAS appairé (ce téléphone administrateur) : état, PC confiés, conservation, appareils autorisés. */
+    @Test
+    fun hub() = capture("11-hub") {
+        val day = now / 1000
+        val pin = "qL5cBtCXCWvDGqMUWJ3gNeR0P1MukyXvb6K8OoRKVHw"
+        val paired = PairedHub("NAS du salon", "192.168.1.20", 9771, "HL5cBtCXCWvDGqMUWJ3gNeR0P1MukyXvb6K8OoRKVHw", "admin", day - 86_400 * 12)
+        val snapshot = HubSnapshot(
+            info = HubInfo("NAS du salon", "1.14.0", paired.pin, day - 86_400 * 3),
+            role = "admin",
+            pcs = listOf(
+                HubPc("p1", "PC Bureau", "192.168.1.42", 9770, "A8:A1:59:12:34:56", "AL5cBtCXCWvDGqMUWJ3gNeR0P1MukyXvb6K8OoRKVHw", "wake", added = day - 86_400 * 10),
+                HubPc("p2", "PC Salon", "192.168.1.43", 9770, "", "BL5cBtCXCWvDGqMUWJ3gNeR0P1MukyXvb6K8OoRKVHw", "wake", added = day - 86_400 * 9),
+                HubPc("p3", "Box Internet", "192.168.1.1", probe = HubProbe("https"), added = day - 86_400 * 8),
+            ),
+            states = listOf(
+                HubPcState("p1", "online", since = day - 7_200, checked = day - 20),
+                HubPcState("p2", "offline", since = day - 3_600 * 5, checked = day - 20),
+                HubPcState("p3", "online", since = day - 86_400 * 2, checked = day - 20),
+            ),
+            events = emptyList(),
+            moreEvents = false,
+            dropped = 0,
+        )
+        HubContent(
+            hub = HubState(loaded = true, hub = paired, snapshot = snapshot, checkedAt = now),
+            state = HubUiState(
+                admin = HubAdmin(
+                    devices = listOf(
+                        DeviceInfo(pin, "Pixel 8a", "admin", day - 86_400 * 12, "pair", day - 20, self = true),
+                        DeviceInfo("CL5cBtCXCWvDGqMUWJ3gNeR0P1MukyXvb6K8OoRKVHw", "PC portable", "wake", day - 86_400 * 4, "pair", day - 3_600),
+                    ),
+                    invites = listOf(InviteInfo("i1", role = "view", name = "Tablette", expires = day + 3_600)),
+                    retention = 365,
+                ),
+            ),
+            now = now,
+            snackbar = remember { SnackbarHostState() },
+            onBack = {},
+            onRefresh = {},
+            onScan = {},
+            onPaste = {},
+            onForget = {},
+            onChange = {},
+            onInvite = { _, _, _ -> },
+            onRetention = {},
+            onRemove = {},
+            onAddDevice = { _, _, _, _ -> },
+            onDismissNotice = {},
+            onDismissCreated = {},
+            onCopy = {},
+        )
+    }
+
+    /** Sans hub : appairage par le QR code affiché par le hub, ou par son lien. */
+    @Test
+    fun hubAppairage() = capture("11b-hub-appairage") {
+        HubContent(
+            hub = HubState(loaded = true),
+            state = HubUiState(),
+            now = now,
+            snackbar = remember { SnackbarHostState() },
+            onBack = {},
+            onRefresh = {},
+            onScan = {},
+            onPaste = {},
+            onForget = {},
+            onChange = {},
+            onInvite = { _, _, _ -> },
+            onRetention = {},
+            onRemove = {},
+            onAddDevice = { _, _, _, _ -> },
+            onDismissNotice = {},
+            onDismissCreated = {},
+            onCopy = {},
+        )
+    }
 }
