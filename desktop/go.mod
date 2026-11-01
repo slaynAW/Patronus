@@ -7,7 +7,7 @@ toolchain go1.26.10
 require (
 	github.com/jchv/go-webview2 v0.0.0-20260205173254-56598839c808
 	github.com/slaynaw/wakeonlan/agent v0.0.0-00010101000000-000000000000
-	golang.org/x/sys v0.48.0
+	golang.org/x/sys v0.49.0
 	rsc.io/qr v0.2.0
 )
 
