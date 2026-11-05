@@ -98,7 +98,9 @@ Les menaces prises en compte, leur protection actuelle et celle prévue sont dé
   qu'un PC s'appelle « PC-BUREAU », depuis quand il est allumé et, lors d'une lecture du journal, ses heures de démarrage et
   d'arrêt ; il ne peut ni lire la clé ni forger de commande. Cela ne concerne plus que les appareils pas encore passés en
   `wolagent/2` (application ou agent plus anciens, Android 8 ou 9) : mettez à jour l'agent (1.11.0) et les applications
-  (1.13.0), elles y passent d'elles-mêmes.
+  (1.13.0), elles y passent d'elles-mêmes. Depuis l'agent 1.14.0, une nouvelle installation refuse `wolagent/1` et n'a
+  pas de clé ; sur une installation existante, `wol-agent protocols v1 off` le refuse et efface la clé, une fois tous
+  vos appareils passés en `wolagent/2`.
 - **L'ancien QR code d'appairage (`wol-agent pair --v1`) contient la clé** : ne le partagez pas, ne le photographiez pas avec un
   autre appareil. En cas de doute : `wol-agent rotate-key`. Le QR code par défaut ne contient qu'un code à usage unique ; si
   ce code a servi sans vous, l'appareil inconnu figure dans `wol-agent devices` : retirez-le.

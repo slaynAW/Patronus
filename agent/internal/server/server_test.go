@@ -45,6 +45,10 @@ func startServer(t *testing.T, mutate func(*config.Config), setup func(*Server))
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Agent en coexistence (installation antérieure à 1.14.0) : wolagent/1 et sa clé, puis wolagent/2.
+	if err := cfg.EnableV1(); err != nil {
+		t.Fatal(err)
+	}
 	if mutate != nil {
 		mutate(cfg)
 	}

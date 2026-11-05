@@ -382,7 +382,8 @@ sont vides, et garde `:` tel quel dans les valeurs pour un QR code plus petit.
 1. Sur le PC (droits d'administrateur) : `wol-agent pair [--role admin|control|wake|view] [--ttl 600]`. L'agent crée
    une invitation et affiche le QR code, le lien et son empreinte courte. Il le fait aussi à la fin de son installation.
    Pendant la coexistence (§11), `wol-agent pair --v1` affiche à la place l'ancien lien `v=1`, avec la clé
-   `wolagent/1`, pour les applications qui ne connaissent que lui.
+   `wolagent/1`, pour les applications qui ne connaissent que lui, si l'agent l'accepte (`wol-agent protocols v1 on`
+   sur une installation de l'agent 1.14.0 ou plus).
 2. L'application scanne, ouvre TLS, vérifie que l'empreinte de l'agent est `a`, puis envoie `pair` avec le code et son
    nom d'appareil.
 3. L'agent enregistre l'appareil (§6.3) et note `device added` au journal.
@@ -518,8 +519,9 @@ en temps constant.
 et éteindre ». C'est cohérent avec leurs droits en `wolagent/1`. Chaque migration est notée au journal et visible dans
 `devices`.
 
-**Fin de la transition.** L'administrateur désactive `wolagent/1` (`"protocols":["wolagent/2"]`). L'agent efface alors
-`K`, qui ne sert plus à rien, et refuse `migrate` (`migration_failed`).
+**Fin de la transition.** L'administrateur désactive `wolagent/1` (`wol-agent protocols v1 off`, qui écrit
+`"protocols":["wolagent/2"]`). L'agent efface alors `K`, qui ne sert plus à rien, et refuse `migrate`
+(`migration_failed`).
 
 ## 10. Partage v2
 
@@ -550,7 +552,7 @@ Format exact et règles des deux côtés : [PARTAGE.md, « Partage v2 »](PARTAG
 | Étape | Agent | Applications |
 |---|---|---|
 | 3 (première version `wolagent/2`) | `wolagent/1` et `wolagent/2` sur le même port ; `"protocols":["wolagent/1","wolagent/2"]` par défaut | `wolagent/2` pour les PC dont elles connaissent l'empreinte ; migration automatique des autres quand l'agent le permet ; `wolagent/1` pour les agents pas encore à jour |
-| 2.0 | `wolagent/1` désactivé par défaut sur les nouvelles installations | Refus de `wolagent/1` pour tout PC passé en `wolagent/2` |
+| 2.0 (agent 1.14.0) | `wolagent/1` désactivé par défaut sur les nouvelles installations : `"protocols":["wolagent/2"]`, sans `K` ; `wol-agent protocols v1 on` le rétablit (Android 8 ou 9, applications antérieures à 1.12), `v1 off` le refuse sur une installation existante | Refus de `wolagent/1` pour tout PC passé en `wolagent/2` |
 | Ensuite | `wolagent/1` retiré | Android 10 au minimum (§13) |
 
 Les agents se mettent à jour d'eux-mêmes (mises à jour intégrées), ce qui raccourcit la transition.

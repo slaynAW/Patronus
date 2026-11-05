@@ -42,8 +42,9 @@ sudo ./wol-agent-linux-amd64 install
 
 À la fin, un **QR code** s'affiche : dans l'application, *Ajouter un PC* → *Scanner le QR code*. Il ne contient aucune
 clé secrète : l'adresse du PC, l'empreinte de l'agent et un code d'appairage à usage unique, valable 10 minutes
-(`wolagent/2`, voir plus bas). Application antérieure à 1.12, ou téléphone sous Android 8 ou 9 : `wol-agent pair --v1`
-affiche l'ancien QR code, qui contient la clé de l'agent.
+(`wolagent/2`, voir plus bas). Application antérieure à 1.12, ou téléphone sous Android 8 ou 9 : ils ne connaissent que
+l'ancien protocole `wolagent/1`, qu'une nouvelle installation refuse depuis l'agent 1.14.0 ; `wol-agent protocols v1 on`
+le rétablit, puis `wol-agent pair --v1` affiche l'ancien QR code, qui contient la clé de l'agent.
 
 > Réinstaller (ou installer une nouvelle version) conserve la configuration et la clé : pas besoin de ré-appairer.
 
@@ -81,7 +82,8 @@ une nouvelle version des applications ne provoque pas de mise à jour de l'agent
 | `wol-agent pair [--role admin\|control\|wake\|view] [--ttl 600] [--ip …] [--png qr.png] [--invert] [--v1]` | Affiche un QR code (ou l'enregistre en PNG) et un lien d'appairage `wolagent/2` : code à usage unique, aucune clé secrète. Rôle `admin` par défaut, valable 600 s (`--ttl` : de 60 s à 7 jours, `10m` ou `2h` acceptés). `--v1` : ancien lien, avec la clé de l'agent |
 | `wol-agent status` | État du service, configuration, carte réseau détectée, type des réseaux Windows (alerte si « Public »), températures, disques (espace, santé, erreurs), ressources (mémoire, batterie), fiche du PC (processeur, mémoire, cartes graphiques, carte mère, système), derniers évènements du journal (avec la cause des arrêts anormaux) |
 | `wol-agent diagnostic` | Rapport de diagnostic chiffré par un mot de passe (état, configuration sans la clé, journaux), à transmettre pour analyser un problème ([docs/DIAGNOSTIC.md](../docs/DIAGNOSTIC.md)). Terminal administrateur recommandé. |
-| `wol-agent rotate-key` | Nouvelle clé `wolagent/1` ; l'ancienne est immédiatement refusée (ré-appairer). Sans effet sur les appareils passés en `wolagent/2` |
+| `wol-agent rotate-key` | Nouvelle clé `wolagent/1` (s'il est accepté) ; l'ancienne est immédiatement refusée (ré-appairer). Sans effet sur les appareils passés en `wolagent/2` |
+| `wol-agent protocols [v1 on\|off]` | Protocoles acceptés. `v1 on` rétablit l'ancien protocole `wolagent/1`, avec une clé (applications antérieures à 1.12, Android 8 ou 9) ; `v1 off` le refuse et efface sa clé, une fois tous les appareils passés en `wolagent/2`. Redémarre le service |
 | `wol-agent devices [revoke\|role\|rename] <empreinte> [rôle\|nom]` | Appareils autorisés en `wolagent/2` (voir ci-dessous) : liste, retrait, rôle (`view`, `wake`, `control`, `admin`), nom |
 | `wol-agent update [--check] [--yes] [--auto on\|off]` | Recherche et installe une nouvelle version (Windows) ; `--auto` : recherche quotidienne |
 | `wol-agent uninstall [--purge]` | Désinstalle (`--purge` supprime aussi la configuration) |
@@ -96,14 +98,16 @@ afin que le QR code contienne la bonne adresse MAC.
 {
   "name": "PC-BUREAU",
   "port": 9770,
-  "key": "…43 caractères…",
   "allow": ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "100.64.0.0/10", "::1/128", "fc00::/7", "fe80::/10"],
-  "commands": ["status", "shutdown", "reboot", "sleep"]
+  "commands": ["status", "shutdown", "reboot", "sleep"],
+  "protocols": ["wolagent/2"]
 }
 ```
 
 - `autoUpdate` (facultatif, Windows) : `false` désactive la recherche quotidienne des mises à jour.
-- `protocols` (facultatif) : protocoles acceptés, `["wolagent/1", "wolagent/2"]` par défaut. Ne retirez pas `wolagent/1`
+- `protocols` : protocoles acceptés. Nouvelle installation (agent 1.14.0 ou plus) : `["wolagent/2"]`, sans clé.
+  Installation antérieure : absent, c'est-à-dire `wolagent/1` et `wolagent/2`, avec la clé `key` de `wolagent/1`
+  (43 caractères, à garder secrète). Plutôt qu'à la main : `wol-agent protocols v1 on|off`. Ne refusez pas `wolagent/1`
   tant que toutes vos applications ne sont pas passées en `wolagent/2`.
 - `metrics` (facultatif) : `false` désactive l'enregistrement continu des mesures (90 jours, dossier `metrics/`).
 

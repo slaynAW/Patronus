@@ -311,9 +311,9 @@ services:
 ## 13. Compatibilité et versions
 
 - Le hub exige des agents en `wolagent/2` (agent 1.11.0 ou plus) ; il ne parle jamais `wolagent/1`.
-- La 2.0 désactive aussi `wolagent/1` par défaut **sur les nouvelles installations** de l'agent
-  ([PROTOCOLE-V2.md §11](PROTOCOLE-V2.md#11-coexistence-et-calendrier)) ; les installations existantes le gardent
-  jusqu'à son retrait.
+- La 2.0 désactive aussi `wolagent/1` par défaut **sur les nouvelles installations** de l'agent (1.14.0,
+  [PROTOCOLE-V2.md §11](PROTOCOLE-V2.md#11-coexistence-et-calendrier)) ; les installations existantes le gardent
+  jusqu'à son retrait, ou jusqu'à `wol-agent protocols v1 off`.
 - Applications 2.0.0 (Android, Windows), hub 2.0.0, agent 1.14.0.
 
 ## 14. Plan de réalisation

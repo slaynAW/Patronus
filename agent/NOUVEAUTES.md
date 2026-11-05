@@ -5,6 +5,11 @@ compilé par la CI. **Ajoutez une section (numéro supérieur) à chaque modific
 numéro que les agents installés comparent au leur pour proposer la mise à jour. Le texte de la section est
 affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
+## 1.14.0
+
+- **Nouvelles installations en wolagent/2 seulement** : une nouvelle installation de l'agent refuse l'ancien protocole wolagent/1, non chiffré, et n'a donc plus de clé secrète. Les installations existantes ne changent pas. Pour un téléphone sous Android 8 ou 9, ou une application antérieure à 1.12 : `wol-agent protocols v1 on`, puis `wol-agent pair --v1`.
+- **`wol-agent protocols`** : affiche les protocoles acceptés. Une fois tous vos appareils passés en wolagent/2 (leur fiche du PC affiche *Chiffré et authentifié*), `wol-agent protocols v1 off` refuse wolagent/1 sur une installation existante et efface sa clé.
+
 ## 1.13.0
 
 - **Ressources** : l'agent transmet la mémoire vive utilisée (Windows, Linux, NAS Synology) et la charge de la batterie d'un portable (Windows, Linux), affichées sur la fiche du PC par les applications 1.15. `wol-agent status` les affiche aussi.

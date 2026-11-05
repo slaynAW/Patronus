@@ -20,6 +20,10 @@ func TestDiagnosticCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Coexistence : la clé wolagent/1 existe, et le rapport ne doit jamais la contenir.
+	if err := cfg.EnableV1(); err != nil {
+		t.Fatal(err)
+	}
 	if err := config.Save(cfgPath, cfg); err != nil {
 		t.Fatal(err)
 	}
