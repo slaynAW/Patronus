@@ -167,7 +167,8 @@ identifiants de PC sont opaques (16 octets aléatoires en B64), propres au hub.
   réponse, jamais son contenu. Aucune donnée envoyée au-delà d'une requête `HEAD /` sans cookie ni identifiant.
   Pour une page HTTPS, le certificat (souvent autosigné sur une box ou une caméra) n'est pas vérifié : rien de
   confidentiel n'est envoyé ni lu.
-- **Ping** (ICMP) seulement si l'utilisateur ajoute la capacité `NET_RAW` au conteneur (§10) ; sinon, TCP.
+- **Pas de ping** (ICMP) en 2.0 : il demanderait la capacité `NET_RAW` au conteneur, qui n'en a aucune (§10) ; une
+  connexion TCP suffit à savoir qu'un appareil répond.
 - Adresses **privées uniquement** (mêmes réseaux que la liste `allow` des agents : RFC 1918, lien local, ULA IPv6) :
   le hub ne sonde rien sur Internet.
 - Toutes les 30 s ; résultat réduit à « répond / ne répond pas » et la latence.
@@ -249,13 +250,12 @@ Fichier de projet pour Container Manager (*Projet* → *Créer*) :
 ```yaml
 services:
   patronus-hub:
-    image: ghcr.io/slaynaw/patronus-hub:2.0.0
+    image: ghcr.io/slaynaw/patronus-hub:latest
     container_name: patronus-hub
     network_mode: host            # paquets magiques en diffusion, adresses réelles des applications
     user: "65532:65532"           # ni root, ni compte DSM
     read_only: true
     cap_drop: [ALL]
-    # cap_add: [NET_RAW]          # seulement pour le ping des appareils sans agent (§7.2)
     security_opt: [no-new-privileges:true]
     mem_limit: 128m
     pids_limit: 64
@@ -277,7 +277,7 @@ services:
 - **Pare-feu de DSM** : autoriser le port TCP **9771** depuis le réseau local seulement, comme 9770.
 - **Mises à jour** : Container Manager → *Image* → mettre à jour, puis relancer le projet. Le hub ne se met pas à jour
   lui-même et ne contacte pas Internet.
-- Guide pas à pas : `docs/HUB-SYNOLOGY.md`, écrit avec le code.
+- Guide pas à pas : [HUB-SYNOLOGY.md](HUB-SYNOLOGY.md).
 
 ## 11. Chaîne de production
 
@@ -330,7 +330,7 @@ Une PR par étape, chacune testée en CI et fusionnée quand tout est vert :
 | 2.0-F | Application Windows : réglages Hub, PC confiés, historique long, « Pendant votre absence » : fait (F1 : appairage, état et administration du hub ; F2 : PC confiés, appareils sans agent, réveil relayé par le hub ; F3 : « Pendant votre absence », état vu par le hub ; F4 : journal et mesures gardés par le hub dans l'écran « Mesures » ; éprouvés contre le vrai hub et de vrais agents par `agent/testhub`) |
 | 2.0-G | Application Android : idem : fait (G1 : service et gestionnaire du hub dans `core`, `HubService` et `HubManager`, éprouvés contre le vrai hub en CI ; règle commune des évènements admis, Go et Kotlin ; G2 : écran « Hub sur le NAS » : appairage par QR code ou lien, état, PC et appareils confiés, appareils sans agent, conservation, appareils autorisés et invitations, oubli ; G3a : ligne « Hub » de la fiche d'un PC, « Confier au hub », « Pendant votre absence », relevé du hub tant que l'application est affichée ; G3b : réveil relayé par le hub hors du réseau du PC, journal et mesures gardés par le hub dans l'écran « Mesures ») |
 | 2.0-H | Programmations (§8), rôle `control` donné et retiré par l'application : fait (H1 : côté hub, `hub.schedules`, planificateur, fuseau horaire, rôle effectif du hub suivi, évènements `shutdown` et réveils programmés ; éprouvé contre de vrais agents de test. H2 : application Windows, programmation d'un PC confié, rôle `control` donné puis retiré auprès de l'agent, fuseau horaire, textes des nouveaux évènements. H3 : application Android, idem, au-dessus de `HubManager.setSchedule` ; règle des programmations valides commune, Go et Kotlin) |
-| 2.0-I | Image de conteneur multi-architecture, attestation, publication ; guide `docs/HUB-SYNOLOGY.md` ; en cours (I1 : image OCI reproductible, essayée avec Podman à chaque build, publiée sur GHCR et attestée par le job de publication ; binaires `patronus-hub-linux-amd64` et `-arm64` dans chaque version) |
+| 2.0-I | Image de conteneur multi-architecture, attestation, publication ; guide `docs/HUB-SYNOLOGY.md` : fait (I1 : image OCI reproductible, essayée avec Podman à chaque build, publiée sur GHCR et attestée par le job de publication ; binaires `patronus-hub-linux-amd64` et `-arm64` dans chaque version. I2 : guide [HUB-SYNOLOGY.md](HUB-SYNOLOGY.md)) |
 | 2.0-J | Agent 1.14.0 (`wolagent/1` désactivé sur les nouvelles installations), revue de sécurité (§15), versions 2.0.0 |
 
 ## 15. Décisions à prendre
