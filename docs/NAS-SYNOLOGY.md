@@ -12,6 +12,9 @@ applications comme un PC :
 
 DSM 6 n'est pas pris en charge (pas de systemd).
 
+Pour surveiller vos PC en continu depuis le NAS (historique long, « Pendant votre absence », programmations), voyez
+aussi le **hub** : [HUB-SYNOLOGY.md](HUB-SYNOLOGY.md). Il s'installe à côté de l'agent, dans Container Manager.
+
 ## 1. Préparer DSM
 
 1. **Adresse IP fixe** : réservez l'adresse du NAS dans votre box (bail DHCP fixe), ou fixez-la dans *Panneau de
