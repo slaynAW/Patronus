@@ -245,7 +245,8 @@ class EditDeviceViewModel(
 
     private companion object {
         const val ANDROID_9_V2 = "Ce QR code utilise la connexion chiffrée, que ce téléphone (Android 8 ou 9) ne permet pas. " +
-            "Sur le PC, lancez « wol-agent pair --v1 » pour afficher l'ancien QR code."
+            "Sur le PC, lancez « wol-agent pair --v1 » pour afficher l'ancien QR code " +
+            "(agent installé avec la version 1.14 ou plus : « wol-agent protocols v1 on » d'abord)."
     }
 
     /** Convertit le formulaire en [Device], ou affiche les erreurs champ par champ. */

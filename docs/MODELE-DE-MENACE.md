@@ -204,7 +204,7 @@ dernière colonne donne leur état dans Patronus 1.15.0 et l'agent 1.13.0.
 | R3 | Une identité par appareil, agent et hub ; clé privée générée sur place, non exportable quand la plateforme le permet. | T7, T26, T28 | Oui : Keystore Android (StrongBox si présent), DPAPI sous Windows ; TPM à venir |
 | R4 | Autorisation par rôle, au plus juste par défaut ; la liste blanche de commandes du PC reste appliquée par-dessus. | T8, T30 | Oui, partage compris : « démarrer et consulter » donne le rôle `wake`, « démarrer et éteindre » le rôle `control` |
 | R5 | Révocation individuelle, effective immédiatement et vérifiée par l'agent lui-même. | T7, T16, T27 | Oui : sur le PC ou depuis un appareil administrateur ; un accès partagé retiré l'est aussi sur les PC (partage v2) |
-| R6 | Appairage sans secret durable dans le QR code ou le lien : code à usage unique, expirant, limité en tentatives. | T5, T6 | Oui ; l'ancien QR code reste possible sur demande (`--v1`) |
+| R6 | Appairage sans secret durable dans le QR code ou le lien : code à usage unique, expirant, limité en tentatives. | T5, T6 | Oui ; l'ancien QR code reste possible sur demande (`--v1`), si l'agent accepte `wolagent/1` (refusé par défaut sur une nouvelle installation depuis l'agent 1.14.0) |
 | R7 | Migration depuis `wolagent/1` sans rescanner, résistante à l'homme du milieu, sans élargir les droits. | T12 | Oui |
 | R8 | Aucune rétrogradation silencieuse vers `wolagent/1` une fois `wolagent/2` établi avec un PC. | T11 | Oui |
 | R9 | Limites de taille, de durée et de débit ; une identité inconnue n'accède qu'aux commandes d'appairage. | T9, T24 | Oui |

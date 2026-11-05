@@ -32,8 +32,9 @@ type Config struct {
 	Name string `json:"name"`
 	// Port d'écoute TCP.
 	Port int `json:"port"`
-	// Key est la clé partagée (32 octets, Base64 URL). À garder secrète.
-	Key string `json:"key"`
+	// Key est la clé partagée de wolagent/1 (32 octets, Base64 URL). À garder secrète. Absente quand
+	// wolagent/1 est refusé (nouvelles installations depuis l'agent 1.14.0).
+	Key string `json:"key,omitempty"`
 	// Allow liste les réseaux (CIDR) autorisés à se connecter.
 	Allow []string `json:"allow"`
 	// Commands liste les commandes autorisées (ex. retirer "shutdown" pour n'autoriser que la veille).
@@ -44,8 +45,8 @@ type Config struct {
 	// Metrics : enregistrement continu des températures et de l'utilisation, une ligne par minute
 	// gardée 90 jours et lue par les applications (absent = activé).
 	Metrics *bool `json:"metrics,omitempty"`
-	// Protocols liste les protocoles acceptés (absent : les deux, docs/PROTOCOLE-V2.md §11). Sans
-	// « wolagent/1 », la clé n'est plus nécessaire.
+	// Protocols liste les protocoles acceptés (absent : les deux, installations antérieures à l'agent
+	// 1.14.0 ; docs/PROTOCOLE-V2.md §11). Sans « wolagent/1 », la clé n'est plus nécessaire.
 	Protocols []string `json:"protocols,omitempty"`
 }
 
@@ -69,12 +70,9 @@ func (c *Config) RecordsMetrics() bool { return c.Metrics == nil || *c.Metrics }
 // AutoUpdates indique si la recherche quotidienne des mises à jour est activée.
 func (c *Config) AutoUpdates() bool { return c.AutoUpdate == nil || *c.AutoUpdate }
 
-// New crée une configuration neuve avec une clé aléatoire.
+// New crée la configuration d'une nouvelle installation : wolagent/2 seulement, donc sans clé
+// (docs/PROTOCOLE-V2.md §11). EnableV1 rétablit wolagent/1 pour un appareil qui ne connaît que lui.
 func New(name string, port int) (*Config, error) {
-	key, err := protocol.NewKey()
-	if err != nil {
-		return nil, err
-	}
 	if name == "" {
 		name, _ = os.Hostname()
 	}
@@ -82,12 +80,35 @@ func New(name string, port int) (*Config, error) {
 		port = DefaultPort
 	}
 	return &Config{
-		Name:     name,
-		Port:     port,
-		Key:      key,
-		Allow:    append([]string(nil), DefaultAllow...),
-		Commands: append([]string(nil), AllCommands...),
+		Name:      name,
+		Port:      port,
+		Allow:     append([]string(nil), DefaultAllow...),
+		Commands:  append([]string(nil), AllCommands...),
+		Protocols: []string{ProtocolV2},
 	}, nil
+}
+
+// EnableV1 accepte de nouveau wolagent/1 (applications antérieures à 1.12, Android 8 ou 9), avec une
+// clé neuve s'il n'en a pas ; wolagent/2 reste tel qu'il est.
+func (c *Config) EnableV1() error {
+	if c.Key == "" {
+		key, err := protocol.NewKey()
+		if err != nil {
+			return err
+		}
+		c.Key = key
+	}
+	if !c.Accepts(ProtocolV1) {
+		c.Protocols = append([]string{ProtocolV1}, c.Protocols...)
+	}
+	return nil
+}
+
+// DisableV1 refuse wolagent/1 et efface sa clé, qui ne sert à rien d'autre (ni à la migration vers
+// wolagent/2, refusée avec lui) : il ne reste que wolagent/2.
+func (c *Config) DisableV1() {
+	c.Protocols = []string{ProtocolV2}
+	c.Key = ""
 }
 
 // Validate vérifie la cohérence de la configuration.

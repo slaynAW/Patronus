@@ -62,6 +62,10 @@ func newPairEnv(t *testing.T) *pairEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Coexistence : la clé wolagent/1 existe, et l'appairage wolagent/2 ne doit jamais l'afficher.
+	if err := cfg.EnableV1(); err != nil {
+		t.Fatal(err)
+	}
 	e := &pairEnv{dir: dir, cfgPath: filepath.Join(dir, "config.json"), cfg: cfg, port: port}
 	if err := config.Save(e.cfgPath, cfg); err != nil {
 		t.Fatal(err)
@@ -183,8 +187,11 @@ func TestPairOffline(t *testing.T) {
 	if err := printPairingV2(&out, p, false, false, time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "Service arrêté") || strings.Contains(out.String(), "--v1") {
-		t.Errorf("affichage :\n%s", out.String())
+	// wolagent/1 refusé (p.Legacy faux) : pas de « pair --v1 » seul, qui échouerait, mais le moyen de le rétablir.
+	text := out.String()
+	if !strings.Contains(text, "Service arrêté") || !strings.Contains(text, "« wol-agent protocols v1 on », puis « wol-agent pair --v1 »") ||
+		strings.Contains(text, "ou téléphone sous Android 8 ou 9 : « wol-agent pair --v1 »") {
+		t.Errorf("affichage :\n%s", text)
 	}
 
 	start := time.Now()

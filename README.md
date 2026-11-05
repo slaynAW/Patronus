@@ -165,7 +165,8 @@ lancé **en administrateur** sur le PC, avec son **serveur web activé** (*Optio
 indispensable depuis sa version 0.9.5) ; dans ses *Options*, cochez aussi *Start Minimized*, *Minimize To Tray* et
 *Run On Windows Startup* pour qu'il tourne en permanence. Sous Linux, rien à installer (capteurs du noyau, `nvidia-smi`).
 
-Commandes utiles : `wol-agent pair` (réafficher le QR code), `wol-agent status`, `wol-agent rotate-key` (changer la clé),
+Commandes utiles : `wol-agent pair` (réafficher le QR code), `wol-agent status`, `wol-agent rotate-key` (changer la clé
+`wolagent/1`), `wol-agent protocols` (protocoles acceptés),
 `wol-agent update` (mettre à jour), `wol-agent uninstall`. Détails : **[agent/README.md](agent/README.md)**.
 
 ## 5. Utilisation
@@ -257,7 +258,9 @@ sont ensuite chiffrés, l'empreinte du PC est vérifiée à chaque connexion, et
 seul. La fiche du PC affiche *Chiffré et authentifié* et son empreinte, à comparer avec `wol-agent status`. Les
 nouveaux appairages s'y font directement : le QR code de `wol-agent pair` contient l'empreinte de l'agent et un code à
 usage unique, sans aucune clé secrète, et l'application n'envoie ce code qu'à l'agent qui présente cette empreinte.
-Téléphone sous Android 8 ou 9, ou application antérieure à 1.12 : `wol-agent pair --v1` affiche l'ancien QR code.
+Téléphone sous Android 8 ou 9, ou application antérieure à 1.12 : `wol-agent pair --v1` affiche l'ancien QR code. Depuis
+l'agent 1.14.0, une nouvelle installation refuse cet ancien protocole, non chiffré : `wol-agent protocols v1 on` le
+rétablit, `wol-agent protocols v1 off` le refuse sur une installation existante (et efface sa clé).
 Un appareil appairé avec le QR code de `wol-agent pair` en est **administrateur** : sur la fiche du PC, *Appareils
 autorisés* liste les appareils (rôle, nom, dernière connexion), en retire un ou change ses droits (consulter, démarrer,
 contrôler, administrer), et *Inviter un appareil* affiche un QR code à usage unique pour un autre téléphone ou

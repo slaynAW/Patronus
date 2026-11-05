@@ -57,6 +57,9 @@ Commandes :
                --v1 (ancien lien avec la clé de l'agent : applications antérieures à 1.12, Android 8 ou 9)
   rotate-key   Génère une nouvelle clé wolagent/1 (l'ancienne ne fonctionne plus : ré-appairez le téléphone).
                Les appareils passés en wolagent/2 ne sont pas concernés.
+  protocols    Protocoles acceptés. « protocols v1 on » rétablit l'ancien protocole wolagent/1, refusé par
+               les nouvelles installations (applications antérieures à 1.12, Android 8 ou 9) ;
+               « protocols v1 off » le refuse et efface sa clé.
   devices      Appareils autorisés en wolagent/2, le protocole chiffré des applications 1.12 :
                liste, retrait, rôle, nom (« wol-agent devices help »).
   status       Affiche l'état du service et la configuration.
@@ -69,7 +72,7 @@ Commandes :
   run          Lance l'agent au premier plan (utilisé par le service).  Options : --config, --dry-run
   version      Affiche la version.
 
-Les commandes install, pair, rotate-key, devices, update et uninstall nécessitent les droits administrateur
+Les commandes install, pair, rotate-key, protocols, devices, update et uninstall nécessitent les droits administrateur
 (Windows : invite de commandes « Exécuter en tant qu'administrateur » ; Linux/macOS : sudo).
 `
 
@@ -94,6 +97,8 @@ func main() {
 		err = cmdPair(args[1:])
 	case "rotate-key":
 		err = cmdRotateKey(args[1:])
+	case "protocols":
+		err = cmdProtocols(args[1:])
 	case "devices":
 		err = cmdDevices(args[1:])
 	case "status":
@@ -410,11 +415,14 @@ func cmdRotateKey(args []string) error {
 	if err != nil {
 		return err
 	}
-	fresh, err := config.New(cfg.Name, cfg.Port)
+	if !cfg.Accepts(config.ProtocolV1) {
+		return errors.New("wolagent/1 est refusé par cet agent, qui n'utilise donc aucune clé : rien à changer (« wol-agent protocols v1 on » le rétablit, avec une clé neuve)")
+	}
+	key, err := protocol.NewKey()
 	if err != nil {
 		return err
 	}
-	cfg.Key = fresh.Key
+	cfg.Key = key
 	if err := config.Save(*cfgPath, cfg); err != nil {
 		return err
 	}
@@ -843,7 +851,7 @@ type pairingOptions struct {
 func showPairingFor(cfg *config.Config, cfgPath string, o pairingOptions) error {
 	if o.V1 || !cfg.Accepts(config.ProtocolV2) {
 		if !cfg.Accepts(config.ProtocolV1) {
-			return errors.New("wolagent/1 est désactivé dans la configuration (« protocols ») : appairez sans --v1")
+			return errors.New("wolagent/1 est désactivé sur cet agent : appairez sans --v1, ou, pour un téléphone sous Android 8 ou 9 ou une application antérieure à 1.12, rétablissez-le avec « wol-agent protocols v1 on »")
 		}
 		return showPairing(cfg, o.IP, o.PNG, o.Invert)
 	}
@@ -937,6 +945,8 @@ func printPairingV2(w io.Writer, p pairingV2, invert, ansi bool, now time.Time) 
 	}
 	if p.Legacy {
 		fmt.Fprintln(w, "Application antérieure à 1.12, ou téléphone sous Android 8 ou 9 : « wol-agent pair --v1 ».")
+	} else {
+		fmt.Fprintln(w, v1Help)
 	}
 	return nil
 }
