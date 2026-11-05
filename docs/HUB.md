@@ -56,8 +56,9 @@ l'historique est complet ; la revue de sécurité (§15, décision 4) n'a laiss�
   `agent/internal/hub/…`), pour réutiliser sans les dupliquer son identité, son registre des appareils, son serveur
   TLS, `agent/protocol2` et son client. Les règles communes encore internes à l'application Windows (fusion de
   l'historique, `desktop/internal/history`) passent dans un paquet public de `agent/`, vérifié par les mêmes vecteurs.
-- **Un seul binaire statique** (`CGO_ENABLED=0`), sans dépendance nouvelle, dans une image `scratch` d'environ
-  10 Mo, multi-architecture (`amd64`, `arm64`). Le même binaire est publié seul pour les Linux sans conteneur.
+- **Un seul binaire statique** (`CGO_ENABLED=0`), sans dépendance nouvelle, seul dans son image (rien d'autre : ni
+  shell, ni bibliothèques, ni certificats), d'environ 3 Mo compressée, multi-architecture (`amd64`, `arm64`). Le même
+  binaire est publié seul pour les Linux sans conteneur.
 - **Port 9771** (TCP), à côté de l'agent du NAS (9770) qui reste installé et inchangé.
 
 ## 4. Moindre privilège : ce que le hub peut et ne peut pas faire
@@ -282,6 +283,11 @@ services:
 
 - Image et binaire construits par la CI à partir du même commit que les autres versions (`-trimpath`, sans cgo),
   publiés **seulement** par le job « Publication officielle », après ta validation.
+- L'image est écrite au format OCI par `.github/scripts/hub-image.py`, sans démon ni image de base : une couche avec le
+  binaire (mode 0555, propriétaire root), utilisateur 65532, port 9771, volumes `/data` et `/keys`. Mêmes binaires et
+  même date (celle du commit) : même empreinte. Le job « Hub (image de conteneur) » l'essaie à chaque build avec
+  Podman, réglée comme dans le guide (utilisateur 65532, lecture seule, sans capacité, `no-new-privileges`) ; le job de
+  publication pousse cette même image sur GHCR (étiquettes `X.Y.Z` et `latest`, `skopeo`, empreintes conservées).
 - Provenance attestée pour l'image (empreinte `sha256`) et le binaire, inventaire des composants (SBOM),
   `govulncheck`. Vérification : `gh attestation verify oci://ghcr.io/slaynaw/patronus-hub:2.0.0 --repo slaynAW/Patronus`.
 - Le fichier de projet du guide peut épingler l'image par son empreinte (`@sha256:…`) pour qui veut vérifier avant
@@ -324,7 +330,7 @@ Une PR par étape, chacune testée en CI et fusionnée quand tout est vert :
 | 2.0-F | Application Windows : réglages Hub, PC confiés, historique long, « Pendant votre absence » : fait (F1 : appairage, état et administration du hub ; F2 : PC confiés, appareils sans agent, réveil relayé par le hub ; F3 : « Pendant votre absence », état vu par le hub ; F4 : journal et mesures gardés par le hub dans l'écran « Mesures » ; éprouvés contre le vrai hub et de vrais agents par `agent/testhub`) |
 | 2.0-G | Application Android : idem : fait (G1 : service et gestionnaire du hub dans `core`, `HubService` et `HubManager`, éprouvés contre le vrai hub en CI ; règle commune des évènements admis, Go et Kotlin ; G2 : écran « Hub sur le NAS » : appairage par QR code ou lien, état, PC et appareils confiés, appareils sans agent, conservation, appareils autorisés et invitations, oubli ; G3a : ligne « Hub » de la fiche d'un PC, « Confier au hub », « Pendant votre absence », relevé du hub tant que l'application est affichée ; G3b : réveil relayé par le hub hors du réseau du PC, journal et mesures gardés par le hub dans l'écran « Mesures ») |
 | 2.0-H | Programmations (§8), rôle `control` donné et retiré par l'application : fait (H1 : côté hub, `hub.schedules`, planificateur, fuseau horaire, rôle effectif du hub suivi, évènements `shutdown` et réveils programmés ; éprouvé contre de vrais agents de test. H2 : application Windows, programmation d'un PC confié, rôle `control` donné puis retiré auprès de l'agent, fuseau horaire, textes des nouveaux évènements. H3 : application Android, idem, au-dessus de `HubManager.setSchedule` ; règle des programmations valides commune, Go et Kotlin) |
-| 2.0-I | Image de conteneur multi-architecture, attestation, publication ; guide `docs/HUB-SYNOLOGY.md` |
+| 2.0-I | Image de conteneur multi-architecture, attestation, publication ; guide `docs/HUB-SYNOLOGY.md` ; en cours (I1 : image OCI reproductible, essayée avec Podman à chaque build, publiée sur GHCR et attestée par le job de publication ; binaires `patronus-hub-linux-amd64` et `-arm64` dans chaque version) |
 | 2.0-J | Agent 1.14.0 (`wolagent/1` désactivé sur les nouvelles installations), revue de sécurité (§15), versions 2.0.0 |
 
 ## 15. Décisions à prendre

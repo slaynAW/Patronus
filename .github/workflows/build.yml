@@ -112,6 +112,7 @@ jobs:
       - name: Binaires
         env:
           VERSION: ${{ needs.version.outputs.agent }}
+          HUB_VERSION: ${{ needs.version.outputs.name }}
         run: |
           mkdir -p ../dist
           build() { # os arch [suffixe] [variables]
@@ -126,6 +127,13 @@ jobs:
           build linux arm "" GOARM=7
           build darwin amd64
           build darwin arm64
+          # Hub sur le NAS (docs/HUB.md) : même module, numéro de l'application ; binaires de l'image de
+          # conteneur, publiés aussi seuls pour les Linux sans conteneur.
+          for arch in amd64 arm64; do
+            echo "→ patronus-hub linux/$arch"
+            env CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=$HUB_VERSION" \
+              -o "../dist/patronus-hub-linux-$arch" ./cmd/patronus-hub
+          done
           ls -l ../dist
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -407,6 +415,68 @@ jobs:
   # Outils tiers d'analyse et d'inventaire, à l'écart des jobs qui produisent les fichiers publiés :
   # ils ne peuvent pas les modifier, et les caches restent en lecture seule (pas de cache empoisonné
   # pour les builds suivants).
+  # Image de conteneur du hub (docs/HUB.md, §10) : construite sans démon ni image de base à partir des
+  # binaires du job « agent », puis essayée comme sur le NAS (non root, lecture seule, sans capacité).
+  # Seul le job « Publication officielle » la publie, après ta validation.
+  hub-image:
+    name: Hub (image de conteneur)
+    needs: [version, agent]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VERSION: ${{ needs.version.outputs.name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: agent
+          path: dist
+      - name: Image OCI (linux/amd64, linux/arm64)
+        run: |
+          # Date du commit : mêmes binaires, même image, même empreinte.
+          SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) python3 -I .github/scripts/hub-image.py "$RUNNER_TEMP/hub-image" \
+            "$VERSION" "$GITHUB_SHA" amd64=dist/patronus-hub-linux-amd64 arm64=dist/patronus-hub-linux-arm64 > hub-image.digest
+          echo "Empreinte de l'image : $(cat hub-image.digest)"
+          skopeo --version
+          skopeo inspect --raw "oci:$RUNNER_TEMP/hub-image:$VERSION" | jq -c '.manifests[] | {platform, digest, size}'
+      # Le journal du hub (lien d'appairage à usage unique) n'est jamais affiché.
+      - name: Essai de l'image (Podman, réglages du guide)
+        run: |
+          podman --version
+          sudo skopeo copy --quiet "oci:$RUNNER_TEMP/hub-image:$VERSION" containers-storage:localhost/patronus-hub:essai
+          run=(sudo podman run --read-only --user 65532:65532 --cap-drop=ALL --security-opt=no-new-privileges)
+          got=$("${run[@]}" --rm localhost/patronus-hub:essai version)
+          [[ "$got" == "$VERSION" ]] || { echo "::error::version de l'image inattendue : $got"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/nas/data" "$RUNNER_TEMP/nas/keys"
+          sudo chown 65532:65532 "$RUNNER_TEMP/nas/data" "$RUNNER_TEMP/nas/keys"
+          sudo chmod 700 "$RUNNER_TEMP/nas/data" "$RUNNER_TEMP/nas/keys"
+          "${run[@]}" -d --name hub --network host -v "$RUNNER_TEMP/nas/data:/data" -v "$RUNNER_TEMP/nas/keys:/keys" \
+            localhost/patronus-hub:essai serve --port 19781 --ip 127.0.0.1 --name "Hub CI" > /dev/null
+          for i in $(seq 1 50); do sudo podman logs hub 2>&1 | grep -q "lien : " && break; sleep 0.2; done
+          if ! sudo podman logs hub 2>&1 | grep -q "lien : "; then
+            echo "::error::le hub de l'image n'a pas démarré"
+            sudo podman logs hub 2>&1 | grep -i "erreur" | head -5
+            exit 1
+          fi
+          # Lien suivant, comme le guide : « docker exec patronus-hub patronus-hub pair » (jamais affiché).
+          sudo podman exec hub patronus-hub pair --port 19781 --ip 127.0.0.1 > /dev/null
+          # Identité et données écrites par l'utilisateur 65532 dans les dossiers prévus.
+          sudo test -s "$RUNNER_TEMP/nas/keys/identity.key"
+          [[ "$(sudo stat -c %u "$RUNNER_TEMP/nas/keys/identity.key")" == 65532 ]] || { echo "::error::identité écrite par un autre utilisateur"; exit 1; }
+          sudo podman rm -f hub > /dev/null
+          echo "Image essayée : version $VERSION, utilisateur 65532, lecture seule, sans capacité."
+      - name: Archive de l'image
+        run: tar -C "$RUNNER_TEMP" -cf hub-image.tar hub-image
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: hub-image
+          path: |
+            hub-image.tar
+            hub-image.digest
+          if-no-files-found: error
+
   deps:
     name: Dépendances (failles connues, inventaire)
     needs: version
@@ -473,7 +543,7 @@ jobs:
 
   prerelease:
     name: Pré-version de développement
-    needs: [version, agent, agent-windows, desktop, desktop-windows, android, deps]
+    needs: [version, agent, agent-windows, desktop, desktop-windows, android, deps, hub-image]
     # Push sur une branche ou lancement manuel sans numéro ; jamais pour une pull request, ni pour
     # Dependabot (jeton en lecture seule). Aucun secret : l'APK garde sa clé de test.
     if: >-
@@ -522,7 +592,7 @@ jobs:
 
   release:
     name: Publication officielle
-    needs: [version, agent, agent-windows, desktop, desktop-windows, android, deps]
+    needs: [version, agent, agent-windows, desktop, desktop-windows, android, deps, hub-image]
     if: needs.version.outputs.official == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -533,6 +603,7 @@ jobs:
       contents: write # tag et Release
       id-token: write # attestation de provenance (Sigstore)
       attestations: write # enregistrement des attestations dans le dépôt
+      packages: write # image du hub (ghcr.io/slaynaw/patronus-hub) et son attestation
     env:
       GH_TOKEN: ${{ github.token }}
       VERSION: ${{ needs.version.outputs.name }}
@@ -616,6 +687,32 @@ jobs:
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: dist/*
+      # Image du hub essayée par le job « hub-image » : publiée telle quelle (même empreinte), puis
+      # attestée. Vérifiable : gh attestation verify oci://ghcr.io/slaynaw/patronus-hub:X.Y.Z --repo slaynAW/Patronus.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: hub-image
+          path: hub
+      - name: Image du hub (GitHub Container Registry)
+        id: hub
+        run: |
+          tar -C "$RUNNER_TEMP" -xf hub/hub-image.tar
+          digest=$(cat hub/hub-image.digest)
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::empreinte de l'image illisible"; exit 1; }
+          actual="sha256:$(skopeo inspect --raw "oci:$RUNNER_TEMP/hub-image:$VERSION" | sha256sum | cut -d' ' -f1)"
+          [[ "$actual" == "$digest" ]] || { echo "::error::l'image ne correspond pas à son empreinte"; exit 1; }
+          printf '%s' "$GH_TOKEN" | skopeo login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          for tag in "$VERSION" latest; do
+            skopeo copy --all --preserve-digests "oci:$RUNNER_TEMP/hub-image:$VERSION" "docker://ghcr.io/slaynaw/patronus-hub:$tag"
+          done
+          skopeo logout ghcr.io
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "Image publiée : ghcr.io/slaynaw/patronus-hub:$VERSION@$digest"
+      - name: Attestation de provenance (image du hub)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/slaynaw/patronus-hub
+          subject-digest: ${{ steps.hub.outputs.digest }}
       - name: Release
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then

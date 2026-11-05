@@ -33,6 +33,7 @@ page de téléchargement :
 | Intégrité | `sha256sum -c SHA256SUMS.txt --ignore-missing` dans le dossier des fichiers téléchargés. |
 | Provenance | `gh attestation verify <fichier> --repo slaynAW/Patronus` ([GitHub CLI](https://cli.github.com)) : prouve que le fichier a été compilé par la CI de ce dépôt, et indique le commit et le workflow d'origine. |
 | Signature de l'APK | `apksigner verify --print-certs Patronus-X.Y.Z.apk` (outils du SDK Android) : l'empreinte SHA-256 du certificat doit être `eeca09a92f3de7e1353471cf4364e117508183ae25f9e97a31bac997268df411`. Android refuse de toute façon une mise à jour signée par une autre clé. |
+| Image du hub | `gh attestation verify oci://ghcr.io/slaynaw/patronus-hub:X.Y.Z --repo slaynAW/Patronus` : même preuve pour l'image de conteneur du hub, par son empreinte `sha256`. L'image ne contient que le binaire `patronus-hub`, aussi publié seul (`patronus-hub-linux-amd64`, `-arm64`) : elle se reconstruit au bit près à partir de lui (`.github/scripts/hub-image.py`, date du commit). |
 | Composants | Inventaire au format CycloneDX (fichiers `.cdx.json`) : bibliothèques de l'application Android, modules Go de l'application Windows et de l'agent, version de Go. Lisible par les outils d'analyse de failles (OSV-Scanner, Dependency-Track…). |
 
 Les mises à jour intégrées vérifient elles-mêmes la signature du manifeste et l'empreinte de chaque
