@@ -27,6 +27,13 @@ type vectorFile struct {
 	Authorize   []authVector  `json:"authorize"`
 	Commands    []commandRole `json:"commands"`
 	Events      eventVectors  `json:"events"`
+	Slots       slotVectors   `json:"slots"`
+}
+
+// slotVectors : programmations acceptées (valid) ou refusées (invalid) par le hub et les applications (§6.7).
+type slotVectors struct {
+	Valid   []Slot `json:"valid"`
+	Invalid []Slot `json:"invalid"`
 }
 
 // eventVectors : évènements que les applications affichent (valid) ou écartent (invalid), T38.
@@ -71,7 +78,7 @@ var hubPin = protocol2.PinOf([]byte("hub de test"))
 func buildVectors() vectorFile {
 	v := vectorFile{
 		Description: "Vecteurs de patronus-hub/1 (docs/PROTOCOLE-HUB.md) : liens d'appairage du hub, salut, rôles, " +
-			"autorisation des commandes et évènements admis par les applications (T38). Produits par agent/hubprotocol (go test ./hubprotocol -run TestVectors -update) ; " +
+			"autorisation des commandes, évènements admis par les applications (T38) et programmations valides. Produits par agent/hubprotocol (go test ./hubprotocol -run TestVectors -update) ; " +
 			"relus par l'application Android (core).",
 		Protocol: ALPN, Port: DefaultPort, Hello: Hello,
 	}
@@ -156,6 +163,26 @@ func buildVectors() vectorFile {
 	for _, e := range v.Events.Invalid {
 		if ValidEvent(e) {
 			panic(fmt.Sprintf("évènement accepté : %+v", e))
+		}
+	}
+	slot := func(at string, days ...int) Slot { return Slot{On: true, Days: days, At: at} }
+	v.Slots.Valid = []Slot{
+		slot("07:30", 1, 2, 3, 4, 5), slot("00:00", 7), slot("23:59", 1, 2, 3, 4, 5, 6, 7), slot("19:05", 6, 7),
+		{On: false, Days: []int{3}, At: "12:00"},
+	}
+	v.Slots.Invalid = []Slot{
+		slot("24:00", 1), slot("7:30", 1), slot("07:60", 1), slot("07h30", 1), slot("07:30:00", 1), slot("", 1),
+		slot("07:30"), slot("07:30", 0), slot("07:30", 8), slot("07:30", 1, 1), slot("07:30", 1, 2, 3, 4, 5, 6, 7, 1),
+		slot("07:30 ", 1), slot("０７:３０", 1),
+	}
+	for _, s := range v.Slots.Valid {
+		if err := ValidSlot(s); err != nil {
+			panic(fmt.Sprintf("programmation refusée : %+v (%v)", s, err))
+		}
+	}
+	for _, s := range v.Slots.Invalid {
+		if ValidSlot(s) == nil {
+			panic(fmt.Sprintf("programmation acceptée : %+v", s))
 		}
 	}
 	return v

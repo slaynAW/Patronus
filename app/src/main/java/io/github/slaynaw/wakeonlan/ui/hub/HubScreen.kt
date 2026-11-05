@@ -61,9 +61,11 @@ import io.github.slaynaw.wakeonlan.core.hub.HubDeviceField
 import io.github.slaynaw.wakeonlan.core.hub.HubLinkResult
 import io.github.slaynaw.wakeonlan.core.hub.HubManager
 import io.github.slaynaw.wakeonlan.core.hub.HubPc
+import io.github.slaynaw.wakeonlan.core.hub.HubPcSchedule
 import io.github.slaynaw.wakeonlan.core.hub.HubPcState
 import io.github.slaynaw.wakeonlan.core.hub.HubProbe
 import io.github.slaynaw.wakeonlan.core.hub.HubService
+import io.github.slaynaw.wakeonlan.core.hub.HubSlot
 import io.github.slaynaw.wakeonlan.core.hub.HubState
 import io.github.slaynaw.wakeonlan.security.rememberSensitiveGate
 import io.github.slaynaw.wakeonlan.ui.admin.AdminTexts
@@ -89,6 +91,7 @@ import io.github.slaynaw.wakeonlan.ui.common.scanQrCode
 import io.github.slaynaw.wakeonlan.ui.edit.roleLabel
 import io.github.slaynaw.wakeonlan.ui.theme.MonoStyle
 import io.github.slaynaw.wakeonlan.ui.theme.WolPalette
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /** Textes des dialogues d'appareils autorisés, côté hub. */
@@ -117,6 +120,10 @@ fun HubScreen(onBack: () -> Unit) {
     val hubReason = stringResource(R.string.lock_reason_hub)
     val inviteReason = stringResource(R.string.lock_reason_invite)
     var scanFailure by remember { mutableStateOf<ScanFailure?>(null) }
+    // PC de ce téléphone (empreinte de leur agent) : seuls ceux-là peuvent recevoir une extinction programmée.
+    val localAgents by remember(container) {
+        container.repository.config.map { c -> c.devices.mapNotNull { d -> d.agent?.pin?.takeIf { it.isNotEmpty() } }.toSet() }
+    }.collectAsStateWithLifecycle(emptySet())
 
     // Résultats brefs : un message en bas de l'écran (hors de cet effet, relancé dès le résultat effacé) ; les
     // autres s'affichent dans un dialogue.
@@ -145,6 +152,9 @@ fun HubScreen(onBack: () -> Unit) {
         onRetention = { days -> gate.run(hubReason) { vm.retention(days) } },
         onRemove = { pcId -> gate.run(hubReason) { vm.remove(pcId) } },
         onAddDevice = { name, host, mac, probe -> gate.run(hubReason) { vm.addDevice(name, host, mac, probe) } },
+        localAgents = localAgents,
+        onSchedule = { pc, wake, shutdown -> gate.run(hubReason) { vm.setSchedule(pc.id, pc.name, wake, shutdown) } },
+        onTimezone = { tz -> gate.run(hubReason) { vm.timezone(tz) } },
         onDismissNotice = vm::dismissNotice,
         onDismissCreated = vm::dismissCreated,
         onCopy = { text ->
@@ -191,6 +201,10 @@ fun HubContent(
     onDismissNotice: () -> Unit,
     onDismissCreated: () -> Unit,
     onCopy: (String) -> Unit,
+    /** Empreintes des agents des PC de ce téléphone. */
+    localAgents: Set<String> = emptySet(),
+    onSchedule: (pc: HubPc, wake: HubSlot?, shutdown: HubSlot?) -> Unit = { _, _, _ -> },
+    onTimezone: (String) -> Unit = {},
 ) {
     var showPaste by rememberSaveable { mutableStateOf(false) }
     var showForget by rememberSaveable { mutableStateOf(false) }
@@ -199,6 +213,9 @@ fun HubContent(
     var showAddDevice by rememberSaveable { mutableStateOf(false) }
     var selected by remember { mutableStateOf<DeviceInfo?>(null) }
     var removing by remember { mutableStateOf<HubPc?>(null) }
+    var scheduling by remember { mutableStateOf<HubPc?>(null) }
+    var showTimezone by rememberSaveable { mutableStateOf(false) }
+    val schedules = state.schedules
     val paired = hub.hub
     val admin = paired?.isAdmin == true
     Scaffold(
@@ -254,7 +271,16 @@ fun HubContent(
                         }
                         pcs.forEachIndexed { index, pc ->
                             if (index > 0) RowDivider()
-                            PcRow(pc, hub.snapshot?.stateOf(pc.id), now, admin, onRemove = { removing = pc })
+                            PcRow(
+                                pc, hub.snapshot?.stateOf(pc.id), now, admin, onRemove = { removing = pc },
+                                schedule = schedules?.of(pc.id),
+                                // Programmations : hub qui les sert, appareil avec MAC ou PC avec agent.
+                                onSchedule = if (admin && schedules != null && (pc.mac.isNotEmpty() || pc.agent.isNotEmpty())) {
+                                    { scheduling = pc }
+                                } else {
+                                    null
+                                },
+                            )
                         }
                     }
                     if (admin) {
@@ -265,7 +291,10 @@ fun HubContent(
                             icon = WolIcons.Plus,
                             enabled = !state.busy,
                         )
-                        AdminSections(state, onSelect = { selected = it }, onChange = onChange, onRetry = onRefresh, onRetention = { showRetention = true })
+                        AdminSections(
+                            state, onSelect = { selected = it }, onChange = onChange, onRetry = onRefresh, onRetention = { showRetention = true },
+                            onTimezone = { showTimezone = true },
+                        )
                         WolButton(
                             stringResource(R.string.admin_invite),
                             onClick = { showInvite = true },
@@ -336,6 +365,29 @@ fun HubContent(
                 if (days != state.admin?.retention) onRetention(days)
             },
             onDismiss = { showRetention = false },
+        )
+    }
+    scheduling?.let { pc ->
+        ScheduleDialog(
+            pc = pc,
+            current = schedules?.of(pc.id),
+            timezone = schedules?.timezone.orEmpty(),
+            canShutdown = pc.agent.isNotEmpty() && pc.agent in localAgents,
+            onSave = { wake, shutdown ->
+                scheduling = null
+                onSchedule(pc, wake, shutdown)
+            },
+            onDismiss = { scheduling = null },
+        )
+    }
+    if (showTimezone && schedules != null) {
+        TimezoneDialog(
+            current = schedules.timezone,
+            onChoose = { tz ->
+                showTimezone = false
+                if (tz != schedules.timezone) onTimezone(tz)
+            },
+            onDismiss = { showTimezone = false },
         )
     }
     removing?.let { pc ->
@@ -449,7 +501,15 @@ private fun StateCard(hub: HubState, now: Long) {
 
 /** PC ou appareil confié au hub, avec l'état relevé par le hub. */
 @Composable
-private fun PcRow(pc: HubPc, state: HubPcState?, now: Long, admin: Boolean, onRemove: () -> Unit) {
+private fun PcRow(
+    pc: HubPc,
+    state: HubPcState?,
+    now: Long,
+    admin: Boolean,
+    onRemove: () -> Unit,
+    schedule: HubPcSchedule? = null,
+    onSchedule: (() -> Unit)? = null,
+) {
     val probe = pc.probe
     val what = when {
         pc.agent.isNotEmpty() -> stringResource(R.string.hub_pc_agent, Pin.parse(pc.agent)?.short().orEmpty(), roleLabel(pc.role))
@@ -469,6 +529,16 @@ private fun PcRow(pc: HubPc, state: HubPcState?, now: Long, admin: Boolean, onRe
             Text(pc.host, style = MonoStyle.copy(fontSize = 12.sp), color = WolPalette.Text2)
             Text(what, style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
             Text(stateText, style = MaterialTheme.typography.bodySmall, color = stateColor)
+            val plan = scheduleText(schedule)
+            if (plan.isNotEmpty()) Text(plan, style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
+            if (schedule?.shutdown?.on == true && pc.role != "control") {
+                Text(stringResource(R.string.hub_schedule_role_missing), style = MaterialTheme.typography.bodySmall, color = WolPalette.DangerText)
+            }
+        }
+        if (onSchedule != null) {
+            IconButton(onClick = onSchedule) {
+                Icon(WolIcons.Clock, contentDescription = stringResource(R.string.hub_schedule), tint = WolPalette.Text2)
+            }
         }
         if (admin) {
             IconButton(onClick = onRemove) {
@@ -486,6 +556,7 @@ private fun AdminSections(
     onChange: (AdminChange) -> Unit,
     onRetry: () -> Unit,
     onRetention: () -> Unit,
+    onTimezone: () -> Unit = {},
 ) {
     state.adminFailure?.let { failure ->
         WolCard {
@@ -511,6 +582,18 @@ private fun AdminSections(
         )
     }
     Text(stringResource(R.string.hub_retention_help), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
+    state.schedules?.let { schedules ->
+        SectionLabel(stringResource(R.string.hub_timezone_title), Modifier.padding(top = 6.dp))
+        WolCard {
+            KeyValueRow(
+                stringResource(R.string.hub_timezone),
+                schedules.timezone,
+                modifier = Modifier.clickable(enabled = !state.busy, onClick = onTimezone),
+                valueColor = WolPalette.Blue,
+            )
+        }
+        Text(stringResource(R.string.hub_timezone_help), style = MaterialTheme.typography.bodySmall, color = WolPalette.Text2)
+    }
     if (admin.devices.isNotEmpty()) {
         SectionLabel(stringResource(R.string.admin_devices), Modifier.padding(top = 6.dp))
         WolCard {
@@ -705,6 +788,8 @@ private fun briefText(notice: HubNotice): String? = when (notice) {
     is HubNotice.Removed -> if (notice.kept) null else stringResource(R.string.hub_pc_removed, notice.name)
     is HubNotice.DeviceAdded -> stringResource(R.string.hub_device_added, notice.name)
     is HubNotice.Retention -> stringResource(R.string.hub_retention_done, retentionLabel(notice.days))
+    is HubNotice.ScheduleSaved -> stringResource(R.string.hub_schedule_saved, notice.name)
+    is HubNotice.Timezone -> stringResource(R.string.hub_timezone_done, notice.timezone)
     else -> null
 }
 
@@ -719,6 +804,15 @@ private fun noticeDialog(notice: HubNotice): Pair<String, String>? = when (notic
         },
     )
     HubNotice.OtherHub -> stringResource(R.string.hub_pair_failed) to stringResource(R.string.hub_other_paired)
+    HubNotice.ScheduleRoleKept -> stringResource(R.string.hub_schedule_role_kept_title) to stringResource(R.string.hub_schedule_role_kept)
+    is HubNotice.ScheduleAgentFailed -> stringResource(R.string.admin_failed) to stringResource(
+        R.string.hub_schedule_agent,
+        if (notice.failure.code == HubManager.NOT_ADMIN_OF_PC || notice.failure.code == ResponseCode.INSUFFICIENT_ROLE) {
+            stringResource(R.string.hub_schedule_not_admin)
+        } else {
+            stringResource(notice.failure.error.label())
+        },
+    )
     is HubNotice.PairFailed -> stringResource(R.string.hub_pair_failed) to hubFailureText(notice.failure)
     is HubNotice.Failed -> stringResource(R.string.admin_failed) to hubFailureText(notice.failure)
     is HubNotice.Forgotten -> if (notice.revoked) null else stringResource(R.string.hub_forgotten_kept_title) to stringResource(R.string.hub_forgotten_kept)

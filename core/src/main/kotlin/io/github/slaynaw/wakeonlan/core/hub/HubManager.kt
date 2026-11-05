@@ -69,6 +69,32 @@ sealed interface PairOutcome {
     data class Failed(val failure: AgentResult.Failure) : PairOutcome
 }
 
+/** Ce qui a été fait du rôle « control » du hub sur l'agent en programmant l'extinction (§6.7). */
+enum class ControlRole {
+    /** Rien à changer. */
+    UNCHANGED,
+
+    /** Donné au hub avant d'activer l'extinction. */
+    GRANTED,
+
+    /** Retiré au hub : l'extinction est désactivée. */
+    WITHDRAWN,
+
+    /** L'extinction est désactivée mais le rôle n'a pas pu être retiré (PC éteint…) : à faire depuis le PC. */
+    NOT_WITHDRAWN,
+}
+
+/** Résultat de « Programmer ». */
+sealed interface ScheduleOutcome {
+    data class Saved(val schedule: HubPcSchedule, val control: ControlRole) : ScheduleOutcome
+
+    /** L'agent refuse de donner au hub le rôle « control » (ce téléphone n'administre pas le PC, PC éteint…). */
+    data class AgentFailed(val failure: AgentResult.Failure) : ScheduleOutcome
+
+    /** Le hub refuse la programmation (ou il est injoignable) ; un rôle donné juste avant est rendu. */
+    data class HubFailed(val failure: AgentResult.Failure) : ScheduleOutcome
+}
+
 /**
  * Le hub dans l'application (docs/HUB.md, §12) : hub appairé, relevé périodique tant que l'interface le regarde
  * ([watch]), évènements non vus, administration et PC confiés, au-dessus de [HubService]. Sans hub, rien ne change :
@@ -284,6 +310,69 @@ class HubManager(
         }
     }
 
+    /** Programmations du hub et son fuseau horaire (administrateur du hub). */
+    suspend fun schedules(): AgentResult<HubSchedules> = withHub { service.schedules(it) }
+
+    /**
+     * Remplace la programmation du PC [pcId] du hub : [wake], [shutdown] (null : retirée). Activer l'extinction donne
+     * d'abord au hub le rôle « control » auprès de l'agent (ce téléphone administrateur du PC, [devices] : ses PC) ; la
+     * désactiver le lui retire (docs/HUB.md, §4). Le hub ne le demande jamais lui-même.
+     */
+    suspend fun setSchedule(pcId: String, wake: HubSlot?, shutdown: HubSlot?, devices: List<Device>): ScheduleOutcome {
+        val hub = store.current() ?: return ScheduleOutcome.HubFailed(noHub())
+        val bad = AgentResult.Failure(AgentError.REJECTED, code = ResponseCode.BAD_REQUEST)
+        if (listOfNotNull(wake, shutdown).any { !HubProtocol.validSlot(it) }) return ScheduleOutcome.HubFailed(bad)
+        if (snapshotOf(hub) == null) refresh()
+        val pc = snapshotOf(hub)?.pcs?.firstOrNull { it.id == pcId } ?: return ScheduleOutcome.HubFailed(bad)
+        val local = devices.firstOrNull { pc.agent.isNotEmpty() && it.agent?.pin == pc.agent && it.hasHost }
+        suspend fun control(role: Role): AgentResult<Unit> {
+            val d = local ?: return AgentResult.Failure(AgentError.NO_KEY, "PC inconnu de ce téléphone", NOT_ADMIN_OF_PC)
+            val agent = d.agent ?: return AgentResult.Failure(AgentError.NO_KEY, code = NOT_ADMIN_OF_PC)
+            return agents.setDeviceRole(d.host, agent, hub.pin, role.wire)
+        }
+        val wantControl = shutdown?.on == true
+        var granted = false
+        if (wantControl && pc.role != Role.CONTROL.wire) {
+            if (pc.agent.isEmpty()) return ScheduleOutcome.HubFailed(bad)
+            when (val r = control(Role.CONTROL)) {
+                is AgentResult.Success -> {
+                    granted = true
+                    log("rôle control donné au hub sur « ${pc.name} » (extinction programmée)")
+                }
+                is AgentResult.Failure -> {
+                    log("rôle control du hub sur « ${pc.name} » : ${r.error} ${r.code.orEmpty()}")
+                    return ScheduleOutcome.AgentFailed(r)
+                }
+            }
+        }
+        val schedule = if (wake == null && shutdown == null) null else HubSchedule(wake, shutdown)
+        val saved = when (val r = service.setSchedule(hub, pcId, schedule)) {
+            is AgentResult.Success -> r.value
+            is AgentResult.Failure -> {
+                log("programmation de « ${pc.name} » sur le hub : ${r.error} ${r.code.orEmpty()}")
+                // Programmation refusée : le hub n'a pas besoin du rôle donné juste avant.
+                if (granted && control(Role.WAKE) is AgentResult.Failure) log("rôle control du hub sur « ${pc.name} » non rendu")
+                return ScheduleOutcome.HubFailed(r)
+            }
+        }
+        val role = when {
+            granted -> ControlRole.GRANTED
+            !wantControl && pc.role == Role.CONTROL.wire -> when (val r = control(Role.WAKE)) {
+                is AgentResult.Success -> ControlRole.WITHDRAWN.also { log("rôle control retiré au hub sur « ${pc.name} »") }
+                is AgentResult.Failure -> ControlRole.NOT_WITHDRAWN.also {
+                    log("rôle control du hub sur « ${pc.name} » non retiré : ${r.error} ${r.code.orEmpty()}")
+                }
+            }
+            else -> ControlRole.UNCHANGED
+        }
+        log("programmation de « ${pc.name} » enregistrée sur le hub « ${hub.name} »")
+        refresh()
+        return ScheduleOutcome.Saved(saved, role)
+    }
+
+    /** Fuseau horaire des programmations du hub (nom IANA). */
+    suspend fun timezone(timezone: String): AgentResult<String> = withHub { service.timezone(it, timezone.trim()) }
+
     /** Jours de mesures (« 2026-10-03 ») que le hub garde pour le PC [device], s'il lui est confié (§6.3). */
     suspend fun archiveDays(device: Device): AgentResult<List<String>> {
         val (hub, pc) = entrusted(device) ?: return notEntrusted()
@@ -335,5 +424,8 @@ class HubManager(
 
         /** Code d'échec : PC non confié au hub (ou pas de hub). */
         const val NOT_ENTRUSTED = "not_entrusted"
+
+        /** Code d'échec : ce téléphone ne connaît pas le PC (il ne peut pas changer le rôle du hub sur l'agent). */
+        const val NOT_ADMIN_OF_PC = "not_admin_of_pc"
     }
 }

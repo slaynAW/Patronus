@@ -37,7 +37,26 @@ data class HubRequest(
     val day: String? = null,
     val retention: Int? = null,
     val since: Long? = null,
+    /** hub.settings : fuseau horaire des programmations (nom IANA). */
+    val timezone: String? = null,
+    /** hub.schedules.set : programmation du PC (null : plus aucune). */
+    val schedule: HubSchedule? = null,
 )
+
+/**
+ * Programmation (§6.7) : jours ISO (1 = lundi … 7 = dimanche) et heure « HH:MM » dans le fuseau du hub ; [next], dans
+ * les réponses seulement, est la prochaine occurrence (secondes Unix).
+ */
+@Serializable
+data class HubSlot(val on: Boolean = false, val days: List<Int> = emptyList(), val at: String = "", val next: Long = 0)
+
+/** Programmation d'un PC : réveil, extinction si inactif (null : aucune). */
+@Serializable
+data class HubSchedule(val wake: HubSlot? = null, val shutdown: HubSlot? = null)
+
+/** Programmation du PC d'identifiant [pc]. */
+@Serializable
+data class HubPcSchedule(val pc: String = "", val wake: HubSlot? = null, val shutdown: HubSlot? = null)
 
 /** Sonde d'un appareil sans agent (§6.1) : « tcp » avec un port, « http » ou « https ». */
 @Serializable
@@ -101,7 +120,7 @@ data class HubEvent(val t: Long = 0, val pc: String = "", val k: String = "", va
 
 /** Réglages du hub (§6.4). */
 @Serializable
-data class HubSettings(val retention: Int = 0)
+data class HubSettings(val retention: Int = 0, val timezone: String = "")
 
 /** Réponse du hub (§4). */
 @Serializable
@@ -124,6 +143,8 @@ data class HubResponse(
     val metrics: AgentMetrics? = null,
     val settings: HubSettings? = null,
     val events: List<HubEvent> = emptyList(),
+    val schedules: List<HubPcSchedule> = emptyList(),
+    val schedule: HubPcSchedule? = null,
 )
 
 /**

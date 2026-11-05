@@ -35,8 +35,11 @@ import io.github.slaynaw.wakeonlan.core.hub.HubAdmin
 import io.github.slaynaw.wakeonlan.core.hub.HubEvent
 import io.github.slaynaw.wakeonlan.core.hub.HubInfo
 import io.github.slaynaw.wakeonlan.core.hub.HubPc
+import io.github.slaynaw.wakeonlan.core.hub.HubPcSchedule
 import io.github.slaynaw.wakeonlan.core.hub.HubPcState
 import io.github.slaynaw.wakeonlan.core.hub.HubProbe
+import io.github.slaynaw.wakeonlan.core.hub.HubSchedules
+import io.github.slaynaw.wakeonlan.core.hub.HubSlot
 import io.github.slaynaw.wakeonlan.core.hub.HubSnapshot
 import io.github.slaynaw.wakeonlan.core.hub.HubState
 import io.github.slaynaw.wakeonlan.core.hub.PairedHub
@@ -516,6 +519,16 @@ class ScreenshotTest {
                     ),
                     invites = listOf(InviteInfo("i1", role = "view", name = "Tablette", expires = day + 3_600)),
                     retention = 365,
+                ),
+                schedules = HubSchedules(
+                    listOf(
+                        HubPcSchedule(
+                            "p1",
+                            wake = HubSlot(on = true, days = listOf(1, 2, 3, 4, 5), at = "07:30", next = day + 40_000),
+                            shutdown = HubSlot(on = true, days = (1..7).toList(), at = "23:00", next = day + 10_000),
+                        ),
+                    ),
+                    "Europe/Paris",
                 ),
             ),
             now = now,

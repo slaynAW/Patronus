@@ -1,5 +1,5 @@
 {
-  "description": "Vecteurs de patronus-hub/1 (docs/PROTOCOLE-HUB.md) : liens d'appairage du hub, salut, rôles, autorisation des commandes et évènements admis par les applications (T38). Produits par agent/hubprotocol (go test ./hubprotocol -run TestVectors -update) ; relus par l'application Android (core).",
+  "description": "Vecteurs de patronus-hub/1 (docs/PROTOCOLE-HUB.md) : liens d'appairage du hub, salut, rôles, autorisation des commandes, évènements admis par les applications (T38) et programmations valides. Produits par agent/hubprotocol (go test ./hubprotocol -run TestVectors -update) ; relus par l'application Android (core).",
   "protocol": "patronus-hub/1",
   "port": 9771,
   "hello": "{\"proto\":\"patronus-hub/1\"}",
@@ -1179,6 +1179,154 @@
         "t": 1790000000,
         "pc": "",
         "k": "online"
+      }
+    ]
+  },
+  "slots": {
+    "valid": [
+      {
+        "on": true,
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "at": "07:30"
+      },
+      {
+        "on": true,
+        "days": [
+          7
+        ],
+        "at": "00:00"
+      },
+      {
+        "on": true,
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "at": "23:59"
+      },
+      {
+        "on": true,
+        "days": [
+          6,
+          7
+        ],
+        "at": "19:05"
+      },
+      {
+        "on": false,
+        "days": [
+          3
+        ],
+        "at": "12:00"
+      }
+    ],
+    "invalid": [
+      {
+        "on": true,
+        "days": [
+          1
+        ],
+        "at": "24:00"
+      },
+      {
+        "on": true,
+        "days": [
+          1
+        ],
+        "at": "7:30"
+      },
+      {
+        "on": true,
+        "days": [
+          1
+        ],
+        "at": "07:60"
+      },
+      {
+        "on": true,
+        "days": [
+          1
+        ],
+        "at": "07h30"
+      },
+      {
+        "on": true,
+        "days": [
+          1
+        ],
+        "at": "07:30:00"
+      },
+      {
+        "on": true,
+        "days": [
+          1
+        ],
+        "at": ""
+      },
+      {
+        "on": true,
+        "at": "07:30"
+      },
+      {
+        "on": true,
+        "days": [
+          0
+        ],
+        "at": "07:30"
+      },
+      {
+        "on": true,
+        "days": [
+          8
+        ],
+        "at": "07:30"
+      },
+      {
+        "on": true,
+        "days": [
+          1,
+          1
+        ],
+        "at": "07:30"
+      },
+      {
+        "on": true,
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          1
+        ],
+        "at": "07:30"
+      },
+      {
+        "on": true,
+        "days": [
+          1
+        ],
+        "at": "07:30 "
+      },
+      {
+        "on": true,
+        "days": [
+          1
+        ],
+        "at": "０７:３０"
       }
     ]
   }

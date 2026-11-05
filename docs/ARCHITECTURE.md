@@ -28,7 +28,8 @@ Patronus/
 │   ├── network/    suivi du Wi-Fi/Ethernet, autorisation « réseau local »
 │   ├── ui/         écrans Compose : onglets (vue d'ensemble, appareils, réglages), fiche d'un PC,
 │   │               historique, édition (appairage par QR code), appareils autorisés (admin), hub sur le NAS
-│   │               (hub : appairage, état, PC confiés, administration) ; thème sombre commun avec Windows
+│   │               (hub : appairage, état, PC confiés, programmations, administration, « Pendant votre
+│   │               absence ») ; thème sombre commun avec Windows
 │   ├── AppContainer.kt    assemblage des dépendances (injection manuelle)
 │   ├── DeviceActions.kt   réveil / extinction / test d'agent / appairage / administration des appareils
 │   ├── AgentUpgradeTracker.kt  passage automatique des PC en wolagent/2

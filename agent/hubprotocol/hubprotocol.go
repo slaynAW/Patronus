@@ -234,7 +234,7 @@ type Response struct {
 // fuseau horaire du hub. Next, dans les réponses seulement, est la prochaine occurrence (secondes Unix).
 type Slot struct {
 	On   bool   `json:"on"`
-	Days []int  `json:"days"`
+	Days []int  `json:"days,omitempty"`
 	At   string `json:"at"`
 	Next int64  `json:"next,omitempty"`
 }

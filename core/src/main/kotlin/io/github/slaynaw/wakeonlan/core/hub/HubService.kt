@@ -128,6 +128,11 @@ sealed interface EntrustResult {
 /** Retrait d'un PC du hub : [agentRevoked] null pour un appareil sans agent, sinon le retrait du hub sur le PC. */
 data class HubRemoval(val pc: HubPc, val agentRevoked: Boolean?)
 
+/** Programmations du hub (§6.7) et son fuseau horaire ; un hub qui ne les sert pas encore n'en a aucune. */
+data class HubSchedules(val schedules: List<HubPcSchedule>, val timezone: String) {
+    fun of(pcId: String): HubPcSchedule? = schedules.firstOrNull { it.pc == pcId }
+}
+
 /** Champ refusé d'un appareil sans agent. */
 enum class HubDeviceField { NAME, HOST, MAC, PROBE, PORT }
 
@@ -272,6 +277,30 @@ class HubService(
             mac = MacAddress.parseOrNull(mac)?.toString(), probe = probe)
         return when (val r = request(hub, request)) {
             is AgentResult.Success -> r.value.pc?.let { AgentResult.Success(it) } ?: protocolError("appareil absent de la réponse")
+            is AgentResult.Failure -> r
+        }
+    }
+
+    /** Programmations du hub et son fuseau horaire (administrateurs). */
+    suspend fun schedules(hub: PairedHub): AgentResult<HubSchedules> =
+        when (val r = request(hub, HubRequest(cmd = HubProtocol.SCHEDULES))) {
+            is AgentResult.Success -> AgentResult.Success(HubSchedules(r.value.schedules, r.value.settings?.timezone.orEmpty()))
+            is AgentResult.Failure ->
+                if (r.code == ResponseCode.UNSUPPORTED) AgentResult.Success(HubSchedules(emptyList(), "")) else r
+        }
+
+    /** Remplace la programmation du PC [pcId] ([schedule] null : plus aucune) ; rend celle enregistrée. */
+    suspend fun setSchedule(hub: PairedHub, pcId: String, schedule: HubSchedule?): AgentResult<HubPcSchedule> =
+        when (val r = request(hub, HubRequest(cmd = HubProtocol.SCHEDULES_SET, pc = pcId, schedule = schedule))) {
+            is AgentResult.Success -> AgentResult.Success(r.value.schedule ?: HubPcSchedule(pc = pcId))
+            is AgentResult.Failure -> r
+        }
+
+    /** Change le fuseau horaire des programmations du hub (nom IANA) ; rend celui enregistré. */
+    suspend fun timezone(hub: PairedHub, timezone: String): AgentResult<String> {
+        if (timezone.isBlank() || timezone.length > 64) return AgentResult.Failure(AgentError.REJECTED, code = ResponseCode.BAD_REQUEST)
+        return when (val r = request(hub, HubRequest(cmd = HubProtocol.SETTINGS, timezone = timezone))) {
+            is AgentResult.Success -> r.value.settings?.let { AgentResult.Success(it.timezone) } ?: protocolError("réglages absents de la réponse")
             is AgentResult.Failure -> r
         }
     }

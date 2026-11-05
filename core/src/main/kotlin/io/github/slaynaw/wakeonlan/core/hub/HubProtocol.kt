@@ -73,6 +73,16 @@ object HubProtocol {
     private val MEASURE_ID = Regex("[a-z0-9][a-z0-9._-]{0,23}")
     private val SHORT_PIN = Regex("[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}")
 
+    private val SLOT_TIME = Regex("([01][0-9]|2[0-3]):[0-5][0-9]")
+
+    /** Programmation valide (§6.7) : au moins un jour de 1 à 7, sans doublon, et une heure « HH:MM ». */
+    fun validSlot(slot: HubSlot): Boolean =
+        SLOT_TIME.matches(slot.at) && slot.days.isNotEmpty() && slot.days.size <= 7 && slot.days.all { it in 1..7 } &&
+            slot.days.toSet().size == slot.days.size
+
+    /** Fuseau horaire des programmations d'un hub neuf. */
+    const val DEFAULT_TIMEZONE = "Europe/Paris"
+
     /** Réveil demandé sur le NAS (HubEvent.i). */
     const val WAKE_LOCAL = "local"
 

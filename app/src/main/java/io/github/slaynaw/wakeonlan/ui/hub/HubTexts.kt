@@ -90,10 +90,19 @@ internal fun hubEventText(event: HubEvent, name: String?, selfShort: String?): S
             },
         )
         "wake" -> when {
+            event.i == HubProtocol.WAKE_SCHEDULE -> stringResource(R.string.absence_wake_schedule, who)
             selfShort != null && event.i == selfShort -> stringResource(R.string.absence_wake_self, who)
             event.i == HubProtocol.WAKE_LOCAL -> stringResource(R.string.absence_wake_nas, who)
             else -> stringResource(R.string.absence_wake_other, who, event.i)
         }
+        "shutdown" -> stringResource(
+            when (event.x) {
+                HubProtocol.SHUTDOWN_POSTPONED -> R.string.absence_shutdown_postponed
+                HubProtocol.SHUTDOWN_REFUSED -> R.string.absence_shutdown_refused
+                else -> R.string.absence_shutdown_done
+            },
+            who,
+        )
         else -> who
     }
 }
@@ -103,6 +112,7 @@ internal fun hubEventIcon(event: HubEvent): ImageVector = when (event.k) {
     "online", "offline" -> WolIcons.Power
     "lost" -> WolIcons.Bolt
     "wake" -> WolIcons.Send
+    "shutdown" -> WolIcons.Clock
     else -> WolIcons.Warning
 }
 
