@@ -215,7 +215,8 @@ flowchart LR
 | Scénario d'historique commun Kotlin ↔ Go (fusion, doublons, conservation) | `protocol/history-vectors.json` |
 | Mesures décrites par l'agent, lues élément par élément en Go et en Kotlin (validation, gravité) | `protocol/measure-vectors.json` |
 | Stockage chiffré du hub (dérivation des clés, fichiers entiers, journaux, cas refusés) : Go et une seconde implémentation en Python, à chaque build | `protocol/hub-store-vectors.json`, `.github/scripts/check-hub-store-vectors.py` |
-| Protocole du hub `patronus-hub/1` : liens d'appairage, salut, rôles, autorisation des commandes et évènements admis par les applications (T38), en Go et en Kotlin (`core`, `HubTest`) | `protocol/hub-vectors.json` |
+| Protocole du hub `patronus-hub/1` : liens d'appairage, salut, rôles, autorisation des commandes, évènements admis par les applications (T38) et programmations valides, en Go et en Kotlin (`core`, `HubTest`) | `protocol/hub-vectors.json` |
+| Image de conteneur du hub : construite de façon reproductible, puis démarrée avec Podman comme sur le NAS (utilisateur 65532, lecture seule, sans capacité) | CI (job « Hub (image de conteneur) »), `.github/scripts/hub-image.py` |
 | Tests de l'application Windows (Linux + Windows : DPAPI, ping, cartes réseau), tests de bout en bout contre l'agent (`wolagent/1`, `wolagent/2`, passage automatique) | CI |
 | Démarrage réel de l'application Windows (fenêtre WebView2, interface, pont Go ↔ JS) | CI (`WOL_SELFTEST`) |
 | Lint Android, `go vet` pour Windows/Linux/macOS, `gofmt` | CI |
