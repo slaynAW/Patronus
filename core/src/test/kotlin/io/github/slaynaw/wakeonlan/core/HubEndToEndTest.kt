@@ -8,6 +8,7 @@ import io.github.slaynaw.wakeonlan.core.agent2.Role
 import io.github.slaynaw.wakeonlan.core.agent2.ResponseCode
 import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2Client
 import io.github.slaynaw.wakeonlan.core.agent2.Wolagent2Exception
+import io.github.slaynaw.wakeonlan.core.hub.ControlRole
 import io.github.slaynaw.wakeonlan.core.hub.HubClient
 import io.github.slaynaw.wakeonlan.core.hub.HubLinkResult
 import io.github.slaynaw.wakeonlan.core.hub.HubProbe
@@ -15,9 +16,11 @@ import io.github.slaynaw.wakeonlan.core.hub.HubProtocol
 import io.github.slaynaw.wakeonlan.core.hub.HubRequest
 import io.github.slaynaw.wakeonlan.core.hub.HubManager
 import io.github.slaynaw.wakeonlan.core.hub.HubService
+import io.github.slaynaw.wakeonlan.core.hub.HubSlot
 import io.github.slaynaw.wakeonlan.core.hub.HubStore
 import io.github.slaynaw.wakeonlan.core.hub.PairOutcome
 import io.github.slaynaw.wakeonlan.core.hub.PairedHub
+import io.github.slaynaw.wakeonlan.core.hub.ScheduleOutcome
 import io.github.slaynaw.wakeonlan.core.model.AgentSettings
 import io.github.slaynaw.wakeonlan.core.model.Device
 import io.github.slaynaw.wakeonlan.core.model.MacAddress
@@ -194,6 +197,23 @@ class HubEndToEndTest {
         assertEquals(wake.t, store.hub.value?.eventsSeen)
         manager.refresh()
         assertTrue(manager.state.first { it.hub?.eventsSeen == wake.t }.unseen.none { it.pc == box.id && it.t <= wake.t })
+        // Programmation de l'appareil (réveil seulement : pas d'agent), relue avec sa prochaine occurrence ; refus.
+        val weekdays = HubSlot(on = true, days = listOf(5, 1, 2, 3, 4), at = "07:30")
+        val saved = manager.setSchedule(box.id, weekdays, null, emptyList()) as ScheduleOutcome.Saved
+        assertTrue(saved.control == ControlRole.UNCHANGED && saved.schedule.wake?.days == listOf(1, 2, 3, 4, 5), "$saved")
+        assertTrue((saved.schedule.wake?.next ?: 0) > System.currentTimeMillis() / 1000, "$saved")
+        val listed = manager.schedules().value()
+        assertTrue(listed.of(box.id)?.wake?.at == "07:30" && listed.timezone.isNotEmpty(), "$listed")
+        val night = HubSlot(on = true, days = (1..7).toList(), at = "23:00")
+        assertTrue(manager.setSchedule(box.id, weekdays, night, emptyList()) is ScheduleOutcome.HubFailed)
+        assertTrue(manager.setSchedule(box.id, weekdays.copy(days = listOf(8)), null, emptyList()) is ScheduleOutcome.HubFailed)
+        assertTrue(manager.setSchedule("inconnu", weekdays, null, emptyList()) is ScheduleOutcome.HubFailed)
+        assertEquals("America/Toronto", manager.timezone("America/Toronto").value())
+        assertEquals(ResponseCode.BAD_REQUEST, (manager.timezone("Lune/Tranquillité") as AgentResult.Failure).code)
+        assertEquals(HubProtocol.DEFAULT_TIMEZONE, manager.timezone(HubProtocol.DEFAULT_TIMEZONE).value())
+        assertTrue(manager.setSchedule(box.id, null, null, emptyList()) is ScheduleOutcome.Saved)
+        assertNull(manager.schedules().value().of(box.id))
+
         // PC non confié au hub : ni journal ni mesures gardés par le hub, ni réveil relayé.
         val notEntrusted = Device(
             id = "pc-ci", name = "PC non confié", mac = MacAddress.parse("aa:bb:cc:dd:ee:04"), host = "192.168.1.4",

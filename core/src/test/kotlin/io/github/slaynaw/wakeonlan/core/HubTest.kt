@@ -5,6 +5,10 @@ import io.github.slaynaw.wakeonlan.core.agent2.PairingLinkV2
 import io.github.slaynaw.wakeonlan.core.agent2.Role
 import io.github.slaynaw.wakeonlan.core.hub.HubEvent
 import io.github.slaynaw.wakeonlan.core.hub.HubProtocol
+import io.github.slaynaw.wakeonlan.core.hub.HubRequest
+import io.github.slaynaw.wakeonlan.core.hub.HubResponse
+import io.github.slaynaw.wakeonlan.core.hub.HubSchedule
+import io.github.slaynaw.wakeonlan.core.hub.HubSlot
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -43,6 +47,9 @@ class HubTest {
     private data class Events(val valid: List<HubEvent>, val invalid: List<HubEvent>)
 
     @Serializable
+    private data class Slots(val valid: List<HubSlot>, val invalid: List<HubSlot>)
+
+    @Serializable
     private data class Vectors(
         val protocol: String,
         val port: Int,
@@ -52,7 +59,11 @@ class HubTest {
         val authorize: List<Auth>,
         val commands: List<CommandRole>,
         val events: Events,
+        val slots: Slots,
     )
+
+    /** Format des messages échangés avec le hub, comme HubClient. */
+    private val wire = Json { ignoreUnknownKeys = true; explicitNulls = false }
 
     private val vectors: Vectors by lazy {
         val dir = System.getProperty("wol.protocolDir") ?: "../protocol"
@@ -97,6 +108,22 @@ class HubTest {
         assertTrue(vectors.events.valid.isNotEmpty() && vectors.events.invalid.isNotEmpty())
         for (e in vectors.events.valid) assertTrue(HubProtocol.validEvent(e), e.toString())
         for (e in vectors.events.invalid) assertFalse(HubProtocol.validEvent(e), e.toString())
+    }
+
+    @Test
+    fun `programmations valides et refusees`() {
+        assertTrue(vectors.slots.valid.isNotEmpty() && vectors.slots.invalid.isNotEmpty())
+        for (s in vectors.slots.valid) assertTrue(HubProtocol.validSlot(s), s.toString())
+        for (s in vectors.slots.invalid) assertFalse(HubProtocol.validSlot(s), s.toString())
+        // Envoyée au hub avec les noms de champs du protocole ; un champ vide ou nul n'est pas envoyé.
+        val request = HubRequest(cmd = HubProtocol.SCHEDULES_SET, pc = "p1",
+            schedule = HubSchedule(wake = HubSlot(on = true, days = listOf(1, 2), at = "07:30")))
+        assertEquals("""{"cmd":"hub.schedules.set","pc":"p1","schedule":{"wake":{"on":true,"days":[1,2],"at":"07:30"}}}""",
+            wire.encodeToString(HubRequest.serializer(), request))
+        val reply = wire.decodeFromString(HubResponse.serializer(),
+            """{"id":3,"ok":true,"code":"ok","schedule":{"pc":"p1","shutdown":{"on":true,"days":[1,2,3,4,5,6,7],"at":"23:00","next":1793397600}},"settings":{"retention":365,"timezone":"Europe/Paris"}}""")
+        assertEquals(1793397600L, reply.schedule?.shutdown?.next)
+        assertEquals("Europe/Paris", reply.settings?.timezone)
     }
 
     @Test

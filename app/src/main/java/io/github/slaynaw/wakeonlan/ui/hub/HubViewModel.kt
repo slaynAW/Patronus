@@ -9,14 +9,18 @@ import io.github.slaynaw.wakeonlan.core.agent.AgentResult
 import io.github.slaynaw.wakeonlan.core.agent2.Commands
 import io.github.slaynaw.wakeonlan.core.agent2.ResponseCode
 import io.github.slaynaw.wakeonlan.core.agent2.Role
+import io.github.slaynaw.wakeonlan.core.hub.ControlRole
 import io.github.slaynaw.wakeonlan.core.hub.HubAdmin
 import io.github.slaynaw.wakeonlan.core.hub.HubCreatedInvite
 import io.github.slaynaw.wakeonlan.core.hub.HubLinkResult
 import io.github.slaynaw.wakeonlan.core.hub.HubProbe
 import io.github.slaynaw.wakeonlan.core.hub.HubRequest
+import io.github.slaynaw.wakeonlan.core.hub.HubSchedules
 import io.github.slaynaw.wakeonlan.core.hub.HubService
+import io.github.slaynaw.wakeonlan.core.hub.HubSlot
 import io.github.slaynaw.wakeonlan.core.hub.HubState
 import io.github.slaynaw.wakeonlan.core.hub.PairOutcome
+import io.github.slaynaw.wakeonlan.core.hub.ScheduleOutcome
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,6 +52,16 @@ sealed interface HubNotice {
     data class DeviceAdded(val name: String) : HubNotice
 
     data class Retention(val days: Int) : HubNotice
+
+    data class ScheduleSaved(val name: String) : HubNotice
+
+    /** Programmation enregistrée, extinction désactivée, mais le rôle « control » n'a pas pu être retiré au hub. */
+    data object ScheduleRoleKept : HubNotice
+
+    /** Le PC refuse de donner au hub le droit de l'éteindre. */
+    data class ScheduleAgentFailed(val failure: AgentResult.Failure) : HubNotice
+
+    data class Timezone(val timezone: String) : HubNotice
 }
 
 data class HubUiState(
@@ -58,6 +72,8 @@ data class HubUiState(
     val adminFailure: AgentResult.Failure? = null,
     val created: HubCreatedInvite? = null,
     val notice: HubNotice? = null,
+    /** Programmations et fuseau horaire du hub (rôle « admin ») ; null : pas encore lus, ou hub qui ne les sert pas. */
+    val schedules: HubSchedules? = null,
 )
 
 /**
@@ -75,7 +91,7 @@ class HubViewModel(private val container: AppContainer) : ViewModel() {
         // Administration relue quand ce téléphone devient administrateur d'un hub ; oubliée sinon.
         viewModelScope.launch {
             manager.state.map { s -> s.hub?.takeIf { it.isAdmin }?.pin }.distinctUntilChanged().collect { pin ->
-                if (pin == null) _state.update { it.copy(admin = null, adminFailure = null) } else loadAdmin()
+                if (pin == null) _state.update { it.copy(admin = null, adminFailure = null, schedules = null) } else loadAdmin()
             }
         }
     }
@@ -86,6 +102,9 @@ class HubViewModel(private val container: AppContainer) : ViewModel() {
             is AgentResult.Success -> _state.update { it.copy(admin = r.value, adminFailure = null) }
             is AgentResult.Failure -> _state.update { it.copy(adminFailure = r) }
         }
+        // Programmations : un échec n'empêche pas le reste de l'administration.
+        val schedules = (manager.schedules() as? AgentResult.Success)?.value?.takeIf { it.timezone.isNotEmpty() }
+        _state.update { it.copy(schedules = schedules) }
     }
 
     /** Relit l'état du hub et, pour un administrateur, ses appareils autorisés. */
@@ -182,6 +201,31 @@ class HubViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /**
+     * Programmation du PC [pcId] du hub ([wake], [shutdown] : null pour retirée). Activer l'extinction donne au hub le
+     * rôle « control » sur le PC, la désactiver le lui retire (HubManager.setSchedule).
+     */
+    fun setSchedule(pcId: String, name: String, wake: HubSlot?, shutdown: HubSlot?) = act {
+        val devices = container.repository.current().devices
+        val r = manager.setSchedule(pcId, wake, shutdown, devices)
+        loadAdmin()
+        when (r) {
+            is ScheduleOutcome.Saved -> if (r.control == ControlRole.NOT_WITHDRAWN) HubNotice.ScheduleRoleKept else HubNotice.ScheduleSaved(name)
+            is ScheduleOutcome.AgentFailed -> HubNotice.ScheduleAgentFailed(r.failure)
+            is ScheduleOutcome.HubFailed -> HubNotice.Failed(r.failure)
+        }
+    }
+
+    /** Fuseau horaire des programmations du hub. */
+    fun timezone(timezone: String) = act {
+        val r = manager.timezone(timezone)
+        loadAdmin()
+        when (r) {
+            is AgentResult.Success -> HubNotice.Timezone(r.value)
+            is AgentResult.Failure -> HubNotice.Failed(r)
+        }
+    }
+
     fun dismissNotice() = _state.update { it.copy(notice = null) }
 
     fun dismissCreated() = _state.update { it.copy(created = null) }
@@ -192,5 +236,12 @@ class HubViewModel(private val container: AppContainer) : ViewModel() {
 
         /** Durées de conservation proposées, en jours. */
         val RETENTIONS: List<Int> = listOf(90, 182, 365, 730, 1095)
+
+        /** Fuseaux horaires proposés pour les programmations (le fuseau en cours s'y ajoute s'il n'y est pas). */
+        val TIMEZONES: List<String> = listOf(
+            "Europe/Paris", "Europe/Brussels", "Europe/Luxembourg", "Europe/Zurich", "Europe/Monaco", "Europe/London",
+            "America/Toronto", "America/Martinique", "America/Guadeloupe", "America/Cayenne", "Indian/Reunion", "Indian/Mayotte",
+            "Pacific/Noumea", "Pacific/Tahiti", "Africa/Casablanca", "Africa/Dakar", "Africa/Abidjan", "UTC",
+        )
     }
 }
