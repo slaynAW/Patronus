@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/slaynaw/wakeonlan/agent/hubprotocol"
 	"github.com/slaynaw/wakeonlan/agent/protocol2"
 	"github.com/slaynaw/wakeonlan/desktop/internal/agentclient"
 	"github.com/slaynaw/wakeonlan/desktop/internal/config"
@@ -513,6 +514,10 @@ type callParams struct {
 	Probe string `json:"probe"`
 	// Until : évènements du hub vus jusqu'à cette heure (secondes Unix, horloge du hub).
 	Until int64 `json:"until"`
+	// Programmations du hub (§6.7) : réveil et extinction d'un PC (nil : retirée), fuseau horaire du hub.
+	Wake     *hubprotocol.Slot `json:"wake"`
+	Shutdown *hubprotocol.Slot `json:"shutdown"`
+	Timezone string            `json:"timezone"`
 }
 
 // pairingRequest : empreinte de l'agent et code d'appairage lus dans un lien v=2.
@@ -666,6 +671,10 @@ func (s *Service) dispatch(method string, p callParams) (any, error) {
 		return s.hubInvite(p.Role, p.TTL, p.Name), nil
 	case "hubRetention":
 		return s.hubRetention(p.Days), nil
+	case "hubSchedule":
+		return s.hubSchedule(p.PC, p.Wake, p.Shutdown), nil
+	case "hubTimezone":
+		return s.hubTimezone(p.Timezone), nil
 	case "hubForget":
 		return s.hubForget(), nil
 	case "hubEvents":

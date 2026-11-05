@@ -148,6 +148,15 @@ func (p callParams) describe(method string, name func(id string) string) string 
 		}
 	case "hubRetention":
 		add("%d jours", p.Days)
+	case "hubTimezone":
+		add("fuseau %s", clip(p.Timezone, 64))
+	case "hubSchedule":
+		if p.Wake != nil {
+			add("réveil %t %v %s", p.Wake.On, p.Wake.Days, clip(p.Wake.At, 8))
+		}
+		if p.Shutdown != nil {
+			add("extinction %t %v %s", p.Shutdown.On, p.Shutdown.Days, clip(p.Shutdown.At, 8))
+		}
 	case "shareLogin", "shareRequest", "shareGrant":
 		if p.Name != "" {
 			add("nom « %s »", clip(p.Name, 64))

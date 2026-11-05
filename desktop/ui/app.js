@@ -350,6 +350,38 @@
     hub_add_invalid_mac: "Adresse MAC invalide.",
     hub_add_invalid_probe: "Choisissez une vérification.",
     hub_device_added: "« %1$s » ajouté au hub.",
+    hub_schedule: "Programmer",
+    hub_schedule_title: "Programmer « %1$s »",
+    hub_schedule_text: "Le hub démarre et éteint ce PC à l’heure dite, même quand cet ordinateur est éteint (heure du hub : %1$s).",
+    hub_schedule_text_device: "Le hub démarre cet appareil à l’heure dite, même quand cet ordinateur est éteint (heure du hub : %1$s).",
+    hub_schedule_wake: "Le démarrer",
+    hub_schedule_wake_no_mac: "Adresse MAC du PC inconnue du hub : démarrage impossible.",
+    hub_schedule_shutdown: "L’éteindre s’il est inactif",
+    hub_schedule_shutdown_help: "Seulement si le processeur est resté sous 10 % pendant le dernier quart d’heure et qu’aucun appareil ne lui a rien demandé depuis une heure ; sinon le hub réessaie toutes les 15 minutes pendant 2 heures. Extinction normale, jamais forcée. Le hub reçoit pour cela le rôle « Contrôler » sur ce PC, retiré quand vous désactivez l’extinction.",
+    hub_schedule_shutdown_no_admin: "Extinction programmée : réservée à un PC que cet ordinateur administre (il donne au hub le droit de l’éteindre).",
+    hub_schedule_at: "Heure",
+    hub_schedule_hours: "Heures",
+    hub_schedule_minutes: "Minutes",
+    hub_schedule_no_day: "Choisissez au moins un jour.",
+    hub_schedule_bad_time: "Heure invalide.",
+    hub_schedule_saved: "Programmation de « %1$s » enregistrée.",
+    hub_schedule_role_failed_title: "Programmation enregistrée",
+    hub_schedule_role_failed: "Le rôle « Contrôler » n’a pas pu être retiré au hub sur ce PC (PC éteint ?). Retirez-le depuis « Appareils autorisés » du PC.",
+    hub_schedule_agent: "Le PC a refusé de donner au hub le droit de l’éteindre : %1$s",
+    hub_schedule_not_admin: "cet ordinateur doit être administrateur du PC",
+    hub_schedule_next: "prochain : %1$s",
+    hub_schedule_wake_at: "démarrage %1$s à %2$s",
+    hub_schedule_shutdown_at: "extinction si inactif %1$s à %2$s",
+    hub_schedule_role_missing: "le hub n’a pas le rôle « Contrôler » sur ce PC",
+    hub_schedule_days_all: "tous les jours",
+    hub_schedule_days_weekdays: "du lundi au vendredi",
+    hub_schedule_days_weekend: "le week-end",
+    hub_timezone: "Fuseau horaire",
+    hub_timezone_title: "Programmations",
+    hub_timezone_help: "Les heures des programmations suivent ce fuseau, changements d’heure compris.",
+    hub_timezone_done: "Fuseau horaire : %1$s.",
+    day_1: "Lun", day_2: "Mar", day_3: "Mer", day_4: "Jeu", day_5: "Ven", day_6: "Sam", day_7: "Dim",
+    day_long_1: "lun.", day_long_2: "mar.", day_long_3: "mer.", day_long_4: "jeu.", day_long_5: "ven.", day_long_6: "sam.", day_long_7: "dim.",
     detail_hub: "Hub",
     detail_hub_entrusted: "Confié au hub (rôle « %1$s »)",
     hub_entrust: "Confier au hub",
@@ -383,6 +415,10 @@
     absence_wake_self: "« %1$s » démarré par le hub, à la demande de cet ordinateur",
     absence_wake_nas: "« %1$s » démarré par le hub",
     absence_wake_other: "« %1$s » démarré par le hub, à la demande de l’appareil %2$s",
+    absence_wake_schedule: "« %1$s » démarré par sa programmation",
+    absence_shutdown_done: "« %1$s » éteint par sa programmation (PC inactif)",
+    absence_shutdown_postponed: "« %1$s » : extinction programmée abandonnée, PC encore utilisé au bout de 2 heures",
+    absence_shutdown_refused: "« %1$s » : extinction programmée refusée par le PC (rôle « Contrôler » retiré au hub ?)",
     measure_name_mem: "la mémoire",
     measure_name_battery: "la batterie",
     measure_name_other: "la mesure « %1$s »",
@@ -3705,6 +3741,10 @@
   // ---------------------------------------------------------------------------------------------
   const HUB_ROLES = ["view", "wake", "admin"];
   const HUB_RETENTIONS = [90, 182, 365, 730, 1095];
+  // Fuseaux proposés pour les programmations du hub (le fuseau en cours s'y ajoute s'il n'y est pas).
+  const HUB_TIMEZONES = ["Europe/Paris", "Europe/Brussels", "Europe/Luxembourg", "Europe/Zurich", "Europe/Monaco", "Europe/London",
+    "America/Toronto", "America/Martinique", "America/Guadeloupe", "America/Cayenne", "Indian/Reunion", "Indian/Mayotte",
+    "Pacific/Noumea", "Pacific/Tahiti", "Africa/Casablanca", "Africa/Dakar", "Africa/Abidjan", "UTC"];
 
   const hubUI = (() => {
     const failureText = (r) => r.error || (r.reason === "last_admin" ? S.hub_last_admin
@@ -3759,6 +3799,8 @@
       const content = h("div", { class: "admin" }, h("p", { class: "muted", text: S.hub_loading }));
       const inviteBtn = btn("primary", S.admin_invite, inviteDialog, "plus");
       inviteBtn.classList.add("hidden");
+      // Fuseau horaire des programmations ; vide : hub qui ne les sert pas encore.
+      let timezone = "";
       const sheet = openSheet({
         title: S.hub_title,
         subtitle: hub.name,
@@ -3776,6 +3818,7 @@
           return;
         }
         const admin = r.role === "admin";
+        timezone = r.timezone || "";
         inviteBtn.classList.toggle("hidden", !admin);
         const known = state.hub || hub;
         const parts = [h("div", { class: "form-title", text: S.hub_state }), h("div", { class: "rights" },
@@ -3790,7 +3833,12 @@
           admin ? h("div", { class: "row-actions" }, btn("sec", S.hub_add_device, () => addDeviceDialog(), "plus")) : null);
         if (admin) {
           parts.push(h("div", { class: "form-title", text: S.hub_retention }), retentionRow(r.retention),
-            h("p", { class: "muted small", text: S.hub_retention_help }),
+            h("p", { class: "muted small", text: S.hub_retention_help }));
+          if (timezone) {
+            parts.push(h("div", { class: "form-title", text: S.hub_timezone_title }), timezoneRow(timezone),
+              h("p", { class: "muted small", text: S.hub_timezone_help }));
+          }
+          parts.push(
             h("div", { class: "form-title", text: S.admin_devices }), h("div", { class: "rights" }, r.devices.map(deviceRow)));
           if (r.invites.length) {
             parts.push(h("div", { class: "form-title", text: S.admin_invites }), h("div", { class: "rights" }, r.invites.map(inviteRow)));
@@ -3817,6 +3865,41 @@
         return h("div", { class: "rights" }, h("div", { class: "right-row" }, h("b", { text: S.hub_retention_label }), sel));
       }
 
+      function timezoneRow(current) {
+        const options = HUB_TIMEZONES.includes(current) ? HUB_TIMEZONES : [current, ...HUB_TIMEZONES];
+        const sel = h("select", { "aria-label": S.hub_timezone }, ...options.map((z) => h("option", { value: z, text: z })));
+        sel.value = current;
+        sel.addEventListener("change", async () => {
+          const r = await run("hubTimezone", { timezone: sel.value });
+          if (!r.ok) {
+            alertDialog(S.admin_failed, failureText(r));
+            load();
+            return;
+          }
+          snackbar(fmt(S.hub_timezone_done, r.timezone));
+          load();
+        });
+        return h("div", { class: "rights" }, h("div", { class: "right-row" }, h("b", { text: S.hub_timezone }), sel));
+      }
+
+      /** Jours d'une programmation, en clair : « du lundi au vendredi », « lun., mer. ». */
+      function daysText(days) {
+        const set = [...days].sort().join(",");
+        if (set === "1,2,3,4,5,6,7") return S.hub_schedule_days_all;
+        if (set === "1,2,3,4,5") return S.hub_schedule_days_weekdays;
+        if (set === "6,7") return S.hub_schedule_days_weekend;
+        return days.map((d) => S["day_long_" + d]).join(", ");
+      }
+
+      /** Résumé de la programmation d'un PC (vide : aucune active). */
+      function scheduleText(p) {
+        const parts = [];
+        const sc = p.schedule;
+        if (sc?.wake?.on) parts.push(fmt(S.hub_schedule_wake_at, daysText(sc.wake.days), sc.wake.at));
+        if (sc?.shutdown?.on) parts.push(fmt(S.hub_schedule_shutdown_at, daysText(sc.shutdown.days), sc.shutdown.at));
+        return parts.join(" · ");
+      }
+
       function pcRow(p, admin) {
         const what = p.agent ? fmt(S.hub_pc_agent, p.agent, roleLabel(p.role))
           : p.probe === "tcp" ? fmt(S.hub_pc_probe_tcp, p.port) : S["hub_pc_probe_" + p.probe] || p.probe;
@@ -3824,14 +3907,19 @@
         if (p.problem) st = S["hub_pc_problem_" + p.problem] || p.problem;
         else if (p.since && p.state !== "unknown") st += " · " + fmt(S.hub_pc_since, formatDuration(Math.max(0, Date.now() - p.since * 1000)));
         const bad = p.problem || p.state === "offline" || p.state === "agent_down";
+        const plan = scheduleText(p);
         return h("div", { class: "right-row admin-row" },
           h("span", { class: "ni" }, icon(p.agent ? "monitor" : "hub", "", 16)),
           h("div", { class: "admin-who" },
             h("b", { text: p.name }),
             h("small", { class: "mono", text: p.host }),
             h("small", { class: "muted", text: what }),
-            h("small", { class: bad ? "bad" : p.state === "online" ? "ok" : "muted", text: st })),
-          admin ? iconBtn("delete", S.hub_pc_remove, () => removeDialog(p), "flat") : null);
+            h("small", { class: bad ? "bad" : p.state === "online" ? "ok" : "muted", text: st }),
+            plan ? h("small", { class: "muted", text: plan }) : null,
+            p.schedule?.shutdown?.on && p.role !== "control" ? h("small", { class: "bad", text: S.hub_schedule_role_missing }) : null),
+          h("div", { class: "row-actions" },
+            admin && timezone && (p.mac || p.agent) ? iconBtn("clock", S.hub_schedule, () => scheduleDialog(p), "flat") : null,
+            admin ? iconBtn("delete", S.hub_pc_remove, () => removeDialog(p), "flat") : null));
       }
 
       function removeDialog(p) {
@@ -3855,6 +3943,95 @@
             },
           ],
         });
+      }
+
+      /** Programmation d'un PC (§6.7) : réveil, extinction si inactif ; jours et heure, dans le fuseau du hub. */
+      function scheduleDialog(p) {
+        const current = p.schedule || {};
+        // Prochaines occurrences à l'heure du hub, comme les heures choisies.
+        let hubTimeFmt = dayTimeFmt;
+        try {
+          hubTimeFmt = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short", timeZone: timezone });
+        } catch {
+          // Fuseau inconnu du navigateur : heure de cet ordinateur.
+        }
+        const part = (kind, slot, enabled, note) => {
+          const days = new Set(slot?.days || [1, 2, 3, 4, 5]);
+          const sw = switchInput(!!slot?.on, () => {}, S["hub_schedule_" + kind]);
+          sw.input.disabled = !enabled;
+          // Heure en 24 h, quelle que soit la langue du système : heures et minutes (par 5).
+          const [hh, mm] = (slot?.at || (kind === "wake" ? "07:30" : "23:00")).split(":");
+          const pad = (n) => String(n).padStart(2, "0");
+          const minutes = [...new Set([...Array.from({ length: 12 }, (_, i) => pad(i * 5)), mm])].sort();
+          const hours = h("select", { class: "mono", "aria-label": S.hub_schedule_hours }, ...Array.from({ length: 24 }, (_, i) => h("option", { value: pad(i), text: pad(i) })));
+          const mins = h("select", { class: "mono", "aria-label": S.hub_schedule_minutes }, ...minutes.map((m) => h("option", { value: m, text: m })));
+          hours.value = hh;
+          mins.value = mm;
+          const time = { get value() { return hours.value + ":" + mins.value; } };
+          const chips = h("div", { class: "day-chips" }, ...[1, 2, 3, 4, 5, 6, 7].map((d) => {
+            const chip = h("button", { type: "button", class: "day-chip", text: S["day_" + d], "aria-pressed": String(days.has(d)), "aria-label": S["day_long_" + d] });
+            chip.addEventListener("click", () => {
+              if (days.has(d)) days.delete(d);
+              else days.add(d);
+              chip.setAttribute("aria-pressed", String(days.has(d)));
+            });
+            return chip;
+          }));
+          const next = slot?.on && slot.next ? h("small", { class: "muted", text: fmt(S.hub_schedule_next, hubTimeFmt.format(new Date(slot.next * 1000))) }) : null;
+          const el = h("div", { class: "schedule-part" },
+            h("label", { class: "check-row" }, sw.el, h("b", { text: S["hub_schedule_" + kind] })),
+            chips, h("div", { class: "right-row" }, h("b", { text: S.hub_schedule_at }), h("span", { class: "time-pick" }, hours, h("span", { text: ":" }), mins)), next,
+            note ? h("p", { class: "muted small", text: note }) : null);
+          return {
+            el,
+            // Partie que cet ordinateur ne peut pas changer : gardée telle quelle. Désactivée : gardée
+            // (sans effet) si elle existait, absente sinon.
+            value() {
+              if (!enabled) return slot || null;
+              if (!sw.input.checked) return slot ? { on: false, days: slot.days, at: slot.at } : null;
+              return { on: true, days: [...days].sort(), at: time.value };
+            },
+            check() {
+              if (!enabled || !sw.input.checked) return null;
+              if (days.size === 0) return S.hub_schedule_no_day;
+              if (!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(time.value)) return S.hub_schedule_bad_time;
+              return null;
+            },
+          };
+        };
+        const wake = part("wake", current.wake, !!p.mac, p.mac ? null : S.hub_schedule_wake_no_mac);
+        const canShutdown = !!p.agent && !!p.local;
+        const shutdown = p.agent
+          ? part("shutdown", current.shutdown, canShutdown, canShutdown ? S.hub_schedule_shutdown_help : S.hub_schedule_shutdown_no_admin)
+          : null;
+        let busy = false;
+        const dialog = openDialog({
+          iconName: "clock",
+          title: fmt(S.hub_schedule_title, p.name),
+          body: [h("p", { text: fmt(p.agent ? S.hub_schedule_text : S.hub_schedule_text_device, timezone) }), wake.el, shutdown?.el],
+          actions: [{ label: S.cancel, onClick: () => dialog.close() }, { label: S.save, onClick: save }],
+        });
+
+        async function save() {
+          if (busy) return;
+          const problem = wake.check() || shutdown?.check();
+          if (problem) {
+            alertDialog(S.admin_failed, problem);
+            return;
+          }
+          busy = true;
+          const r = await run("hubSchedule", { pc: p.id, wake: wake.value(), shutdown: shutdown ? shutdown.value() : current.shutdown || null });
+          busy = false;
+          if (!r.ok) {
+            const why = r.code === "NOT_ADMIN_OF_PC" || r.reason === "insufficient_role" ? S.hub_schedule_not_admin : failureText(r);
+            alertDialog(S.admin_failed, r.step === "agent" ? fmt(S.hub_schedule_agent, why) : why);
+            return;
+          }
+          dialog.close();
+          if (r.agent === "failed") alertDialog(S.hub_schedule_role_failed_title, S.hub_schedule_role_failed);
+          else snackbar(fmt(S.hub_schedule_saved, p.name));
+          load();
+        }
       }
 
       function addDeviceDialog() {
@@ -4097,7 +4274,7 @@
       return v.checked ? fmt(S.hub_seen_ago, text, formatDuration(Math.max(0, Date.now() - v.checked * 1000))) : text;
     }
 
-    const EVENT_ICONS = { online: "power", offline: "power", agent_down: "warning", problem: "shield", lost: "bolt", disk: "warning", measure: "thermometer", wake: "send" };
+    const EVENT_ICONS = { online: "power", offline: "power", agent_down: "warning", problem: "shield", lost: "bolt", disk: "warning", measure: "thermometer", wake: "send", shutdown: "clock" };
 
     /** Texte d'un évènement du hub : rédigé ici, à partir de ses codes (T38). */
     function eventText(e) {
@@ -4110,7 +4287,10 @@
         case "lost": return fmt(S.absence_lost, who, (e.x && S["kind_lost_" + e.x]) || S.kind_lost);
         case "disk": return fmt(e.x === "full" ? S.absence_disk_full : S.absence_disk_health, who);
         case "measure": return fmt(S.absence_measure, who, S["measure_name_" + e.x] || fmt(S.measure_name_other, e.x));
-        case "wake": return e.self ? fmt(S.absence_wake_self, who) : e.i === "local" ? fmt(S.absence_wake_nas, who) : fmt(S.absence_wake_other, who, e.i);
+        case "wake":
+          if (e.i === "schedule") return fmt(S.absence_wake_schedule, who);
+          return e.self ? fmt(S.absence_wake_self, who) : e.i === "local" ? fmt(S.absence_wake_nas, who) : fmt(S.absence_wake_other, who, e.i);
+        case "shutdown": return fmt(S["absence_shutdown_" + e.x] || S.absence_shutdown_done, who);
         default: return who;
       }
     }
