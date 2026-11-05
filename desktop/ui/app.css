@@ -667,3 +667,14 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); width: 
 .mtip i.s-gpu, .mleg i.s-gpu { background: var(--gpu); }
 .mlegend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--text-2); }
 .mleg b { color: var(--text); font-weight: 600; margin-right: 6px; }
+
+/* Programmations du hub : jours de la semaine, réveil et extinction. */
+.schedule-part { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+.schedule-part .right-row { border: 1px solid var(--line); border-radius: 10px; }
+.day-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.day-chip { min-width: 44px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface-2);
+  color: var(--text-2); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.day-chip[aria-pressed="true"] { background: var(--blue-soft); border-color: var(--blue); color: var(--text); }
+.day-chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.time-pick { display: inline-flex; flex: none; align-items: center; gap: 4px; color: var(--text-2); }
+.right-row .time-pick select { width: 72px; }

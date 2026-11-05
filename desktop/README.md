@@ -104,6 +104,15 @@ envoyé par le hub) ; *Marquer comme vus* le fait disparaître. Le hub n'envoie 
 rédigés par l'application avec vos noms de PC, et un code inattendu est écarté. La ligne *Hub* de la fiche d'un PC
 confié indique son état vu par le hub et son âge (« répond, il y a 12 s »).
 
+**Programmations** : fiche du hub → bouton horloge d'un PC confié (administrateur du hub). *Le démarrer* : les jours
+et l'heure choisis, le hub envoie le paquet magique (PC avec son adresse MAC). *L'éteindre s'il est inactif* : seulement
+si le processeur est resté sous 10 % pendant le dernier quart d'heure et qu'aucun appareil ne lui a rien demandé depuis
+une heure ; sinon le hub réessaie toutes les 15 minutes pendant 2 heures, puis y renonce. Extinction normale, jamais
+forcée. Pour cela, cet ordinateur, administrateur du PC, donne au hub le rôle *Contrôler* sur le PC, et le lui retire
+quand l'extinction est désactivée : le hub ne le demande jamais lui-même. Les heures suivent le fuseau horaire du hub
+(fiche du hub → *Programmations* ; Europe/Paris par défaut), changements d'heure compris. Démarrages et extinctions
+programmés paraissent dans *Pendant votre absence*.
+
 **Historique long** : pour un PC confié, l'écran *Mesures* lit aussi ce que le hub garde (un an par défaut) : les
 mois proposés incluent ceux du hub, et chaque jour vient de l'agent, sinon du hub, sinon des archives GitHub. Le
 journal de l'agent fait foi sur la période qu'il couvre ; les évènements gardés par le hub n'y sont ajoutés qu'une

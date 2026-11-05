@@ -200,6 +200,8 @@ func (s *Service) hubInfo() map[string]any {
 	ctx, cancel := context.WithTimeout(context.Background(), hubTimeout)
 	defer cancel()
 	var status, devices, invites, settings hubprotocol.Response
+	var schedules map[string]hubprotocol.PCSchedule
+	var timezone string
 	err := s.agent.HubSession(ctx, hubTarget(h), func(ctx context.Context, ops agentclient.HubOps) (err error) {
 		if status, err = ops.Do(ctx, hubprotocol.Request{Cmd: hubprotocol.CmdStatus}); err != nil {
 			return err
@@ -213,7 +215,10 @@ func (s *Service) hubInfo() map[string]any {
 		if invites, err = ops.Do(ctx, hubprotocol.Request{Cmd: protocol2.CmdInvites}); err != nil {
 			return err
 		}
-		settings, err = ops.Do(ctx, hubprotocol.Request{Cmd: hubprotocol.CmdSettings})
+		if settings, err = ops.Do(ctx, hubprotocol.Request{Cmd: hubprotocol.CmdSettings}); err != nil {
+			return err
+		}
+		schedules, timezone, err = hubSchedulesOf(ctx, ops)
 		return err
 	})
 	if err != nil {
@@ -241,6 +246,16 @@ func (s *Service) hubInfo() map[string]any {
 		out["devices"], out["invites"] = list, pending
 		if settings.Settings != nil {
 			out["retention"] = settings.Settings.Retention
+		}
+		if timezone != "" {
+			out["timezone"] = timezone
+		}
+		for _, v := range out["pcs"].([]map[string]any) {
+			id, _ := v["id"].(string)
+			ps, found := schedules[id]
+			if view := scheduleView(ps, found); view != nil {
+				v["schedule"] = view
+			}
 		}
 	}
 	return out
