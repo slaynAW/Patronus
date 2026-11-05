@@ -105,6 +105,8 @@ def main():
             **platform,
             "config": {
                 "User": "65532:65532",
+                # « docker exec patronus-hub patronus-hub pair » (lien d'appairage suivant) trouve le binaire.
+                "Env": ["PATH=/"],
                 "Entrypoint": ["/patronus-hub"],
                 "Cmd": ["serve"],
                 "ExposedPorts": {"9771/tcp": {}},

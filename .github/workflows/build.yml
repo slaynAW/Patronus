@@ -460,6 +460,8 @@ jobs:
             sudo podman logs hub 2>&1 | grep -i "erreur" | head -5
             exit 1
           fi
+          # Lien suivant, comme le guide : « docker exec patronus-hub patronus-hub pair » (jamais affiché).
+          sudo podman exec hub patronus-hub pair --port 19781 --ip 127.0.0.1 > /dev/null
           # Identité et données écrites par l'utilisateur 65532 dans les dossiers prévus.
           sudo test -s "$RUNNER_TEMP/nas/keys/identity.key"
           [[ "$(sudo stat -c %u "$RUNNER_TEMP/nas/keys/identity.key")" == 65532 ]] || { echo "::error::identité écrite par un autre utilisateur"; exit 1; }
