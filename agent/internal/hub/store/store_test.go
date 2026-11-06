@@ -280,7 +280,6 @@ func TestSymlinksStayInside(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
 	link := func(target, name string) {
 		t.Helper()
 		p := filepath.Join(data, filepath.FromSlash(name))
@@ -361,23 +360,20 @@ func TestSymlinksStayInside(t *testing.T) {
 // prochain ajout, y compris sous Windows, qui refuse de remplacer un fichier encore ouvert.
 func TestJournalTornCreation(t *testing.T) {
 	dir := t.TempDir()
-	s, err := Open(dir, testKey(1))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
 	const rel = "events-2026-11.bin"
 	for _, torn := range [][]byte{{}, []byte("P"), []byte("PHJ")} {
 		if err := os.WriteFile(filepath.Join(dir, rel), torn, 0o600); err != nil {
 			t.Fatal(err)
 		}
-		fresh, _ := Open(dir, testKey(1)) // journal pas encore ouvert en écriture
+		fresh, err := Open(dir, testKey(1)) // journal pas encore ouvert en écriture
+		if err != nil {
+			t.Fatal(err)
+		}
 		if err := fresh.Append(rel, []byte("x")); err != nil {
 			t.Fatalf("après %q : %v", torn, err)
 		}
 		if got, err := fresh.Records(rel); err != nil || len(got) != 1 || string(got[0]) != "x" {
 			t.Fatalf("après %q : %q, %v", torn, got, err)
 		}
-		_ = fresh.Close()
 	}
 }

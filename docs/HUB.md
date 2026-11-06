@@ -222,7 +222,7 @@ allumé 4 h par jour, 70 Mo pour un PC qui ne s'éteint jamais.
   un enregistrement déplacé d'un fichier à l'autre est refusé. `hub.db` et `devices.db` sont réécrits en entier à
   chaque changement (fichier temporaire neuf, écriture sur le disque, puis renommage).
 - Toutes les opérations restent **dans le dossier des données** (`os.Root`) : un lien symbolique qui en sort, vers
-  `/keys` par exemple, est refusé, même posé entre deux opérations. Qui peut écrire dans `/data` ne peut donc faire
+  `/keys` par exemple, est refusé, même posé pendant une opération. Qui peut écrire dans `/data` ne peut donc faire
   ni écrire, ni tronquer, ni supprimer par le hub un fichier situé ailleurs.
 - **Fichier entier** : `PHF1`, nonce, texte chiffré et étiquette ; données authentifiées : `PHF1` puis le chemin.
 - **Journal** : `PHJ1`, puis chaque enregistrement : longueur du reste (4 octets, gros-boutiste), nonce, texte chiffré

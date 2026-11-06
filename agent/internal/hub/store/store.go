@@ -10,10 +10,11 @@
 // Format exact et vecteurs communs : protocol/hub-store-vectors.json, recalculés indépendamment par
 // .github/scripts/check-hub-store-vectors.py.
 //
-// Toutes les opérations sur le dossier des données passent par un os.Root : un lien symbolique qui en
-// sort (vers le dossier des clés, par exemple) est refusé, même posé entre deux opérations. Qui peut
-// écrire dans le dossier des données ne peut donc pas faire écrire, tronquer ni supprimer par le hub un
-// fichier situé ailleurs.
+// Chaque opération sur le dossier des données passe par un os.Root, ouvert pour elle : un lien
+// symbolique qui en sort (vers le dossier des clés, par exemple) est refusé, même posé pendant
+// l'opération. Qui peut écrire dans le dossier des données ne peut donc pas faire écrire, tronquer ni
+// supprimer par le hub un fichier situé ailleurs. (Ouvert à chaque opération plutôt qu'une fois pour
+// toutes : Windows interdit sinon de supprimer le dossier, ce que font les tests.)
 package store
 
 import (
@@ -204,7 +205,6 @@ func (k Key) OpenJournal(rel string, data []byte) (records [][]byte, end int, er
 // Store est le dossier des données du hub, sûr pour un usage concurrent.
 type Store struct {
 	dir  string
-	root *os.Root // dossier des données : rien n'est lu ni écrit hors de lui
 	key  Key
 	rand io.Reader
 
@@ -217,15 +217,18 @@ func Open(dir string, key Key) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	root, err := os.OpenRoot(dir)
+	s := &Store{dir: dir, key: key, rand: rand.Reader, counts: map[string]uint64{}}
+	root, err := s.openRoot() // dossier utilisable dès maintenant
 	if err != nil {
 		return nil, err
 	}
-	return &Store{dir: dir, root: root, key: key, rand: rand.Reader, counts: map[string]uint64{}}, nil
+	_ = root.Close()
+	return s, nil
 }
 
-// Close libère le dossier des données ; le Store ne sert plus ensuite.
-func (s *Store) Close() error { return s.root.Close() }
+// openRoot ouvre le dossier des données pour une opération : rien n'est lu ni écrit hors de lui. À
+// refermer par l'appelant.
+func (s *Store) openRoot() (*os.Root, error) { return os.OpenRoot(s.dir) }
 
 // path vérifie un chemin relatif et le traduit en nom relatif au dossier des données.
 func (s *Store) path(rel string) (string, error) {
@@ -247,7 +250,12 @@ func (s *Store) ReadFile(rel string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := readLimited(s.root, p, len(FileMagic)+NonceSize+MaxFileBytes+TagSize)
+	root, err := s.openRoot()
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	data, err := readLimited(root, p, len(FileMagic)+NonceSize+MaxFileBytes+TagSize)
 	if err != nil {
 		return nil, err
 	}
@@ -269,7 +277,12 @@ func (s *Store) WriteFile(rel string, plain []byte) error {
 	}
 	s.mu.Lock() // un seul fichier temporaire à la fois
 	defer s.mu.Unlock()
-	return writeAtomicIn(s.root, p, s.key.SealFile(rel, plain, nonce))
+	root, err := s.openRoot()
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return writeAtomicIn(root, p, s.key.SealFile(rel, plain, nonce))
 }
 
 // Records lit tous les enregistrements d'un journal (aucun s'il n'existe pas).
@@ -278,7 +291,12 @@ func (s *Store) Records(rel string) ([][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := readLimited(s.root, p, maxJournalBytes)
+	root, err := s.openRoot()
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	data, err := readLimited(root, p, maxJournalBytes)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
@@ -302,9 +320,14 @@ func (s *Store) Append(rel string, records ...[]byte) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	root, err := s.openRoot()
+	if err != nil {
+		return err
+	}
+	defer root.Close()
 	count, known := s.counts[rel]
 	if !known {
-		if count, err = s.prepare(p, rel); err != nil {
+		if count, err = s.prepare(root, p, rel); err != nil {
 			return err
 		}
 	}
@@ -316,7 +339,7 @@ func (s *Store) Append(rel string, records ...[]byte) error {
 		}
 		buf = append(buf, s.key.SealRecord(rel, count+uint64(i), r, nonce)...)
 	}
-	f, err := s.root.OpenFile(p, os.O_WRONLY|os.O_APPEND, 0o600)
+	f, err := root.OpenFile(p, os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return err
 	}
@@ -338,10 +361,10 @@ func (s *Store) Append(rel string, records ...[]byte) error {
 // prepare ouvre un journal en écriture pour la première fois : le crée, ou le relit pour compter ses
 // enregistrements et retirer un enregistrement incomplet laissé par une coupure. Lecture et troncature
 // passent par le même descripteur : c'est bien le fichier relu qui est tronqué.
-func (s *Store) prepare(p, rel string) (uint64, error) {
-	f, err := s.root.OpenFile(p, os.O_RDWR, 0)
+func (s *Store) prepare(root *os.Root, p, rel string) (uint64, error) {
+	f, err := root.OpenFile(p, os.O_RDWR, 0)
 	if errors.Is(err, os.ErrNotExist) {
-		return 0, writeAtomicIn(s.root, p, JournalMagic)
+		return 0, writeAtomicIn(root, p, JournalMagic)
 	}
 	if err != nil {
 		return 0, err
@@ -351,7 +374,7 @@ func (s *Store) prepare(p, rel string) (uint64, error) {
 		// Coupure pendant la création : journal réécrit, une fois le fichier fermé (Windows refuse de
 		// remplacer un fichier ouvert).
 		_ = f.Close()
-		return 0, writeAtomicIn(s.root, p, JournalMagic)
+		return 0, writeAtomicIn(root, p, JournalMagic)
 	}
 	defer f.Close()
 	if err != nil {
@@ -378,7 +401,12 @@ func (s *Store) Remove(rel string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.counts, rel)
-	if err := s.root.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+	root, err := s.openRoot()
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	if err := root.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	return nil
@@ -399,7 +427,12 @@ func (s *Store) list(dirRel string, dirs bool) ([]string, error) {
 		}
 		dir = p
 	}
-	f, err := s.root.Open(dir)
+	root, err := s.openRoot()
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	f, err := root.Open(dir)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}

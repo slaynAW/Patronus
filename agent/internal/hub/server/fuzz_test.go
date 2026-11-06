@@ -58,7 +58,6 @@ func newFuzzBase(tb testing.TB) *fuzzBase {
 	data := filepath.Join(dir, "data")
 	st, err := store.Open(data, key)
 	must(err)
-	defer st.Close()
 	registry, err := devices.OpenStorage(st.File("devices.db"), "devices.db", time.Now)
 	must(err)
 	b := &fuzzBase{key: key, hub: hub, files: map[string][]byte{}, pins: map[protocol2.Role]protocol2.Pin{}}
@@ -109,7 +108,6 @@ func (b *fuzzBase) start(t *testing.T) *fuzzHub {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = st.Close() })
 	h := &fuzzHub{}
 	if h.registry, err = devices.OpenStorage(st.File("devices.db"), "devices.db", time.Now); err != nil {
 		t.Fatal(err)
