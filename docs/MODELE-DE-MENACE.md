@@ -168,6 +168,7 @@ Conception : [HUB.md](HUB.md). Rien de cela n'est encore réalisé.
 | T43 | Image du hub piégée | M8 | Construite en CI depuis le même commit, publiée après validation manuelle, provenance attestée, SBOM ; image épinglable par empreinte | Comme T19 |
 | T44 | Saturation des agents ou du NAS par le hub | M7 | Fréquences de relevé bornées, une connexion gardée par agent, délais doublés après un refus, limites du conteneur | Disponibilité seulement |
 | T45 | Hub encore autorisé sur un PC après son retrait | M5, M7 | Retirer un PC du hub retire aussi le hub de l'agent (`devices.revoke`) ; `wol-agent devices revoke` sur le PC | — |
+| T46 | Écriture dans le dossier des données du hub (partage mal réglé, sauvegarde restaurée) : lien symbolique vers `/keys` pour faire écraser ou supprimer la clé par le hub, fichier ancien remis en place | M11, M5 | Chaque opération du stockage confinée au dossier des données (`os.Root`) : un lien qui en sort est refusé, même posé pendant l'opération ; fichiers authentifiés par leur chemin, enregistrements par leur rang ([REVUE-SECURITE-2.0.md](REVUE-SECURITE-2.0.md), R1) | Effacement : fichier supprimé, fin de journal tronquée ; retour à un état antérieur (une sauvegarde restaurée rétablit les appareils autorisés de sa date : le guide demande de les revoir) |
 
 ### Étapes suivantes (rappel)
 

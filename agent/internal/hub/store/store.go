@@ -9,6 +9,12 @@
 //
 // Format exact et vecteurs communs : protocol/hub-store-vectors.json, recalculés indépendamment par
 // .github/scripts/check-hub-store-vectors.py.
+//
+// Chaque opération sur le dossier des données passe par un os.Root, ouvert pour elle : un lien
+// symbolique qui en sort (vers le dossier des clés, par exemple) est refusé, même posé pendant
+// l'opération. Qui peut écrire dans le dossier des données ne peut donc pas faire écrire, tronquer ni
+// supprimer par le hub un fichier situé ailleurs. (Ouvert à chaque opération plutôt qu'une fois pour
+// toutes : Windows interdit sinon de supprimer le dossier, ce que font les tests.)
 package store
 
 import (
@@ -211,14 +217,25 @@ func Open(dir string, key Key) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	return &Store{dir: dir, key: key, rand: rand.Reader, counts: map[string]uint64{}}, nil
+	s := &Store{dir: dir, key: key, rand: rand.Reader, counts: map[string]uint64{}}
+	root, err := s.openRoot() // dossier utilisable dès maintenant
+	if err != nil {
+		return nil, err
+	}
+	_ = root.Close()
+	return s, nil
 }
 
+// openRoot ouvre le dossier des données pour une opération : rien n'est lu ni écrit hors de lui. À
+// refermer par l'appelant.
+func (s *Store) openRoot() (*os.Root, error) { return os.OpenRoot(s.dir) }
+
+// path vérifie un chemin relatif et le traduit en nom relatif au dossier des données.
 func (s *Store) path(rel string) (string, error) {
 	if !ValidPath(rel) {
 		return "", ErrBadPath
 	}
-	return filepath.Join(s.dir, filepath.FromSlash(rel)), nil
+	return filepath.FromSlash(rel), nil
 }
 
 func (s *Store) nonce() ([]byte, error) {
@@ -233,7 +250,12 @@ func (s *Store) ReadFile(rel string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := readLimited(p, len(FileMagic)+NonceSize+MaxFileBytes+TagSize)
+	root, err := s.openRoot()
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	data, err := readLimited(root, p, len(FileMagic)+NonceSize+MaxFileBytes+TagSize)
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +277,12 @@ func (s *Store) WriteFile(rel string, plain []byte) error {
 	}
 	s.mu.Lock() // un seul fichier temporaire à la fois
 	defer s.mu.Unlock()
-	return writeAtomic(p, s.key.SealFile(rel, plain, nonce))
+	root, err := s.openRoot()
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return writeAtomicIn(root, p, s.key.SealFile(rel, plain, nonce))
 }
 
 // Records lit tous les enregistrements d'un journal (aucun s'il n'existe pas).
@@ -264,7 +291,12 @@ func (s *Store) Records(rel string) ([][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := readLimited(p, maxJournalBytes)
+	root, err := s.openRoot()
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	data, err := readLimited(root, p, maxJournalBytes)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
@@ -288,9 +320,14 @@ func (s *Store) Append(rel string, records ...[]byte) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	root, err := s.openRoot()
+	if err != nil {
+		return err
+	}
+	defer root.Close()
 	count, known := s.counts[rel]
 	if !known {
-		if count, err = s.prepare(p, rel); err != nil {
+		if count, err = s.prepare(root, p, rel); err != nil {
 			return err
 		}
 	}
@@ -302,7 +339,7 @@ func (s *Store) Append(rel string, records ...[]byte) error {
 		}
 		buf = append(buf, s.key.SealRecord(rel, count+uint64(i), r, nonce)...)
 	}
-	f, err := os.OpenFile(p, os.O_WRONLY|os.O_APPEND, 0o600)
+	f, err := root.OpenFile(p, os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return err
 	}
@@ -322,15 +359,24 @@ func (s *Store) Append(rel string, records ...[]byte) error {
 }
 
 // prepare ouvre un journal en écriture pour la première fois : le crée, ou le relit pour compter ses
-// enregistrements et retirer un enregistrement incomplet laissé par une coupure.
-func (s *Store) prepare(p, rel string) (uint64, error) {
-	data, err := readLimited(p, maxJournalBytes)
-	if errors.Is(err, os.ErrNotExist) || err == nil && len(data) < len(JournalMagic) && bytes.HasPrefix(JournalMagic, data) {
-		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
-			return 0, err
-		}
-		return 0, writeAtomic(p, JournalMagic)
+// enregistrements et retirer un enregistrement incomplet laissé par une coupure. Lecture et troncature
+// passent par le même descripteur : c'est bien le fichier relu qui est tronqué.
+func (s *Store) prepare(root *os.Root, p, rel string) (uint64, error) {
+	f, err := root.OpenFile(p, os.O_RDWR, 0)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, writeAtomicIn(root, p, JournalMagic)
 	}
+	if err != nil {
+		return 0, err
+	}
+	data, err := readAllLimited(f, maxJournalBytes)
+	if err == nil && len(data) < len(JournalMagic) && bytes.HasPrefix(JournalMagic, data) {
+		// Coupure pendant la création : journal réécrit, une fois le fichier fermé (Windows refuse de
+		// remplacer un fichier ouvert).
+		_ = f.Close()
+		return 0, writeAtomicIn(root, p, JournalMagic)
+	}
+	defer f.Close()
 	if err != nil {
 		return 0, err
 	}
@@ -339,7 +385,7 @@ func (s *Store) prepare(p, rel string) (uint64, error) {
 		return 0, err
 	}
 	if end < len(data) {
-		if err := os.Truncate(p, int64(end)); err != nil {
+		if err := f.Truncate(int64(end)); err != nil {
 			return 0, err
 		}
 	}
@@ -355,7 +401,12 @@ func (s *Store) Remove(rel string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.counts, rel)
-	if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+	root, err := s.openRoot()
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	if err := root.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	return nil
@@ -368,7 +419,7 @@ func (s *Store) List(dirRel string) ([]string, error) { return s.list(dirRel, fa
 func (s *Store) Dirs(dirRel string) ([]string, error) { return s.list(dirRel, true) }
 
 func (s *Store) list(dirRel string, dirs bool) ([]string, error) {
-	dir := s.dir
+	dir := "."
 	if dirRel != "" {
 		p, err := s.path(dirRel)
 		if err != nil {
@@ -376,10 +427,20 @@ func (s *Store) list(dirRel string, dirs bool) ([]string, error) {
 		}
 		dir = p
 	}
-	entries, err := os.ReadDir(dir)
+	root, err := s.openRoot()
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	f, err := root.Open(dir)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
+	if err != nil {
+		return nil, err
+	}
+	entries, err := f.ReadDir(-1)
+	_ = f.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -393,14 +454,19 @@ func (s *Store) list(dirRel string, dirs bool) ([]string, error) {
 	return names, nil
 }
 
-// readLimited lit un fichier de max octets au plus.
-func readLimited(p string, max int) ([]byte, error) {
-	f, err := os.Open(p)
+// readLimited lit le fichier name du dossier root, de max octets au plus.
+func readLimited(root *os.Root, name string, max int) ([]byte, error) {
+	f, err := root.Open(name)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, int64(max)+1))
+	return readAllLimited(f, max)
+}
+
+// readAllLimited lit r jusqu'au bout, max octets au plus.
+func readAllLimited(r io.Reader, max int) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, int64(max)+1))
 	if err != nil {
 		return nil, err
 	}
@@ -410,13 +476,42 @@ func readLimited(p string, max int) ([]byte, error) {
 	return data, nil
 }
 
+// fsDir est un dossier où écrire un fichier d'un bloc : un os.Root (dossier des données), ou le dossier
+// des clés désigné par son chemin.
+type fsDir interface {
+	MkdirAll(name string, perm os.FileMode) error
+	OpenFile(name string, flag int, perm os.FileMode) (*os.File, error)
+	Rename(oldname, newname string) error
+	Remove(name string) error
+}
+
+// pathDir désigne un dossier par son chemin (dossier des clés, hors du dossier des données).
+type pathDir struct{}
+
+func (pathDir) MkdirAll(name string, perm os.FileMode) error { return os.MkdirAll(name, perm) }
+func (pathDir) OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) {
+	return os.OpenFile(name, flag, perm)
+}
+func (pathDir) Rename(oldname, newname string) error { return os.Rename(oldname, newname) }
+func (pathDir) Remove(name string) error             { return os.Remove(name) }
+
 // writeAtomic écrit un fichier lisible par son seul propriétaire, d'un bloc et sur le disque.
-func writeAtomic(p string, data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+func writeAtomic(p string, data []byte) error { return writeAtomicIn(pathDir{}, p, data) }
+
+// writeAtomicIn écrit name dans d d'un bloc : fichier temporaire neuf (un reste, ou un lien posé à sa
+// place, est d'abord retiré, puis O_EXCL refuse tout ce qui y réapparaîtrait), écrit sur le disque,
+// puis renommé.
+func writeAtomicIn(d fsDir, name string, data []byte) error {
+	if dir := filepath.Dir(name); dir != "." {
+		if err := d.MkdirAll(dir, 0o700); err != nil {
+			return err
+		}
+	}
+	tmp := name + ".tmp"
+	if err := d.Remove(tmp); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	tmp := p + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	f, err := d.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return err
 	}
@@ -428,10 +523,10 @@ func writeAtomic(p string, data []byte) error {
 		err = cerr
 	}
 	if err == nil {
-		err = os.Rename(tmp, p)
+		err = d.Rename(tmp, name)
 	}
 	if err != nil {
-		_ = os.Remove(tmp)
+		_ = d.Remove(tmp)
 	}
 	return err
 }

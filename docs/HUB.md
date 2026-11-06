@@ -220,12 +220,18 @@ allumé 4 h par jour, 70 Mo pour un PC qui ne s'éteint jamais.
 - **AES-256-GCM**, nonce aléatoire de 96 bits par enregistrement ; une clé par fichier dérivée par **HKDF-SHA256** de
   la clé des données (sans sel ; information : `patronus-hub/1 file key`, un octet nul, puis le chemin du fichier) :
   un enregistrement déplacé d'un fichier à l'autre est refusé. `hub.db` et `devices.db` sont réécrits en entier à
-  chaque changement (fichier temporaire, écriture sur le disque, puis renommage).
+  chaque changement (fichier temporaire neuf, écriture sur le disque, puis renommage).
+- Toutes les opérations restent **dans le dossier des données** (`os.Root`) : un lien symbolique qui en sort, vers
+  `/keys` par exemple, est refusé, même posé pendant une opération. Qui peut écrire dans `/data` ne peut donc faire
+  ni écrire, ni tronquer, ni supprimer par le hub un fichier situé ailleurs.
 - **Fichier entier** : `PHF1`, nonce, texte chiffré et étiquette ; données authentifiées : `PHF1` puis le chemin.
 - **Journal** : `PHJ1`, puis chaque enregistrement : longueur du reste (4 octets, gros-boutiste), nonce, texte chiffré
   et étiquette ; données authentifiées : `PHJ1`, rang de l'enregistrement (8 octets, gros-boutiste) puis le chemin.
   Un enregistrement retiré, interverti ou modifié rend le journal illisible ; un enregistrement incomplet en fin de
-  journal est ignoré, puis remplacé au prochain ajout. 1 Mio au plus par enregistrement, 64 Mio par fichier entier.
+  journal est ignoré, puis remplacé au prochain ajout. La **fin** d'un journal peut donc disparaître sans erreur
+  (une troncature ne se distingue pas d'un ajout interrompu par une coupure), comme un fichier peut être supprimé :
+  le chiffrement empêche de lire et de falsifier, pas d'effacer. 1 Mio au plus par enregistrement, 64 Mio par
+  fichier entier.
 - La clé des données (`/keys/data.key`, PEM, `0600`) n'est jamais remplacée si elle est illisible : une nouvelle clé
   rendrait toutes les données illisibles.
 - Vecteurs de test dans `protocol/hub-store-vectors.json` (paquet `agent/internal/hub/store`), recalculés à chaque
@@ -239,6 +245,9 @@ allumé 4 h par jour, 70 Mo pour un PC qui ne s'éteint jamais.
   peut être sauvegardé : sans la clé, il est illisible), un partage de fichiers mal réglé.
 - **Ne protège pas** contre un disque volé si la clé est sur le même volume, sauf volume chiffré par DSM ; ni contre
   un attaquant root sur le NAS (T30).
+- **Ne date pas les fichiers** : un fichier ancien mais authentique est accepté. Restaurer `/data` depuis une
+  sauvegarde rétablit donc les appareils autorisés, les invitations et les PC confiés de cette date, y compris un
+  appareil retiré depuis. Après une restauration, revoyez les appareils autorisés du hub.
 - **Clé perdue = historique du hub perdu**. Les agents gardent leurs 30 jours de journal et 90 jours de mesures, et
   les archives GitHub des applications restent : rien d'essentiel ne disparaît. Le guide conseille de copier une fois
   le dossier `/keys` sur une clé USB rangée à part.
@@ -331,7 +340,7 @@ Une PR par étape, chacune testée en CI et fusionnée quand tout est vert :
 | 2.0-G | Application Android : idem : fait (G1 : service et gestionnaire du hub dans `core`, `HubService` et `HubManager`, éprouvés contre le vrai hub en CI ; règle commune des évènements admis, Go et Kotlin ; G2 : écran « Hub sur le NAS » : appairage par QR code ou lien, état, PC et appareils confiés, appareils sans agent, conservation, appareils autorisés et invitations, oubli ; G3a : ligne « Hub » de la fiche d'un PC, « Confier au hub », « Pendant votre absence », relevé du hub tant que l'application est affichée ; G3b : réveil relayé par le hub hors du réseau du PC, journal et mesures gardés par le hub dans l'écran « Mesures ») |
 | 2.0-H | Programmations (§8), rôle `control` donné et retiré par l'application : fait (H1 : côté hub, `hub.schedules`, planificateur, fuseau horaire, rôle effectif du hub suivi, évènements `shutdown` et réveils programmés ; éprouvé contre de vrais agents de test. H2 : application Windows, programmation d'un PC confié, rôle `control` donné puis retiré auprès de l'agent, fuseau horaire, textes des nouveaux évènements. H3 : application Android, idem, au-dessus de `HubManager.setSchedule` ; règle des programmations valides commune, Go et Kotlin) |
 | 2.0-I | Image de conteneur multi-architecture, attestation, publication ; guide `docs/HUB-SYNOLOGY.md` : fait (I1 : image OCI reproductible, essayée avec Podman à chaque build, publiée sur GHCR et attestée par le job de publication ; binaires `patronus-hub-linux-amd64` et `-arm64` dans chaque version. I2 : guide [HUB-SYNOLOGY.md](HUB-SYNOLOGY.md)) |
-| 2.0-J | Agent 1.14.0 (`wolagent/1` désactivé sur les nouvelles installations), revue de sécurité (§15), versions 2.0.0 |
+| 2.0-J | Agent 1.14.0 (`wolagent/1` désactivé sur les nouvelles installations), revue de sécurité (§15), versions 2.0.0 : en cours (J1 : agent 1.14.0, `wol-agent protocols` ; J2 : revue de sécurité adverse et fuzzing, [REVUE-SECURITE-2.0.md](REVUE-SECURITE-2.0.md) ; J3 : préversion 2.0.0-beta, puis 2.0.0) |
 
 ## 15. Décisions à prendre
 

@@ -305,15 +305,17 @@ func Previous(slot hubprotocol.Slot, loc *time.Location, now time.Time) (time.Ti
 	if !ok {
 		return time.Time{}, false
 	}
+	// La plus récente des occurrences échues, du lendemain (heure ramenée à la veille par un changement
+	// d'heure à minuit) à 8 jours en arrière.
 	local := now.In(loc)
-	for back := 0; back <= 7; back++ {
-		day := local.AddDate(0, 0, -back)
-		t := time.Date(day.Year(), day.Month(), day.Day(), hh, mm, 0, 0, loc)
-		if slices.Contains(slot.Days, isoWeekday(t)) && !t.After(now) {
-			return t, true
+	var last time.Time
+	found := false
+	for offset := 1; offset >= -8; offset-- {
+		if t, ok := occurrence(slot, loc, local, offset, hh, mm); ok && !t.After(now) && (!found || t.After(last)) {
+			last, found = t, true
 		}
 	}
-	return time.Time{}, false
+	return last, found
 }
 
 // Next renvoie la prochaine occurrence de slot après now, dans le fuseau loc.
@@ -322,15 +324,30 @@ func Next(slot hubprotocol.Slot, loc *time.Location, now time.Time) (time.Time, 
 	if !ok {
 		return time.Time{}, false
 	}
+	// La plus proche des occurrences à venir, de la veille (heure repoussée au lendemain par un changement
+	// d'heure) à 8 jours plus tard.
 	local := now.In(loc)
-	for ahead := 0; ahead <= 8; ahead++ {
-		day := local.AddDate(0, 0, ahead)
-		t := time.Date(day.Year(), day.Month(), day.Day(), hh, mm, 0, 0, loc)
-		if slices.Contains(slot.Days, isoWeekday(t)) && t.After(now) {
-			return t, true
+	var first time.Time
+	found := false
+	for offset := -1; offset <= 8; offset++ {
+		if t, ok := occurrence(slot, loc, local, offset, hh, mm); ok && t.After(now) && (!found || t.Before(first)) {
+			first, found = t, true
 		}
 	}
-	return time.Time{}, false
+	return first, found
+}
+
+// occurrence renvoie l'instant hh:mm du jour du calendrier situé offset jours après celui de local (avant,
+// si offset est négatif), et si ce jour est programmé. Le jour se lit à midi, jamais pendant un changement
+// d'heure : c'est lui qui compte, pas le jour où tombe l'instant. Une heure qui n'existe pas ce jour-là
+// (passage à l'heure d'été) est décalée par Go de l'écart du changement, parfois sur la veille quand il a
+// lieu à minuit (Santiago, La Havane) : l'occurrence a lieu, une fois, à cet instant-là.
+func occurrence(slot hubprotocol.Slot, loc *time.Location, local time.Time, offset, hh, mm int) (time.Time, bool) {
+	day := time.Date(local.Year(), local.Month(), local.Day()+offset, 12, 0, 0, 0, loc)
+	if !slices.Contains(slot.Days, isoWeekday(day)) {
+		return time.Time{}, false
+	}
+	return time.Date(day.Year(), day.Month(), day.Day(), hh, mm, 0, 0, loc), true
 }
 
 // isoWeekday renvoie le jour ISO de t : 1 (lundi) à 7 (dimanche).
