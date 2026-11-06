@@ -3,6 +3,20 @@
 Chaque section « ## X.Y.Z » est affichée dans les applications au moment de proposer la mise à jour
 (titres « ### » et listes « - » ; `**gras**` accepté). À compléter avant de publier une version.
 
+## 2.0.0
+
+- **Hub sur le NAS** (nouveau, facultatif) : un petit service qui tourne en continu sur un NAS Synology (Container Manager) et veille sur vos PC même quand votre téléphone et votre ordinateur sont éteints. Installation pas à pas : guide HUB-SYNOLOGY.md de la documentation du projet.
+- **Historique long** : avec le hub, le journal et les mesures de chaque PC sont gardés un an par défaut (de 3 mois à 3 ans), au-delà des 30 et 90 jours de l'agent, et s'affichent dans l'écran « Mesures ».
+- **« Pendant votre absence »** : PC qui ne répond plus ou de nouveau, arrêt inattendu, disque à surveiller, mesure critique… le hub les note, l'application les montre à son ouverture.
+- **Programmations** : démarrer un PC à heure fixe, l'éteindre le soir s'il n'est plus utilisé (processeur au repos et aucune demande depuis une heure ; jamais d'extinction forcée).
+- **Démarrage depuis le NAS** : hors du réseau de la maison (VPN), le hub envoie le paquet magique à votre place.
+- **Pour commencer** : *Réglages → Hub sur le NAS* (Windows) ou *Réglages → Appairer un hub* (téléphone), avec le lien affiché par le NAS ; puis, sur la fiche d'un PC, *Confier au hub*. Sans hub, tout fonctionne comme avant.
+
+### Sécurité
+
+- Le hub n'est administrateur d'aucun PC et ne relaie aucune commande : il démarre les PC, et n'éteint que ceux dont vous avez programmé l'extinction. Ses données sont chiffrées sur le NAS, il ne contacte aucun service sur Internet, et tourne sans aucun privilège. Une revue de sécurité adverse et des tests de fuzzing l'accompagnent (REVUE-SECURITE-2.0.md).
+- **Agent 1.14.0** : une nouvelle installation n'accepte plus que la connexion chiffrée ; `wol-agent protocols v1 on` rétablit l'ancien protocole pour un téléphone sous Android 8 ou 9.
+
 ## 1.15.0
 
 - **Ressources** (avec l'agent 1.13.0) : la fiche d'un PC allumé affiche la mémoire vive utilisée et, sur un portable, la charge de la batterie, avec une jauge, en orange puis en rouge au-delà des seuils (mémoire à 90 % puis 97 %, batterie à 20 % puis 10 %). Ces mesures sont décrites par l'agent lui-même : celles qu'ajouteront ses prochaines versions s'afficheront sans mettre à jour l'application.

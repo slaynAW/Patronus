@@ -9,10 +9,12 @@
 # agent/NOUVEAUTES.md, binaires Windows) : les agents installés s'en servent pour se mettre à jour.
 #
 # Signé et joint aux versions officielles seulement (les applications ne lisent que la dernière
-# d'entre elles) : la clé n'est remise qu'au job « Publication officielle », après validation.
+# d'entre elles) : la clé n'est remise qu'au job « Publication officielle », après validation. Une
+# préversion (X.Y.Z-beta.N, PRERELEASE=true) n'en a pas : elle n'est jamais proposée par les mises à
+# jour intégrées, et ses nouveautés sont celles de la version X.Y.Z à venir.
 #
-# Variables : VERSION, AGENT_VERSION, OFFICIAL (true/false), WOL_VERSION_CODE ; pour une version
-# officielle, KEYSTORE_BASE64 et KEYSTORE_PASSWORD.
+# Variables : VERSION, AGENT_VERSION, OFFICIAL (true/false), PRERELEASE (true/false), WOL_VERSION_CODE ;
+# pour une version officielle définitive, KEYSTORE_BASE64 et KEYSTORE_PASSWORD.
 set -euo pipefail
 
 base_version="${VERSION%%-*}"
@@ -26,8 +28,15 @@ if [[ -z "$notes" ]]; then
   notes="Version de développement."
 fi
 
-# Nouveautés en tête des notes de la Release.
-{ echo "## ✨ Nouveautés"; echo; echo "$notes"; echo; cat notes.md; } > notes.tmp && mv notes.tmp notes.md
+# Nouveautés en tête des notes de la Release, sous l'avertissement d'une préversion.
+{
+  if [[ "${PRERELEASE:-false}" == true ]]; then
+    echo "> 🧪 **Préversion ${VERSION}**, pour essai : elle n'est pas proposée par les mises à jour intégrées."
+    echo "> Installée à la main, elle recevra ensuite la version ${base_version} définitive, par-dessus et sans rien perdre."
+    echo
+  fi
+  echo "## ✨ Nouveautés"; echo; echo "$notes"; echo; cat notes.md
+} > notes.tmp && mv notes.tmp notes.md
 
 describe() { # plateforme nom
   local path="dist/$2"
@@ -63,6 +72,10 @@ cat update.json
 
 if [[ "$OFFICIAL" != true ]]; then
   echo "Version de développement : manifeste ni signé ni joint."
+  exit 0
+fi
+if [[ "${PRERELEASE:-false}" == true ]]; then
+  echo "Préversion : manifeste ni signé ni joint (jamais proposée par les mises à jour intégrées)."
   exit 0
 fi
 if [[ -z "${KEYSTORE_BASE64:-}" || -z "${KEYSTORE_PASSWORD:-}" ]]; then

@@ -296,7 +296,8 @@ services:
   binaire (mode 0555, propriétaire root), utilisateur 65532, port 9771, volumes `/data` et `/keys`. Mêmes binaires et
   même date (celle du commit) : même empreinte. Le job « Hub (image de conteneur) » l'essaie à chaque build avec
   Podman, réglée comme dans le guide (utilisateur 65532, lecture seule, sans capacité, `no-new-privileges`) ; le job de
-  publication pousse cette même image sur GHCR (étiquettes `X.Y.Z` et `latest`, `skopeo`, empreintes conservées).
+  publication pousse cette même image sur GHCR (étiquettes `X.Y.Z` et `latest`, `skopeo`, empreintes conservées ;
+  une préversion `X.Y.Z-beta.N` n'a que son numéro).
 - Provenance attestée pour l'image (empreinte `sha256`) et le binaire, inventaire des composants (SBOM),
   `govulncheck`. Vérification : `gh attestation verify oci://ghcr.io/slaynaw/patronus-hub:2.0.0 --repo slaynAW/Patronus`.
 - Le fichier de projet du guide peut épingler l'image par son empreinte (`@sha256:…`) pour qui veut vérifier avant
@@ -340,7 +341,7 @@ Une PR par étape, chacune testée en CI et fusionnée quand tout est vert :
 | 2.0-G | Application Android : idem : fait (G1 : service et gestionnaire du hub dans `core`, `HubService` et `HubManager`, éprouvés contre le vrai hub en CI ; règle commune des évènements admis, Go et Kotlin ; G2 : écran « Hub sur le NAS » : appairage par QR code ou lien, état, PC et appareils confiés, appareils sans agent, conservation, appareils autorisés et invitations, oubli ; G3a : ligne « Hub » de la fiche d'un PC, « Confier au hub », « Pendant votre absence », relevé du hub tant que l'application est affichée ; G3b : réveil relayé par le hub hors du réseau du PC, journal et mesures gardés par le hub dans l'écran « Mesures ») |
 | 2.0-H | Programmations (§8), rôle `control` donné et retiré par l'application : fait (H1 : côté hub, `hub.schedules`, planificateur, fuseau horaire, rôle effectif du hub suivi, évènements `shutdown` et réveils programmés ; éprouvé contre de vrais agents de test. H2 : application Windows, programmation d'un PC confié, rôle `control` donné puis retiré auprès de l'agent, fuseau horaire, textes des nouveaux évènements. H3 : application Android, idem, au-dessus de `HubManager.setSchedule` ; règle des programmations valides commune, Go et Kotlin) |
 | 2.0-I | Image de conteneur multi-architecture, attestation, publication ; guide `docs/HUB-SYNOLOGY.md` : fait (I1 : image OCI reproductible, essayée avec Podman à chaque build, publiée sur GHCR et attestée par le job de publication ; binaires `patronus-hub-linux-amd64` et `-arm64` dans chaque version. I2 : guide [HUB-SYNOLOGY.md](HUB-SYNOLOGY.md)) |
-| 2.0-J | Agent 1.14.0 (`wolagent/1` désactivé sur les nouvelles installations), revue de sécurité (§15), versions 2.0.0 : en cours (J1 : agent 1.14.0, `wol-agent protocols` ; J2 : revue de sécurité adverse et fuzzing, [REVUE-SECURITE-2.0.md](REVUE-SECURITE-2.0.md) ; J3 : préversion 2.0.0-beta, puis 2.0.0) |
+| 2.0-J | Agent 1.14.0 (`wolagent/1` désactivé sur les nouvelles installations), revue de sécurité (§15), versions 2.0.0 : en cours (J1 : agent 1.14.0, `wol-agent protocols`, fait ; J2 : revue de sécurité adverse et fuzzing, [REVUE-SECURITE-2.0.md](REVUE-SECURITE-2.0.md), fait ; J3 : version 2.0.0, préversions `X.Y.Z-beta.N` dans la CI, puis préversion 2.0.0-beta.1 et version 2.0.0) |
 
 ## 15. Décisions à prendre
 

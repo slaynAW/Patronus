@@ -34,6 +34,10 @@ Anciennement **Wake On LAN** (jusqu'à la version 1.5.0).
 - 🕘 **Historique discret** des démarrages et extinctions sur 30 jours (complet grâce au journal de l'agent, même quand
   l'application était fermée).
 - 🌙 **Style sombre et moderne**, identique sur Android et Windows : synthèse en anneau, plan du réseau, fiche de chaque PC.
+- 🏠 **Hub sur le NAS** (2.0, facultatif) : un petit service sur un NAS Synology veille sur vos PC en continu, même
+  téléphone et ordinateur éteints. Il garde un an d'historique et de mesures, signale ce qui s'est passé « pendant votre
+  absence », démarre ou éteint les PC à heure fixe, et les démarre depuis le réseau de la maison quand vous êtes
+  ailleurs. Sans aucun privilège sur les PC ni accès à Internet ([docs/HUB-SYNOLOGY.md](docs/HUB-SYNOLOGY.md)).
 - 🤝 **Partage des PC** avec les personnes de votre choix, PC par PC (démarrer seulement, consulter, ou aussi
   éteindre) : invitation par QR code ou lien, accès chiffré pour le seul appareil de la personne et signé par vous, mis
   à jour automatiquement, retirable à tout moment. Un PC en connexion chiffrée enregistre lui-même l'appareil de la
@@ -169,6 +173,19 @@ Commandes utiles : `wol-agent pair` (réafficher le QR code), `wol-agent status`
 `wolagent/1`), `wol-agent protocols` (protocoles acceptés),
 `wol-agent update` (mettre à jour), `wol-agent uninstall`. Détails : **[agent/README.md](agent/README.md)**.
 
+### Hub sur le NAS (facultatif)
+
+Le **hub** tourne en continu sur un NAS Synology, dans Container Manager. Il surveille les PC que vous lui confiez
+et les appareils de la maison (box, imprimante…), garde leur journal et leurs mesures un an par défaut, note les
+évènements « pendant votre absence », applique les programmations (démarrer à heure fixe, éteindre un PC resté
+inactif) et envoie le paquet magique depuis le réseau local quand votre téléphone est ailleurs.
+
+Il n'est administrateur d'aucun PC et ne relaie aucune commande. Ses données sont chiffrées sur le NAS, et il ne
+contacte aucun service sur Internet.
+
+Installation pas à pas : **[docs/HUB-SYNOLOGY.md](docs/HUB-SYNOLOGY.md)**. Conception :
+[docs/HUB.md](docs/HUB.md). Revue de sécurité : [docs/REVUE-SECURITE-2.0.md](docs/REVUE-SECURITE-2.0.md).
+
 ## 5. Utilisation
 
 - **Vue d'ensemble** : anneau de synthèse (allumés, en cours, éteints, inconnus) et un voyant par PC — 🟢 allumé, 🔴 éteint,
@@ -292,7 +309,8 @@ clé) ; pour l'administrer : `wol-agent devices role <début de son empreinte> a
 Versions : AGP 9.4, Kotlin 2.4, Gradle 9.7, compileSdk/targetSdk 37, minSdk 26, Go 1.26 (version exacte : ligne
 `toolchain` des `go.mod`).
 Publier une version officielle : onglet **Actions → Build → Run workflow**, branche `main`, champ
-« Version officielle à publier » (ex. `1.2.0`). Une fois les builds terminés, le job « Publication officielle » attend
+« Version officielle à publier » (ex. `1.2.0`, ou `1.2.0-beta.1` pour une préversion, jamais proposée par les mises à
+jour intégrées). Une fois les builds terminés, le job « Publication officielle » attend
 ta validation (**Review deployments**, voir [docs/SIGNATURE.md](docs/SIGNATURE.md)), puis crée le tag `v1.2.0` et la
 Release (pousser un tag `vX.Y.Z` fonctionne aussi). Sans numéro, le build met simplement à jour la pré-version `dev`.
 Chaque Release contient l'APK, l'application Windows (x64 et ARM64), les agents, leurs sommes de contrôle et

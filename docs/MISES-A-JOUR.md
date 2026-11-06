@@ -39,6 +39,12 @@ l'application (même clé de signature, numéro de version plus grand).
    **`update.json`** (+ `update.json.sig`). Les applications le trouvent à l'adresse
    `https://github.com/slaynAW/Patronus/releases/latest/download/update.json`.
 
+**Préversion** (`X.Y.Z-beta.N`, par exemple `2.0.0-beta.1`) : même procédure, avec ce numéro. La CI la publie comme
+*Pre-release*, signée avec la clé définitive, mais sans manifeste : la « dernière version » reste la précédente, et
+aucune mise à jour intégrée ne la propose. Ses nouveautés sont celles de la section `## X.Y.Z` à venir. Son agent porte
+le même suffixe (`1.14.0-beta.1`), et l'image du hub n'a que son numéro, sans l'étiquette `latest`. Installée à la main,
+elle reçoit ensuite la version `X.Y.Z` définitive, par-dessus.
+
 Seules les versions officielles sont proposées (la pré-version `dev` est ignorée). Le numéro comparé
 est le code de build (numéro d'exécution de la CI), qui augmente à chaque build.
 
