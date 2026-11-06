@@ -96,15 +96,26 @@ build ; une entrée qui fait échouer une cible y est gardée en artefact.
 | `devices.FuzzOpenStorage`, `fleet.FuzzOpen` | Registre ou liste de PC quelconque : jamais de plantage. Ce qui est accepté est cohérent (appareils et identifiants distincts, rôles valides, jamais le hub administrateur d'un PC) |
 | `protocol2.FuzzReadFrame`, `FuzzParseLink`, `FuzzNormalizeCode`, `FuzzParsePin` | Cibles du protocole `wolagent/2`, déjà présentes ([PROTOCOLE-V2.md §12](PROTOCOLE-V2.md#12-comportements-de-sécurité-imposés)) |
 
-Campagne locale de cette revue, aucun échec :
+Campagne locale de cette revue (4 cœurs), aucun échec :
 
 | Cible | Durée | Essais |
 |---|---|---|
-| `server.FuzzRequests` | 5 min | environ 809 000 |
+| `server.FuzzRequests` | 5 min | 0,8 million |
 | `store.FuzzJournalIntegrity` | 90 s | 4,3 millions |
 | `store.FuzzOpenJournal` | 90 s | 7,9 millions |
-| `schedule.FuzzNext` | 4 min après la correction de R2 | — |
-| Autres cibles | campagne en cours | — |
+| `store.FuzzOpenFile` | 60 s | 5,1 millions |
+| `schedule.FuzzNext` | 2 min, plus 4 min avant | 3,4 millions sur les 2 min |
+| `hubprotocol.FuzzParseLink` | 60 s | 4,4 millions |
+| `hubprotocol.FuzzSlot` | 45 s | 3,1 millions |
+| `devices.FuzzOpenStorage` | 60 s | 4,4 millions |
+| `fleet.FuzzOpen` | 60 s | 4,7 millions |
+| `protocol2.FuzzReadFrame`, `FuzzParseLink` | 30 s chacune | 1,9 million chacune |
+| `protocol2.FuzzNormalizeCode`, `FuzzParsePin` | 20 s chacune | 1,2 million chacune |
+
+R2 a été trouvé avant cette campagne. La propriété de `FuzzNext` échouait sur les cas de changement d'heure à
+minuit, désormais gardés parmi ses exemples de départ. Les autres propriétés n'ont pas été prises en défaut. Pour
+s'assurer qu'elles détecteraient une faute, `FuzzRequests` a été essayée avec une faille de droits introduite
+exprès (`hub.settings` permise au rôle `view`) : elle l'a signalée dès ses exemples de départ.
 
 ## 6. Pour aller plus loin
 
