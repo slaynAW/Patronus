@@ -166,6 +166,9 @@ Pour n'installer que l'image vérifiée, épinglez-la par son empreinte dans le 
 - **Sécurité** : le hub tourne sous l'utilisateur 65532, sans aucune capacité, système de fichiers en lecture seule,
   sans accès au socket Docker. Il n'accepte que les adresses du réseau local et les appareils appairés (TLS mutuel,
   [PROTOCOLE-HUB.md](PROTOCOLE-HUB.md)), et ne contacte aucun service sur Internet.
+- **Restaurer une sauvegarde** du dossier de données (Hyper Backup) rétablit tout ce qu'il contenait à cette date,
+  appareils autorisés compris : un téléphone retiré depuis serait de nouveau autorisé. Après une restauration, ouvrez
+  la fiche du hub dans une application et retirez de ses appareils autorisés ceux qui ne devraient plus y être.
 - **Hibernation des disques** : le hub écrit peu (journal d'un PC allumé toutes les 10 minutes s'il a changé,
   mesures une fois par jour, évènements quand ils arrivent ; rien pour un PC éteint), mais chaque écriture réveille
   un disque dur en hibernation.

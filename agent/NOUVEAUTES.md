@@ -9,6 +9,7 @@ affiché dans la fenêtre qui la propose (listes « - » ; `**gras**` accepté).
 
 - **Nouvelles installations en wolagent/2 seulement** : une nouvelle installation de l'agent refuse l'ancien protocole wolagent/1, non chiffré, et n'a donc plus de clé secrète. Les installations existantes ne changent pas. Pour un téléphone sous Android 8 ou 9, ou une application antérieure à 1.12 : `wol-agent protocols v1 on`, puis `wol-agent pair --v1`.
 - **`wol-agent protocols`** : affiche les protocoles acceptés. Une fois tous vos appareils passés en wolagent/2 (leur fiche du PC affiche *Chiffré et authentifié*), `wol-agent protocols v1 off` refuse wolagent/1 sur une installation existante et efface sa clé.
+- **Robustesse** : la mémoire que l'agent garde des connexions refusées est désormais bornée, même face à des tentatives venues d'un très grand nombre d'adresses.
 
 ## 1.13.0
 

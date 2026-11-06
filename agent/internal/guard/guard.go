@@ -14,6 +14,10 @@ import (
 
 // Limiter bloque temporairement une adresse IP après trop d'échecs d'authentification, ce qui rend
 // toute attaque par force brute irréaliste.
+//
+// Sa mémoire est bornée, même face à des échecs venus d'un très grand nombre d'adresses (IPv6) :
+// adresses en échec et blocages expirés sont purgés régulièrement, et au-delà de maxTracked adresses en
+// échec à la fois, leurs compteurs repartent de zéro (les blocages en cours sont gardés).
 type Limiter struct {
 	mu        sync.Mutex
 	failures  map[string][]time.Time
@@ -22,17 +26,47 @@ type Limiter struct {
 	window    time.Duration
 	blockTime time.Duration
 	now       func() time.Time
+
+	calls      int // échecs notés, pour la purge régulière
+	sweepEvery int
+	maxTracked int
 }
+
+// Mémoire du Limiter : purge tous les defaultSweepEvery échecs, defaultMaxTracked adresses en échec au plus.
+const (
+	defaultSweepEvery = 256
+	defaultMaxTracked = 1 << 16
+)
 
 // NewLimiter bloque pendant blockTime une adresse qui a échoué maxFails fois en window.
 func NewLimiter(maxFails int, window, blockTime time.Duration) *Limiter {
 	return &Limiter{
-		failures:  map[string][]time.Time{},
-		blocked:   map[string]time.Time{},
-		maxFails:  maxFails,
-		window:    window,
-		blockTime: blockTime,
-		now:       time.Now,
+		failures:   map[string][]time.Time{},
+		blocked:    map[string]time.Time{},
+		maxFails:   maxFails,
+		window:     window,
+		blockTime:  blockTime,
+		now:        time.Now,
+		sweepEvery: defaultSweepEvery,
+		maxTracked: defaultMaxTracked,
+	}
+}
+
+// sweep retire les adresses dont le dernier échec sort de la fenêtre et les blocages expirés ; au-delà
+// de maxTracked adresses encore en échec, il les oublie toutes. Appelé verrou pris.
+func (r *Limiter) sweep(now time.Time) {
+	for ip, times := range r.failures {
+		if len(times) == 0 || now.Sub(times[len(times)-1]) >= r.window {
+			delete(r.failures, ip)
+		}
+	}
+	for ip, until := range r.blocked {
+		if now.After(until) {
+			delete(r.blocked, ip)
+		}
+	}
+	if len(r.failures) >= r.maxTracked {
+		r.failures = map[string][]time.Time{}
 	}
 }
 
@@ -56,6 +90,9 @@ func (r *Limiter) Fail(ip string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	now := r.now()
+	if r.calls++; r.calls%r.sweepEvery == 0 || len(r.failures) >= r.maxTracked {
+		r.sweep(now)
+	}
 	recent := r.failures[ip][:0]
 	for _, t := range r.failures[ip] {
 		if now.Sub(t) < r.window {

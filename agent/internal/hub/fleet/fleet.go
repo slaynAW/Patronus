@@ -90,10 +90,12 @@ func Open(store Storage, now func() time.Time) (*Fleet, error) {
 	if err := json.Unmarshal(raw, &st); err != nil {
 		return nil, fmt.Errorf("liste des PC du hub illisible : %w", err)
 	}
+	ids := map[string]bool{}
 	for _, p := range st.PCs {
-		if err := validate(p); err != nil || p.ID == "" {
+		if err := validate(p); err != nil || p.ID == "" || ids[p.ID] {
 			return nil, fmt.Errorf("liste des PC du hub incohérente (%q) : %v", p.ID, err)
 		}
+		ids[p.ID] = true
 	}
 	f.pcs = st.PCs
 	return f, nil

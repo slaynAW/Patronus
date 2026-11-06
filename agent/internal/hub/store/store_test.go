@@ -260,3 +260,124 @@ func TestListAndRemove(t *testing.T) {
 		t.Errorf("journal recréé : %q, %v", got, err)
 	}
 }
+
+// TestSymlinksStayInside : un lien symbolique posé dans le dossier des données (par qui peut y écrire,
+// docs/HUB.md §9.3) ne fait jamais lire, écrire, tronquer ni supprimer par le hub un fichier situé
+// ailleurs, comme la clé des données.
+func TestSymlinksStayInside(t *testing.T) {
+	base := t.TempDir()
+	keys := filepath.Join(base, "keys")
+	if _, _, err := LoadOrCreateKey(keys); err != nil {
+		t.Fatal(err)
+	}
+	secret := KeyPath(keys)
+	want, err := os.ReadFile(secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := filepath.Join(base, "data")
+	s, err := Open(data, testKey(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	link := func(target, name string) {
+		t.Helper()
+		p := filepath.Join(data, filepath.FromSlash(name))
+		_ = os.Remove(p)
+		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(target, p); err != nil {
+			t.Skipf("liens symboliques indisponibles : %v", err)
+		}
+	}
+	intact := func(step string) {
+		t.Helper()
+		got, err := os.ReadFile(secret)
+		if err != nil || !bytes.Equal(got, want) {
+			t.Fatalf("%s : clé des données touchée (%v)", step, err)
+		}
+	}
+
+	// Fichier temporaire remplacé par un lien vers la clé : retiré, puis un fichier neuf est écrit.
+	link(secret, "hub.db.tmp")
+	if err := s.WriteFile("hub.db", []byte("{}")); err != nil {
+		t.Fatal(err)
+	}
+	intact("fichier temporaire")
+	if got, err := s.ReadFile("hub.db"); err != nil || string(got) != "{}" {
+		t.Fatalf("hub.db : %q, %v", got, err)
+	}
+
+	// Fichier entier remplacé par un lien : lecture refusée ; l'écriture remplace le lien, pas sa cible.
+	link(secret, "hub.db")
+	if _, err := s.ReadFile("hub.db"); err == nil {
+		t.Error("lien suivi en lecture")
+	}
+	if err := s.WriteFile("hub.db", []byte("[]")); err != nil {
+		t.Fatal(err)
+	}
+	intact("fichier entier")
+	if info, err := os.Lstat(filepath.Join(data, "hub.db")); err != nil || !info.Mode().IsRegular() {
+		t.Errorf("hub.db n'est pas redevenu un fichier : %v", err)
+	}
+
+	// Journal remplacé par un lien : ni lecture, ni ajout.
+	link(secret, "events-2026-11.bin")
+	if _, err := s.Records("events-2026-11.bin"); err == nil {
+		t.Error("journal lu à travers un lien")
+	}
+	if err := s.Append("events-2026-11.bin", []byte("x")); err == nil {
+		t.Error("ajout à travers un lien")
+	}
+	intact("journal")
+
+	// Dossier d'un PC remplacé par un lien vers le dossier des clés (« Retirer du hub » supprime les
+	// fichiers de ce dossier) : ni liste, ni suppression, ni écriture.
+	link(keys, "pc/abc")
+	if names, err := s.List("pc/abc"); err == nil {
+		t.Errorf("dossier des clés listé : %v", names)
+	}
+	if err := s.Remove("pc/abc/" + KeyFileName); err == nil {
+		t.Error("suppression à travers un lien")
+	}
+	if err := s.Append("pc/abc/history-2026-11.bin", []byte("x")); err == nil {
+		t.Error("journal créé à travers un lien")
+	}
+	if err := s.WriteFile("pc/abc/hub.db", []byte("{}")); err == nil {
+		t.Error("fichier créé à travers un lien")
+	}
+	if got, _ := s.Dirs("pc"); len(got) != 0 {
+		t.Errorf("lien compté comme dossier : %v", got)
+	}
+	intact("dossier d'un PC")
+	if names, err := os.ReadDir(keys); err != nil || len(names) != 1 {
+		t.Errorf("dossier des clés modifié : %v, %v", names, err)
+	}
+}
+
+// TestJournalTornCreation : un journal coupé pendant sa création (en-tête incomplet) est recréé au
+// prochain ajout, y compris sous Windows, qui refuse de remplacer un fichier encore ouvert.
+func TestJournalTornCreation(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(dir, testKey(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	const rel = "events-2026-11.bin"
+	for _, torn := range [][]byte{{}, []byte("P"), []byte("PHJ")} {
+		if err := os.WriteFile(filepath.Join(dir, rel), torn, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		fresh, _ := Open(dir, testKey(1)) // journal pas encore ouvert en écriture
+		if err := fresh.Append(rel, []byte("x")); err != nil {
+			t.Fatalf("après %q : %v", torn, err)
+		}
+		if got, err := fresh.Records(rel); err != nil || len(got) != 1 || string(got[0]) != "x" {
+			t.Fatalf("après %q : %q, %v", torn, got, err)
+		}
+		_ = fresh.Close()
+	}
+}

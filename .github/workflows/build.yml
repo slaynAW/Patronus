@@ -165,6 +165,53 @@ jobs:
       - name: Mise à jour de bout en bout
         run: go test -tags e2e -count=1 -run TestUpdateEndToEnd -v -timeout 10m .
 
+  # Fuzzing court (docs/REVUE-SECURITE-2.0.md, §5) : chaque cible 15 s, en plus des exemples de départ que
+  # « go test » rejoue dans le job « agent ». Une entrée qui fait échouer une cible est gardée en artefact.
+  fuzz:
+    name: Fuzzing (protocole et hub)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+      - name: Fuzzing (15 s par cible)
+        run: |
+          set -euo pipefail
+          while read -r pkg target; do
+            echo "::group::$target ($pkg)"
+            go test -run '^$' -fuzz "^${target}\$" -fuzztime 15s "$pkg"
+            echo "::endgroup::"
+          done <<'CIBLES'
+          ./protocol2 FuzzReadFrame
+          ./protocol2 FuzzParseLink
+          ./protocol2 FuzzNormalizeCode
+          ./protocol2 FuzzParsePin
+          ./hubprotocol FuzzParseLink
+          ./hubprotocol FuzzSlot
+          ./internal/devices FuzzOpenStorage
+          ./internal/hub/fleet FuzzOpen
+          ./internal/hub/schedule FuzzNext
+          ./internal/hub/store FuzzOpenJournal
+          ./internal/hub/store FuzzJournalIntegrity
+          ./internal/hub/store FuzzOpenFile
+          ./internal/hub/server FuzzRequests
+          CIBLES
+      - name: Entrées en échec
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-echecs
+          path: agent/**/testdata/fuzz/
+          if-no-files-found: ignore
+
   desktop:
     name: Application Windows (tests + exécutables)
     needs: version
@@ -543,7 +590,7 @@ jobs:
 
   prerelease:
     name: Pré-version de développement
-    needs: [version, agent, agent-windows, desktop, desktop-windows, android, deps, hub-image]
+    needs: [version, agent, agent-windows, fuzz, desktop, desktop-windows, android, deps, hub-image]
     # Push sur une branche ou lancement manuel sans numéro ; jamais pour une pull request, ni pour
     # Dependabot (jeton en lecture seule). Aucun secret : l'APK garde sa clé de test.
     if: >-
@@ -592,7 +639,7 @@ jobs:
 
   release:
     name: Publication officielle
-    needs: [version, agent, agent-windows, desktop, desktop-windows, android, deps, hub-image]
+    needs: [version, agent, agent-windows, fuzz, desktop, desktop-windows, android, deps, hub-image]
     if: needs.version.outputs.official == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20

@@ -533,6 +533,9 @@ func dialFailure(err error) result {
 	return result{state: hubprotocol.StateOffline}
 }
 
+// probeHeaderBytes borne les en-têtes de la réponse d'une sonde web.
+const probeHeaderBytes = 64 << 10
+
 // checkProbe sonde un appareil sans agent : seule compte une réponse, jamais son contenu (§7.2).
 func (m *Monitor) checkProbe(ctx context.Context, p fleet.PC) result {
 	ctx, cancel := context.WithTimeout(ctx, m.timeout)
@@ -561,6 +564,9 @@ func (m *Monitor) checkProbe(ctx context.Context, p fleet.PC) result {
 				// rien n'est envoyé ni lu, seule la réponse compte.
 				TLSClientConfig:   &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // sonde sans données
 				DisableKeepAlives: true,
+				// Seule compte la réponse : des en-têtes démesurés (10 Mo par défaut) ne doivent pas peser sur
+				// la mémoire du conteneur, limitée à 128 Mo (docs/HUB-SYNOLOGY.md).
+				MaxResponseHeaderBytes: probeHeaderBytes,
 			},
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		}

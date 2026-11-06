@@ -12,6 +12,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -269,6 +270,38 @@ func TestProbes(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("PC retiré toujours suivi : %+v", e.mon.States())
+}
+
+// TestProbeHeaderLimit : une page web aux en-têtes démesurés ne fait pas grossir la mémoire du hub ; la
+// réponse est refusée et l'appareil compté comme ne répondant pas.
+func TestProbeHeaderLimit(t *testing.T) {
+	e := start(t)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	var served atomic.Int32
+	big := "HTTP/1.1 200 OK\r\nX-Remplissage: " + strings.Repeat("a", 4*probeHeaderBytes) + "\r\nContent-Length: 0\r\n\r\n"
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer c.Close()
+				_ = c.SetDeadline(time.Now().Add(5 * time.Second))
+				buf := make([]byte, 4096)
+				if n, _ := c.Read(buf); n > 0 {
+					served.Add(1)
+					_, _ = io.WriteString(c, big)
+				}
+			}()
+		}
+	}()
+	pc := e.probe(t, "Caméra bavarde", hubprotocol.Probe{Kind: "http", Port: ln.Addr().(*net.TCPAddr).Port})
+	e.wait(t, pc.ID, pc.Name, func(s hubprotocol.PCState) bool { return s.State == hubprotocol.StateOffline && served.Load() > 0 })
 }
 
 // TestPrivateProbe : une sonde vers une adresse hors des réseaux permis ne part jamais.
