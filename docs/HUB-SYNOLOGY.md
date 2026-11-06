@@ -148,6 +148,10 @@ cd /volume1/docker/patronus-hub && sudo docker-compose pull && sudo docker-compo
 
 `sudo docker exec patronus-hub patronus-hub version` affiche la version en marche.
 
+**Préversion** (pour l'essayer avant tout le monde) : `latest` désigne toujours la dernière version définitive.
+Pour une préversion, écrivez son numéro à la place, par exemple `image: ghcr.io/slaynaw/patronus-hub:2.0.0-beta.1`,
+puis revenez à `latest` une fois la version définitive publiée.
+
 ## 8. Vérifier l'image (facultatif)
 
 L'image est construite par la CI du dépôt à partir du même commit que les applications, et ne contient que le binaire

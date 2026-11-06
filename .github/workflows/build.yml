@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: "Version officielle à publier (ex. 1.0.0). Laisser vide pour un simple build de développement."
+        description: "Version officielle à publier (ex. 2.0.0, ou 2.0.0-beta.1 pour une préversion). Laisser vide pour un simple build de développement."
         required: false
         default: ""
         type: string
@@ -45,6 +45,7 @@ jobs:
     outputs:
       name: ${{ steps.v.outputs.name }}
       official: ${{ steps.v.outputs.official }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
       agent: ${{ steps.v.outputs.agent }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -57,15 +58,21 @@ jobs:
           base=$(grep '^wol.versionName=' gradle.properties | cut -d= -f2)
           official=false
           if [[ -n "$RELEASE_INPUT" ]]; then
-            if [[ ! "$RELEASE_INPUT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "::error title=Version::« $RELEASE_INPUT » n'est pas un numéro de version valide (format attendu : 1.2.3)."
-              exit 1
-            fi
             name="$RELEASE_INPUT"; official=true
           elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             name="${GITHUB_REF_NAME#v}"; official=true
           else
             name="${base}-dev.${GITHUB_RUN_NUMBER}"
+          fi
+          # Version officielle : X.Y.Z, ou X.Y.Z-beta.N pour une préversion (publiée comme telle sur
+          # GitHub, jamais proposée par les mises à jour intégrées ; docs/MISES-A-JOUR.md).
+          prerelease=false
+          if [[ "$official" == true ]]; then
+            if [[ ! "$name" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$ ]]; then
+              echo "::error title=Version::« $name » n'est pas un numéro de version valide (format attendu : 1.2.3, ou 1.2.3-beta.1 pour une préversion)."
+              exit 1
+            fi
+            if [[ "$name" == *-beta.* ]]; then prerelease=true; fi
           fi
           # L'agent a son propre numéro (première section de agent/NOUVEAUTES.md) : il ne change que
           # lorsque l'agent change, et c'est lui que les agents installés comparent au leur.
@@ -75,10 +82,14 @@ jobs:
             exit 1
           fi
           [[ "$official" == true ]] || agent="${agent}-dev.${GITHUB_RUN_NUMBER}"
+          # Agent d'une préversion : même suffixe (1.14.0-beta.1), pour que la version définitive lui soit
+          # toujours proposée ensuite par sa mise à jour intégrée.
+          if [[ "$prerelease" == true ]]; then agent="${agent}-${name#*-}"; fi
           echo "name=$name" >> "$GITHUB_OUTPUT"
           echo "official=$official" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
           echo "agent=$agent" >> "$GITHUB_OUTPUT"
-          echo "Version : $name (code $WOL_VERSION_CODE, officielle : $official) ; agent $agent"
+          echo "Version : $name (code $WOL_VERSION_CODE, officielle : $official, préversion : $prerelease) ; agent $agent"
 
   agent:
     name: Agent PC (tests + binaires)
@@ -656,6 +667,9 @@ jobs:
       VERSION: ${{ needs.version.outputs.name }}
       AGENT_VERSION: ${{ needs.version.outputs.agent }}
       OFFICIAL: "true"
+      # Préversion (X.Y.Z-beta.N) : Release marquée « Pre-release », sans manifeste de mise à jour ni
+      # étiquette « latest » pour l'image du hub ; les mises à jour intégrées ne la proposent jamais.
+      PRERELEASE: ${{ needs.version.outputs.prerelease }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -678,8 +692,13 @@ jobs:
             latest="" # aucune version publiée
           fi
           latest=${latest#v}
-          if [[ -n "$latest" && "$(printf '%s\n' "$latest" "$VERSION" | sort -V | tail -n 1)" != "$VERSION" ]]; then
+          if [[ -n "$latest" && "$(printf '%s\n' "$latest" "${VERSION%%-*}" | sort -V | tail -n 1)" != "${VERSION%%-*}" ]]; then
             echo "::error title=Version::v$VERSION est plus ancienne que la dernière version publiée (v$latest) : choisissez un numéro plus récent."
+            exit 1
+          fi
+          # Préversion d'une version déjà publiée : trop tard.
+          if [[ "$PRERELEASE" == true ]] && gh release view "v${VERSION%%-*}" > /dev/null 2>&1; then
+            echo "::error title=Version::v${VERSION%%-*} est déjà publiée : une préversion v$VERSION n'a plus de sens."
             exit 1
           fi
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -749,7 +768,9 @@ jobs:
           actual="sha256:$(skopeo inspect --raw "oci:$RUNNER_TEMP/hub-image:$VERSION" | sha256sum | cut -d' ' -f1)"
           [[ "$actual" == "$digest" ]] || { echo "::error::l'image ne correspond pas à son empreinte"; exit 1; }
           printf '%s' "$GH_TOKEN" | skopeo login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-          for tag in "$VERSION" latest; do
+          tags=("$VERSION")
+          [[ "$PRERELEASE" == true ]] || tags+=(latest) # « latest » : versions définitives seulement
+          for tag in "${tags[@]}"; do
             skopeo copy --all --preserve-digests "oci:$RUNNER_TEMP/hub-image:$VERSION" "docker://ghcr.io/slaynaw/patronus-hub:$tag"
           done
           skopeo logout ghcr.io
@@ -762,9 +783,12 @@ jobs:
           subject-digest: ${{ steps.hub.outputs.digest }}
       - name: Release
         run: |
+          # Préversion : marquée comme telle, jamais « dernière version » (celle que lisent les mises à jour).
+          flags=()
+          if [[ "$PRERELEASE" == true ]]; then flags=(--prerelease --latest=false); fi
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "Patronus $VERSION" --notes-file notes.md
+            gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "Patronus $VERSION" --notes-file notes.md "${flags[@]}"
           else
             # Crée le tag vX.Y.Z sur le commit compilé, puis la Release.
-            gh release create "v$VERSION" dist/* --target "$GITHUB_SHA" --title "Patronus $VERSION" --notes-file notes.md
+            gh release create "v$VERSION" dist/* --target "$GITHUB_SHA" --title "Patronus $VERSION" --notes-file notes.md "${flags[@]}"
           fi

@@ -3,7 +3,7 @@
 # officielle comme pour la pré-version de développement. update-manifest.sh ajoute ensuite les
 # nouveautés en tête des notes.
 #
-# Variables : VERSION, AGENT_VERSION, OFFICIAL (true/false).
+# Variables : VERSION, AGENT_VERSION, OFFICIAL (true/false), PRERELEASE (true/false).
 set -euo pipefail
 
 (cd dist && sha256sum -- * > SHA256SUMS.txt)
@@ -30,6 +30,17 @@ blob="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}"
   echo "- **Linux** : \`chmod +x wol-agent-linux-amd64 && sudo ./wol-agent-linux-amd64 install\`"
   echo "- **macOS** : \`chmod +x wol-agent-darwin-arm64 && sudo ./wol-agent-darwin-arm64 install\`"
   echo
+  if [[ "$OFFICIAL" == true ]]; then
+    echo "## 🏠 Hub sur le NAS (facultatif)"
+    echo "Image de conteneur \`ghcr.io/slaynaw/patronus-hub:${VERSION}\` (Intel/AMD et ARM 64 bits), à installer dans"
+    echo "Container Manager : guide [HUB-SYNOLOGY.md](${blob}/docs/HUB-SYNOLOGY.md)."
+    if [[ "${PRERELEASE:-false}" == true ]]; then
+      echo "Pour cette préversion, écrivez ce numéro à la place de \`latest\` dans le projet : \`latest\` désigne la dernière version définitive."
+    else
+      echo "Déjà installé : *Image* → *Mettre à jour*, puis *Projet* → *Action* → *Construire*."
+    fi
+    echo
+  fi
   echo "## 🔏 Vérifier les fichiers"
   echo "- Sommes de contrôle : \`SHA256SUMS.txt\`. Commit : ${GITHUB_SHA}."
   if [[ "$OFFICIAL" == true ]]; then
